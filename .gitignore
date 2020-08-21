@@ -1,0 +1,15 @@
+bin/
+build/
+*.vcxproj
+*.filters
+*.user
+*.cmake
+CMakeCache.txt
+CMakeFiles/
+Debug/
+x64/
+*.dir/
+*.sln
+*.editorconfig
+*.yml
+.vs/
