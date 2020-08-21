@@ -176,7 +176,7 @@ namespace gjs {
 		};
 
 		struct scope {
-			robin_hood::unordered_map<string, var> vars;
+			robin_hood::unordered_map<string, var*> vars;
 		};
 
 		func() {
@@ -310,8 +310,9 @@ namespace gjs {
 
 			for (u8 i = 0;i < scopes.size();i++) {
 				for (auto s = scopes[i].vars.begin();s != scopes[i].vars.end();++s) {
-					if ((&s->getSecond()) == v) {
+					if (s->second == v) {
 						scopes[i].vars.erase(s);
+						delete v;
 						return;
 					}
 				}
@@ -323,7 +324,7 @@ namespace gjs {
 		void free_consumed_vars() {
 			for (u8 i = 0;i < scopes.size();i++) {
 				for (auto s = scopes[i].vars.begin();s != scopes[i].vars.end();++s) {
-					var* v = &s->getSecond();
+					var* v = s->getSecond();
 					if (!v->is_variable) continue;
 					if (v->ref_count == v->total_ref_count) free(v);
 				}
@@ -333,7 +334,7 @@ namespace gjs {
 		var* get(ast_node* identifier) {
 			for (u8 i = 0;i < scopes.size();i++) {
 				if (scopes[i].vars.count(*identifier) == 0) continue;
-				var* v = &scopes[i].vars[*identifier];
+				var* v = scopes[i].vars[*identifier];
 				v->ref_count++;
 				return v;
 			}
@@ -350,7 +351,7 @@ namespace gjs {
 			scope& s = scopes.back();
 			vector<var*> vars;
 			for (auto i = s.vars.begin();i != s.vars.end();++i) {
-				vars.push_back(&i->getSecond());
+				vars.push_back(i->getSecond());
 			}
 			for (u32 i = 0;i < vars.size();i++) free(vars[i]);
 			scopes.pop_back();
@@ -511,8 +512,8 @@ namespace gjs {
 		string name = *decl->identifier;
 		data_type* type = ctx.type(decl->data_type);
 		if (type->size > 8 || count > 1) {
-			scopes[scopes.size() - 1].vars[name] = var();
-			var& l = scopes[scopes.size() - 1].vars[name];
+			scopes[scopes.size() - 1].vars[name] = new var();
+			var& l = *scopes[scopes.size() - 1].vars[name];
 			l.is_variable = true;
 			l.name = name;
 			l.ctx = &ctx;
@@ -532,8 +533,8 @@ namespace gjs {
 			else reg = registers.allocate_arg();
 		}
 
-		scopes[scopes.size() - 1].vars[name] = var();
-		var& l = scopes[scopes.size() - 1].vars[name];
+		scopes[scopes.size() - 1].vars[name] = new var();
+		var& l = *scopes[scopes.size() - 1].vars[name];
 		l.is_variable = true;
 		l.name = name;
 		l.ctx = &ctx;
@@ -557,8 +558,8 @@ namespace gjs {
 		u32 count = 1;
 		string name = format("__anon_%d", anon_var_id++);
 		if (type->size > 8 || count > 1) {
-			scopes[scopes.size() - 1].vars[name] = var();
-			var& l = scopes[scopes.size() - 1].vars[name];
+			scopes[scopes.size() - 1].vars[name] = new var();
+			var& l = *scopes[scopes.size() - 1].vars[name];
 			l.is_variable = false;
 			l.ctx = &ctx;
 			l.type = type;
@@ -573,8 +574,8 @@ namespace gjs {
 		if (type->name == "decimal") reg = registers.allocate_fp();
 		else reg = registers.allocate_gp();
 
-		scopes[scopes.size() - 1].vars[name] = var();
-		var& l = scopes[scopes.size() - 1].vars[name];
+		scopes[scopes.size() - 1].vars[name] = new var();
+		var& l = *scopes[scopes.size() - 1].vars[name];
 		l.is_variable = false;
 		l.ctx = &ctx;
 		l.type = type;
@@ -592,30 +593,28 @@ namespace gjs {
 
 	var* func::imm(compile_context& ctx, integer i) {
 		string name = format("__anon_%d", anon_var_id++);
-		scopes[scopes.size() - 1].vars[name] = var();
-		var& l = scopes[scopes.size() - 1].vars[name];
-		l.is_variable = false;
-		l.ctx = &ctx;
-		l.type = ctx.type("integer");
-		l.count = 1;
-		l.is_reg = false;
-		l.is_imm = true;
-		l.imm.i = i;
-		return &l;
+		var* l = scopes[scopes.size() - 1].vars[name] = new var();
+		l->is_variable = false;
+		l->ctx = &ctx;
+		l->type = ctx.type("integer");
+		l->count = 1;
+		l->is_reg = false;
+		l->is_imm = true;
+		l->imm.i = i;
+		return l;
 	}
 
 	var* func::imm(compile_context& ctx, decimal d) {
 		string name = format("__anon_%d", anon_var_id++);
-		scopes[scopes.size() - 1].vars[name] = var();
-		var& l = scopes[scopes.size() - 1].vars[name];
-		l.is_variable = false;
-		l.ctx = &ctx;
-		l.type = ctx.type("decimal");
-		l.count = 1;
-		l.is_reg = false;
-		l.is_imm = true;
-		l.imm.d = d;
-		return &l;
+		var* l = scopes[scopes.size() - 1].vars[name] = new var();
+		l->is_variable = false;
+		l->ctx = &ctx;
+		l->type = ctx.type("decimal");
+		l->count = 1;
+		l->is_reg = false;
+		l->is_imm = true;
+		l->imm.d = d;
+		return l;
 	}
 
 	var* func::imm(compile_context& ctx, char* s) {
@@ -769,12 +768,12 @@ namespace gjs {
 		} else if (is_imm) {
 			if (type->name == "integer") {
 				ctx->add(
-					encode(vmi::add).operand(reg).operand(vmr::zero).operand(imm.i),
+					encode(vmi::addi).operand(reg).operand(vmr::zero).operand(imm.i),
 					because
 				);
 			} else {
 				ctx->add(
-					encode(vmi::fadd).operand(reg).operand(vmr::zero).operand(imm.d),
+					encode(vmi::faddi).operand(reg).operand(vmr::zero).operand(imm.d),
 					because
 				);
 			}
@@ -840,12 +839,12 @@ namespace gjs {
 		} else if (is_imm) {
 			if (type->name == "integer") {
 				ctx->add(
-					encode(vmi::add).operand(reg).operand(vmr::zero).operand(imm.i),
+					encode(vmi::addi).operand(reg).operand(vmr::zero).operand(imm.i),
 					because
 				);
 			} else {
 				ctx->add(
-					encode(vmi::fadd).operand(reg).operand(vmr::zero).operand(imm.d),
+					encode(vmi::faddi).operand(reg).operand(vmr::zero).operand(imm.d),
 					because
 				);
 			}
@@ -883,12 +882,12 @@ namespace gjs {
 		} else if (is_imm) {
 			if (type->name == "integer") {
 				ctx->add(
-					encode(vmi::add).operand(reg).operand(vmr::zero).operand(imm.i),
+					encode(vmi::addi).operand(reg).operand(vmr::zero).operand(imm.i),
 					because
 				);
 			} else {
 				ctx->add(
-					encode(vmi::fadd).operand(reg).operand(vmr::zero).operand(imm.d),
+					encode(vmi::faddi).operand(reg).operand(vmr::zero).operand(imm.d),
 					because
 				);
 			}
@@ -916,12 +915,12 @@ namespace gjs {
 		} else if (is_imm) {
 			if (type->name == "integer") {
 				ctx->add(
-					encode(vmi::add).operand(reg).operand(vmr::zero).operand(imm.i),
+					encode(vmi::addi).operand(reg).operand(vmr::zero).operand(imm.i),
 					because
 				);
 			} else {
 				ctx->add(
-					encode(vmi::fadd).operand(reg).operand(vmr::zero).operand(imm.d),
+					encode(vmi::faddi).operand(reg).operand(vmr::zero).operand(imm.d),
 					because
 				);
 			}
@@ -950,7 +949,7 @@ namespace gjs {
 		vector <pair<var*, vmr>> restore_pairs;
 		for (u32 s = 0;s < ctx.cur_func->scopes.size();s++) {
 			for (auto i = ctx.cur_func->scopes[s].vars.begin();i != ctx.cur_func->scopes[s].vars.end();++i) {
-				var* v = &i->getSecond();
+				var* v = i->getSecond();
 				if (v->is_reg) {
 					restore_pairs.push_back(pair<var*, vmr>(v, v->loc.reg));
 				}
@@ -979,7 +978,7 @@ namespace gjs {
 		// back up register vars to the stack
 		for (u32 s = 0;s < ctx.cur_func->scopes.size();s++) {
 			for (auto i = ctx.cur_func->scopes[s].vars.begin();i != ctx.cur_func->scopes[s].vars.end();++i) {
-				var* v = &i->getSecond();
+				var* v = i->getSecond();
 				if (v->is_reg) {
 					v->to_stack(because);
 				}
@@ -1009,6 +1008,9 @@ namespace gjs {
 			encode(vmi::jal).operand((integer)to->entry),
 			because
 		);
+
+		// todo: find register to hold return value that won't
+		// be overwritten by the register restoration step...
 
 		// move stack pointer back
 		if (ctx.cur_func->stack.size() > 0) {
@@ -1246,6 +1248,19 @@ namespace gjs {
 			if (!dest) return ctx.cur_func->get(node);
 			ctx.cur_func->get(node)->store_in(dest->to_reg(node), node);
 			return dest;
+		} else if (node->type == nt::constant) {
+			var* imm = nullptr;
+			switch (node->c_type) {
+				case ast_node::constant_type::integer: { imm = ctx.cur_func->imm(ctx, (integer)node->value.i); break; }
+				case ast_node::constant_type::decimal: { imm = ctx.cur_func->imm(ctx, (decimal)node->value.d); break; }
+				case ast_node::constant_type::string: { imm = ctx.cur_func->imm(ctx, node->value.s); break; }
+			}
+			if (dest) {
+				imm->store_in(dest->to_reg(node), node);
+				ctx.cur_func->free(imm);
+				return dest;
+			}
+			return imm;
 		}
 
 		var* lvalue = nullptr;
@@ -1286,6 +1301,7 @@ namespace gjs {
 			ret = call(ctx, t, node, args);
 			for (u32 i = 0;i < args.size();i++) ctx.cur_func->free(args[i]);
 		} else {
+			ctx.cur_func->auto_free_consumed_vars = false;
 			switch (node->op) {
 				case op::invalid: { break; }
 				case op::add: {
@@ -1507,32 +1523,44 @@ namespace gjs {
 					break;
 				}
 				case op::less: {
-					var* result = dest ? dest : ctx.cur_func->allocate(ctx, lvalue->type);
+					var* result = dest ? dest : ctx.cur_func->allocate(ctx, ctx.type("integer"));
+					vmi possible[4] = { vmi::flti, vmi::flt, vmi::lti, vmi::lt };
+					arithmetic_op_maybe_fp(ctx, lvalue, rvalue, result, node, possible);
 					ret = result;
 					break;
 				}
 				case op::greater: {
-					var* result = dest ? dest : ctx.cur_func->allocate(ctx, lvalue->type);
+					var* result = dest ? dest : ctx.cur_func->allocate(ctx, ctx.type("integer"));
+					vmi possible[4] = { vmi::fgti, vmi::fgt, vmi::gti, vmi::gt };
+					arithmetic_op_maybe_fp(ctx, lvalue, rvalue, result, node, possible);
 					ret = result;
 					break;
 				}
 				case op::lessEq: {
-					var* result = dest ? dest : ctx.cur_func->allocate(ctx, lvalue->type);
+					var* result = dest ? dest : ctx.cur_func->allocate(ctx, ctx.type("integer"));
+					vmi possible[4] = { vmi::fltei, vmi::flte, vmi::ltei, vmi::lte };
+					arithmetic_op_maybe_fp(ctx, lvalue, rvalue, result, node, possible);
 					ret = result;
 					break;
 				}
 				case op::greaterEq: {
-					var* result = dest ? dest : ctx.cur_func->allocate(ctx, lvalue->type);
+					var* result = dest ? dest : ctx.cur_func->allocate(ctx, ctx.type("integer"));
+					vmi possible[4] = { vmi::fgtei, vmi::fgte, vmi::gtei, vmi::gte };
+					arithmetic_op_maybe_fp(ctx, lvalue, rvalue, result, node, possible);
 					ret = result;
 					break;
 				}
 				case op::notEq: {
-					var* result = dest ? dest : ctx.cur_func->allocate(ctx, lvalue->type);
+					var* result = dest ? dest : ctx.cur_func->allocate(ctx, ctx.type("integer"));
+					vmi possible[4] = { vmi::fncmpi, vmi::fncmp, vmi::ncmpi, vmi::ncmp };
+					arithmetic_op_maybe_fp(ctx, lvalue, rvalue, result, node, possible);
 					ret = result;
 					break;
 				}
 				case op::isEq: {
-					var* result = dest ? dest : ctx.cur_func->allocate(ctx, lvalue->type);
+					var* result = dest ? dest : ctx.cur_func->allocate(ctx, ctx.type("integer"));
+					vmi possible[4] = { vmi::fcmpi, vmi::fcmp, vmi::cmpi, vmi::cmp };
+					arithmetic_op_maybe_fp(ctx, lvalue, rvalue, result, node, possible);
 					ret = result;
 					break;
 				}
@@ -1571,7 +1599,8 @@ namespace gjs {
 				}
 			}
 		}
-		
+
+		ctx.cur_func->auto_free_consumed_vars = true;
 		if (lvalue && !lvalue->is_variable && lvalue != ret) ctx.cur_func->free(lvalue);
 		if (rvalue && !rvalue->is_variable && rvalue != ret) ctx.cur_func->free(rvalue);
 

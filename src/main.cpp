@@ -153,6 +153,9 @@ void test_compile() {
 		"}\n"
 		"integer test1(integer z) {\n"
 		"    return something(z, z + 1, z + 2);\n"
+		"}\n"
+		"integer main() {\n"
+		"    return test1(100);\n"
 		"}\n";
 	vm_context ctx;
 	try {
