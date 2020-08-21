@@ -115,6 +115,17 @@ namespace gjs {
 		};
 
 		struct var {
+			var() {
+				ctx = nullptr;
+				is_variable = false;
+				is_reg = false;
+				is_imm = false;
+				type = nullptr;
+				count = 1;
+				total_ref_count = 0;
+				ref_count = 0;
+			}
+
 			compile_context* ctx;
 			bool is_variable;
 			bool is_reg;
@@ -122,6 +133,8 @@ namespace gjs {
 			string name;
 			data_type* type;
 			u32 count;
+			u16 total_ref_count;
+			u16 ref_count;
 			union {
 				vmr reg;
 				address stack_addr;
@@ -184,6 +197,10 @@ namespace gjs {
 
 			return_reg = vmr::register_count;
 			return_type = nullptr;
+			root = nullptr;
+			auto_free_consumed_vars = true;
+			stack.parent = this;
+			registers.parent = this;
 		}
 
 		string name;
@@ -192,11 +209,15 @@ namespace gjs {
 		vector<arg_info> args;
 		address entry;
 		vector<scope> scopes;
+		ast_node* root;
+		bool auto_free_consumed_vars;
 		
 		struct {
+			func* parent;
 			vector<stack_slot> slots;
 
 			address allocate(u32 size) {
+				if (parent->auto_free_consumed_vars) parent->free_consumed_vars();
 				address sz = 0;
 				for (u32 i = 0;i < slots.size();i++) {
 					if (slots[i].size == size && !slots[i].used) {
@@ -227,12 +248,14 @@ namespace gjs {
 		} stack;
 
 		struct {
+			func* parent;
 			vector<vmr> a;
 			vector<vmr> gp;
 			vector<vmr> fp;
 			vector<vmr> used;
 
 			vmr allocate_arg() {
+				if (parent->auto_free_consumed_vars) parent->free_consumed_vars();
 				if (a.size() == 0) return vmr::register_count;
 				vmr r = a.front();
 				a.erase(a.begin());
@@ -241,6 +264,7 @@ namespace gjs {
 			}
 
 			vmr allocate_gp() {
+				if (parent->auto_free_consumed_vars) parent->free_consumed_vars();
 				if (gp.size() == 0) return vmr::register_count;
 				vmr r = gp.back();
 				gp.pop_back();
@@ -249,6 +273,7 @@ namespace gjs {
 			}
 
 			vmr allocate_fp() {
+				if (parent->auto_free_consumed_vars) parent->free_consumed_vars();
 				if (fp.size() == 0) return vmr::register_count;
 				vmr r = fp.back();
 				fp.pop_back();
@@ -295,10 +320,22 @@ namespace gjs {
 			// exception
 		}
 
+		void free_consumed_vars() {
+			for (u8 i = 0;i < scopes.size();i++) {
+				for (auto s = scopes[i].vars.begin();s != scopes[i].vars.end();++s) {
+					var* v = &s->getSecond();
+					if (!v->is_variable) continue;
+					if (v->ref_count == v->total_ref_count) free(v);
+				}
+			}
+		}
+
 		var* get(ast_node* identifier) {
 			for (u8 i = 0;i < scopes.size();i++) {
 				if (scopes[i].vars.count(*identifier) == 0) continue;
-				return &scopes[i].vars[*identifier];
+				var* v = &scopes[i].vars[*identifier];
+				v->ref_count++;
+				return v;
 			}
 
 			// exception
@@ -326,6 +363,7 @@ namespace gjs {
 			return false;
 		}
 	};
+
 	using var = func::var;
 
 	struct data_type {
@@ -466,6 +504,8 @@ namespace gjs {
 
 
 	var* func::allocate(compile_context& ctx, ast_node* decl, bool is_arg) {
+		if (auto_free_consumed_vars) free_consumed_vars();
+
 		// todo: figure out what to do for big args
 		u32 count = 1;
 		string name = *decl->identifier;
@@ -480,6 +520,7 @@ namespace gjs {
 			l.count = count;
 			l.is_reg = false;
 			l.is_imm = false;
+			l.ref_count = 1; // declaration counts as a ref
 			l.loc.stack_addr = stack.allocate(type->size * count);
 			return &l;
 		}
@@ -499,6 +540,7 @@ namespace gjs {
 		l.type = type;
 		l.count = count;
 		l.is_imm = false;
+		l.ref_count = 1; // declaration counts as a ref
 		if (reg != vmr::register_count) {
 			l.is_reg = true;
 			l.loc.reg = reg;
@@ -511,6 +553,7 @@ namespace gjs {
 
 	static u32 anon_var_id = 0;
 	func::var* func::allocate(compile_context& ctx, data_type* type) {
+		if (auto_free_consumed_vars) free_consumed_vars();
 		u32 count = 1;
 		string name = format("__anon_%d", anon_var_id++);
 		if (type->size > 8 || count > 1) {
@@ -953,11 +996,27 @@ namespace gjs {
 			ctx.cur_func->registers.free(arg_pairs[i].second);
 		}
 
+		// move stack pointer
+		if (ctx.cur_func->stack.size() > 0) {
+			ctx.add(
+				encode(vmi::addi).operand(vmr::sp).operand(vmr::sp).operand((integer)ctx.cur_func->stack.size()),
+				because
+			);
+		}
+
 		// make the call
 		ctx.add(
 			encode(vmi::jal).operand((integer)to->entry),
 			because
 		);
+
+		// move stack pointer back
+		if (ctx.cur_func->stack.size() > 0) {
+			ctx.add(
+				encode(vmi::subi).operand(vmr::sp).operand(vmr::sp).operand((integer)ctx.cur_func->stack.size()),
+				because
+			);
+		}
 
 		// restore register vars
 		for (u8 i = 0;i < restore_pairs.size();i++) {
@@ -1129,17 +1188,46 @@ namespace gjs {
 	}
 
 
+	u16 count_references(ast_node* node, const string& identifier, bool ignoreNext = false) {
+		if (!node) return 0;
+
+		u16 refs = 0;
+		if (node->type == nt::identifier) return (string(*node) == identifier) ? 1 : 0;
+
+		if (!ignoreNext) refs += count_references(node->next, identifier);
+		refs += count_references(node->data_type, identifier);
+		refs += count_references(node->identifier, identifier);
+		refs += count_references(node->literal, identifier);
+		refs += count_references(node->arguments, identifier);
+		refs += count_references(node->body, identifier);
+		refs += count_references(node->else_body, identifier);
+		refs += count_references(node->property, identifier);
+		refs += count_references(node->initializer, identifier);
+		refs += count_references(node->lvalue, identifier);
+		refs += count_references(node->rvalue, identifier);
+		refs += count_references(node->callee, identifier);
+		refs += count_references(node->constructor, identifier);
+		refs += count_references(node->destructor, identifier);
+		refs += count_references(node->condition, identifier);
+		refs += count_references(node->modifier, identifier);
+
+		return refs;
+	}
 
 	void compile_function(compile_context& ctx, ast_node* node, func& out) {
 		out.name = *node->identifier;
 		out.return_type = ctx.type(*node->data_type);
-		out.entry = ctx.out->size();
+		out.entry = ctx.out->size() + 1;
+		out.root = node;
 
 		ctx.cur_func = &out;
+
+		ctx.add(encode(vmi::null), node);
 
 		ast_node* arg = node->arguments ? node->arguments->body : nullptr;
 		while (arg) {
 			func::var* var = ctx.cur_func->allocate(ctx, arg, true);
+			var->total_ref_count = count_references(node, var->name, true);
 			out.args.push_back({ *arg->identifier, ctx.type(arg->data_type), var->to_reg(arg) });
 			arg = arg->next;
 		}
@@ -1492,9 +1580,9 @@ namespace gjs {
 
 	void compile_variable_declaration(compile_context& ctx, ast_node* node) {
 		func::var* var = ctx.cur_func->allocate(ctx, node);
-		if (node->initializer) {
-			compile_expression(ctx, node->initializer->body, var);
-		}
+		var->total_ref_count = count_references(ctx.cur_func->root, var->name);
+
+		if (node->initializer) compile_expression(ctx, node->initializer->body, var);
 	}
 
 	void compile_if_statement(compile_context& ctx, ast_node* node) {
@@ -1529,6 +1617,7 @@ namespace gjs {
 
 	void compile_for_loop(compile_context& ctx, ast_node* node) {
 		ctx.cur_func->push_scope();
+		ctx.cur_func->auto_free_consumed_vars = false;
 		
 		if (node->initializer) compile_variable_declaration(ctx, node->initializer);
 		address loop_cond = ctx.out->size();
@@ -1566,10 +1655,12 @@ namespace gjs {
 			);
 		}
 
+		ctx.cur_func->auto_free_consumed_vars = true;
 		ctx.cur_func->pop_scope();
 	}
 
 	void compile_while_loop(compile_context& ctx, ast_node* node) {
+		ctx.cur_func->auto_free_consumed_vars = false;
 		func::var* cond = compile_expression(ctx, node->condition, nullptr);
 		address branchAddr = ctx.out->size();
 		ctx.add(
@@ -1601,10 +1692,12 @@ namespace gjs {
 			compile_node(ctx, n);
 			n = n->next;
 		}
+		ctx.cur_func->auto_free_consumed_vars = true;
 		ctx.cur_func->pop_scope();
 	}
 
 	void compile_do_while_loop(compile_context& ctx, ast_node* node) {
+		ctx.cur_func->auto_free_consumed_vars = false;
 		address startAddr = ctx.out->size();
 		ctx.cur_func->push_scope();
 		ast_node* n = node->body;
@@ -1625,6 +1718,7 @@ namespace gjs {
 			node->condition
 		);
 
+		ctx.cur_func->auto_free_consumed_vars = true;
 		ctx.cur_func->pop_scope();
 	}
 
@@ -1667,27 +1761,21 @@ namespace gjs {
 				);
 				break;
 			}
-			case nt::object: {
-				break;
-			}
+			case nt::object: { break; }
 			case nt::call: {
 				var* tmp = compile_expression(ctx, node, nullptr);
 				if (tmp) ctx.cur_func->free(tmp);
 				break;
 			}
 			case nt::expression: {
+				var* tmp = compile_expression(ctx, node, nullptr);
+				if (tmp && !tmp->is_variable) ctx.cur_func->free(tmp);
 				break;
 			}
-			case nt::conditional: {
-				break;
-			}
-			case nt::constant: {
-				break;
-			}
-			case nt::identifier: {
-				break;
-			}
-			case nt::type_identifier: break;
+			case nt::conditional: { break; }
+			case nt::constant: { break; }
+			case nt::identifier: { break; }
+			case nt::type_identifier: { break; }
 			case nt::operation: {
 				var* tmp = compile_expression(ctx, node, nullptr);
 				if (tmp && !tmp->is_variable) ctx.cur_func->free(tmp);

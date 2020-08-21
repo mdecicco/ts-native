@@ -9,17 +9,17 @@ namespace gjs {
 	/*
 	 * Anatomy of an encoded instruction
 	 *
-	 * type 0  |instruction|-------------------------------------------------------------------------------------------------------------------| <- term, null
-	 * type 1  |instruction|                      32-bit jump address                      |---------------------------------------------------| <- jal, jmp
-	 * type 2  |instruction|  operand  |-------------------------------------------------------------------------------------------------------| <- jalr, jmpr, ctf, cti, push, pop
-	 * type 3  |instruction|  operand  |             32-bit branch failure address                     |---------------------------------------| <- b*
-	 * type 4  |instruction|  operand  |  operand  |-------------------------------------------------------------------------------------------| <- mtfp, mffp
-	 * type 5  |instruction|  operand  |  operand  |x|                      32-bit immediate value                   |-------------------------| <- ld*, st*
-	 * type 6  |instruction|  operand  |  operand  |x|                      32-bit immediate value                   |-------------------------| <- *i, *ir
-	 * type 7  |instruction|  operand  |  operand  |  operand  |-------------------------------------------------------------------------------| <- the rest
+	 * type 0  | instruction |-----------------------------------------------------------------------------------------------------------------| <- term, null
+	 * type 1  | instruction |                      32-bit jump address                      |-------------------------------------------------| <- jal, jmp
+	 * type 2  | instruction |  operand  |-----------------------------------------------------------------------------------------------------| <- jalr, jmpr, ctf, cti, push, pop
+	 * type 3  | instruction |  operand  |             32-bit branch failure address                     |-------------------------------------| <- b*
+	 * type 4  | instruction |  operand  |  operand  |-----------------------------------------------------------------------------------------| <- mtfp, mffp
+	 * type 5  | instruction |  operand  |  operand  |x|                      32-bit immediate value                   |-----------------------| <- ld*, st*
+	 * type 6  | instruction |  operand  |  operand  |x|                      32-bit immediate value                   |-----------------------| <- *i, *ir
+	 * type 7  | instruction |  operand  |  operand  |  operand  |-----------------------------------------------------------------------------| <- the rest
 	 *         |0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0| (bits)
 	 *         |               |               |               |               |               |               |               |               | (bytes)
-	 *                     ^ 58        ^ 52        ^ 46        ^ 40                        ^ 26        | ^19         ^ 13
+	 *                       ^ 57        ^ 51        ^ 45        ^ 39                        ^ 25        | ^18         ^ 12
 	 *	x = immediate value is float32 (boolean)
 	 */
 
@@ -40,14 +40,14 @@ namespace gjs {
 
 	inline instruction_encoder encode(vm_instruction i) { return instruction_encoder(i); }
 
-	const u64 instruction_shift = 58;
-	const u64 operand_1r_shift = 52;
-	const u64 operand_1i_shift = 26;
-	const u64 operand_2r_shift = 46;
-	const u64 operand_2i_shift = 19;
-	const u64 operand_3r_shift = 40;
-	const u64 operand_3i_shift = 13;
-	const u64 operand_3_is_flt_shift = 45;
+	const u64 instruction_shift = 57;
+	const u64 operand_1r_shift = 51;
+	const u64 operand_1i_shift = 25;
+	const u64 operand_2r_shift = 45;
+	const u64 operand_2i_shift = 18;
+	const u64 operand_3r_shift = 39;
+	const u64 operand_3i_shift = 12;
+	const u64 operand_3_is_flt_shift = 44;
 	const u64 operand_register_mask = 0b1111111111111111111111111111111111111111111111111111111111000000UL;
 
 

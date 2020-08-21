@@ -2,8 +2,8 @@
 #include <types.h>
 
 namespace gjs {
-	// number of bits needed to store instruction id: 6
-	// max number of instructions 63
+	// number of bits needed to store instruction id: 7
+	// max number of instructions 127
 	enum class vm_instruction {
 		null		= 0 ,	// do nothing
 		term			,	// terminate execution
@@ -56,6 +56,34 @@ namespace gjs {
 		fdiv			,	// divide register by another						fdiv	(dest)	(a)		(b)		dest = a / b
 		fdivi			,	// divide register by immediate value				fdivi	(dest)	(a)		1.0		dest = a / 1.0
 		fdivir			,	// divide immediate value by register				fdivir	(dest)	(a)		1.0		dest = 1.0 / a
+
+		// comparison
+		lt				,	// check if register less than register				lt		(dest)	(a)		(b)		dest = a < b
+		lti				,	// check if register less than immediate			lti		(dest)	(a)		1		dest = a < 1
+		lte				,	// check if register less than or equal register	lte		(dest)	(a)		(b)		dest = a <= b
+		ltei			,	// check if register less than or equal immediate	ltei	(dest)	(a)		1		dest = a <= 1
+		gt				,	// check if register greater than register			gt		(dest)	(a)		(b)		dest = a > b
+		gti				,	// check if register greater than immediate			gti		(dest)	(a)		1		dest = a > 1
+		gte				,	// check if register greater than or equal register	gte		(dest)	(a)		(b)		dest = a >= b
+		gtei			,	// check if register greater than or equal imm.		gtei	(dest)	(a)		1		dest = a >= 1
+		cmp				,	// check if register equal register					cmp		(dest)	(a)		(b)		dest = a == b
+		cmpi			,	// check if register equal immediate				cmpi	(dest)	(a)		1		dest = a == 1
+		ncmp			,	// check if register not equal register				ncmp	(dest)	(a)		(b)		dest = a != b
+		ncmpi			,	// check if register not equal immediate			ncmpi	(dest)	(a)		1		dest = a != 1
+
+		// floating point comparison
+		flt				,	// check if register less than register				flt		(dest)	(a)		(b)		dest = a < b
+		flti			,	// check if register less than immediate			flti	(dest)	(a)		1.0		dest = a < 1.0
+		flte			,	// check if register less than or equal register	flte	(dest)	(a)		(b)		dest = a <= b
+		fltei			,	// check if register less than or equal immediate	fltei	(dest)	(a)		1.0		dest = a <= 1.0
+		fgt				,	// check if register greater than register			fgt		(dest)	(a)		(b)		dest = a > b
+		fgti			,	// check if register greater than immediate			fgti	(dest)	(a)		1.0		dest = a > 1.0
+		fgte			,	// check if register greater than or equal register	fgte	(dest)	(a)		(b)		dest = a >= b
+		fgtei			,	// check if register greater than or equal imm.		fgtei	(dest)	(a)		1.0		dest = a >= 1.0
+		fcmp			,	// check if register equal register					fcmp	(dest)	(a)		(b)		dest = a == b
+		fcmpi			,	// check if register equal immediate				fcmpi	(dest)	(a)		1.0		dest = a == 1.0
+		fncmp			,	// check if register not equal register				fncmp	(dest)	(a)		(b)		dest = a != b
+		fncmpi			,	// check if register not equal immediate			fncmpi	(dest)	(a)		1.0		dest = a != 1.0
 
 		// boolean
 		and				,	// logical and										and		(dest)	(a)		(b)		dest = a && b

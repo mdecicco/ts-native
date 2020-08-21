@@ -47,6 +47,34 @@ namespace gjs {
 		"fdivi",
 		"fdivir",
 
+		// comparison
+		"lt",
+		"lti",
+		"lte",
+		"ltei",
+		"gt",
+		"gti",
+		"gte",
+		"gtei",
+		"cmp",
+		"cmpi",
+		"ncmp",
+		"ncmpi",
+		
+		// floating point comparison
+		"flt",
+		"flti",
+		"flte",
+		"fltei",
+		"fgt",
+		"fgti",
+		"fgte",
+		"fgtei",
+		"fcmp",
+		"fcmpi",
+		"fncmp",
+		"fncmpi",
+
 		// boolean
 		"and",
 		"andi",

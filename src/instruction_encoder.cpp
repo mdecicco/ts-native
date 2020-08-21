@@ -14,7 +14,7 @@ namespace gjs {
 	 }
 	
 	instruction_encoder::instruction_encoder(vm_instruction i) {
-		m_result = instruction(i) << ((sizeof(instruction) * 8) - 6);
+		m_result = instruction(i) << instruction_shift;
 		debug(m_result);
 	}
 
@@ -97,6 +97,18 @@ namespace gjs {
 			|| x == vmi::sri		\
 			|| x == vmi::andi		\
 			|| x == vmi::ori		\
+			|| x == vmi::lti		\
+			|| x == vmi::ltei		\
+			|| x == vmi::gti		\
+			|| x == vmi::gtei		\
+			|| x == vmi::cmpi		\
+			|| x == vmi::ncmpi		\
+			|| x == vmi::flti		\
+			|| x == vmi::fltei		\
+			|| x == vmi::fgti		\
+			|| x == vmi::fgtei		\
+			|| x == vmi::fcmpi		\
+			|| x == vmi::fncmpi		\
 		)
 
 	// the rest
@@ -117,6 +129,18 @@ namespace gjs {
 			|| x == vmi::xor		\
 			|| x == vmi::sl			\
 			|| x == vmi::sr			\
+			|| x == vmi::lt			\
+			|| x == vmi::lte		\
+			|| x == vmi::gt			\
+			|| x == vmi::gte		\
+			|| x == vmi::cmp		\
+			|| x == vmi::ncmp		\
+			|| x == vmi::flt		\
+			|| x == vmi::flte		\
+			|| x == vmi::fgt		\
+			|| x == vmi::fgte		\
+			|| x == vmi::fcmp		\
+			|| x == vmi::fncmp		\
 		)
 
 	#define first_operand_is_register(x) \
@@ -181,6 +205,18 @@ namespace gjs {
 			|| x == vmi::fmuli			  \
 			|| x == vmi::fdivi			  \
 			|| x == vmi::fdivir			  \
+			|| x == vmi::flti			  \
+			|| x == vmi::fltei			  \
+			|| x == vmi::fgti			  \
+			|| x == vmi::fgtei			  \
+			|| x == vmi::fcmpi			  \
+			|| x == vmi::fncmpi			  \
+			|| x == vmi::flt			  \
+			|| x == vmi::flte			  \
+			|| x == vmi::fgt			  \
+			|| x == vmi::fgte			  \
+			|| x == vmi::fcmp			  \
+			|| x == vmi::fncmp			  \
 		)
 	
 	#define third_operand_must_be_fpr(x)  \
@@ -189,6 +225,13 @@ namespace gjs {
 			|| x == vmi::fsub			  \
 			|| x == vmi::fmul			  \
 			|| x == vmi::fdiv			  \
+			|| x == vmi::fncmpi			  \
+			|| x == vmi::flt			  \
+			|| x == vmi::flte			  \
+			|| x == vmi::fgt			  \
+			|| x == vmi::fgte			  \
+			|| x == vmi::fcmp			  \
+			|| x == vmi::fncmp			  \
 		)
 	
 	#define third_operand_must_be_fpi(x) \
@@ -199,6 +242,12 @@ namespace gjs {
 			|| x == vmi::fmuli			 \
 			|| x == vmi::fdivi			 \
 			|| x == vmi::fdivir			 \
+			|| x == vmi::flti			 \
+			|| x == vmi::fltei			 \
+			|| x == vmi::fgti			 \
+			|| x == vmi::fgtei			 \
+			|| x == vmi::fcmpi			 \
+			|| x == vmi::fncmpi			 \
 		)
 
 	#define is_fpr(x) (x >= vmr::f0 && x <= vmr::f15)
