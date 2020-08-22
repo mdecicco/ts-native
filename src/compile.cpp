@@ -464,7 +464,7 @@ namespace gjs {
 		void add(instruction i, ast_node* because) {
 			address addr = out->size();
 			(*out) += i;
-
+			/*
 			std::string ln = "";
 			u32 wscount = 0;
 			bool reachedText = false;
@@ -479,6 +479,7 @@ namespace gjs {
 			for (u32 c = 0;c < because->start.col - wscount;c++) printf(" ");
 			printf("^ ");
 			printf("%s\n\n", instruction_to_string(i).c_str());
+			*/
 
 			map.append(because);
 		}
@@ -945,17 +946,6 @@ namespace gjs {
 	}
 
 	var* call(compile_context& ctx, func* to, ast_node* because, vector<var*> args) {
-		// keep track of where vars should be restored to, if they refer to registers
-		vector <pair<var*, vmr>> restore_pairs;
-		for (u32 s = 0;s < ctx.cur_func->scopes.size();s++) {
-			for (auto i = ctx.cur_func->scopes[s].vars.begin();i != ctx.cur_func->scopes[s].vars.end();++i) {
-				var* v = i->getSecond();
-				if (v->is_reg) {
-					restore_pairs.push_back(pair<var*, vmr>(v, v->loc.reg));
-				}
-			}
-		}
-
 		// move arguments to the right place, or a temporary place until vars have been
 		// backed up in the stack
 		vector<pair<vmr, vmr>> arg_pairs;
@@ -975,14 +965,42 @@ namespace gjs {
 			}
 		}
 
-		// back up register vars to the stack
+		// free any used up variables that don't need to be
+		// stored in the stack, if not in a loop
+		if (ctx.cur_func->auto_free_consumed_vars) ctx.cur_func->free_consumed_vars();
+
+		// keep track of where vars should be restored to, if they refer to registers
+		vector <pair<var*, vmr>> restore_pairs;
 		for (u32 s = 0;s < ctx.cur_func->scopes.size();s++) {
 			for (auto i = ctx.cur_func->scopes[s].vars.begin();i != ctx.cur_func->scopes[s].vars.end();++i) {
 				var* v = i->getSecond();
 				if (v->is_reg) {
-					v->to_stack(because);
+					restore_pairs.push_back(pair<var*, vmr>(v, v->loc.reg));
 				}
 			}
+		}
+
+		// allocate var for return value, if necessary
+		var* ret = nullptr;
+		vmr ret_reg;
+		if (to->return_type->name != "void") {
+			ret = ctx.cur_func->allocate(ctx, to->return_type);
+			if (to->return_reg == vmr::register_count) {
+				// function must either be calling itself (and compiler hasn't seen a return statement yet)
+				// or script writer didn't put a return statement and an error was emitted. Assign register
+				// automatically
+				if (to->return_type->name == "decimal") to->return_reg = to->registers.allocate_fp();
+				else to->return_reg = to->registers.allocate_gp();
+
+				// then free it since it's not actually in use until the statement is reached
+				to->registers.free(to->return_reg);
+			}
+			ret_reg = ret->to_reg(because);
+		}
+
+		// back up register vars to the stack
+		for (u8 i = 0;i < restore_pairs.size();i++) {
+			restore_pairs[i].first->to_stack(because);
 		}
 
 		// move remaining args that couldn't be moved before
@@ -994,6 +1012,13 @@ namespace gjs {
 			);
 			ctx.cur_func->registers.free(arg_pairs[i].second);
 		}
+
+		// backup $ra
+		address ra_addr = ctx.cur_func->stack.allocate(4);
+		ctx.add(
+			encode(vmi::st32).operand(vmr::ra).operand(vmr::sp).operand((integer)ra_addr),
+			because
+		);
 
 		// move stack pointer
 		if (ctx.cur_func->stack.size() > 0) {
@@ -1009,9 +1034,6 @@ namespace gjs {
 			because
 		);
 
-		// todo: find register to hold return value that won't
-		// be overwritten by the register restoration step...
-
 		// move stack pointer back
 		if (ctx.cur_func->stack.size() > 0) {
 			ctx.add(
@@ -1020,28 +1042,8 @@ namespace gjs {
 			);
 		}
 
-		// restore register vars
-		for (u8 i = 0;i < restore_pairs.size();i++) {
-			restore_pairs[i].first->move_to(restore_pairs[i].second, because);
-		}
-
-		// allocate var for return value, if necessary
-		var* ret = nullptr;
-
+		// store return value if necessary
 		if (to->return_type->name != "void") {
-			ret = ctx.cur_func->allocate(ctx, to->return_type);
-			if (to->return_reg == vmr::register_count) {
-				// function must either be calling itself (and compiler hasn't seen a return statement yet)
-				// or script writer didn't put a return statement and an error was emitted. Assign register
-				// automatically
-				if (to->return_type->name == "decimal") to->return_reg = to->registers.allocate_fp();
-				else to->return_reg = to->registers.allocate_gp();
-
-				// then free it since it's not actually in use until the statement is reached
-				to->registers.free(to->return_reg);
-			}
-
-			vmr ret_reg = ret->to_reg(because);
 			if (ret_reg != to->return_reg) {
 				ctx.add(
 					encode(vmi::add).operand(ret_reg).operand(to->return_reg).operand(vmr::zero),
@@ -1050,6 +1052,18 @@ namespace gjs {
 			}
 		}
 
+		// restore $ra
+		ctx.cur_func->stack.free(ra_addr);
+		ctx.add(
+			encode(vmi::ld32).operand(vmr::ra).operand(vmr::sp).operand((integer)ra_addr),
+			because
+		);
+
+		// restore register vars
+		for (u8 i = 0;i < restore_pairs.size();i++) {
+			restore_pairs[i].first->move_to(restore_pairs[i].second, because);
+		}
+		
 		return ret;
 	}
 
@@ -1293,14 +1307,19 @@ namespace gjs {
 		if (node->type == nt::call) {
 			func* t = ctx.function(*node->callee);
 			vector<var*> args;
+			vector<bool> free_arg;
 			ast_node* arg = node->arguments;
 			while (arg) {
 				args.push_back(compile_expression(ctx, arg, nullptr));
+				free_arg.push_back(!args[args.size() - 1]->is_variable);
 				arg = arg->next;
 			}
 			ret = call(ctx, t, node, args);
-			for (u32 i = 0;i < args.size();i++) ctx.cur_func->free(args[i]);
+			for (u32 i = 0;i < args.size();i++) {
+				if (free_arg[i]) ctx.cur_func->free(args[i]);
+			}
 		} else {
+			bool auto_free = ctx.cur_func->auto_free_consumed_vars;
 			ctx.cur_func->auto_free_consumed_vars = false;
 			switch (node->op) {
 				case op::invalid: { break; }
@@ -1598,9 +1617,9 @@ namespace gjs {
 					break;
 				}
 			}
+			ctx.cur_func->auto_free_consumed_vars = auto_free;
 		}
 
-		ctx.cur_func->auto_free_consumed_vars = true;
 		if (lvalue && !lvalue->is_variable && lvalue != ret) ctx.cur_func->free(lvalue);
 		if (rvalue && !rvalue->is_variable && rvalue != ret) ctx.cur_func->free(rvalue);
 
@@ -1858,6 +1877,30 @@ namespace gjs {
 		while (n) {
 			compile_node(ctx, n);
 			n = n->next;
+		}
+
+		for (u32 i = 0;i < ctx.funcs.size();i++) {
+			func& sf = ctx.funcs[i];
+			script_function* f = new script_function();
+			f->entry = sf.entry;
+			for (u8 a = 0;a < sf.args.size();a++) {
+				if (sf.args[a].type->name == "integer") f->arg_types.push_back(value_type::integer);
+				else if (sf.args[a].type->name == "function") f->arg_types.push_back(value_type::integer); // todo, but technically correct
+				else if (sf.args[a].type->name == "decimal") f->arg_types.push_back(value_type::decimal);
+				else if (sf.args[a].type->name == "string") f->arg_types.push_back(value_type::string);
+				else f->arg_types.push_back(value_type::object); // todo: convey data type if bound host class, otherwise structure / property names
+
+				f->arg_locs.push_back(sf.args[a].loc);
+			}
+			f->ret_location = sf.return_reg;
+			if (sf.return_type->name == "integer") f->ret_type = value_type::integer;
+			else if (sf.return_type->name == "function") f->ret_type = value_type::integer; // todo, but technically correct
+			else if (sf.return_type->name == "decimal") f->ret_type = value_type::decimal;
+			else if (sf.return_type->name == "string") f->ret_type = value_type::string;
+			else f->ret_type = value_type::object; // todo: convey data type if bound host class, otherwise structure / property names
+
+			f->ctx = vctx;
+			vctx->add(sf.name, f);
 		}
 	}
 };

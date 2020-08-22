@@ -2,6 +2,7 @@
 #include <instruction.h>
 #include <register.h>
 #include <vm_state.h>
+#include <parse_utils.h>
 
 namespace gjs {
 	using vmi = vm_instruction;
@@ -457,6 +458,9 @@ namespace gjs {
 				*/
 
 				std::string reg_val = ""; // "<" + state->registers[(integer)r].to_string() + ">"
+
+				if (is_fpr(r)) reg_val = format("<%f>", decimal(state->registers[(integer)r]));
+				else reg_val = format("<%d>", integer(state->registers[(integer)r]));
 				return "$" + std::string(register_str[(integer)r]) + reg_val;
 			}
 

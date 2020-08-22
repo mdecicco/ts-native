@@ -3,7 +3,6 @@
 #include <register.h>
 #include <instruction_array.h>
 #include <allocator.h>
-#include <value.h>
 #include <vm.h>
 #include <bind.h>
 #include <parse.h>
@@ -117,7 +116,8 @@ void test_parse() {
 		"    integer x = arg0.a + arg1;\n"
 		"}\n";
 
-	vm_context ctx;
+	vm_allocator* alloc = new basic_malloc_allocator();
+	vm_context ctx(alloc, 4096, 4096);
 	try {
 		ast_node* code = parse_source(&ctx, "test.gjs", src);
 		code->debug_print(0);
@@ -144,7 +144,7 @@ void test_compile() {
 		"integer test(integer x);\n"
 		"integer something(integer arg0, integer arg1, integer arg2) {\n"
 		"    integer x = arg0 + arg1 * 4.0;\n"
-		"    integer y = x >> arg2;\n"
+		"    integer y = x - arg2;\n"
 		"    x = y++;\n"
 		"    return test(x);\n"
 		"}\n"
@@ -157,18 +157,21 @@ void test_compile() {
 		"integer main() {\n"
 		"    return test1(100);\n"
 		"}\n";
-	vm_context ctx;
+	vm_allocator* alloc = new basic_malloc_allocator();
+	vm_context ctx(alloc, 4096, 4096);
 	try {
 		ast_node* code = parse_source(&ctx, "test.gjs", src);
-		code->debug_print(0);
-		vm_context ctx;
-		vm_allocator* alloc = new basic_malloc_allocator();
-		instruction_array bcode = instruction_array(alloc);
-		compile_ast(&ctx, code, &bcode);
-		for (u32 i = 0;i < bcode.size();i++) {
-			printf("%2.2d: %s\n", i, instruction_to_string(bcode[i]).c_str());
-			continue;
-		}
+		instruction_array* bcode = ctx.code();
+
+		// instruction 0 must be term, when the entry function exits
+		// it jumps to 0
+		(*bcode) += encode(vm_instruction::term);
+
+		compile_ast(&ctx, code, bcode);
+
+		integer result = 0;
+		ctx.function("test")->call(&result, 5);
+		printf("result: %d\n", result);
 	} catch (parse_exception& e) {
 		printf("%s:%d:%d: %s\n", e.file.c_str(), e.line, e.col, e.text.c_str());
 		std::string ln = "";

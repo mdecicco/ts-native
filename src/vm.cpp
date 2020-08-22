@@ -49,14 +49,16 @@ namespace gjs {
 		
 		GRi(vmr::ip) = (integer)entry;
 		GRi(vmr::ra) = 0;
-		GRi(vmr::sp) = m_stack_size;
+		GRi(vmr::sp) = 0;
 		GRi(vmr::zero) = 0;
 
 		instruction i;
 		integer* ip = &GRi(vmr::ip);
 		u32 cs = code.size();
-		while ((*ip) <= cs && (i = code[(*ip)++]) != (integer)vmi::term) {
-			//printf("%2.2d: %s\n", *ip, instruction_to_string(i, &state).c_str());
+		bool term = false;
+		while ((*ip) <= cs && !term) {
+			i = code[(*ip)++];
+			printf("%2.2d: %s\n", *ip - 1, instruction_to_string(i, &state).c_str());
 			vmi instr = decode_instruction(i);
 			switch (instr) {
 				// do nothing
@@ -65,6 +67,7 @@ namespace gjs {
                 }
 				// this is only here to keep the switch cases tight
 				case vmi::term: {
+					term = true;
 					break;
 				}
                 // load 1 byte from memory into register			ld8		(dest)	(src)	0		dest = *(src + 0)
@@ -212,7 +215,7 @@ namespace gjs {
                 }
                 // multiply register and immediate value			muli	(dest)	(a)		1.0		dest = a * 1
                 case vmi::muli: {
-					GRi(_O1) = GRi(_O2) - _O3i;
+					GRi(_O1) = GRi(_O2) * _O3i;
                     break;
                 }
                 // divide register by another						div		(dest)	(a)		(b)		dest = a / b
@@ -382,13 +385,13 @@ namespace gjs {
                 }
                 // jump to address and store $ip in $ra				jal		0x123					$ra = $ip + 1;$ip = 0x123
                 case vmi::jal: {
-					GRi(vmr::ra) = (*ip) + 1;
+					GRi(vmr::ra) = (*ip);
 					*ip = _O1i;
                     break;
                 }
                 // jump to address in register and store $ip in $ra	jalr	(a)						$ra = $ip + 1;$ip = a
                 case vmi::jalr: {
-					GRi(vmr::ra) = (*ip) + 1;
+					GRi(vmr::ra) = (*ip);
 					*ip = GRi(_O1);
                     break;
                 }
