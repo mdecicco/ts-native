@@ -1,13 +1,11 @@
 #pragma once
 #include <types.h>
+#include <util.h>
 #include <string>
 #include <stack>
 #include <vector>
 
 namespace gjs {
-	std::vector<std::string> split(const std::string& str, const std::string& delimiters);
-	std::string format(const char* fmt, ...);
-
 	class tokenizer {
 		public:
 			tokenizer(const std::string& input);

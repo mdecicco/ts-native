@@ -203,6 +203,8 @@ namespace gjs {
 			registers.parent = this;
 		}
 
+		func(compile_context& ctx, vm_function* f);
+
 		string name;
 		data_type* return_type;
 		vmr return_reg;
@@ -396,65 +398,11 @@ namespace gjs {
 		u32 size;
 		vector<prop> props;
 		vector<func> methods;
-	};
-
-	struct source_map {
-		vector<string> files;
-		vector<string> lines;
-		struct elem {
-			u16 file;
-			u32 line;
-			u32 col;
-		};
-		struct src_info {
-			string file;
-			string lineText;
-			u32 line;
-			u32 col;
-		};
-
-		// 1:1 map, instruction address : elem
-		vector<elem> map;
-
-		void append(ast_node* node) {
-			elem e;
-			bool found_file = false;
-			bool found_line = false;
-			for (u16 i = 0;i < files.size();i++) {
-				if (files[i] == node->start.file) {
-					e.file = i;
-					found_file = true;
-				}
-			}
-			for (u32 i = 0;i < lines.size();i++) {
-				if (lines[i] == node->start.lineText) {
-					e.line = i;
-					found_line = true;
-				}
-			}
-			if (!found_file) {
-				e.file = files.size();
-				files.push_back(node->start.file);
-			}
-			if (!found_line) {
-				e.line = lines.size();
-				lines.push_back(node->start.lineText);
-			}
-
-			e.col = node->start.col;
-
-			map.push_back(e);
-		}
-
-		src_info get(address addr) {
-			elem e = map[addr];
-			return { files[e.file], lines[e.line], e.line, e.col };
-		}
+		vm_type* type;
 	};
 
 	struct compile_context {
 		vm_context* ctx;
-		source_map map;
 		compile_log log;
 		instruction_array* out;
 		vector<data_type> types;
@@ -481,7 +429,7 @@ namespace gjs {
 			printf("%s\n\n", instruction_to_string(i).c_str());
 			*/
 
-			map.append(because);
+			ctx->map()->append(because);
 		}
 
 		data_type* type(const string& name) {
@@ -503,6 +451,16 @@ namespace gjs {
 		}
 	};
 
+	func::func(compile_context& ctx, vm_function* f) {
+		name = f->name;
+		return_type = ctx.type(f->signature.return_type->name);
+		for (u8 a = 0;a < f->signature.arg_types.size();a++) {
+			vmr loc = f->is_host ? f->signature.arg_locs[a] : vmr::register_count;
+			args.push_back({ "", ctx.type(f->signature.arg_types[a]->name), loc });
+		}
+		entry = f->is_host ? f->access.wrapped->address : f->access.entry;
+		return_reg = f->is_host ? vmr::register_count : f->signature.return_loc;
+	}
 
 
 	var* func::allocate(compile_context& ctx, ast_node* decl, bool is_arg) {
@@ -945,7 +903,7 @@ namespace gjs {
 		}
 	}
 
-	var* call(compile_context& ctx, func* to, ast_node* because, vector<var*> args) {
+	var* call(compile_context& ctx, func* to, ast_node* because, const vector<var*>& args) {
 		// move arguments to the right place, or a temporary place until vars have been
 		// backed up in the stack
 		vector<pair<vmr, vmr>> arg_pairs;
@@ -1838,28 +1796,22 @@ namespace gjs {
 	void init_context(compile_context& ctx) {
 		data_type* t = nullptr;
 
-		// define default types
-		ctx.types.push_back(data_type("integer", true));
-		t = &ctx.types[ctx.types.size() - 1];
-		t->size = sizeof(integer);
+		vector<vm_type*> types = ctx.ctx->types()->all();
+		for (u32 i = 0;i < types.size();i++) {
+			ctx.types.push_back(data_type(types[i]->name));
+			t = &ctx.types[ctx.types.size() - 1];
+			t->size = types[i]->size;
+			t->type = types[i];
+			if (t->type->name == "integer") t->built_in = true;
+			else if (t->type->name == "decimal") t->built_in = true;
+			else if (t->type->name == "void") t->built_in = true;
+			else if (t->type->name == "string") t->built_in = true;
+		}
 
-		ctx.types.push_back(data_type("decimal", true));
-		t = &ctx.types[ctx.types.size() - 1];
-		t->size = sizeof(decimal);
-
-		ctx.types.push_back(data_type("void", true));
-		t = &ctx.types[ctx.types.size() - 1];
-		t->size = 0;
-
-		ctx.types.push_back(data_type("string", true));
-		t = &ctx.types[ctx.types.size() - 1];
-		t->size = sizeof(char*);
-
-		ctx.types.push_back(data_type("function", true));
-		t = &ctx.types[ctx.types.size() - 1];
-		t->size = sizeof(address);
-
-		// define types bound to vm_context
+		vector<vm_function*> funcs = ctx.ctx->all_functions();
+		for (u32 i = 0;i < funcs.size();i++) {
+			ctx.funcs.push_back(func(ctx, funcs[i]));
+		}
 	}
 
 	void compile_ast(vm_context* vctx, ast_node* tree, instruction_array* out) {
@@ -1881,24 +1833,25 @@ namespace gjs {
 
 		for (u32 i = 0;i < ctx.funcs.size();i++) {
 			func& sf = ctx.funcs[i];
-			script_function* f = new script_function();
+			bind::script_function* f = new bind::script_function();
 			f->entry = sf.entry;
 			for (u8 a = 0;a < sf.args.size();a++) {
-				if (sf.args[a].type->name == "integer") f->arg_types.push_back(value_type::integer);
-				else if (sf.args[a].type->name == "function") f->arg_types.push_back(value_type::integer); // todo, but technically correct
-				else if (sf.args[a].type->name == "decimal") f->arg_types.push_back(value_type::decimal);
-				else if (sf.args[a].type->name == "string") f->arg_types.push_back(value_type::string);
-				else f->arg_types.push_back(value_type::object); // todo: convey data type if bound host class, otherwise structure / property names
+				if (sf.args[a].type->name == "integer") f->arg_types.push_back(bind::value_type::integer);
+				else if (sf.args[a].type->name == "function") f->arg_types.push_back(bind::value_type::integer); // todo, but technically correct
+				else if (sf.args[a].type->name == "decimal") f->arg_types.push_back(bind::value_type::decimal);
+				else if (sf.args[a].type->name == "string") f->arg_types.push_back(bind::value_type::string);
+				else f->arg_types.push_back(bind::value_type::object); // todo: convey data type if bound host class, otherwise structure / property names
 
 				f->arg_locs.push_back(sf.args[a].loc);
 			}
 			f->ret_location = sf.return_reg;
-			if (sf.return_type->name == "integer") f->ret_type = value_type::integer;
-			else if (sf.return_type->name == "function") f->ret_type = value_type::integer; // todo, but technically correct
-			else if (sf.return_type->name == "decimal") f->ret_type = value_type::decimal;
-			else if (sf.return_type->name == "string") f->ret_type = value_type::string;
-			else f->ret_type = value_type::object; // todo: convey data type if bound host class, otherwise structure / property names
+			if (sf.return_type->name == "integer") f->ret_type = bind::value_type::integer;
+			else if (sf.return_type->name == "function") f->ret_type = bind::value_type::integer; // todo, but technically correct
+			else if (sf.return_type->name == "decimal") f->ret_type = bind::value_type::decimal;
+			else if (sf.return_type->name == "string") f->ret_type = bind::value_type::string;
+			else f->ret_type = bind::value_type::object; // todo: convey data type if bound host class, otherwise structure / property names
 
+			f->name = sf.name;
 			f->ctx = vctx;
 			vctx->add(sf.name, f);
 		}

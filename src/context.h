@@ -1,40 +1,34 @@
 #pragma once
 #include <robin_hood.h>
 #include <string>
-#include <any>
 #include <vm.h>
+#include <bind.h>
+#include <source_map.h>
+#include <util.h>
+
+namespace asmjit {
+	class JitRuntime;
+};
 
 namespace gjs {
-	namespace bind {
-		struct wrapped_function;
-		struct wrapped_class;
-	};
-
-	enum class value_type {
-		integer,
-		decimal,
-		string,
-		object
-	};
-
-	struct vec3 { float x,y,z; };
-
 	class vm_context;
-	struct script_function {
-		vm_context* ctx;
-		address entry;
-		value_type ret_type;
-		vm_register ret_location;
-		std::vector<value_type> arg_types;
-		std::vector<vm_register> arg_locs;
+	class runtime_exception : public std::exception {
+		public:
+			runtime_exception(vm_context* ctx, const std::string& text);
+			runtime_exception(const std::string& text);
+			~runtime_exception();
 
-		template <typename T, typename... Args>
-		void call(T* result, Args... args);
+			virtual char const* what() const { return text.c_str(); }
+
+			bool raised_from_script;
+			std::string file;
+			std::string lineText;
+			std::string text;
+			u32 line;
+			u32 col;
 	};
 
-	struct script_class {
-	};
-
+	class type_manager;
 	class vm_context {
 		public:
 			vm_context(vm_allocator* alloc, u32 stack_size, u32 mem_size);
@@ -42,106 +36,125 @@ namespace gjs {
 
 			void add(const std::string& name, bind::wrapped_function* func);
 			void add(const std::string& name, bind::wrapped_class* cls);
-			void add(const std::string& name, script_function* func);
+			void add(const std::string& name, bind::script_function* func);
 
 			bind::wrapped_function* host_function(const std::string& name);
 			bind::wrapped_class* host_prototype(const std::string& name);
-			script_function* function(const std::string& name);
+			bind::script_function* _function(const std::string& name);
+			std::vector<bind::wrapped_class*> host_prototypes();
+			std::vector<bind::wrapped_function*> host_functions();
+
+			void add(vm_function* func);
+			vm_function* function(const std::string& name);
+			vm_function* function(u64 address);
+			std::vector<vm_function*> all_functions();
+
 
 			inline vm_state* state() { return &m_vm.state; }
 			inline instruction_array* code() { return &m_instructions; }
+			inline source_map* map() { return &m_map; }
+			inline type_manager* types() { return &m_types; }
+			inline asmjit::JitRuntime* jit() { return m_jit; }
+			inline bool is_executing() const { return m_is_executing; }
+			inline bool log_exceptions() const { return m_catch_exceptions; }
+			inline void log_exceptions(bool doLog) { m_catch_exceptions = doLog; }
 
+			void add_code(const std::string& filename, const std::string& code);
 			void execute(address entry);
 
 
 		protected:
-			robin_hood::unordered_map<std::string, bind::wrapped_function*> m_host_functions;
-			robin_hood::unordered_map<std::string, script_function*> m_script_functions;
-			robin_hood::unordered_map<std::string, bind::wrapped_class*> m_host_classes;
+			robin_hood::unordered_map<u64, vm_function*> m_funcs_by_addr;
+			robin_hood::unordered_map<std::string, vm_function*> m_funcs;
+
+			asmjit::JitRuntime* m_jit;
+			type_manager m_types;
 			vm m_vm;
 			instruction_array m_instructions;
+			source_map m_map;
+			bool m_is_executing;
+			bool m_catch_exceptions;
+
+			// about to be removed
+			robin_hood::unordered_map<std::string, bind::wrapped_function*> m_host_functions;
+			robin_hood::unordered_map<std::string, bind::script_function*> m_script_functions;
+			robin_hood::unordered_map<std::string, bind::wrapped_class*> m_host_classes;
 	};
 
-	template <typename T>
-	void to_reg(const T& in, u64* reg_ptr) {
-	}
-
-	template <>
-	void to_reg<integer>(const integer& in, u64* reg_ptr);
-
-	template <typename Arg, typename... Args>
-	void set_arguments(script_function* func, u8 idx, const Arg& a, Args... rest) {
-		vm_state* state = func->ctx->state();
-
-		switch (func->arg_types[idx]) {
-			case value_type::integer: {
-				break;
-			}
-			case value_type::decimal: {
-				break;
-			}
-			case value_type::string: {
-				break;
-			}
-			case value_type::object: {
-				break;
-			}
+	namespace bind {
+		template <typename T>
+		void to_reg(vm_context* context, const T& in, u64* reg_ptr) {
+			throw runtime_exception(context, format("No binding exists for storing type '%s' in a register", typeid(T).name));
 		}
 
-		to_reg<Arg>(a, &state->registers[(integer)func->arg_locs[idx]]);
-
-		if (sizeof...(rest) == 0) return;
-		set_arguments(func, idx + 1, rest...);
-	}
-	void set_arguments(script_function* func, u8 idx);
-
-
-
-	template <typename T>
-	void from_reg(T* out, u64* reg_ptr) {
-	}
-
-	template <>
-	void from_reg<integer>(integer* out, u64* reg_ptr);
-
-	template <typename T, typename... Args>
-	void script_function::call(T* result, Args... args) {
-		if (sizeof...(args) != arg_locs.size()) {
-			// exception
+		template <typename T>
+		void from_reg(vm_context* context, T* out, u64* reg_ptr) {
+			throw runtime_exception(context, format("No binding exists for retrieving type '%s' from a register", typeid(T).name));
 		}
 
-		if (arg_locs.size() > 0) set_arguments(this, 0, args...);
-		ctx->execute(entry);
+		template <typename T, typename... Args>
+		void script_function::call(T* result, Args... args) {
+			try {
+				if (sizeof...(args) != arg_locs.size()) {
+					throw runtime_exception(format("Script function '%s' takes %d arguments, %d %s provided", name.c_str(), arg_locs.size(), sizeof...(args), (sizeof...(args)) == 1 ? "was" : "were"));
+				}
 
-		vm_state* state = ctx->state();
+				if (arg_locs.size() > 0) set_arguments(this, 0, args...);
+				ctx->execute(entry);
 
-		switch (ret_type) {
-			case value_type::integer: {
-				if (!std::is_integral_v<T>) {
-					// exception
+				vm_state* state = ctx->state();
+
+				switch (ret_type) {
+					case value_type::integer: {
+						if (!std::is_integral_v<T>) {
+							throw runtime_exception(format("Return value of script function '%s' is type 'integer', but non-integral type '%s' was provided", name.c_str(), typeid(T).name()));
+						}
+						break;
+					}
+					case value_type::decimal: {
+						if (!std::is_floating_point_v<T>) {
+							throw runtime_exception(format("Return value of script function '%s' is type 'decimal', but non-floating point type '%s' was provided", name.c_str(), typeid(T).name()));
+						}
+						break;
+					}
+					case value_type::string: {
+						if (!std::is_same_v<T, char*> && !std::is_same_v<T, std::string>) {
+							throw runtime_exception(format("Return value of script function '%s' is type 'string', but non-string type '%s' was provided", name.c_str(), typeid(T).name()));
+						}
+						break;
+					}
+					case value_type::object: {
+						if (!std::is_pointer_v<T>) {
+							// exception
+							throw runtime_exception(format("Return value of script function '%s' is type 'object', but non-pointer type '%s' was provided", name.c_str(), typeid(T).name()));
+						}
+						break;
+					}
 				}
-				break;
-			}
-			case value_type::decimal: {
-				if (!std::is_floating_point_v<T>) {
-					// exception
-				}
-				break;
-			}
-			case value_type::string: {
-				if (!std::is_same_v<T, char*>) {
-					// exception
-				}
-				break;
-			}
-			case value_type::object: {
-				if (!std::is_reference_v<T> && !std::is_pointer_v<T>) {
-					// exception
-				}
-				break;
+
+				from_reg(ctx, result, &state->registers[(integer)ret_location]);
+			}  catch (runtime_exception& e) {
+				if (!ctx->log_exceptions()) throw e;
+				if (e.raised_from_script) {
+					printf("%s:%d:%d: %s\n", e.file.c_str(), e.line, e.col, e.text.c_str());
+					std::string ln = "";
+					u32 wscount = 0;
+					bool reachedText = false;
+					for (u32 i = 0;i < e.lineText.length();i++) {
+						if (isspace(e.lineText[i]) && !reachedText) wscount++;
+						else {
+							reachedText = true;
+							ln += e.lineText[i];
+						}
+					}
+					printf("%s\n", ln.c_str());
+					for (u32 i = 0;i < e.col - wscount;i++) printf(" ");
+					printf("^\n");
+				} else printf("%s\n", e.text.c_str());
+			} catch (std::exception& e) {
+				if (!ctx->log_exceptions()) throw e;
+				printf("Caught exception: %s\n", e.what());
 			}
 		}
-
-		from_reg(result, &state->registers[(integer)ret_location]);
-	}
+	};
 };

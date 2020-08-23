@@ -2,6 +2,7 @@
 #include <allocator.h>
 #include <stdarg.h>
 #include <string.h>
+#include <context.h>
 
 #include <asmjit/asmjit.h>
 using namespace asmjit;
@@ -38,7 +39,7 @@ namespace gjs {
 	#define _O3i decode_operand_3i(i)
 	#define _O3f decode_operand_3f(i)
 
-	vm::vm(vm_allocator* allocator, u32 stack_size, u32 mem_size) : alloc(allocator), state(mem_size), m_stack_size(stack_size) {
+	vm::vm(vm_context* ctx, vm_allocator* allocator, u32 stack_size, u32 mem_size) : m_ctx(ctx), alloc(allocator), state(mem_size), m_stack_size(stack_size) {
 	}
 
 	vm::~vm() {
@@ -57,8 +58,9 @@ namespace gjs {
 		u32 cs = code.size();
 		bool term = false;
 		while ((*ip) <= cs && !term) {
-			i = code[(*ip)++];
-			printf("%2.2d: %s\n", *ip - 1, instruction_to_string(i, &state).c_str());
+			i = code[*ip];
+			printf("%2.2d: %s\n", *ip, instruction_to_string(i, &state).c_str());
+
 			vmi instr = decode_instruction(i);
 			switch (instr) {
 				// do nothing
@@ -345,65 +347,68 @@ namespace gjs {
                 }
                 // branch if register equals zero					beqz	(a)		(fail_addr)		if a: goto fail_addr
                 case vmi::beqz: {
-					if(GRi(_O1)) *ip = _O2i;
+					if(GRi(_O1)) *ip = _O2i - 1;
                     break;
                 }
                 // branch if register not equals zero				bneqz	(a)		(fail_addr)		if !a: goto fail_addr
                 case vmi::bneqz: {
-					if(!GRi(_O1)) *ip = _O2i;
+					if(!GRi(_O1)) *ip = _O2i - 1;
                     break;
                 }
                 // branch if register greater than zero				bgtz	(a)		(fail_addr)		if a <= 0: goto fail_addr
                 case vmi::bgtz: {
-					if(GRi(_O1) <= 0) *ip = _O2i;
+					if(GRi(_O1) <= 0) *ip = _O2i - 1;
                     break;
                 }
                 // branch if register greater than or equals zero	bgtez	(a)		(fail_addr)		if a < 0: goto fail_addr
                 case vmi::bgtez: {
-					if(GRi(_O1) < 0) *ip = _O2i;
+					if(GRi(_O1) < 0) *ip = _O2i - 1;
                     break;
                 }
                 // branch if register less than zero				bltz	(a)		(fail_addr)		if a >= 0: goto fail_addr
                 case vmi::bltz: {
-					if(GRi(_O1) >= 0) *ip = _O2i;
+					if(GRi(_O1) >= 0) *ip = _O2i - 1;
                     break;
                 }
                 // branch if register less than or equals zero		bltez	(a)		(fail_addr)		if a > 0: goto fail_addr
                 case vmi::bltez: {
-					if(GRi(_O1) > 0) *ip = _O2i;
+					if(GRi(_O1) > 0) *ip = _O2i - 1;
                     break;
                 }
                 // jump to address									jmp		0x123					$ip = 0x123
                 case vmi::jmp: {
-					*ip = _O1i;
+					*ip = _O1i - 1;
                     break;
                 }
                 // jump to address in register						jmp		(a)						$ip = a
                 case vmi::jmpr: {
-					*ip = GRi(_O1);
+					*ip = GRi(_O1) - 1;
                     break;
                 }
                 // jump to address and store $ip in $ra				jal		0x123					$ra = $ip + 1;$ip = 0x123
                 case vmi::jal: {
-					GRi(vmr::ra) = (*ip);
-					*ip = _O1i;
+					GRi(vmr::ra) = (*ip) + 1;
+					*ip = _O1i - 1;
                     break;
                 }
                 // jump to address in register and store $ip in $ra	jalr	(a)						$ra = $ip + 1;$ip = a
                 case vmi::jalr: {
-					GRi(vmr::ra) = (*ip);
-					*ip = GRi(_O1);
+					GRi(vmr::ra) = (*ip) + 1;
+					*ip = GRi(_O1) - 1;
                     break;
                 }
 				case vmi::instruction_count: {
+                    throw runtime_exception(m_ctx, "Invalid Instruction");
 					break;
 				}
 				default: {
-					// exception
+					throw runtime_exception(m_ctx, "Invalid Instruction");
 					// deinitialize?
 					break;
 				}
 			}
+
+            (*ip)++;
 		}
 	}
 
