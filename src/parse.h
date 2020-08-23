@@ -30,7 +30,9 @@ namespace gjs {
 			constant,
 			identifier,
 			type_identifier,
-			operation
+			operation,
+			context_type,
+			context_function
 		};
 		enum class constant_type {
 			none,

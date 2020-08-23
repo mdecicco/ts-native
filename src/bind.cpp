@@ -40,9 +40,12 @@ namespace gjs {
 
 		for (auto i = wrapped->properties.begin();i != wrapped->properties.end();++i) {
 			t->properties.push_back({
+				i->getSecond()->flags,
 				i->getFirst(),
 				get(i->getSecond()->type.name()),
-				i->getSecond()->offset
+				i->getSecond()->offset,
+				i->getSecond()->getter ? new vm_function(this, i->getSecond()->getter) : nullptr,
+				i->getSecond()->setter ? new vm_function(this, i->getSecond()->setter) : nullptr
 			});
 		}
 

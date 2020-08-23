@@ -15,5 +15,6 @@ namespace gjs {
 	typedef uint32_t	address;
 	typedef float		decimal;
 	typedef int32_t		integer;
+	typedef uint32_t	uinteger;
 	typedef int16_t		memory_offset;
 };

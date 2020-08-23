@@ -82,14 +82,24 @@ namespace gjs {
 	};
 
 	namespace bind {
+		template <class T>
+		void to_reg(vm_context* context, T* const& in, u64* reg_ptr) {
+			*reg_ptr = reinterpret_cast<u64>(in);
+		}
+
+		template <class T>
+		void from_reg(vm_context* context, T** out, u64* reg_ptr) {
+			*out = reinterpret_cast<T*>(*reg_ptr);
+		}
+
 		template <typename T>
 		void to_reg(vm_context* context, const T& in, u64* reg_ptr) {
-			throw runtime_exception(context, format("No binding exists for storing type '%s' in a register", typeid(T).name));
+			throw runtime_exception(context, format("No binding exists for storing type '%s' in a register", typeid(T).name()));
 		}
 
 		template <typename T>
 		void from_reg(vm_context* context, T* out, u64* reg_ptr) {
-			throw runtime_exception(context, format("No binding exists for retrieving type '%s' from a register", typeid(T).name));
+			throw runtime_exception(context, format("No binding exists for retrieving type '%s' from a register", typeid(T).name()));
 		}
 
 		template <typename T, typename... Args>

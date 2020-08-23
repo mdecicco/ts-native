@@ -254,7 +254,7 @@ namespace gjs {
 						if (!tpm->get<Ret>()) {
 							throw bind_exception(format("Return type '%s' of method '%s' of class '%s' has not been bound yet", base_type_name<Ret>(), name.c_str(), typeid(remove_all<Cls>::type).name()));
 						}
-						address = u64(reinterpret_cast<void*>(f));
+						address = u64(reinterpret_cast<void*>(&f));
 
 						asmjit::CodeHolder h;
 						h.init(rt.codeInfo());
@@ -351,7 +351,8 @@ namespace gjs {
 		enum property_flags {
 			pf_none				= 0b00000000,
 			pf_read_only		= 0b00000001,
-			pf_write_only		= 0b00000010
+			pf_write_only		= 0b00000010,
+			pf_object_pointer	= 0b00000100
 		};
 
 		struct wrapped_class {
@@ -524,9 +525,12 @@ namespace gjs {
 			bool is_primitive;
 
 			struct property {
+				u8 flags;
 				std::string name;
 				vm_type* type;
 				u32 offset;
+				vm_function* getter;
+				vm_function* setter;
 			};
 
 			enum class operator_func {

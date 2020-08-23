@@ -85,6 +85,12 @@ namespace gjs {
 			|| x == vmi::muli		\
 			|| x == vmi::divi		\
 			|| x == vmi::divir		\
+			|| x == vmi::addui		\
+			|| x == vmi::subui		\
+			|| x == vmi::subuir		\
+			|| x == vmi::mului		\
+			|| x == vmi::divui		\
+			|| x == vmi::divuir		\
 			|| x == vmi::faddi		\
 			|| x == vmi::fsubi		\
 			|| x == vmi::fsubir		\
@@ -119,6 +125,10 @@ namespace gjs {
 			|| x == vmi::sub		\
 			|| x == vmi::mul		\
 			|| x == vmi::div		\
+			|| x == vmi::addu		\
+			|| x == vmi::subu		\
+			|| x == vmi::mulu		\
+			|| x == vmi::divu		\
 			|| x == vmi::fadd		\
 			|| x == vmi::fsub		\
 			|| x == vmi::fmul		\
@@ -335,6 +345,66 @@ namespace gjs {
 	}
 
 	instruction_encoder& instruction_encoder::operand(integer immediate) {
+		vmi instr = decode_instruction(m_result);
+		if (check_instr_type_0(instr)) {
+			// instruction takes no operands
+			// exception
+			return *this;
+		}
+
+		if (m_result & (1 << 2)) {
+			// operand 3 already set
+			// exception
+			return *this;
+		}
+
+		if (m_result & (1 << 1)) {
+			// operand 2 already set
+			if (!third_operand_is_immediate(instr)) {
+				// instruction does not take third operand or third operand is not immediate
+				// exception
+				return *this;
+			}
+
+			if (third_operand_must_be_fpi(instr)) {
+				// instruction requires that the third operand be floating point
+				// exception
+				return *this;
+			}
+
+			m_result |= 1 << 2;
+			m_result |= instruction(immediate) << operand_3i_shift;
+			debug(m_result);
+			return *this;
+		}
+
+		if (m_result & 1) {
+			// operand 1 already set
+			if (!second_operand_is_immediate(instr)) {
+				// instruction does not take second operand or second operand is not immediate
+				// exception
+				return *this;
+			}
+
+			m_result |= 1 << 1;
+			m_result |= instruction(immediate) << operand_2i_shift;
+			debug(m_result);
+			return *this;
+		}
+
+		// operand 1
+		if (!first_operand_is_immediate(instr)) {
+			// instruction does not take an operand or first operand is not immediate
+			// exception
+			return *this;
+		}
+		m_result |= 1;
+		m_result |= instruction(immediate) << operand_1i_shift;
+		debug(m_result);
+		return *this;
+	}
+
+	instruction_encoder& instruction_encoder::operand(uinteger immediate) {
 		vmi instr = decode_instruction(m_result);
 		if (check_instr_type_0(instr)) {
 			// instruction takes no operands

@@ -826,7 +826,9 @@ namespace gjs {
 			"constant",
 			"identifier",
 			"type_identifier",
-			"operation"
+			"operation",
+			"context_type",
+			"context_function"
 		};
 		static const char* op_names[] = {
 			"invalid",
@@ -1916,6 +1918,32 @@ namespace gjs {
 		ctx.root->start.file = file;
 		ctx.node_path.push(ctx.root);
 		ctx.frames.push_back(parse_frame());
+
+		vector<vm_type*> types = env->types()->all();
+		for (u32 i = 0;i < types.size();i++) {
+			ast_node* t = new ast_node();
+			t->type = ast_node::node_type::context_type;
+			t->identifier = new ast_node();
+			t->identifier->type = ast_node::node_type::identifier;
+			t->identifier->set(types[i]->name);
+
+			ctx.root->all_nodes.push_back(t);
+			ctx.root->all_nodes.push_back(t->identifier);
+			ctx.frames[0].type_declarations.push_back(t);
+		}
+
+		vector<vm_function*> funcs = env->all_functions();
+		for (u32 i = 0;i < funcs.size();i++) {
+			ast_node* f = new ast_node();
+			f->type = ast_node::node_type::context_function;
+			f->identifier = new ast_node();
+			f->identifier->type = ast_node::node_type::identifier;
+			f->identifier->set(funcs[i]->name);
+
+			ctx.root->all_nodes.push_back(f);
+			ctx.root->all_nodes.push_back(f->identifier);
+			ctx.frames[0].variable_declarations.push_back(f);
+		}
 
 		ast_node* node = parse_next(ctx, t);
 		ctx.root->body = node;

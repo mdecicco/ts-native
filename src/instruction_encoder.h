@@ -30,6 +30,7 @@ namespace gjs {
 
 			instruction_encoder& operand(vm_register reg);
 			instruction_encoder& operand(integer immediate);
+			instruction_encoder& operand(uinteger immediate);
 			instruction_encoder& operand(decimal immediate);
 
 			inline operator instruction() const { return m_result; }
@@ -55,12 +56,15 @@ namespace gjs {
 	FORCE_INLINE vm_instruction decode_instruction			(instruction i) { return (vm_instruction)(i >> instruction_shift); }
 	FORCE_INLINE vm_register	decode_operand_1			(instruction i) { return (vm_register)(((i >> operand_1r_shift) | operand_register_mask) ^ operand_register_mask); }
 	FORCE_INLINE integer		decode_operand_1i			(instruction i) { return i >> operand_1i_shift; }
+	FORCE_INLINE uinteger		decode_operand_1ui			(instruction i) { return i >> operand_1i_shift; }
 	FORCE_INLINE vm_register	decode_operand_2			(instruction i) { return (vm_register)(((i >> operand_2r_shift) | operand_register_mask) ^ operand_register_mask); }
 	FORCE_INLINE integer		decode_operand_2i			(instruction i) { return i >> operand_2i_shift; }
+	FORCE_INLINE uinteger		decode_operand_2ui			(instruction i) { return i >> operand_2i_shift; }
 	FORCE_INLINE vm_register	decode_operand_3			(instruction i) { return (vm_register)(((i >> operand_3r_shift) | operand_register_mask) ^ operand_register_mask); }
 	FORCE_INLINE bool			decode_operator_3_is_float	(instruction i) { return (i >> operand_3_is_flt_shift) & 1; }
 	FORCE_INLINE decimal		decode_operand_3f			(instruction i) { float r; *((integer*)&r) = i >> operand_3i_shift; return r; }
 	FORCE_INLINE integer		decode_operand_3i			(instruction i) { return i >> operand_3i_shift; }
+	FORCE_INLINE uinteger		decode_operand_3ui			(instruction i) { return i >> operand_3i_shift; }
 
 	class vm_state;
 	std::string instruction_to_string(instruction i, vm_state* state = nullptr);
