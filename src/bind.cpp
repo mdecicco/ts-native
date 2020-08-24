@@ -33,6 +33,7 @@ namespace gjs {
 		}
 
 		vm_type* t = it->getSecond();
+		t->m_wrapped = wrapped;
 
 		t->size = wrapped->size;
 		t->constructor = wrapped->ctor ? new vm_function(this, wrapped->ctor) : nullptr;
@@ -62,13 +63,16 @@ namespace gjs {
 		return out;
 	}
 
-	vm_function::vm_function(const std::string _name, address addr) {
+	vm_function::vm_function(vm_context* ctx, const std::string _name, address addr) {
+		m_ctx = ctx;
 		name = _name;
 		access.entry = addr;
 		is_host = false;
-		signature.return_loc = vm_register::v0;
 	}
+
 	vm_function::vm_function(type_manager* mgr, bind::wrapped_function* wrapped) {
+		m_ctx = mgr->m_ctx;
+		signature.return_loc = vm_register::v0;
 		name = wrapped->name;
 		signature.text = wrapped->sig;
 		for (u8 i = 0;i < wrapped->arg_types.size();i++) {
@@ -123,14 +127,21 @@ namespace gjs {
 		destructor = nullptr;
 		size = 0;
 		is_primitive = false;
+		m_wrapped = nullptr;
+	}
+
+	vm_type::~vm_type() {
+		if (m_wrapped) delete m_wrapped;
 	}
 
 	namespace bind {
-		std::any& get_input_param(std::vector<std::any>& params, u32 idx) {
-			return params[idx];
-		}
+		void set_arguments(vm_context* ctx, vm_function* func, u8 idx) { }
 
-		void set_arguments(script_function* func, u8 idx) {
+		wrapped_class::~wrapped_class() {
+			for (auto i = properties.begin();i != properties.end();++i) {
+				delete i->getSecond();
+			}
+			properties.clear();
 		}
 
 		declare_input_binding(integer, context, in, reg_ptr) {

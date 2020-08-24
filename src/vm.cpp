@@ -34,6 +34,7 @@ namespace gjs {
 	#define _O1 decode_operand_1(i)
 	#define _O1i decode_operand_1i(i)
 	#define _O1ui decode_operand_1ui(i)
+	#define _O1ui64 decode_operand_1ui64(i)
 	#define _O2 decode_operand_2(i)
 	#define _O2i decode_operand_2i(i)
 	#define _O2ui decode_operand_2ui(i)
@@ -62,7 +63,9 @@ namespace gjs {
 		bool term = false;
 		while ((*ip) <= cs && !term) {
 			i = code[*ip];
-			printf("%2.2d: %s\n", *ip, instruction_to_string(i, &state).c_str());
+			if (m_ctx->log_instructions()) {
+				printf("%2.2d: %s\n", *ip, instruction_to_string(i, &state).c_str());
+			}
 
 			vmi instr = decode_instruction(i);
 			switch (instr) {
@@ -249,52 +252,52 @@ namespace gjs {
 					GRx(_O1, i64) = _O3i / GRx(_O2, i64);
                     break;
                 }
-							   // add two registers								add		(dest)	(a)		(b)		dest = a + b
+				// add two registers								add		(dest)	(a)		(b)		dest = a + b
 				case vmi::addu: {
 					GRx(_O1, u64) = GRx(_O2, u64) + GRx(_O3, u64);
 					break;
 				}
-							 // add register and immediate value					addi	(dest)	(a)		1.0		dest = a + 1
+				// add register and immediate value					addi	(dest)	(a)		1.0		dest = a + 1
 				case vmi::addui: {
 					GRx(_O1, u64) = GRx(_O2, u64) + _O3ui;
 					break;
 				}
-							  // subtract register from another					sub		(dest)	(a)		(b)		dest = a - b
+				// subtract register from another					sub		(dest)	(a)		(b)		dest = a - b
 				case vmi::subu: {
 					GRx(_O1, u64) = GRx(_O2, u64) - GRx(_O3, u64);
 					break;
 				}
-							 // subtract immediate value from register			subi	(dest)	(a)		1.0		dest = a - 1
+				// subtract immediate value from register			subi	(dest)	(a)		1.0		dest = a - 1
 				case vmi::subui: {
 					GRx(_O1, u64) = GRx(_O2, u64) - _O3ui;
 					break;
 				}
-							  // subtract register from immediate value			subir	(dest)	(a)		1.0		dest = 1 - a
+				// subtract register from immediate value			subir	(dest)	(a)		1.0		dest = 1 - a
 				case vmi::subuir: {
 					GRx(_O1, u64) = _O3ui - GRx(_O2, u64);
 					break;
 				}
-							   // multiply two registers							mul		(dest)	(a)		(b)		dest = a * b
+				// multiply two registers							mul		(dest)	(a)		(b)		dest = a * b
 				case vmi::mulu: {
 					GRx(_O1, u64) = GRx(_O2, u64) * GRx(_O3, u64);
 					break;
 				}
-							 // multiply register and immediate value			muli	(dest)	(a)		1.0		dest = a * 1
+				// multiply register and immediate value			muli	(dest)	(a)		1.0		dest = a * 1
 				case vmi::mului: {
 					GRx(_O1, u64) = GRx(_O2, u64) * _O3ui;
 					break;
 				}
-							  // divide register by another						div		(dest)	(a)		(b)		dest = a / b
+				// divide register by another						div		(dest)	(a)		(b)		dest = a / b
 				case vmi::divu: {
 					GRx(_O1, u64) = GRx(_O2, u64) / GRx(_O3, u64);
 					break;
 				}
-							 // divide register by immediate value				divi	(dest)	(a)		1.0		dest = a / 1
+				// divide register by immediate value				divi	(dest)	(a)		1.0		dest = a / 1
 				case vmi::divui: {
 					GRx(_O1, u64) = GRx(_O2, u64) / _O3ui;
 					break;
 				}
-							  // divide immediate value by register				divir	(dest)	(a)		1.0		dest = 1 / a
+				// divide immediate value by register				divir	(dest)	(a)		1.0		dest = 1 / a
 				case vmi::divuir: {
 					GRx(_O1, u64) = _O3ui / GRx(_O2, u64);
 					break;
@@ -451,8 +454,11 @@ namespace gjs {
                 }
                 // jump to address and store $ip in $ra				jal		0x123					$ra = $ip + 1;$ip = 0x123
                 case vmi::jal: {
+					u64 addr = _O1ui64;
 					GRi(vmr::ra) = (*ip) + 1;
-					*ip = _O1i - 1;
+					if (addr < code.size()) {
+						*ip = addr - 1;
+					} else call_external(addr);
                     break;
                 }
                 // jump to address in register and store $ip in $ra	jalr	(a)						$ra = $ip + 1;$ip = a
@@ -477,5 +483,42 @@ namespace gjs {
 	}
 
 	void vm::jit(const instruction_array& code) {
+	}
+
+	void vm::call_external(u64 addr) {
+		vm_function* f = m_ctx->function(addr);
+		if (!f) {
+			throw runtime_exception(m_ctx, format("Function at 0x%lX not found", addr));
+		}
+
+		std::vector<void*> args;
+		for (u8 a = 0;a < f->signature.arg_locs.size();a++) {
+			vm_type* tp = f->signature.arg_types[a];
+			u64* reg = &(m_ctx->state()->registers[(u8)f->signature.arg_locs[a]]);
+			bool is_ptr = f->access.wrapped->arg_is_ptr[a];
+			if (tp->is_primitive) {
+				// *reg is some primitive value (integer, decimal, ...)
+				if (is_ptr) {
+					args.push_back(reg);
+				} else {
+					args.push_back(reinterpret_cast<void*>(*reg));
+				}
+			} else {
+				// *reg is a pointer to some value
+				if (is_ptr) {
+					args.push_back(reinterpret_cast<void*>(*reg));
+				} else {
+					throw runtime_exception(m_ctx, format(
+						"Function '%s' accepts type '%s' as a pass-by-value parameter. This is unsupported, please change it to a pointer or reference type to make it work",
+						f->name.c_str(), tp->name.c_str()
+					));
+				}
+			}
+		}
+
+		void* ret_addr = nullptr;
+		if (f->signature.return_loc != vmr::register_count) ret_addr = &(m_ctx->state()->registers[(u8)f->signature.return_loc]);
+
+		f->access.wrapped->call(ret_addr, args.data());
 	}
 };

@@ -76,95 +76,37 @@ namespace gjs {
 	namespace bind {
 		using arg_arr = std::vector<std::any>;
 
-		// basic array lookup, probably could be replaced
-		// by clever work with asmjit to call vector::data
-		// directly
-		std::any& get_input_param(arg_arr& params, u32 idx);
+		template <typename T>
+		void to_reg(vm_context* context, const T& in, u64* reg_ptr);
 
-		// The structure that encapsulates index lists
-		template <size_t... Is>
-		struct index_list { };
+		template <typename T>
+		void from_reg(vm_context* context, T* out, u64* reg_ptr);
 
-		// Primary template for index range builder
-		template <size_t MIN, size_t N, size_t... Is>
-		struct range_builder;
-
-		// Base step
-		template <size_t MIN, size_t... Is>
-		struct range_builder<MIN, MIN, Is...> {
-			typedef index_list<Is...> type;
-		};
-
-		// Induction step
-		template <size_t MIN, size_t N, size_t... Is>
-		struct range_builder : public range_builder<MIN, N - 1, N - 1, Is...> { };
-
-		// Meta-function that returns a [MIN, MAX) index range
-		template <size_t MIN, size_t MAX>
-		using index_range = typename range_builder<MIN, MAX>::type;
+		template <typename T>
+		std::any to_arg(vm_context* context, u64* reg_ptr) {
+			union { T x; };
+			from_reg<T>(context, &x, reg_ptr);
+			return std::any(x);
+		}
 
 		struct wrapped_function {
 			wrapped_function(std::type_index ret, std::vector<std::type_index> args, const std::string& _name, const std::string& _sig)
 			: return_type(ret), arg_types(args), name(_name), sig(_sig) { }
 
 			// class methods must receive /this/ pointer as first argument
-			virtual std::any call(const arg_arr& args) = 0;
+			virtual void call(void* ret, void** args) = 0;
 			
 			std::string name;
 			std::string sig;
 			std::type_index return_type;
 			std::vector<std::type_index> arg_types;
+			std::vector<bool> arg_is_ptr;
 			u64 address;
 		};
 
 		namespace x86  {
 			using compiler = asmjit::x86::Compiler;
 			using reg = asmjit::x86::Gp;
-
-			template <typename param_type>
-			u8 compile_get_parameter(type_manager* tpm, const std::string& fname, compiler& c, reg& arg_vec, reg* out_params, size_t pidx) {
-				if (!tpm->get<param_type>()) {
-					throw bind_exception(format("Return type '%s' of function '%s' has not been bound yet", base_type_name<param_type>(), fname.c_str()));
-				}
-
-				reg cur_param = c.newGp(asmjit::Type::IdOfT<std::any&>::kTypeId);
-
-				// cur_param = get_input_param(arg_vec, pidx)
-				auto index_call = c.call(
-					fimm(get_input_param), 
-					asmjit::FuncSignatureT<std::any&, arg_arr&, u32>(asmjit::CallConv::kIdHost)
-				);
-				index_call->setArg(0, arg_vec);
-				index_call->setArg(1, asmjit::imm(pidx));
-				index_call->setRet(0, cur_param);
-
-				// param_value = std::any_cast<param_type>(cur_param)
-				auto cast_call = c.call(
-					fimm((param_type(*)(std::any&))std::any_cast<param_type>),
-					asmjit::FuncSignatureT<param_type, std::any&>(asmjit::CallConv::kIdHost)
-				);
-				cast_call->setArg(0, cur_param);
-				cast_call->setRet(0, out_params[pidx]);
-				return true;
-			}
-
-			// Build ASM code to translate vector<std::any> into the actual parameters
-			// for a function call
-			template <typename... Args, size_t... Indices>
-			void compile_get_parameters(type_manager* tpm, const std::string& fname, compiler& c, reg& in_args, reg* out_params, index_list<Indices...>) {
-				// Trick the compiler into calling compile_get_parameter for each argument type/index,
-				// passing the type and index to the function
-				std::vector<u8> dummy = {
-					compile_get_parameter<Args>(
-						tpm,
-						fname,
-						c,
-						in_args,
-						out_params,
-						Indices
-					)...
-				};
-			}
 		
 			// Call class method on object
 			// Only visible to class methods with non-void return
@@ -187,21 +129,34 @@ namespace gjs {
 				typedef Ret (*func_type)(Args...);
 				typedef std::tuple_size<std::tuple<Args...>> arg_count;
 
-				global_function(type_manager* tpm, asmjit::JitRuntime& rt, func_type f, const std::string& name) : wrapped_function(typeid(remove_all<Ret>::type), { typeid(remove_all<Args>::type)... }, name, typeid(f).name()), original_func(f) {
+				global_function(type_manager* tpm, asmjit::JitRuntime& rt, func_type f, const std::string& name) :
+					wrapped_function(typeid(remove_all<Ret>::type),
+					{ typeid(remove_all<Args>::type)... },
+					name,
+					typeid(f).name()),
+					original_func(f)
+				{
 					if (!tpm->get<Ret>()) {
 						throw bind_exception(format("Return type '%s' of function '%s' has not been bound yet", base_type_name<Ret>(), name.c_str()));
 					}
+					arg_is_ptr = { (std::is_reference_v<Args> || std::is_pointer_v<Args>)... };
 					address = u64(reinterpret_cast<void*>(f));
 					
 					asmjit::CodeHolder h;
 					h.init(rt.codeInfo());
 					compiler c(&h);
-					c.addFunc(asmjit::FuncSignatureT<Ret, const arg_arr&>(asmjit::CallConv::kIdHost));
-					reg in_args = c.newGp(asmjit::Type::IdOfT<const arg_arr&>::kTypeId);
-					c.setArg(0, in_args);
+					c.addFunc(asmjit::FuncSignatureT<void, void*, void**>(asmjit::CallConv::kIdHost));
+					reg out = c.newGp(asmjit::Type::IdOfT<void*>::kTypeId);
+					reg in_args = c.newGp(asmjit::Type::IdOfT<void**>::kTypeId);
+					c.setArg(0, out);
+					c.setArg(1, in_args);
 
-					std::vector<reg> params = { c.newGp(asmjit::Type::IdOfT<Args>::kTypeId)... };
-					compile_get_parameters<Args...>(tpm, name, c, in_args, params.data(), index_range<0, sizeof...(Args)>());
+					reg params[] = { c.newGp(asmjit::Type::IdOfT<Args>::kTypeId)... };
+					reg temp = c.newGp(asmjit::Type::IdOfT<void**>::kTypeId);
+					c.mov(temp, in_args);
+					for (u8 i = 0;i < arg_count::value;i++) {
+						c.mov(params[i], asmjit::x86::Mem(temp, i * sizeof(void*)));
+					}
 
 					if (std::is_void<Ret>::value) {
 						auto fcall = c.call(fimm(f), asmjit::FuncSignatureT<Ret, Args...>(asmjit::CallConv::kIdHost));
@@ -212,32 +167,20 @@ namespace gjs {
 						auto fcall = c.call(fimm(f), asmjit::FuncSignatureT<Ret, Args...>(asmjit::CallConv::kIdHost));
 						for (u8 i = 0;i < arg_count::value;i++) fcall->setArg(i, params[i]);
 						fcall->setRet(0, ret);
-						c.ret(ret);
+						c.mov(asmjit::x86::Mem(out, 0), ret);
+						c.ret();
 					}
 					c.endFunc();
 					c.finalize();
 					rt.add(&func, &h);
 				}
 
-				template <typename T = Ret>
-				typename std::enable_if<!std::is_same<T, void>::value, std::any>::type
-				operator()(const arg_arr& args) {
-					return func(args);
-				}
-
-				template <typename T = Ret>
-				typename std::enable_if<std::is_same<T, void>::value, std::any>::type
-				operator()(const arg_arr& args) {
-					func(args);
-					return std::any();
-				}
-
-				virtual std::any call(const arg_arr& args) {
-					return (*this)(args);
+				virtual void call(void* ret, void** args) {
+					func(ret, args);
 				}
 
 				func_type original_func;
-				Ret (*func)(const arg_arr&);
+				void (*func)(void*, void**);
 			};
 
 			template <typename Ret, typename Cls, typename... Args>
@@ -247,13 +190,21 @@ namespace gjs {
 					typedef Ret (*func_type)(method_type, Cls*, Args...);
 					typedef std::tuple_size<std::tuple<Args...>> ac;
 
-					class_method(type_manager* tpm, asmjit::JitRuntime& rt, method_type f, const std::string& name) : wrapped_function(typeid(remove_all<Ret>::type), { typeid(remove_all<Args>::type)... }, name, typeid(f).name()), original_func(call_class_method<Ret, Cls, Args...>) {
+					class_method(type_manager* tpm, asmjit::JitRuntime& rt, method_type f, const std::string& name) :
+						wrapped_function(
+							typeid(remove_all<Ret>::type),
+							{ typeid(remove_all<Cls>::type), typeid(remove_all<Args>::type)... },
+							name,
+							typeid(f).name()
+						), original_func(call_class_method<Ret, Cls, Args...>)
+					{
 						if (!tpm->get<Cls>()) {
 							throw bind_exception(format("Binding method '%s' of class '%s' that has not been bound yet", name.c_str(), typeid(remove_all<Cls>::type).name()));
 						}
 						if (!tpm->get<Ret>()) {
 							throw bind_exception(format("Return type '%s' of method '%s' of class '%s' has not been bound yet", base_type_name<Ret>(), name.c_str(), typeid(remove_all<Cls>::type).name()));
 						}
+						arg_is_ptr = { true, (std::is_reference_v<Args> || std::is_pointer_v<Args>)... };
 						address = u64(reinterpret_cast<void*>(&f));
 
 						asmjit::CodeHolder h;
@@ -261,22 +212,29 @@ namespace gjs {
 						compiler c(&h);
 
 						asmjit::FuncSignatureBuilder fs;
-						fs.addArg(asmjit::Type::kIdIntPtr);
-						fs.addArgT<Cls*>();
+						fs.addArg(asmjit::Type::kIdIntPtr); // method pointer
+						fs.addArgT<Cls*>(); // self
 
 						std::vector<u32> argTypes = { asmjit::Type::IdOfT<Args>::kTypeId... };
 						for (u8 i = 0;i < ac::value;i++) fs.addArg(argTypes[i]);
 						fs.setCallConv(asmjit::CallConv::kIdHost);
 						fs.setRetT<Ret>();
 
-						c.addFunc(asmjit::FuncSignatureT<Ret, const arg_arr&>(asmjit::CallConv::kIdHost));
-						reg in_args = c.newGp(asmjit::Type::IdOfT<const arg_arr&>::kTypeId);
-						c.setArg(0, in_args);
+						c.addFunc(asmjit::FuncSignatureT<void, void*, void**>(asmjit::CallConv::kIdHost));
+						reg out = c.newGp(asmjit::Type::IdOfT<void*>::kTypeId);
+						reg in_args = c.newGp(asmjit::Type::IdOfT<void**>::kTypeId);
+						c.setArg(0, out);
+						c.setArg(1, in_args);
 
-						std::vector<reg> params = { c.newGp(asmjit::Type::IdOfT<Args>::kTypeId)... };
-						params.insert(params.begin(), c.newGp(asmjit::Type::IdOfT<Cls*>::kTypeId));
-						compile_get_parameters<Cls*, Args...>(tpm, name, c, in_args, params.data(), index_range<0, sizeof...(Args) + 1>());
-			
+						reg params[] = {
+							c.newGp(asmjit::Type::IdOfT<Cls*>::kTypeId),
+							c.newGp(asmjit::Type::IdOfT<Args>::kTypeId)...
+						};
+						reg temp = c.newGp(asmjit::Type::IdOfT<void**>::kTypeId);
+						c.mov(temp, in_args);
+						for (u8 i = 0;i < ac::value + 1;i++) {
+							c.mov(params[i], asmjit::x86::Mem(temp, i * sizeof(void*)));
+						}
 						if (std::is_void<Ret>::value) {
 							auto call = c.call(asmjit::imm(original_func), fs);
 							call->setArg(0, asmjit::imm(*reinterpret_cast<intptr_t*>(&f)));
@@ -288,7 +246,8 @@ namespace gjs {
 							call->setArg(0, asmjit::imm(*reinterpret_cast<intptr_t*>(&f)));
 							for (u8 i = 0;i <= ac::value;i++) call->setArg(i + 1, params[i]);
 							call->setRet(0, ret);
-							c.ret(ret);
+							c.mov(asmjit::x86::Mem(out, 0), ret);
+							c.ret();
 
 						}
 						c.endFunc();
@@ -296,25 +255,12 @@ namespace gjs {
 						rt.add(&func, &h);
 					}
 
-					template <typename T = Ret>
-					typename std::enable_if<!std::is_same<T, void>::value, std::any>::type
-					operator()(const arg_arr& args) {
-						return func(args);
-					}
-
-					template <typename T = Ret>
-					typename std::enable_if<std::is_same<T, void>::value, std::any>::type
-					operator()(const arg_arr& args) {
-						func(args);
-						return std::any();
-					}
-
-					virtual std::any call(const arg_arr& args) {
-						return (*this)(args);
+					virtual void call(void* ret, void** args) {
+						return func(ret, args);
 					}
 
 					func_type original_func;
-					Ret (*func)(const arg_arr&);
+					void (*func)(void*, void**);
 			};
 		};
 
@@ -372,6 +318,8 @@ namespace gjs {
 			{
 			}
 
+			~wrapped_class();
+
 			asmjit::JitRuntime& rt;
 			std::string name;
 			std::string internal_name;
@@ -385,7 +333,7 @@ namespace gjs {
 		template <typename Cls>
 		struct wrap_class : wrapped_class {
 			wrap_class(type_manager* tpm, asmjit::JitRuntime& _rt, const std::string& name) : wrapped_class(_rt, name, typeid(remove_all<Cls>::type).name(), sizeof(remove_all<Cls>::type)), types(tpm) {
-				tpm->add(name, typeid(remove_all<Cls>::type).name());
+				vm_type* tp = tpm->add(name, typeid(remove_all<Cls>::type).name());
 			}
 
 			template <typename... Args>
@@ -443,57 +391,19 @@ namespace gjs {
 			type_manager* types;
 		};
 
-		enum class value_type {
-			integer,
-			decimal,
-			string,
-			object
-		};
-
-		struct script_function {
-			std::string name;
-			vm_context* ctx;
-			address entry;
-			value_type ret_type;
-			vm_register ret_location;
-			std::vector<value_type> arg_types;
-			std::vector<vm_register> arg_locs;
-
-			template <typename T, typename... Args>
-			void call(T* result, Args... args);
-		};
-
-
-		template <typename T>
-		void to_reg(vm_context* context, const T& in, u64* reg_ptr);
-
-		template <typename T>
-		void from_reg(vm_context* context, T* out, u64* reg_ptr);
-
-		template <typename T>
-		void set_argument(script_function* func, u8 idx, const T& arg) {
-			vm_state* state = func->ctx->state();
-			to_reg(func->ctx, arg, &state->registers[(integer)func->arg_locs[idx]]);
-		}
-
 		declare_input_binding(integer, context, in, reg_ptr);
 		declare_output_binding(integer, context, out, reg_ptr);
 		declare_input_binding(decimal, context, in, reg_ptr);
 		declare_output_binding(decimal, context, out, reg_ptr);
 
 		template <typename Arg, typename... Args>
-		void set_arguments(script_function* func, u8 idx, const Arg& a, Args... rest) {
-			set_argument(func, idx, a);
-
-			if (sizeof...(rest) == 0) return;
-			set_arguments(func, idx + 1, rest...);
-		}
-		void set_arguments(script_function* func, u8 idx);
+		void set_arguments(vm_context* ctx, vm_function* func, u8 idx, const Arg& a, Args... rest);
+		void set_arguments(vm_context* ctx, vm_function* func, u8 idx);
 	};
 
 	class vm_function {
 		public:
-			vm_function(const std::string name, address addr);
+			vm_function(vm_context* ctx, const std::string name, address addr);
 			vm_function(type_manager* mgr, bind::wrapped_function* wrapped);
 
 			void arg(vm_type* type);
@@ -508,13 +418,59 @@ namespace gjs {
 				std::vector<vm_type*> arg_types;
 				std::vector<vm_register> arg_locs;
 				bool is_thiscall;
-
 			} signature;
 
 			union {
 				bind::wrapped_function* wrapped;
 				address entry;
 			} access;
+
+			template <typename Ret, typename... Args>
+			void call(Ret* result, Args... args) {
+				try {
+					if (sizeof...(args) != signature.arg_locs.size()) {
+						throw runtime_exception(format(
+							"Function '%s' takes %d arguments, %d %s provided",
+							name.c_str(),
+							signature.arg_locs.size(),
+							sizeof...(args),
+							(sizeof...(args)) == 1 ? "was" : "were"
+						));
+					}
+
+					if (signature.arg_locs.size() > 0) bind::set_arguments(m_ctx, this, 0, args...);
+					if (is_host) m_ctx->vm()->call_external(access.wrapped->address);
+					else m_ctx->vm()->execute(*m_ctx->code(), access.entry);
+
+					if (signature.return_type->size != 0) {
+						bind::from_reg(m_ctx, result, &m_ctx->state()->registers[(u8)signature.return_loc]);
+					}
+				} catch (runtime_exception& e) {
+					if (!m_ctx->log_exceptions()) throw e;
+					if (e.raised_from_script) {
+						printf("%s:%d:%d: %s\n", e.file.c_str(), e.line, e.col, e.text.c_str());
+						std::string ln = "";
+						u32 wscount = 0;
+						bool reachedText = false;
+						for (u32 i = 0;i < e.lineText.length();i++) {
+							if (isspace(e.lineText[i]) && !reachedText) wscount++;
+							else {
+								reachedText = true;
+								ln += e.lineText[i];
+							}
+						}
+						printf("%s\n", ln.c_str());
+						for (u32 i = 0;i < e.col - wscount;i++) printf(" ");
+						printf("^\n");
+					} else printf("%s\n", e.text.c_str());
+				} catch (std::exception& e) {
+					if (!m_ctx->log_exceptions()) throw e;
+					printf("Caught exception: %s\n", e.what());
+				}
+			}
+
+		protected:
+			vm_context* m_ctx;
 	};
 
 	class vm_type {
@@ -551,7 +507,25 @@ namespace gjs {
 
 		protected:
 			friend class type_manager;
+			bind::wrapped_class* m_wrapped;
 			vm_type();
+			~vm_type();
+	};
+
+	namespace bind {
+		template <typename T>
+		void set_argument(vm_context* ctx, vm_function* func, u8 idx, const T& arg) {
+			vm_state* state = ctx->state();
+			to_reg(ctx, arg, &state->registers[(integer)func->signature.arg_locs[idx]]);
+		}
+
+		template <typename Arg, typename... Args>
+		void set_arguments(vm_context* ctx, vm_function* func, u8 idx, const Arg& a, Args... rest) {
+			set_argument(ctx, func, idx, a);
+
+			if (sizeof...(rest) == 0) return;
+			set_arguments(ctx, func, idx + 1, rest...);
+		}
 	};
 };
 #undef fimm

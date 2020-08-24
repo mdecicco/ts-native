@@ -118,6 +118,7 @@ namespace gjs {
 			var() {
 				ctx = nullptr;
 				is_variable = false;
+				no_auto_free = false;
 				is_reg = false;
 				is_imm = false;
 				type = nullptr;
@@ -128,6 +129,7 @@ namespace gjs {
 
 			compile_context* ctx;
 			bool is_variable;
+			bool no_auto_free;
 			bool is_reg;
 			bool is_imm;
 			string name;
@@ -209,7 +211,7 @@ namespace gjs {
 		data_type* return_type;
 		vmr return_reg;
 		vector<arg_info> args;
-		address entry;
+		u64 entry;
 		vector<scope> scopes;
 		ast_node* root;
 		bool auto_free_consumed_vars;
@@ -306,6 +308,8 @@ namespace gjs {
 
 		var* imm(compile_context& ctx, char* s);
 
+		var* zero(compile_context& ctx, data_type* type);
+
 		void free(var* v) {
 			if (v->is_reg) registers.free(v->loc.reg);
 			else stack.free(v->loc.stack_addr);
@@ -327,7 +331,7 @@ namespace gjs {
 			for (u8 i = 0;i < scopes.size();i++) {
 				for (auto s = scopes[i].vars.begin();s != scopes[i].vars.end();++s) {
 					var* v = s->getSecond();
-					if (!v->is_variable) continue;
+					if (!v->is_variable || v->no_auto_free) continue;
 					if (v->ref_count == v->total_ref_count) free(v);
 				}
 			}
@@ -435,7 +439,7 @@ namespace gjs {
 		void add(instruction i, ast_node* because) {
 			address addr = out->size();
 			(*out) += i;
-			/*
+			
 			std::string ln = "";
 			u32 wscount = 0;
 			bool reachedText = false;
@@ -450,7 +454,7 @@ namespace gjs {
 			for (u32 c = 0;c < because->start.col - wscount;c++) printf(" ");
 			printf("^ ");
 			printf("%s\n\n", instruction_to_string(i).c_str());
-			*/
+			
 
 			ctx->map()->append(because);
 		}
@@ -482,9 +486,8 @@ namespace gjs {
 			args.push_back({ "", ctx.type(f->signature.arg_types[a]->name), loc });
 		}
 		entry = f->is_host ? f->access.wrapped->address : f->access.entry;
-		return_reg = f->is_host ? vmr::register_count : f->signature.return_loc;
+		return_reg = f->signature.return_loc;
 	}
-
 
 	var* func::allocate(compile_context& ctx, ast_node* decl, bool is_arg) {
 		if (auto_free_consumed_vars) free_consumed_vars();
@@ -616,6 +619,19 @@ namespace gjs {
 		*/
 		// todo: move string literals to vm memory and store address in value as an immediate
 		return nullptr;
+	}
+
+	var* func::zero(compile_context& ctx, data_type* type) {
+		string name = format("__anon_%d", anon_var_id++);
+		var* l = scopes[scopes.size() - 1].vars[name] = new var();
+		l->is_variable = false;
+		l->ctx = &ctx;
+		l->type = ctx.type("integer");
+		l->count = 1;
+		l->is_reg = false;
+		l->is_imm = true;
+		l->loc.reg = vmr::zero;
+		return l;
 	}
 
 	address var::move_to_stack(ast_node* because, integer offset) {
@@ -1012,7 +1028,7 @@ namespace gjs {
 
 		// make the call
 		ctx.add(
-			encode(vmi::jal).operand((integer)to->entry),
+			encode(vmi::jal).operand(to->entry),
 			because
 		);
 
@@ -1163,20 +1179,22 @@ namespace gjs {
 	// possible[2] = fixed <op> immediate
 	// possible[3] = fixed <op> register
 	void arithmetic_op_maybe_fp(compile_context& ctx, var* l, var* r, var* o, ast_node* because, vmi possible[4]) {
-		var* rhs = cast(ctx, r, l, because);
+		var* rhs = l ? cast(ctx, r, l, because) : r;
 
-		l->to_reg(because);
+		vmr lvr = l ? l->to_reg(because) : vmr::zero;
 		if (!rhs->is_imm) rhs->to_reg(because);
 
 		vmi i;
 
-		if (is_fp(l->loc.reg)) i = rhs->is_imm ? possible[0] : possible[1];
+		if ((l && is_fp(lvr)) || is_fp(o->to_reg(because))) i = rhs->is_imm ? possible[0] : possible[1];
 		else i = rhs->is_imm ? possible[2] : possible[3];
 
-		instruction_encoder inst = encode(i).operand(o->to_reg(because)).operand(l->loc.reg);
+		instruction_encoder inst = encode(i).operand(o->to_reg(because)).operand(lvr);
 
 		if (rhs->is_imm) {
-			if (is_fp(l->loc.reg)) inst.operand(rhs->imm.d);
+			if ((l && is_fp(lvr)) || is_fp(o->to_reg(because))) {
+				inst.operand(rhs->imm.d);
+			}
 			else inst.operand(rhs->imm.i);
 		} else inst.operand(rhs->loc.reg);
 
@@ -1312,6 +1330,7 @@ namespace gjs {
 			if (node->callee->type == nt::operation) {
 				if (node->callee->op == op::member) {
 					var* this_obj = compile_expression(ctx, node->callee, nullptr);
+					this_obj->no_auto_free = true;
 					if (ctx.last_type_method) {
 						vector<var*> args = { this_obj };
 						vector<bool> free_arg = { true };
@@ -1627,7 +1646,7 @@ namespace gjs {
 				case op::eq: {
 					vmi possible[4] = { vmi::faddi, vmi::fadd, vmi::addi, vmi::add };
 					var* tmp = ctx.cur_func->imm(ctx, (integer)0);
-					arithmetic_op_maybe_fp(ctx, rvalue, tmp, lvalue, node, possible);
+					arithmetic_op_maybe_fp(ctx, nullptr, rvalue, lvalue, node, possible);
 					if (dest) lvalue->store_in(dest->to_reg(node), node);
 					ret = dest ? dest : lvalue;
 					assigned = true;
@@ -2096,29 +2115,56 @@ namespace gjs {
 			n = n->next;
 		}
 
+		vector<data_type*> new_types;
+		for (u32 i = 0;i < ctx.types.size();i++) {
+			data_type* t = ctx.types[i];
+			if (t->type) continue; // already in context
+
+			vm_type* tp = vctx->types()->add(t->name, t->name);
+			t->type = tp;
+			for (u32 p = 0;p < t->props.size();p++) {
+				data_type::property& sprop = t->props[p];
+				vm_type::property prop;
+				prop.name = sprop.name;
+				prop.offset = sprop.offset;
+				prop.flags = sprop.flags;
+				tp->properties.push_back(prop);
+			}
+			new_types.push_back(t);
+		}
+
 		for (u32 i = 0;i < ctx.funcs.size();i++) {
 			func* sf = ctx.funcs[i];
-			bind::script_function* f = new bind::script_function();
-			f->entry = sf->entry;
+			vm_function* f = new vm_function(vctx, sf->name, sf->entry);
 			for (u8 a = 0;a < sf->args.size();a++) {
-				if (sf->args[a].type->name == "integer") f->arg_types.push_back(bind::value_type::integer);
-				else if (sf->args[a].type->name == "function") f->arg_types.push_back(bind::value_type::integer); // todo, but technically correct
-				else if (sf->args[a].type->name == "decimal") f->arg_types.push_back(bind::value_type::decimal);
-				else if (sf->args[a].type->name == "string") f->arg_types.push_back(bind::value_type::string);
-				else f->arg_types.push_back(bind::value_type::object); // todo: convey data type if bound host class, otherwise structure / property names
-
-				f->arg_locs.push_back(sf->args[a].loc);
+				f->signature.arg_types.push_back(sf->args[a].type->type);
+				f->signature.arg_locs.push_back(sf->args[a].loc);
 			}
-			f->ret_location = sf->return_reg;
-			if (sf->return_type->name == "integer") f->ret_type = bind::value_type::integer;
-			else if (sf->return_type->name == "function") f->ret_type = bind::value_type::integer; // todo, but technically correct
-			else if (sf->return_type->name == "decimal") f->ret_type = bind::value_type::decimal;
-			else if (sf->return_type->name == "string") f->ret_type = bind::value_type::string;
-			else f->ret_type = bind::value_type::object; // todo: convey data type if bound host class, otherwise structure / property names
+			f->signature.return_loc = sf->return_reg;
+			f->signature.return_type = sf->return_type->type;
+			vctx->add(f);
+		}
 
-			f->name = sf->name;
-			f->ctx = vctx;
-			vctx->add(sf->name, f);
+		for (u32 i = 0;i < new_types.size();i++) {
+			data_type* t = new_types[i];
+			vm_type* tp = t->type;
+			for (u32 p = 0;p < t->props.size();p++) {
+				data_type::property& sprop = t->props[p];
+				vm_type::property& tprop = tp->properties[p];
+				tprop.getter = sprop.getter ? vctx->function(sprop.getter->entry) : nullptr;
+				tprop.setter = sprop.setter ? vctx->function(sprop.setter->entry) : nullptr;
+				tprop.type = sprop.type->type;
+			}
+
+			for (u32 m = 0;m < t->methods.size();m++) {
+				func* f = t->methods[m];
+				if (f->name == t->name + "::constructor") tp->constructor = vctx->function(f->entry);
+				else if (f->name == t->name + "::destructor") tp->destructor = vctx->function(f->entry);
+				else {
+					// todo: operators, converters
+					tp->methods.push_back(vctx->function(f->entry));
+				}
+			}
 		}
 	}
 };

@@ -10,7 +10,7 @@ namespace gjs {
 	 * Anatomy of an encoded instruction
 	 *
 	 * type 0  | instruction |-----------------------------------------------------------------------------------------------------------------| <- term, null
-	 * type 1  | instruction |                      32-bit jump address                      |-------------------------------------------------| <- jal, jmp
+	 * type 1  | instruction |                                               57-bit jump address                                               | <- jal, jmp
 	 * type 2  | instruction |  operand  |-----------------------------------------------------------------------------------------------------| <- jalr, jmpr, ctf, cti, push, pop
 	 * type 3  | instruction |  operand  |             32-bit branch failure address                     |-------------------------------------| <- b*
 	 * type 4  | instruction |  operand  |  operand  |-----------------------------------------------------------------------------------------| <- mtfp, mffp
@@ -19,7 +19,7 @@ namespace gjs {
 	 * type 7  | instruction |  operand  |  operand  |  operand  |-----------------------------------------------------------------------------| <- the rest
 	 *         |0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0| (bits)
 	 *         |               |               |               |               |               |               |               |               | (bytes)
-	 *                       ^ 57        ^ 51        ^ 45        ^ 39                        ^ 25        | ^18         ^ 12
+	 *                       ^ 57        ^ 51        ^ 45        ^ 39                                    | ^18         ^ 12
 	 *	x = immediate value is float32 (boolean)
 	 */
 
@@ -31,6 +31,7 @@ namespace gjs {
 			instruction_encoder& operand(vm_register reg);
 			instruction_encoder& operand(integer immediate);
 			instruction_encoder& operand(uinteger immediate);
+			instruction_encoder& operand(u64 immediate);
 			instruction_encoder& operand(decimal immediate);
 
 			inline operator instruction() const { return m_result; }
@@ -43,20 +44,22 @@ namespace gjs {
 
 	const u64 instruction_shift = 57;
 	const u64 operand_1r_shift = 51;
-	const u64 operand_1i_shift = 25;
+	const u64 operand_1i_shift = 0;
 	const u64 operand_2r_shift = 45;
 	const u64 operand_2i_shift = 18;
 	const u64 operand_3r_shift = 39;
 	const u64 operand_3i_shift = 12;
 	const u64 operand_3_is_flt_shift = 44;
-	const u64 operand_register_mask = 0b1111111111111111111111111111111111111111111111111111111111000000UL;
+	const u64 operand_register_mask =  0b1111111111111111111111111111111111111111111111111111111111000000UL;
+	const u64 operand_1_integer_mask = 0b1111111000000000000000000000000000000000000000000000000000000000UL;
 
 
 	// the following have undefined results if the instruction does not support the item being decoded
 	FORCE_INLINE vm_instruction decode_instruction			(instruction i) { return (vm_instruction)(i >> instruction_shift); }
 	FORCE_INLINE vm_register	decode_operand_1			(instruction i) { return (vm_register)(((i >> operand_1r_shift) | operand_register_mask) ^ operand_register_mask); }
-	FORCE_INLINE integer		decode_operand_1i			(instruction i) { return i >> operand_1i_shift; }
-	FORCE_INLINE uinteger		decode_operand_1ui			(instruction i) { return i >> operand_1i_shift; }
+	FORCE_INLINE integer		decode_operand_1i			(instruction i) { return ((i >> operand_1i_shift) | operand_1_integer_mask) ^ operand_1_integer_mask; }
+	FORCE_INLINE uinteger		decode_operand_1ui			(instruction i) { return ((i >> operand_1i_shift) | operand_1_integer_mask) ^ operand_1_integer_mask; }
+	FORCE_INLINE u64			decode_operand_1ui64		(instruction i) { return ((i >> operand_1i_shift) | operand_1_integer_mask) ^ operand_1_integer_mask; }
 	FORCE_INLINE vm_register	decode_operand_2			(instruction i) { return (vm_register)(((i >> operand_2r_shift) | operand_register_mask) ^ operand_register_mask); }
 	FORCE_INLINE integer		decode_operand_2i			(instruction i) { return i >> operand_2i_shift; }
 	FORCE_INLINE uinteger		decode_operand_2ui			(instruction i) { return i >> operand_2i_shift; }

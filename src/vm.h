@@ -17,6 +17,8 @@ namespace gjs {
 			vm_state state;
 
 		protected:
+			friend class vm_function;
+			void call_external(u64 addr);
 			void jit(const instruction_array& code);
 			vm_context* m_ctx;
 			u32 m_stack_size;

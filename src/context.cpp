@@ -26,7 +26,7 @@ namespace gjs {
 
 	vm_context::vm_context(vm_allocator* alloc, u32 stack_size, u32 mem_size) : 
 		m_vm(this, alloc, stack_size, mem_size), m_instructions(alloc), m_is_executing(false),
-		m_catch_exceptions(false),m_types(this)
+		m_catch_exceptions(false), m_log_instructions(false), m_types(this)
 	{
 		m_jit = new asmjit::JitRuntime();
 		m_instructions += encode(vm_instruction::term);
@@ -53,16 +53,6 @@ namespace gjs {
 		delete m_jit;
 	}
 
-	void vm_context::add(const std::string& name, bind::wrapped_function* func) {
-	}
-
-	void vm_context::add(const std::string& name, bind::wrapped_class* cls) {
-	}
-
-	void vm_context::add(const std::string& name, bind::script_function* func) {
-		m_script_functions[name] = func;
-	}
-
 	void vm_context::add(vm_function* func) {
 		u64 addr = 0;
 		if (func->is_host) addr = func->access.wrapped->address;
@@ -81,11 +71,13 @@ namespace gjs {
 		if (it == m_funcs.end()) return nullptr;
 		return it->getSecond();
 	}
+
 	vm_function* vm_context::function(u64 address) {
 		auto it = m_funcs_by_addr.find(address);
 		if (it == m_funcs_by_addr.end()) return nullptr;
 		return it->getSecond();
 	}
+
 	std::vector<vm_function*> vm_context::all_functions() {
 		std::vector<vm_function*> out;
 		for (auto i = m_funcs.begin();i != m_funcs.end();++i) {
@@ -94,32 +86,8 @@ namespace gjs {
 		return out;
 	}
 
-	bind::wrapped_function* vm_context::host_function(const std::string& name) {
-		return nullptr;
-	}
-
-	bind::wrapped_class* vm_context::host_prototype(const std::string& name) {
-		return nullptr;
-	}
-
-	bind::script_function* vm_context::_function(const std::string& name) {
-		return m_script_functions[name];
-	}
-
-	std::vector<bind::wrapped_class*> vm_context::host_prototypes() {
-		std::vector<bind::wrapped_class*> out;
-		for (auto i = m_host_classes.begin();i != m_host_classes.end();++i) {
-			out.push_back(i->getSecond());
-		}
-		return out;
-	}
-
-	std::vector<bind::wrapped_function*> vm_context::host_functions() {
-		std::vector<bind::wrapped_function*> out;
-		for (auto i = m_host_functions.begin();i != m_host_functions.end();++i) {
-			out.push_back(i->getSecond());
-		}
-		return out;
+	std::vector<vm_type*> vm_context::all_types() {
+		return m_types.all();
 	}
 
 	void vm_context::add_code(const std::string& filename, const std::string& code) {
