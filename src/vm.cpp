@@ -64,7 +64,7 @@ namespace gjs {
 		while ((*ip) <= cs && !term) {
 			i = code[*ip];
 			if (m_ctx->log_instructions()) {
-				printf("%2.2d: %s\n", *ip, instruction_to_string(i, &state).c_str());
+				printf("0x%2.2x: %s\n", *ip, instruction_to_string(i, &state).c_str());
 			}
 
 			vmi instr = decode_instruction(i);
@@ -402,6 +402,11 @@ namespace gjs {
 					GR64(_O1) = GR64(_O2) << _O3i;
                     break;
                 }
+				// shift bits of immediate left by register value	slir	(dest)	(a)		4		dest = 4 << a
+				case vmi::slir: {
+					GR64(_O1) = _O3i << GR64(_O2);
+					break;
+				}
                 // shift bits right by amount from register			sr		(dest)	(a)		(b)		dest = a >> b
                 case vmi::sr: {
 					GR64(_O1) = GR64(_O2) >> GR64(_O3);
@@ -412,50 +417,175 @@ namespace gjs {
 					GR64(_O1) = GR64(_O2) >> _O3i;
                     break;
                 }
+				// shift bits of immediate right by register value	sri		(dest)	(a)		4		dest = 4 >> a
+				case vmi::srir: {
+					GR64(_O1) = _O3i >> GR64(_O2);
+					break;
+				}
+				// check if register less than register				lt		(dest)	(a)		(b)		dest = a < b
+				case vmi::lt: {
+					GR64(_O1) = GRi(_O2) < GRi(_O3);
+					break;
+				}
+				// check if register less than immediate			lti		(dest)	(a)		1		dest = a < 1
+				case vmi::lti: {
+					GR64(_O1) = GRi(_O2) < _O3i;
+					break;
+				}
+				// check if register less than or equal register	lte		(dest)	(a)		(b)		dest = a <= b
+				case vmi::lte: {
+					GR64(_O1) = GRi(_O2) <= GRi(_O3);
+					break;
+				}
+				// check if register less than or equal immediate	ltei	(dest)	(a)		1		dest = a <= 1
+				case vmi::ltei: {
+					GR64(_O1) = GRi(_O2) <= _O3i;
+					break;
+				}
+				// check if register greater than register			gt		(dest)	(a)		(b)		dest = a > b
+				case vmi::gt: {
+					GR64(_O1) = GRi(_O2) > GRi(_O3);
+					break;
+				}
+				// check if register greater than immediate			gti		(dest)	(a)		1		dest = a > 1
+				case vmi::gti: {
+					GR64(_O1) = GRi(_O2) > _O3i;
+					break;
+				}
+				// check if register greater than or equal register	gte		(dest)	(a)		(b)		dest = a >= b
+				case vmi::gte: {
+					GR64(_O1) = GRi(_O2) >= GRi(_O3);
+					break;
+				}
+				// check if register greater than or equal imm.		gtei	(dest)	(a)		1		dest = a >= 1
+				case vmi::gtei: {
+					GR64(_O1) = GRi(_O2) >= _O3i;
+					break;
+				}
+				// check if register equal register					cmp		(dest)	(a)		(b)		dest = a == b
+				case vmi::cmp: {
+					GR64(_O1) = GRi(_O2) == GRi(_O3);
+					break;
+				}
+				// check if register equal immediate				cmpi	(dest)	(a)		1		dest = a == 1
+				case vmi::cmpi: {
+					GR64(_O1) = GRi(_O2) == _O3i;
+					break;
+				}
+				// check if register not equal register				ncmp	(dest)	(a)		(b)		dest = a != b
+				case vmi::ncmp: {
+					GR64(_O1) = GRi(_O2) != GRi(_O3);
+					break;
+				}
+				// check if register not equal immediate			ncmpi	(dest)	(a)		1		dest = a != 1
+				case vmi::ncmpi: {
+					GR64(_O1) = GRi(_O2) != _O3i;
+					break;
+				}
+				// check if register less than register				flt		(dest)	(a)		(b)		dest = a < b
+				case vmi::flt: {
+					GR64(_O1) = GRd(_O2) < GRd(_O3);
+					break;
+				}
+				// check if register less than immediate			flti	(dest)	(a)		1.0		dest = a < 1.0
+				case vmi::flti: {
+					GR64(_O1) = GRd(_O2) < _O3f;
+					break;
+				}
+				// check if register less than or equal register	flte	(dest)	(a)		(b)		dest = a <= b
+				case vmi::flte: {
+					GR64(_O1) = GRd(_O2) <= GRd(_O3);
+					break;
+				}
+				// check if register less than or equal immediate	fltei	(dest)	(a)		1.0		dest = a <= 1.0
+				case vmi::fltei: {
+					GR64(_O1) = GRd(_O2) <= _O3f;
+					break;
+				}
+				// check if register greater than register			fgt		(dest)	(a)		(b)		dest = a > b
+				case vmi::fgt: {
+					GR64(_O1) = GRd(_O2) > GRd(_O3);
+					break;
+				}
+				// check if register greater than immediate			fgti	(dest)	(a)		1.0		dest = a > 1.0
+				case vmi::fgti: {
+					GR64(_O1) = GRd(_O2) > _O3f;
+					break;
+				}
+				// check if register greater than or equal register	fgte	(dest)	(a)		(b)		dest = a >= b
+				case vmi::fgte: {
+					GR64(_O1) = GRd(_O2) >= GRd(_O3);
+					break;
+				}
+				// check if register greater than or equal imm.		fgtei	(dest)	(a)		1.0		dest = a >= 1.0
+				case vmi::fgtei: {
+					GR64(_O1) = GRd(_O2) >= _O3f;
+					break;
+				}
+				// check if register equal register					fcmp	(dest)	(a)		(b)		dest = a == b
+				case vmi::fcmp: {
+					GR64(_O1) = GRd(_O2) == GRd(_O3);
+					break;
+				}
+				// check if register equal immediate				fcmpi	(dest)	(a)		1.0		dest = a == 1.0
+				case vmi::fcmpi: {
+					GR64(_O1) = GRd(_O2) == _O3f;
+					break;
+				}
+				 // check if register not equal register				fncmp	(dest)	(a)		(b)		dest = a != b
+				case vmi::fncmp: {
+					GR64(_O1) = GRd(_O2) != GRd(_O3);
+					break;
+				}
+				// check if register not equal immediate			fncmpi	(dest)	(a)		1.0		dest = a != 1.0
+				case vmi::fncmpi: {
+					GR64(_O1) = GRd(_O2) != _O3f;
+					break;
+				}
                 // branch if register equals zero					beqz	(a)		(fail_addr)		if a: goto fail_addr
                 case vmi::beqz: {
-					if(GRi(_O1)) *ip = _O2i - 1;
+					if(GRi(_O1)) *ip = _O2ui - 1;
                     break;
                 }
                 // branch if register not equals zero				bneqz	(a)		(fail_addr)		if !a: goto fail_addr
                 case vmi::bneqz: {
-					if(!GRi(_O1)) *ip = _O2i - 1;
+					if(!GRi(_O1)) *ip = _O2ui - 1;
                     break;
                 }
                 // branch if register greater than zero				bgtz	(a)		(fail_addr)		if a <= 0: goto fail_addr
                 case vmi::bgtz: {
-					if(GRi(_O1) <= 0) *ip = _O2i - 1;
+					if(GRi(_O1) <= 0) *ip = _O2ui - 1;
                     break;
                 }
                 // branch if register greater than or equals zero	bgtez	(a)		(fail_addr)		if a < 0: goto fail_addr
                 case vmi::bgtez: {
-					if(GRi(_O1) < 0) *ip = _O2i - 1;
+					if(GRi(_O1) < 0) *ip = _O2ui - 1;
                     break;
                 }
                 // branch if register less than zero				bltz	(a)		(fail_addr)		if a >= 0: goto fail_addr
                 case vmi::bltz: {
-					if(GRi(_O1) >= 0) *ip = _O2i - 1;
+					if(GRi(_O1) >= 0) *ip = _O2ui - 1;
                     break;
                 }
                 // branch if register less than or equals zero		bltez	(a)		(fail_addr)		if a > 0: goto fail_addr
                 case vmi::bltez: {
-					if(GRi(_O1) > 0) *ip = _O2i - 1;
+					if(GRi(_O1) > 0) *ip = _O2ui - 1;
                     break;
                 }
                 // jump to address									jmp		0x123					$ip = 0x123
                 case vmi::jmp: {
-					*ip = _O1i - 1;
+					*ip = _O1ui - 1;
                     break;
                 }
                 // jump to address in register						jmp		(a)						$ip = a
                 case vmi::jmpr: {
-					*ip = GRi(_O1) - 1;
+					*ip = GRx(_O1, u64) - 1;
                     break;
                 }
                 // jump to address and store $ip in $ra				jal		0x123					$ra = $ip + 1;$ip = 0x123
                 case vmi::jal: {
 					u64 addr = _O1ui64;
-					GRi(vmr::ra) = (*ip) + 1;
+					GRx(vmr::ra, u64) = (*ip) + 1;
 					if (addr < code.size()) {
 						*ip = addr - 1;
 					} else call_external(addr);
@@ -463,8 +593,8 @@ namespace gjs {
                 }
                 // jump to address in register and store $ip in $ra	jalr	(a)						$ra = $ip + 1;$ip = a
                 case vmi::jalr: {
-					GRi(vmr::ra) = (*ip) + 1;
-					*ip = GRi(_O1) - 1;
+					GRx(vmr::ra, u64) = (*ip) + 1;
+					*ip = GRx(_O1, u64) - 1;
                     break;
                 }
 				case vmi::instruction_count: {

@@ -479,6 +479,9 @@ namespace gjs {
 			std::string internal_name;
 			u32 size;
 			bool is_primitive;
+			bool is_unsigned;
+			bool is_floating_point;
+			bool is_builtin;
 
 			struct property {
 				u8 flags;

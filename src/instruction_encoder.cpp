@@ -101,7 +101,9 @@ namespace gjs {
 			|| x == vmi::bori		\
 			|| x == vmi::xori		\
 			|| x == vmi::sli		\
+			|| x == vmi::slir		\
 			|| x == vmi::sri		\
+			|| x == vmi::srir		\
 			|| x == vmi::andi		\
 			|| x == vmi::ori		\
 			|| x == vmi::lti		\
@@ -292,7 +294,7 @@ namespace gjs {
 				return *this;
 			}
 
-			if (third_operand_must_be_fpr(instr) != (is_fpr(reg) || reg == vmr::zero)) {
+			if ((third_operand_must_be_fpr(instr) && !(is_fpr(reg) || reg == vmr::zero)) || (!third_operand_must_be_fpr(instr) && is_fpr(reg))) {
 				// invalid operand
 				// exception
 				return *this;
@@ -313,7 +315,7 @@ namespace gjs {
 				return *this;
 			}
 
-			if (second_operand_must_be_fpr(instr) != (is_fpr(reg) || reg == vmr::zero)) {
+			if ((second_operand_must_be_fpr(instr) && !(is_fpr(reg) || reg == vmr::zero)) || (!second_operand_must_be_fpr(instr) && is_fpr(reg))) {
 				// invalid operand
 				// exception
 				return *this;
@@ -584,7 +586,7 @@ namespace gjs {
 		};
 
 		out += instruction_str[(u8)i];
-		out += ' ';
+		while (out.length() < 8) out += ' ';
 		if (check_instr_type_1(i)) {
 			u64 o1 = decode_operand_1ui64(code);
 			char addr[64] = { 0 };
@@ -603,7 +605,7 @@ namespace gjs {
 			out += reg_str(o1);
 			out += ", ";
 
-			integer o2 = decode_operand_2i(code);
+			integer o2 = decode_operand_2ui(code);
 			char addr[32] = { 0 };
 			_itoa_s<32>(o2, addr, 16);
 			out += "0x";

@@ -1,10 +1,12 @@
 #pragma once
-#include <robin_hood.h>
-#include <string>
 #include <vm.h>
 #include <bind.h>
 #include <source_map.h>
 #include <util.h>
+#include <pipeline.h>
+
+#include <robin_hood.h>
+#include <string>
 
 namespace asmjit {
 	class JitRuntime;
@@ -49,16 +51,19 @@ namespace gjs {
 			void add(vm_function* func);
 			vm_function* function(const std::string& name);
 			vm_function* function(u64 address);
+			bool set_function_address(u64 old_addr, u64 new_addr);
 
 			std::vector<vm_function*> all_functions();
 			std::vector<vm_type*> all_types();
 
-			inline vm_state*			state	() { return &m_vm.state; }
-			inline instruction_array*	code	() { return &m_instructions; }
-			inline source_map*			map		() { return &m_map; }
-			inline type_manager*		types	() { return &m_types; }
-			inline gjs::vm*				vm		() { return &m_vm; }
-			inline asmjit::JitRuntime*	jit		() { return m_jit; }
+			inline vm_state*			state		() { return &m_vm.state; }
+			inline instruction_array*	code		() { return &m_instructions; }
+			inline source_map*			map			() { return &m_map; }
+			inline type_manager*		types		() { return &m_types; }
+			inline gjs::vm*				vm			() { return &m_vm; }
+			inline asmjit::JitRuntime*	jit			() { return m_jit; }
+			inline vm_allocator*		allocator	() { return m_alloc; }
+			inline pipeline*			compiler	() { return &m_pipeline; }
 
 			inline bool is_executing	() const { return m_is_executing; }
 			inline bool log_exceptions	() const { return m_catch_exceptions; }
@@ -69,7 +74,6 @@ namespace gjs {
 			void add_code(const std::string& filename, const std::string& code);
 			void execute(address entry);
 
-
 		protected:
 			robin_hood::unordered_map<u64, vm_function*> m_funcs_by_addr;
 			robin_hood::unordered_map<std::string, vm_function*> m_funcs;
@@ -79,6 +83,8 @@ namespace gjs {
 			gjs::vm m_vm;
 			instruction_array m_instructions;
 			source_map m_map;
+			vm_allocator* m_alloc;
+			pipeline m_pipeline;
 			bool m_is_executing;
 			bool m_catch_exceptions;
 			bool m_log_instructions;

@@ -374,7 +374,7 @@ namespace gjs {
 	using var = func::var;
 
 	struct data_type {
-		data_type(const string& _name, bool _built_in = false) : name(_name), built_in(_built_in) { }
+		data_type(const string& _name, bool _built_in = false) : name(_name), built_in(_built_in), is_floating_point(false), is_unsigned(false) { }
 		data_type(compile_context& ctx, ast_node* node);
 
 		bool equals(data_type* rhs) {
@@ -393,6 +393,8 @@ namespace gjs {
 
 		string name;
 		bool built_in;
+		bool is_floating_point;
+		bool is_unsigned;
 		struct property {
 			u8 flags;
 			string name;
@@ -429,6 +431,7 @@ namespace gjs {
 		vector<data_type*> types;
 		vector<func*> funcs;
 		func* cur_func;
+		source_map* map;
 
 		// used when compiling expressions involving type properties
 		bool last_member_was_pointer;
@@ -439,7 +442,8 @@ namespace gjs {
 		void add(instruction i, ast_node* because) {
 			address addr = out->size();
 			(*out) += i;
-			
+
+			/*
 			std::string ln = "";
 			u32 wscount = 0;
 			bool reachedText = false;
@@ -454,9 +458,9 @@ namespace gjs {
 			for (u32 c = 0;c < because->start.col - wscount;c++) printf(" ");
 			printf("^ ");
 			printf("%s\n\n", instruction_to_string(i).c_str());
-			
+			*/
 
-			ctx->map()->append(because);
+			map->append(because);
 		}
 
 		data_type* type(const string& name) {
@@ -512,7 +516,7 @@ namespace gjs {
 		}
 
 		vmr reg;
-		if (type->name == "decimal") reg = registers.allocate_fp();
+		if (type->is_floating_point) reg = registers.allocate_fp();
 		else {
 			if (!is_arg) reg = registers.allocate_gp();
 			else reg = registers.allocate_arg();
@@ -557,7 +561,7 @@ namespace gjs {
 		}
 
 		vmr reg;
-		if (type->name == "decimal") reg = registers.allocate_fp();
+		if (type->is_floating_point) reg = registers.allocate_fp();
 		else reg = registers.allocate_gp();
 
 		scopes[scopes.size() - 1].vars[name] = new var();
@@ -582,7 +586,7 @@ namespace gjs {
 		var* l = scopes[scopes.size() - 1].vars[name] = new var();
 		l->is_variable = false;
 		l->ctx = &ctx;
-		l->type = ctx.type("integer");
+		l->type = ctx.type("i32");
 		l->count = 1;
 		l->is_reg = false;
 		l->is_imm = true;
@@ -595,7 +599,7 @@ namespace gjs {
 		var* l = scopes[scopes.size() - 1].vars[name] = new var();
 		l->is_variable = false;
 		l->ctx = &ctx;
-		l->type = ctx.type("decimal");
+		l->type = ctx.type("f32");
 		l->count = 1;
 		l->is_reg = false;
 		l->is_imm = true;
@@ -610,7 +614,7 @@ namespace gjs {
 		var& l = scopes[scopes.size() - 1].vars[name];
 		l.is_variable = false;
 		l.ctx = &ctx;
-		l.type = ctx.type("integer");
+		l.type = ctx.type("i32");
 		l.count = 1;
 		l.is_reg = false;
 		l.is_imm = true;
@@ -626,7 +630,7 @@ namespace gjs {
 		var* l = scopes[scopes.size() - 1].vars[name] = new var();
 		l->is_variable = false;
 		l->ctx = &ctx;
-		l->type = ctx.type("integer");
+		l->type = ctx.type("i32");
 		l->count = 1;
 		l->is_reg = false;
 		l->is_imm = true;
@@ -685,7 +689,7 @@ namespace gjs {
 
 	vmr var::move_to_register(ast_node* because, integer offset) {
 		vmr reg;
-		if (type->name == "decimal") reg = ctx->cur_func->registers.allocate_fp();
+		if (type->is_floating_point) reg = ctx->cur_func->registers.allocate_fp();
 		else reg = ctx->cur_func->registers.allocate_gp();
 		ctx->cur_func->registers.free(reg);
 
@@ -696,7 +700,7 @@ namespace gjs {
 
 	vmr var::move_to_register(ast_node* because, vmr offset) {
 		vmr reg;
-		if (type->name == "decimal") reg = ctx->cur_func->registers.allocate_fp();
+		if (type->is_floating_point) reg = ctx->cur_func->registers.allocate_fp();
 		else reg = ctx->cur_func->registers.allocate_gp();
 		ctx->cur_func->registers.free(reg);
 
@@ -765,7 +769,7 @@ namespace gjs {
 			);
 			ctx->cur_func->registers.free(loc.reg);
 		} else if (is_imm) {
-			if (type->name == "integer") {
+			if (!type->is_floating_point) {
 				ctx->add(
 					encode(vmi::addi).operand(reg).operand(vmr::zero).operand(imm.i),
 					because
@@ -836,7 +840,7 @@ namespace gjs {
 			);
 			ctx->cur_func->registers.free(loc.reg);
 		} else if (is_imm) {
-			if (type->name == "integer") {
+			if (!type->is_floating_point) {
 				ctx->add(
 					encode(vmi::addi).operand(reg).operand(vmr::zero).operand(imm.i),
 					because
@@ -879,7 +883,7 @@ namespace gjs {
 				because
 			);
 		} else if (is_imm) {
-			if (type->name == "integer") {
+			if (!type->is_floating_point) {
 				ctx->add(
 					encode(vmi::addi).operand(reg).operand(vmr::zero).operand(imm.i),
 					because
@@ -912,7 +916,7 @@ namespace gjs {
 				because
 			);
 		} else if (is_imm) {
-			if (type->name == "integer") {
+			if (!type->is_floating_point) {
 				ctx->add(
 					encode(vmi::addi).operand(reg).operand(vmr::zero).operand(imm.i),
 					because
@@ -955,7 +959,7 @@ namespace gjs {
 			else {
 				// current register of arg[a] shouldn't be rewritten between now and the call
 				//vmr tmp;
-				//if (args[a]->type->name == "decimal") tmp = ctx.cur_func->registers.allocate_fp();
+				//if (args[a]->type->is_floating_point) tmp = ctx.cur_func->registers.allocate_fp();
 				//else tmp = ctx.cur_func->registers.allocate_gp();
 				//args[a]->store_in(tmp, because);
 				//arg_pairs.push_back(pair<vmr, vmr>(dest, tmp));
@@ -987,7 +991,7 @@ namespace gjs {
 				// function must either be calling itself (and compiler hasn't seen a return statement yet)
 				// or script writer didn't put a return statement and an error was emitted. Assign register
 				// automatically
-				if (to->return_type->name == "decimal") to->return_reg = to->registers.allocate_fp();
+				if (to->return_type->is_floating_point) to->return_reg = to->registers.allocate_fp();
 				else to->return_reg = to->registers.allocate_gp();
 
 				// then free it since it's not actually in use until the statement is reached
@@ -1109,8 +1113,9 @@ namespace gjs {
 
 	var* cast(compile_context& ctx, var* from, var* to, ast_node* because) {
 		if (from->type->equals(to->type)) return from;
+		if (from->type->name == "bool" || to->type->name == "bool") return from;
 
-		if (!from->type->built_in) {
+		if (!from->type->built_in || (from->type->name == "string" || to->type->name == "string")) {
 			func* cast_func = from->type->cast_to_func(to->type);
 			if (!cast_func) {
 				ctx.log.err(format("No conversion from '%s' to '%s' found", from->type->name.c_str(), to->type->name.c_str()), because);
@@ -1120,15 +1125,6 @@ namespace gjs {
 			return call(ctx, cast_func, because, { from });
 		}
 
-		if (from->type->name == "string" || to->type->name == "string") return from;
-		if (from->type->name == "function") {
-			ctx.log.err(format("Cannot convert from 'function' to '%s'", to->type->name.c_str()), because);
-			return from;
-		}
-		if (to->type->name == "function") {
-			ctx.log.err(format("Cannot convert from '%s' to 'function'", to->type->name.c_str()), because);
-			return from;
-		}
 		if (from->type->name == "void") {
 			ctx.log.err(format("Cannot convert from 'void' to '%s'", to->type->name.c_str()), because);
 			return from;
@@ -1137,7 +1133,11 @@ namespace gjs {
 			ctx.log.err(format("Cannot convert from '%s' to 'void'", to->type->name.c_str()), because);
 			return from;
 		}
-		if (from->type->name == "integer") {
+
+		// only types remaining are integral
+
+		if (!from->type->is_floating_point) {
+			// to must be floating point
 			if (from->is_imm) return ctx.cur_func->imm(ctx, (decimal)from->imm.i);
 			var* tmp = ctx.cur_func->allocate(ctx, to->type);
 			ctx.add(
@@ -1149,8 +1149,7 @@ namespace gjs {
 				because
 			);
 			return tmp;
-		}
-		if (from->type->name == "decimal") {
+		} else {
 			if (from->is_imm) return ctx.cur_func->imm(ctx, (integer)from->imm.d);
 			var* tmp = ctx.cur_func->allocate(ctx, to->type);
 			vmr treg = ctx.cur_func->registers.allocate_fp();
@@ -1174,49 +1173,203 @@ namespace gjs {
 		return from;
 	}
 
-	// possible[0] = float <op> immediate
-	// possible[1] = float <op> register
-	// possible[2] = fixed <op> immediate
-	// possible[3] = fixed <op> register
-	void arithmetic_op_maybe_fp(compile_context& ctx, var* l, var* r, var* o, ast_node* because, vmi possible[4]) {
+	void arithmetic_op_maybe_fp(compile_context& ctx, var* l, var* r, var* o, ast_node* because, op operation) {
+		// vmi::null -> swap lvalue and rvalue and use f_reg/f_imm or reg/imm or u_reg/imm
+		// vmi(-1) -> unsupported
+		static vmi possible_arr[][9] = {
+			// f_reg/f_imm, f_imm/f_reg, f_reg/f_reg, reg/imm   , imm/reg   , reg/reg  , u_reg/imm , imm/u_reg  , u_reg/u_reg
+			{ vmi::faddi  , vmi::null  , vmi::fadd  , vmi::addi , vmi::null , vmi::add , vmi::addui, vmi::null  , vmi::addu }, // add
+			{ vmi::fsubi  , vmi::fsubir, vmi::fsub  , vmi::subi , vmi::subir, vmi::sub , vmi::subui, vmi::subuir, vmi::subu }, // sub
+			{ vmi::fmuli  , vmi::null  , vmi::fmul  , vmi::muli , vmi::null , vmi::mul , vmi::mului, vmi::null  , vmi::mulu }, // mul
+			{ vmi::fdivi  , vmi::fdivir, vmi::fdiv  , vmi::divi , vmi::divir, vmi::div , vmi::divui, vmi::divuir, vmi::divu }, // div
+			{ vmi::flti   , vmi(-1)	   , vmi::flt   , vmi::lti  , vmi(-1)   , vmi::lt  , vmi::lti  , vmi(-1)    , vmi::lt   }, // less
+			{ vmi::fgti   , vmi(-1)	   , vmi::fgt   , vmi::gti  , vmi(-1)   , vmi::gt  , vmi::gti  , vmi(-1)    , vmi::gt   }, // greater
+			{ vmi::fltei  , vmi(-1)	   , vmi::flte  , vmi::ltei , vmi(-1)   , vmi::lte , vmi::ltei , vmi(-1)    , vmi::lte  }, // lessEq
+			{ vmi::fgtei  , vmi(-1)	   , vmi::fgte  , vmi::gtei , vmi(-1)   , vmi::gte , vmi::gtei , vmi(-1)    , vmi::gte  }, // greaterEq
+			{ vmi::fncmpi , vmi::null  , vmi::fncmp , vmi::ncmpi, vmi::null , vmi::ncmp, vmi::ncmpi, vmi::null  , vmi::ncmp }, // notEq
+			{ vmi::fcmpi  , vmi::null  , vmi::fcmp  , vmi::cmpi , vmi::null , vmi::cmp , vmi::cmpi , vmi::null  , vmi::cmp  }, // isEq1
+		};
+		static unordered_map<op, u32> possible_map = {
+			{ op::add		, 0 },
+			{ op::sub		, 1 },
+			{ op::mul		, 2 },
+			{ op::div		, 3 },
+			{ op::addEq		, 0 },
+			{ op::subEq		, 1 },
+			{ op::mulEq		, 2 },
+			{ op::divEq		, 3 },
+			{ op::preInc	, 0 },
+			{ op::preDec	, 1 },
+			{ op::postInc	, 0 },
+			{ op::postDec	, 1 },
+			{ op::less      , 4 },
+			{ op::greater   , 5 },
+			{ op::lessEq    , 6 },
+			{ op::greaterEq , 7 },
+			{ op::notEq     , 8 },
+			{ op::isEq      , 9 }
+		};
+		vmi* possible = possible_arr[possible_map[operation]];
+		
 		var* rhs = l ? cast(ctx, r, l, because) : r;
 
 		vmr lvr = l ? l->to_reg(because) : vmr::zero;
 		if (!rhs->is_imm) rhs->to_reg(because);
 
+		bool op_is_fp = (l && is_fp(lvr)) || is_fp(o->to_reg(because));
+		bool lv_is_im = l && l->is_imm;
+		bool rv_is_im = rhs && rhs->is_imm;
+		bool op_is_us = (l && l->type->type && l->type->type->is_unsigned) || (o->type->type && o->type->type->is_unsigned);
+
+		if (lv_is_im && rv_is_im) {
+			// just do the math here and set output to an imm
+		}
+
+
 		vmi i;
-
-		if ((l && is_fp(lvr)) || is_fp(o->to_reg(because))) i = rhs->is_imm ? possible[0] : possible[1];
-		else i = rhs->is_imm ? possible[2] : possible[3];
-
-		instruction_encoder inst = encode(i).operand(o->to_reg(because)).operand(lvr);
-
-		if (rhs->is_imm) {
-			if ((l && is_fp(lvr)) || is_fp(o->to_reg(because))) {
-				inst.operand(rhs->imm.d);
+		if (op_is_fp) {
+			if (lv_is_im) i = possible[1];
+			else if (rv_is_im) i = possible[0];
+			else i = possible[2];
+		} else {
+			if (op_is_us) {
+				if (lv_is_im) i = possible[7];
+				else if (rv_is_im) i = possible[6];
+				else i = possible[8];
+			} else {
+				if (lv_is_im) i = possible[4];
+				else if (rv_is_im) i = possible[3];
+				else i = possible[5];
 			}
-			else inst.operand(rhs->imm.i);
-		} else inst.operand(rhs->loc.reg);
+		}
+
+		bool already_errored = false;
+		if (i == vmi(-1)) {
+			ctx.log.err("Unsupported operation", because);
+			already_errored = true;
+		}
+
+		bool swap = false;
+		if (i == vmi::null) {
+			swap = true;
+			if (op_is_fp) i = possible[0];
+			else {
+				if (op_is_us) i = possible[6];
+				else i = possible[3];
+			}
+		}
+
+		if (i == vmi(-1)) {
+			if (!already_errored) ctx.log.err("Unsupported operation", because);
+		}
+
+		instruction_encoder inst = encode(i).operand(o->to_reg(because));
+
+		if (swap) {
+			inst.operand(rhs->to_reg(because));
+			if (lv_is_im) {
+				if (op_is_fp) inst.operand(l->imm.d);
+				else inst.operand(l->imm.i);
+			} else inst.operand(lvr);
+		} else {
+			inst.operand(lvr);
+			if (rv_is_im) {
+				if (op_is_fp) inst.operand(rhs->imm.d);
+				else inst.operand(rhs->imm.i);
+			} else inst.operand(rhs->to_reg(because));
+		}
 
 		ctx.add(inst, because);
 
 		if (rhs != r) ctx.cur_func->free(rhs);
 	}
 
-	// possible[0] = fixed <op> immediate
-	// possible[1] = fixed <op> register
-	void arithmetic_op(compile_context& ctx, var* l, var* r, var* o, ast_node* because, vmi possible[2]) {
-		var* rhs = cast(ctx, r, l, because);
+	void arithmetic_op(compile_context& ctx, var* l, var* r, var* o, ast_node* because, op operation) {
+		static vmi possible_arr[][6] = {
+			// reg/imm  , imm/reg   , reg/reg  , u_reg/imm , imm/u_reg  , u_reg/u_reg
+			{ vmi::sli  , vmi::slir , vmi::sl  , vmi::sli  , vmi::slir  , vmi::sl   }, // shiftLeft
+			{ vmi::sri  , vmi::srir , vmi::sr  , vmi::sri  , vmi::srir  , vmi::sr   }, // shiftRight
+			{ vmi::andi , vmi::null , vmi::and , vmi::andi , vmi::null  , vmi::and  }, // land
+			{ vmi::ori  , vmi::null , vmi::or  , vmi::ori  , vmi::null  , vmi::or   }, // lor
+			{ vmi::bandi, vmi::null , vmi::band, vmi::bandi, vmi::null  , vmi::band }, // band
+			{ vmi::bori , vmi::null , vmi::bor , vmi::bori , vmi::null  , vmi::bor  }, // bor
+			{ vmi::xori , vmi::null , vmi::xor , vmi::xori , vmi::null  , vmi::xor  }, // bxor
+		};
+		static unordered_map<op, u32> possible_map = {
+			{ op::shiftLeft		, 0 },
+			{ op::shiftRight	, 1 },
+			{ op::land			, 2 },
+			{ op::lor			, 3 },
+			{ op::band			, 4 },
+			{ op::bor			, 5 },
+			{ op::bxor			, 6 },
+			{ op::shiftLeftEq	, 0 },
+			{ op::shiftRightEq	, 1 },
+			{ op::landEq		, 2 },
+			{ op::lorEq			, 3 },
+			{ op::bandEq		, 4 },
+			{ op::borEq			, 5 },
+			{ op::bxorEq		, 6 },
+		};
+		vmi* possible = possible_arr[possible_map[operation]];
 
-		l->to_reg(because);
+		var* rhs = l ? cast(ctx, r, l, because) : r;
+
+		vmr lvr = l ? l->to_reg(because) : vmr::zero;
 		if (!rhs->is_imm) rhs->to_reg(because);
 
-		vmi i = rhs->is_imm ? possible[0] : possible[1];
+		bool op_is_fp = (l && is_fp(lvr)) || is_fp(o->to_reg(because));
+		bool lv_is_im = l && l->is_imm;
+		bool rv_is_im = rhs && rhs->is_imm;
+		bool op_is_us = (l && l->type->type && l->type->type->is_unsigned) || (o->type->type && o->type->type->is_unsigned);
 
-		instruction_encoder inst = encode(i).operand(o->to_reg(because)).operand(l->loc.reg);
+		if (lv_is_im && rv_is_im) {
+			// just do the math here and set output to an imm
+		}
 
-		if (rhs->is_imm) inst.operand(rhs->imm.i);
-		else inst.operand(rhs->loc.reg);
+
+		vmi i;
+		if (op_is_fp) {
+			if (lv_is_im) i = possible[1];
+			else if (rv_is_im) i = possible[0];
+			else i = possible[2];
+		} else {
+			if (op_is_us) {
+				if (lv_is_im) i = possible[7];
+				else if (rv_is_im) i = possible[6];
+				else i = possible[8];
+			} else {
+				if (lv_is_im) i = possible[4];
+				else if (rv_is_im) i = possible[3];
+				else i = possible[5];
+			}
+		}
+
+		bool swap = false;
+		if (i == vmi::null) {
+			swap = true;
+			if (op_is_fp) i = possible[0];
+			else {
+				if (op_is_us) i = possible[6];
+				else i = possible[3];
+			}
+		}
+
+		instruction_encoder inst = encode(i).operand(o->to_reg(because));
+
+		if (swap) {
+			inst.operand(rhs->to_reg(because));
+			if (lv_is_im) {
+				if (op_is_fp) inst.operand(l->imm.d);
+				else inst.operand(l->imm.i);
+			} else inst.operand(lvr);
+		} else {
+			inst.operand(lvr);
+			if (rv_is_im) {
+				if (op_is_fp) inst.operand(rhs->imm.d);
+				else inst.operand(rhs->imm.i);
+			} else inst.operand(rhs->to_reg(because));
+		}
 
 		ctx.add(inst, because);
 
@@ -1233,7 +1386,6 @@ namespace gjs {
 		if (!ignoreNext) refs += count_references(node->next, identifier);
 		refs += count_references(node->data_type, identifier);
 		refs += count_references(node->identifier, identifier);
-		refs += count_references(node->literal, identifier);
 		refs += count_references(node->arguments, identifier);
 		refs += count_references(node->body, identifier);
 		refs += count_references(node->else_body, identifier);
@@ -1253,7 +1405,7 @@ namespace gjs {
 	void compile_function(compile_context& ctx, ast_node* node, func* out) {
 		out->name = *node->identifier;
 		out->return_type = ctx.type(*node->data_type);
-		out->entry = ctx.out->size() + 1;
+		out->entry = ctx.out->size();
 		out->root = node;
 
 		ctx.cur_func = out;
@@ -1369,37 +1521,32 @@ namespace gjs {
 				case op::invalid: { break; }
 				case op::add: {
 					var* result = dest ? dest : ctx.cur_func->allocate(ctx, lvalue->type);
-					vmi possible[4] = { vmi::faddi, vmi::fadd, vmi::addi, vmi::add };
-					arithmetic_op_maybe_fp(ctx, lvalue, rvalue, result, node, possible);
+					arithmetic_op_maybe_fp(ctx, lvalue, rvalue, result, node, node->op);
 					ret = result;
 					break;
 				}
 				case op::sub: {
 					var* result = dest ? dest : ctx.cur_func->allocate(ctx, lvalue->type);
-					vmi possible[4] = { vmi::fsubi, vmi::fsub, vmi::subi, vmi::sub };
-					arithmetic_op_maybe_fp(ctx, lvalue, rvalue, result, node, possible);
+					arithmetic_op_maybe_fp(ctx, lvalue, rvalue, result, node, node->op);
 					ret = result;
 					break;
 				}
 				case op::mul: {
 					var* result = dest ? dest : ctx.cur_func->allocate(ctx, lvalue->type);
-					vmi possible[4] = { vmi::fmuli, vmi::fmul, vmi::muli, vmi::mul };
-					arithmetic_op_maybe_fp(ctx, lvalue, rvalue, result, node, possible);
+					arithmetic_op_maybe_fp(ctx, lvalue, rvalue, result, node, node->op);
 					ret = result;
 					break;
 				}
 				case op::div: {
 					var* result = dest ? dest : ctx.cur_func->allocate(ctx, lvalue->type);
-					vmi possible[4] = { vmi::fdivi, vmi::fdiv, vmi::divi, vmi::div };
-					arithmetic_op_maybe_fp(ctx, lvalue, rvalue, result, node, possible);
+					arithmetic_op_maybe_fp(ctx, lvalue, rvalue, result, node, node->op);
 					ret = result;
 					break;
 				}
 				case op::mod: {
 					/*
 					var* result = dest ? dest : ctx.cur_func->allocate(ctx, lvalue->type);
-					vmi possible[2] = { vmi::modi, vmi::mod };
-					arithmetic_op(ctx, lvalue, rvalue, result, node, possible);
+					arithmetic_op(ctx, lvalue, rvalue, result, node, node->op);
 					return result;
 					*/
 					var* result = dest ? dest : ctx.cur_func->allocate(ctx, lvalue->type);
@@ -1408,85 +1555,73 @@ namespace gjs {
 				}
 				case op::shiftLeft: {
 					var* result = dest ? dest : ctx.cur_func->allocate(ctx, lvalue->type);
-					vmi possible[2] = { vmi::sli, vmi::sl };
-					arithmetic_op(ctx, lvalue, rvalue, result, node, possible);
+					arithmetic_op(ctx, lvalue, rvalue, result, node, node->op);
 					ret = result;
 					break;
 				}
 				case op::shiftRight: {
 					var* result = dest ? dest : ctx.cur_func->allocate(ctx, lvalue->type);
-					vmi possible[2] = { vmi::sri, vmi::sr };
-					arithmetic_op(ctx, lvalue, rvalue, result, node, possible);
+					arithmetic_op(ctx, lvalue, rvalue, result, node, node->op);
 					ret = result;
 					break;
 				}
 				case op::land: {
 					var* result = dest ? dest : ctx.cur_func->allocate(ctx, lvalue->type);
-					vmi possible[2] = { vmi::andi, vmi::and };
-					arithmetic_op(ctx, lvalue, rvalue, result, node, possible);
+					arithmetic_op(ctx, lvalue, rvalue, result, node, node->op);
 					ret = result;
 					break;
 				}
 				case op::lor: {
 					var* result = dest ? dest : ctx.cur_func->allocate(ctx, lvalue->type);
-					vmi possible[2] = { vmi::ori, vmi::or };
-					arithmetic_op(ctx, lvalue, rvalue, result, node, possible);
+					arithmetic_op(ctx, lvalue, rvalue, result, node, node->op);
 					ret = result;
 					break;
 				}
 				case op::band: {
 					var* result = dest ? dest : ctx.cur_func->allocate(ctx, lvalue->type);
-					vmi possible[2] = { vmi::bandi, vmi::band };
-					arithmetic_op(ctx, lvalue, rvalue, result, node, possible);
+					arithmetic_op(ctx, lvalue, rvalue, result, node, node->op);
 					ret = result;
 					break;
 				}
 				case op::bor: {
 					var* result = dest ? dest : ctx.cur_func->allocate(ctx, lvalue->type);
-					vmi possible[2] = { vmi::bori, vmi::bor };
-					arithmetic_op(ctx, lvalue, rvalue, result, node, possible);
+					arithmetic_op(ctx, lvalue, rvalue, result, node, node->op);
 					ret = result;
 					break;
 				}
 				case op::bxor: {
 					var* result = dest ? dest : ctx.cur_func->allocate(ctx, lvalue->type);
-					vmi possible[2] = { vmi::xori, vmi::xor };
-					arithmetic_op(ctx, lvalue, rvalue, result, node, possible);
+					arithmetic_op(ctx, lvalue, rvalue, result, node, node->op);
 					ret = result;
 					break;
 				}
 				case op::addEq: {
-					vmi possible[4] = { vmi::faddi, vmi::fadd, vmi::addi, vmi::add };
-					arithmetic_op_maybe_fp(ctx, lvalue, rvalue, lvalue, node, possible);
+					arithmetic_op_maybe_fp(ctx, lvalue, rvalue, lvalue, node, node->op);
 					ret = lvalue;
 					assigned = true;
 					break;
 				}
 				case op::subEq: {
-					vmi possible[4] = { vmi::fsubi, vmi::fsub, vmi::subi, vmi::sub };
-					arithmetic_op_maybe_fp(ctx, lvalue, rvalue, lvalue, node, possible);
+					arithmetic_op_maybe_fp(ctx, lvalue, rvalue, lvalue, node, node->op);
 					ret = lvalue;
 					assigned = true;
 					break;
 				}
 				case op::mulEq: {
-					vmi possible[4] = { vmi::fmuli, vmi::fmul, vmi::muli, vmi::mul };
-					arithmetic_op_maybe_fp(ctx, lvalue, rvalue, lvalue, node, possible);
+					arithmetic_op_maybe_fp(ctx, lvalue, rvalue, lvalue, node, node->op);
 					ret = lvalue;
 					assigned = true;
 					break;
 				}
 				case op::divEq: {
-					vmi possible[4] = { vmi::fdivi, vmi::fdiv, vmi::divi, vmi::div };
-					arithmetic_op_maybe_fp(ctx, lvalue, rvalue, lvalue, node, possible);
+					arithmetic_op_maybe_fp(ctx, lvalue, rvalue, lvalue, node, node->op);
 					ret = lvalue;
 					assigned = true;
 					break;
 				}
 				case op::modEq: {
 					/*
-					vmi possible[2] = { vmi::modi, vmi::mod };
-					arithmetic_op(ctx, lvalue, rvalue, lvalue, node, possible);
+					arithmetic_op(ctx, lvalue, rvalue, lvalue, node, node->op);
 					return result;
 					*/
 					var* result = dest ? dest : ctx.cur_func->allocate(ctx, lvalue->type);
@@ -1495,50 +1630,43 @@ namespace gjs {
 					break;
 				}
 				case op::shiftLeftEq: {
-					vmi possible[2] = { vmi::sli, vmi::sl };
-					arithmetic_op(ctx, lvalue, rvalue, lvalue, node, possible);
+					arithmetic_op(ctx, lvalue, rvalue, lvalue, node, node->op);
 					ret = lvalue;
 					assigned = true;
 					break;
 				}
 				case op::shiftRightEq: {
-					vmi possible[2] = { vmi::sri, vmi::sr };
-					arithmetic_op(ctx, lvalue, rvalue, lvalue, node, possible);
+					arithmetic_op(ctx, lvalue, rvalue, lvalue, node, node->op);
 					ret = lvalue;
 					assigned = true;
 					break;
 				}
 				case op::landEq: {
-					vmi possible[2] = { vmi::andi, vmi::and };
-					arithmetic_op(ctx, lvalue, rvalue, lvalue, node, possible);
+					arithmetic_op(ctx, lvalue, rvalue, lvalue, node, node->op);
 					ret = lvalue;
 					assigned = true;
 					break;
 				}
 				case op::lorEq: {
-					vmi possible[2] = { vmi::ori, vmi::or };
-					arithmetic_op(ctx, lvalue, rvalue, lvalue, node, possible);
+					arithmetic_op(ctx, lvalue, rvalue, lvalue, node, node->op);
 					ret = lvalue;
 					assigned = true;
 					break;
 				}
 				case op::bandEq: {
-					vmi possible[2] = { vmi::bandi, vmi::band };
-					arithmetic_op(ctx, lvalue, rvalue, lvalue, node, possible);
+					arithmetic_op(ctx, lvalue, rvalue, lvalue, node, node->op);
 					ret = lvalue;
 					assigned = true;
 					break;
 				}
 				case op::borEq: {
-					vmi possible[2] = { vmi::bori, vmi::bor };
-					arithmetic_op(ctx, lvalue, rvalue, lvalue, node, possible);
+					arithmetic_op(ctx, lvalue, rvalue, lvalue, node, node->op);
 					ret = lvalue;
 					assigned = true;
 					break;
 				}
 				case op::bxorEq: {
-					vmi possible[2] = { vmi::xori, vmi::xor };
-					arithmetic_op(ctx, lvalue, rvalue, lvalue, node, possible);
+					arithmetic_op(ctx, lvalue, rvalue, lvalue, node, node->op);
 					ret = lvalue;
 					assigned = true;
 					break;
@@ -1546,12 +1674,11 @@ namespace gjs {
 				case op::preInc: {
 					var* result = dest ? dest : ctx.cur_func->allocate(ctx, rvalue->type);
 					var* tmp;
-					if (rvalue->type->name == "decimal") tmp = ctx.cur_func->imm(ctx, 1.0f);
+					if (rvalue->type->is_floating_point) tmp = ctx.cur_func->imm(ctx, 1.0f);
 					else tmp = ctx.cur_func->imm(ctx, 1);
 
 					rvalue->store_in(result->to_reg(node), node);
-					vmi possible[4] = { vmi::faddi, vmi::fadd, vmi::addi, vmi:: add };
-					arithmetic_op_maybe_fp(ctx, rvalue, tmp, rvalue, node, possible);
+					arithmetic_op_maybe_fp(ctx, rvalue, tmp, rvalue, node, node->op);
 
 					ctx.cur_func->free(tmp);
 					ret = result;
@@ -1561,12 +1688,11 @@ namespace gjs {
 				case op::preDec: {
 					var* result = dest ? dest : ctx.cur_func->allocate(ctx, rvalue->type);
 					var* tmp;
-					if (rvalue->type->name == "decimal") tmp = ctx.cur_func->imm(ctx, 1.0f);
+					if (rvalue->type->is_floating_point) tmp = ctx.cur_func->imm(ctx, 1.0f);
 					else tmp = ctx.cur_func->imm(ctx, 1);
 
 					rvalue->store_in(result->to_reg(node), node);
-					vmi possible[4] = { vmi::fsubi, vmi::fsub, vmi::subi, vmi:: sub };
-					arithmetic_op_maybe_fp(ctx, rvalue, tmp, rvalue, node, possible);
+					arithmetic_op_maybe_fp(ctx, rvalue, tmp, rvalue, node, node->op);
 
 					ctx.cur_func->free(tmp);
 					ret = result;
@@ -1575,11 +1701,10 @@ namespace gjs {
 				}
 				case op::postInc: {
 					var* tmp;
-					if (lvalue->type->name == "decimal") tmp = ctx.cur_func->imm(ctx, 1.0f);
+					if (lvalue->type->is_floating_point) tmp = ctx.cur_func->imm(ctx, 1.0f);
 					else tmp = ctx.cur_func->imm(ctx, 1);
 
-					vmi possible[4] = { vmi::faddi, vmi::fadd, vmi::addi, vmi:: add };
-					arithmetic_op_maybe_fp(ctx, lvalue, tmp, lvalue, node, possible);
+					arithmetic_op_maybe_fp(ctx, lvalue, tmp, lvalue, node, node->op);
 					if (dest) lvalue->store_in(dest->to_reg(node), node);
 
 					ctx.cur_func->free(tmp);
@@ -1589,11 +1714,10 @@ namespace gjs {
 				}
 				case op::postDec: {
 					var* tmp;
-					if (lvalue->type->name == "decimal") tmp = ctx.cur_func->imm(ctx, 1.0f);
+					if (lvalue->type->is_floating_point) tmp = ctx.cur_func->imm(ctx, 1.0f);
 					else tmp = ctx.cur_func->imm(ctx, 1);
 
-					vmi possible[4] = { vmi::fsubi, vmi::fsub, vmi::subi, vmi:: sub };
-					arithmetic_op_maybe_fp(ctx, lvalue, tmp, lvalue, node, possible);
+					arithmetic_op_maybe_fp(ctx, lvalue, tmp, lvalue, node, node->op);
 					if (dest) lvalue->store_in(dest->to_reg(node), node);
 
 					ctx.cur_func->free(tmp);
@@ -1602,64 +1726,91 @@ namespace gjs {
 					break;
 				}
 				case op::less: {
-					var* result = dest ? dest : ctx.cur_func->allocate(ctx, ctx.type("integer"));
-					vmi possible[4] = { vmi::flti, vmi::flt, vmi::lti, vmi::lt };
-					arithmetic_op_maybe_fp(ctx, lvalue, rvalue, result, node, possible);
+					var* result = dest ? dest : ctx.cur_func->allocate(ctx, ctx.type("bool"));
+					var* lv = lvalue;
+					var* rv = rvalue;
+					op oper = node->op;
+					if (lv->is_imm && !rv->is_imm) {
+						swap(lv, rv);
+						oper = op::greaterEq;
+					}
+					arithmetic_op_maybe_fp(ctx, lv, rv, result, node, oper);
 					ret = result;
 					break;
 				}
 				case op::greater: {
-					var* result = dest ? dest : ctx.cur_func->allocate(ctx, ctx.type("integer"));
-					vmi possible[4] = { vmi::fgti, vmi::fgt, vmi::gti, vmi::gt };
-					arithmetic_op_maybe_fp(ctx, lvalue, rvalue, result, node, possible);
+					var* result = dest ? dest : ctx.cur_func->allocate(ctx, ctx.type("bool"));
+					var* lv = lvalue;
+					var* rv = rvalue;
+					op oper = node->op;
+					if (lv->is_imm && !rv->is_imm) {
+						swap(lv, rv);
+						oper = op::lessEq;
+					}
+					arithmetic_op_maybe_fp(ctx, lv, rv, result, node, oper);
 					ret = result;
 					break;
 				}
 				case op::lessEq: {
-					var* result = dest ? dest : ctx.cur_func->allocate(ctx, ctx.type("integer"));
-					vmi possible[4] = { vmi::fltei, vmi::flte, vmi::ltei, vmi::lte };
-					arithmetic_op_maybe_fp(ctx, lvalue, rvalue, result, node, possible);
+					var* result = dest ? dest : ctx.cur_func->allocate(ctx, ctx.type("bool"));
+					var* lv = lvalue;
+					var* rv = rvalue;
+					op oper = node->op;
+					if (lv->is_imm && !rv->is_imm) {
+						swap(lv, rv);
+						oper = op::greater;
+					}
+					arithmetic_op_maybe_fp(ctx, lv, rv, result, node, oper);
 					ret = result;
 					break;
 				}
 				case op::greaterEq: {
-					var* result = dest ? dest : ctx.cur_func->allocate(ctx, ctx.type("integer"));
-					vmi possible[4] = { vmi::fgtei, vmi::fgte, vmi::gtei, vmi::gte };
-					arithmetic_op_maybe_fp(ctx, lvalue, rvalue, result, node, possible);
+					var* result = dest ? dest : ctx.cur_func->allocate(ctx, ctx.type("bool"));
+					var* lv = lvalue;
+					var* rv = rvalue;
+					op oper = node->op;
+					if (lv->is_imm && !rv->is_imm) {
+						swap(lv, rv);
+						oper = op::less;
+					}
+					arithmetic_op_maybe_fp(ctx, lv, rv, result, node, oper);
 					ret = result;
 					break;
 				}
 				case op::notEq: {
-					var* result = dest ? dest : ctx.cur_func->allocate(ctx, ctx.type("integer"));
-					vmi possible[4] = { vmi::fncmpi, vmi::fncmp, vmi::ncmpi, vmi::ncmp };
-					arithmetic_op_maybe_fp(ctx, lvalue, rvalue, result, node, possible);
+					var* result = dest ? dest : ctx.cur_func->allocate(ctx, ctx.type("bool"));
+					arithmetic_op_maybe_fp(ctx, lvalue, rvalue, result, node, node->op);
 					ret = result;
 					break;
 				}
 				case op::isEq: {
-					var* result = dest ? dest : ctx.cur_func->allocate(ctx, ctx.type("integer"));
-					vmi possible[4] = { vmi::fcmpi, vmi::fcmp, vmi::cmpi, vmi::cmp };
-					arithmetic_op_maybe_fp(ctx, lvalue, rvalue, result, node, possible);
+					var* result = dest ? dest : ctx.cur_func->allocate(ctx, ctx.type("bool"));
+					arithmetic_op_maybe_fp(ctx, lvalue, rvalue, result, node, node->op);
 					ret = result;
 					break;
 				}
 				case op::eq: {
-					vmi possible[4] = { vmi::faddi, vmi::fadd, vmi::addi, vmi::add };
 					var* tmp = ctx.cur_func->imm(ctx, (integer)0);
-					arithmetic_op_maybe_fp(ctx, nullptr, rvalue, lvalue, node, possible);
+					arithmetic_op_maybe_fp(ctx, nullptr, rvalue, lvalue, node, node->op);
 					if (dest) lvalue->store_in(dest->to_reg(node), node);
 					ret = dest ? dest : lvalue;
 					assigned = true;
 					break;
 				}
 				case op::not: {
-					var* result = dest ? dest : ctx.cur_func->allocate(ctx, lvalue->type);
+					var* result = dest ? dest : ctx.cur_func->allocate(ctx, ctx.type("bool"));
+					arithmetic_op_maybe_fp(ctx, nullptr, lvalue, result, node, node->op);
 					ret = result;
 					break;
 				}
 				case op::negate: {
-					var* result = dest ? dest : ctx.cur_func->allocate(ctx, lvalue->type);
-					ret = result;
+					// todo: use bitwise operations instead of multiplication
+					var* result = dest ? dest : ctx.cur_func->allocate(ctx, rvalue->type);
+					var* tmp = nullptr;
+					if (rvalue->type->is_floating_point) tmp = ctx.cur_func->imm(ctx, -1.0f);
+					else tmp = ctx.cur_func->imm(ctx, -1);
+					arithmetic_op_maybe_fp(ctx, rvalue, tmp, result, node, node->op);
+					ctx.cur_func->free(tmp);
 					break;
 				}
 				case op::addr: {
@@ -1884,8 +2035,10 @@ namespace gjs {
 		
 		if (node->initializer) compile_variable_declaration(ctx, node->initializer);
 		address loop_cond = ctx.out->size();
+		address branch_addr = 0;
 		if (node->condition) {
 			func::var* cond = compile_expression(ctx, node->condition, nullptr);
+			branch_addr = ctx.out->size();
 			ctx.add(
 				encode(vmi::bneqz).operand(cond->to_reg(node->condition)).operand(0),
 				node->condition
@@ -1905,16 +2058,16 @@ namespace gjs {
 		}
 
 		ctx.add(
-			encode(vmi::jmp).operand((integer)loop_cond),
+			encode(vmi::jmp).operand((u64)loop_cond),
 			node
 		);
 
 		if (node->condition) {
 			// update branch fail address
-			instruction branch = (*ctx.out)[loop_cond];
+			instruction branch = (*ctx.out)[branch_addr];
 			ctx.out->set(
-				loop_cond,
-				encode(decode_instruction(branch)).operand(decode_operand_1(branch)).operand((integer)ctx.out->size())
+				branch_addr,
+				encode(decode_instruction(branch)).operand(decode_operand_1(branch)).operand((uinteger)ctx.out->size())
 			);
 		}
 
@@ -1924,6 +2077,7 @@ namespace gjs {
 
 	void compile_while_loop(compile_context& ctx, ast_node* node) {
 		ctx.cur_func->auto_free_consumed_vars = false;
+		address condAddr = ctx.out->size();
 		func::var* cond = compile_expression(ctx, node->condition, nullptr);
 		address branchAddr = ctx.out->size();
 		ctx.add(
@@ -1939,7 +2093,7 @@ namespace gjs {
 		}
 
 		ctx.add(
-			encode(vmi::jmp).operand((integer)branchAddr),
+			encode(vmi::jmp).operand((uinteger)condAddr),
 			node
 		);
 
@@ -1947,7 +2101,7 @@ namespace gjs {
 		instruction branch = (*ctx.out)[branchAddr];
 		ctx.out->set(
 			branchAddr,
-			encode(decode_instruction(branch)).operand(decode_operand_1(branch)).operand((integer)ctx.out->size())
+			encode(decode_instruction(branch)).operand(decode_operand_1(branch)).operand((uinteger)ctx.out->size())
 		);
 
 		n = node->else_body;
@@ -1971,13 +2125,13 @@ namespace gjs {
 
 		func::var* cond = compile_expression(ctx, node->condition, nullptr);
 		ctx.add(
-			encode(vmi::bneqz).operand(cond->to_reg(node)).operand((integer)ctx.out->size() + 1),
+			encode(vmi::bneqz).operand(cond->to_reg(node)).operand((uinteger)ctx.out->size() + 1),
 			node
 		);
 		ctx.cur_func->free(cond);
 
 		ctx.add(
-			encode(vmi::jmp).operand((integer)startAddr),
+			encode(vmi::jmp).operand((uinteger)startAddr),
 			node->condition
 		);
 
@@ -2061,11 +2215,10 @@ namespace gjs {
 			t = ctx.types[ctx.types.size() - 1];
 			t->size = types[i]->size;
 			t->type = types[i];
-			if (t->type->name == "integer") t->built_in = true;
-			else if (t->type->name == "decimal") t->built_in = true;
-			else if (t->type->name == "void") t->built_in = true;
-			else if (t->type->name == "string") t->built_in = true;
-			else {
+			t->built_in = types[i]->is_builtin;
+			t->is_floating_point = types[i]->is_floating_point;
+			t->is_unsigned = types[i]->is_unsigned;
+			if (!t->built_in || t->name == "string") {
 				// object pointer
 				t->size = sizeof(void*);
 			}
@@ -2098,13 +2251,14 @@ namespace gjs {
 		}
 	}
 
-	void compile_ast(vm_context* vctx, ast_node* tree, instruction_array* out) {
+	void compile_ast(vm_context* vctx, ast_node* tree, instruction_array* out, source_map* map) {
 		if (!tree) {
 			throw compile_exception("No AST to compile", "", "", 0, 0);
 		}
 
 		compile_context ctx;
 		ctx.ctx = vctx;
+		ctx.map = map;
 		ctx.out = out;
 		init_context(ctx);
 

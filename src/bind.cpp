@@ -127,6 +127,9 @@ namespace gjs {
 		destructor = nullptr;
 		size = 0;
 		is_primitive = false;
+		is_floating_point = false;
+		is_unsigned = false;
+		is_builtin = false;
 		m_wrapped = nullptr;
 	}
 

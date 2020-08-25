@@ -11,6 +11,7 @@ namespace gjs {
 		std::vector<std::string> lines;
 		struct elem {
 			u16 file;
+			u32 lineTextIdx;
 			u32 line;
 			u32 col;
 		};
@@ -25,6 +26,7 @@ namespace gjs {
 		std::vector<elem> map;
 
 		void append(ast_node* node);
+		void append(const std::string& file, const std::string& lineText, u32 line, u32 col);
 
 		src_info get(address addr);
 	};

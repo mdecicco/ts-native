@@ -102,8 +102,10 @@ namespace gjs {
 		"xori",
 		"sl",
 		"sli",
+		"slir",
 		"sr",
 		"sri",
+		"srir",
 
 		// control flow
 		"beqz",

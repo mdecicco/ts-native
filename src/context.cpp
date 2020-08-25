@@ -3,6 +3,7 @@
 #include <parse.h>
 #include <compile.h>
 #include <asmjit/asmjit.h>
+#include <default_steps.h>
 
 namespace gjs {
 	runtime_exception::runtime_exception(vm_context* ctx, const std::string& _text) : text(_text), raised_from_script(true), line(0), col(0) {
@@ -26,27 +27,80 @@ namespace gjs {
 
 	vm_context::vm_context(vm_allocator* alloc, u32 stack_size, u32 mem_size) : 
 		m_vm(this, alloc, stack_size, mem_size), m_instructions(alloc), m_is_executing(false),
-		m_catch_exceptions(false), m_log_instructions(false), m_types(this)
+		m_catch_exceptions(false), m_log_instructions(false), m_types(this), m_alloc(alloc),
+		m_pipeline(this)
 	{
 		m_jit = new asmjit::JitRuntime();
 		m_instructions += encode(vm_instruction::term);
+		m_map.append("[internal code]", "", 0, 0);
 
 		vm_type* tp = nullptr;
-		tp = m_types.add("integer", typeid(integer).name());
+		tp = m_types.add("i32", typeid(i32).name());
 		tp->is_primitive = true;
-		tp->size = sizeof(integer);
+		tp->is_builtin = true;
+		tp->size = sizeof(i32);
 
-		tp = m_types.add("decimal", typeid(decimal).name());
+		tp = nullptr;
+		tp = m_types.add("u32", typeid(u32).name());
 		tp->is_primitive = true;
-		tp->size = sizeof(decimal);
+		tp->is_unsigned = true;
+		tp->is_builtin = true;
+		tp->size = sizeof(u32);
+
+		tp = nullptr;
+		tp = m_types.add("i16", typeid(i16).name());
+		tp->is_primitive = true;
+		tp->is_builtin = true;
+		tp->size = sizeof(i16);
+
+		tp = nullptr;
+		tp = m_types.add("u16", typeid(u16).name());
+		tp->is_primitive = true;
+		tp->is_unsigned = true;
+		tp->is_builtin = true;
+		tp->size = sizeof(u16);
+
+		tp = nullptr;
+		tp = m_types.add("i8", typeid(i8).name());
+		tp->is_primitive = true;
+		tp->is_builtin = true;
+		tp->size = sizeof(i8);
+
+		tp = nullptr;
+		tp = m_types.add("u8", typeid(u8).name());
+		tp->is_primitive = true;
+		tp->is_unsigned = true;
+		tp->is_builtin = true;
+		tp->size = sizeof(u8);
+
+		tp = m_types.add("f32", typeid(f32).name());
+		tp->is_primitive = true;
+		tp->is_floating_point = true;
+		tp->is_builtin = true;
+		tp->size = sizeof(f32);
+
+		tp = m_types.add("f64", typeid(f64).name());
+		tp->is_primitive = true;
+		tp->is_floating_point = true;
+		tp->is_builtin = true;
+		tp->size = sizeof(f64);
+
+		tp = m_types.add("bool", typeid(bool).name());
+		tp->is_primitive = true;
+		tp->is_builtin = true;
+		tp->size = sizeof(bool);
 
 		tp = m_types.add("string", "char");
 		tp->is_primitive = false;
+		tp->is_builtin = true;
 		tp->size = sizeof(char*);
 
 		tp = m_types.add("void", "void");
 		tp->is_primitive = true;
+		tp->is_builtin = true;
 		tp->size = 0;
+
+		m_pipeline.add_ir_step(ir_remove_trailing_stack_loads);
 	}
 
 	vm_context::~vm_context() {
@@ -78,6 +132,18 @@ namespace gjs {
 		return it->getSecond();
 	}
 
+	bool vm_context::set_function_address(u64 old_addr, u64 new_addr) {
+		auto it = m_funcs_by_addr.find(old_addr);
+		if (it == m_funcs_by_addr.end()) return false;
+		if (m_funcs_by_addr.count(new_addr) > 0) return false;
+		vm_function* func = it->getSecond();
+		if (func->is_host) return false;
+
+		func->access.entry = new_addr;
+		m_funcs_by_addr.erase(it);
+		m_funcs_by_addr[new_addr] = func;
+	}
+
 	std::vector<vm_function*> vm_context::all_functions() {
 		std::vector<vm_function*> out;
 		for (auto i = m_funcs.begin();i != m_funcs.end();++i) {
@@ -92,8 +158,7 @@ namespace gjs {
 
 	void vm_context::add_code(const std::string& filename, const std::string& code) {
 		try {
-			ast_node* ast = parse_source(this, filename, code);
-			compile_ast(this, ast, &m_instructions);
+			m_pipeline.compile(filename, code);
 		} catch (parse_exception& e) {
 			if (!m_catch_exceptions) throw e;
 			printf("%s:%d:%d: %s\n", e.file.c_str(), e.line, e.col, e.text.c_str());
