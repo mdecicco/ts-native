@@ -34,4 +34,11 @@ namespace gjs {
 			memset(m_instructions + m_count, 0, RESIZE_AMOUNT * sizeof(instruction));
 		}
 	}
+
+	void instruction_array::remove(u32 index) {
+		for (u32 i = index;i < m_count - 1;i++) {
+			m_instructions[i] = m_instructions[i + 1];
+		}
+		if (m_count > 0) m_count--;
+	}
 };

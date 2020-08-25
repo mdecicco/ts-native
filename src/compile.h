@@ -5,6 +5,7 @@
 
 namespace gjs {
 	class vm_context;
+	class source_map;
 	class instruction_array;
 	struct ast_node;
 
@@ -45,5 +46,5 @@ namespace gjs {
 			u32 col;
 	};
 
-	void compile_ast(vm_context* ctx, ast_node* tree, instruction_array* out);
+	void compile_ast(vm_context* ctx, ast_node* tree, instruction_array* out, source_map* map);
 };

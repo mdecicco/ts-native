@@ -1,197 +1,108 @@
-#include <instruction_encoder.h>
-#include <instruction.h>
-#include <register.h>
-#include <instruction_array.h>
 #include <allocator.h>
-#include <vm.h>
-#include <bind.h>
-#include <parse.h>
 #include <context.h>
-#include <compile.h>
-
-#include <stdio.h>
-#include <chrono>
 
 using namespace gjs;
 
-void test_vm() {
-	vm_allocator* alloc = new basic_malloc_allocator();
-	instruction_array a(alloc);
-	using vmi = vm_instruction;
-	using vmr = vm_register;
-
-	integer iterations = 100000000;
-
-	// float x = *mem[0xBE]
-	// int i = *mem[0xEF]
-	// while(i > 0) {
-	//	 i--
-	//	 x += 10.0f
-	// }
-	// *mem[0xBE] = x
-	vm cpu(alloc, 4096, 4096);
-	*(decimal*)cpu.state.memory[0xBE] = 0.0f;
-	*(integer*)cpu.state.memory[0xEF] = iterations + 1;
-	a += encode(vmi::ld32 ).operand(vmr::s0).operand(vmr::zero).operand(0xBE);  // 0: float x = *mem[0xBE]
-	a += encode(vmi::mtfp ).operand(vmr::s0).operand(vmr::f0  );				// 1: ^
-	a += encode(vmi::ld32 ).operand(vmr::v2).operand(vmr::zero).operand(0xEF);  // 2: int i = *mem[0xEF]
-	a += encode(vmi::subi ).operand(vmr::v2).operand(vmr::v2  ).operand(1	);  // 3: i--
-	a += encode(vmi::bneqz).operand(vmr::v2).operand(0x7      );			    // 4: if (i == 0) goto #7
-	a += encode(vmi::faddi).operand(vmr::f0).operand(vmr::f0  ).operand(0.1f);  // 5: x += 0.1f
-	a += encode(vmi::jmp  ).operand(0x3	   );									// 6: if (i > 0) goto #3
-	a += encode(vmi::mffp ).operand(vmr::f0).operand(vmr::s0  );				// 7: *mem[0xBE] = x
-	a += encode(vmi::st32 ).operand(vmr::s0).operand(vmr::zero).operand(0xBE);  // 8: ^
-	a += encode(vmi::term );													// 9: exit
-
-	std::chrono::high_resolution_clock::time_point tp0 = std::chrono::high_resolution_clock::now();
-	cpu.execute(a, 0);
-	std::chrono::high_resolution_clock::time_point tp1 = std::chrono::high_resolution_clock::now();
-	float tm0 = float(std::chrono::duration_cast<std::chrono::milliseconds>(tp1 - tp0).count()) / 1000.0f;
-
-
-	tp0 = std::chrono::high_resolution_clock::now();
-	float v = 5.0f;
-	integer i = iterations;
-	while (i > 0) {
-		i--;
-		v += 10.0f;
-	}
-	tp1 = std::chrono::high_resolution_clock::now();
-	float tm1 = float(std::chrono::duration_cast<std::chrono::milliseconds>(tp1 - tp0).count()) / 1000.0f;
-
-	float result = *(float*)cpu.state.memory[0xBE];
-	printf("\n\n\n\n\n\n\nResult: %f, in %f seconds (%fx native)\n\n\n\n\n\n", result, tm0, tm0 / tm1);
-}
-
 class foo {
 	public:
-		foo(int x) : y(x) { }
+		foo(i32* _x) { x = _x; w = 3.0f; }
 		~foo() { }
 
-		int print() { return printf("%d\n", y); }
-		int set_y(int z) { return y = z; }
-		int get_y() { return y; }
+		i32 t(i32 a) {
+			return printf("%d, %d\n", y, a);
+		}
 
-		int y;
+		i32* x;
+		i32 y;
+		i32 z;
+		f32 w;
 };
 
-void test_bind() {
-	asmjit::JitRuntime rt;
-	bind::wrapped_function* func = bind::wrap(rt, &foo::print);
-	foo bar(15);
-	int x = std::any_cast<int>(func->call({ &bar }));
-	delete func;
-
-	bind::wrapped_function* construct = bind::wrap_constructor<foo, int>(rt);
-	foo* ayy = std::any_cast<foo*>(construct->call({ 52 }));
-
-	bind::wrap_class<foo> f(rt);
-	f.constructor<int>();
-	f.method("print", &foo::print);
-	f.prop("y", &foo::y);
-	f.prop("y", &foo::get_y, &foo::set_y);
-}
-
-void test_parse() {
-	const char* src =
-		"format fmt = { a: integer, b: decimal, c: function };\n"
-		"void something(fmt arg0, integer arg1);\n"
-		"class test {\n"
-		"    constructor(string ayy) {\n"
-		"        this.x = ayy;\n"
-		"        this.y = 10;\n"
-		"    }\n"
-		"    destructor() { }\n"
-		"    void p(decimal x) {\n"
-		"        decimal g = x;\n"
-		"        for (integer a = 0;a < this.y;a++) {\n"
-		"            this.x = this.x + ' ' + this.x;\n"
-		"        }\n"
-		"    }\n"
-		"    \n"
-		"    string x;\n"
-		"    integer y;\n"
-		"};\n"
-		"void something(fmt arg0, integer arg1) {\n"
-		"    integer x = arg0.a + arg1;\n"
-		"}\n";
-
-	vm_allocator* alloc = new basic_malloc_allocator();
-	vm_context ctx(alloc, 4096, 4096);
-	try {
-		ast_node* code = parse_source(&ctx, "test.gjs", src);
-		code->debug_print(0);
-	} catch (parse_exception& e) {
-		printf("%s:%d:%d: %s\n", e.file.c_str(), e.line, e.col, e.text.c_str());
-		std::string ln = "";
-		u32 wscount = 0;
-		bool reachedText = false;
-		for (u32 i = 0;i < e.lineText.length();i++) {
-			if (isspace(e.lineText[i]) && !reachedText) wscount++;
-			else {
-				reachedText = true;
-				ln += e.lineText[i];
-			}
-		}
-		printf("%s\n", ln.c_str());
-		for (u32 i = 0;i < e.col - wscount;i++) printf(" ");
-		printf("^\n");
-	}
-}
-
-void test_compile() {
-	const char* src =
-		"integer test(integer x);\n"
-		"integer something(integer arg0, integer arg1, integer arg2) {\n"
-		"    integer x = arg0 + arg1 * 4.0;\n"
-		"    integer y = x - arg2;\n"
-		"    x = y++;\n"
-		"    return test(x);\n"
-		"}\n"
-		"integer test(integer x) {\n"
-		"    return x * 5;\n"
-		"}\n"
-		"integer test1(integer z) {\n"
-		"    return something(z, z + 1, z + 2);\n"
-		"}\n"
-		"integer main() {\n"
-		"    return test1(100);\n"
-		"}\n";
-	vm_allocator* alloc = new basic_malloc_allocator();
-	vm_context ctx(alloc, 4096, 4096);
-	try {
-		ast_node* code = parse_source(&ctx, "test.gjs", src);
-		instruction_array* bcode = ctx.code();
-
-		// instruction 0 must be term, when the entry function exits
-		// it jumps to 0
-		(*bcode) += encode(vm_instruction::term);
-
-		compile_ast(&ctx, code, bcode);
-
-		integer result = 0;
-		ctx.function("test")->call(&result, 5);
-		printf("result: %d\n", result);
-	} catch (parse_exception& e) {
-		printf("%s:%d:%d: %s\n", e.file.c_str(), e.line, e.col, e.text.c_str());
-		std::string ln = "";
-		u32 wscount = 0;
-		bool reachedText = false;
-		for (u32 i = 0;i < e.lineText.length();i++) {
-			if (isspace(e.lineText[i]) && !reachedText) wscount++;
-			else {
-				reachedText = true;
-				ln += e.lineText[i];
-			}
-		}
-		printf("%s\n", ln.c_str());
-		for (u32 i = 0;i < e.col - wscount;i++) printf(" ");
-		printf("^\n");
-	}
+void print_foo(const foo& f) {
+	printf("foo: %d, %d, %d, %f\n", *f.x, f.y, f.z, f.w);
 }
 
 int main(int arg_count, const char** args) {
-	//test();
-	test_compile();
+	const char* src =
+		"i32 test(i32 x);\n"
+		"i32 something(i32 arg0, i32 arg1, i32 arg2) {\n"
+		"    i32 x = arg0 + arg1 * 4.0;\n"
+		"    i32 y = x - arg2;\n"
+		"    x = y++;\n"
+		"    for (i32 i = 0;i < 10;i++) {\n"
+		"        x += 3;\n"
+		"    }\n"
+		"    return test(x);\n"
+		"}\n"
+		"i32 test(i32 x) {\n"
+		"    return x * 5;\n"
+		"}\n"
+		"i32 test1(i32 z) {\n"
+		"    return something(z, z + 1, z + 2);\n"
+		"}\n"
+		"i32 main(foo a) {\n"
+		"    a.x = 52;\n"
+		"    a.y *= 5;\n"
+		"    a.z = 2;\n"
+		"    a.w = 61.69;\n"
+		"    print_foo(a);\n"
+		"    return a.t(test1(100));\n"
+		"}\n";
+
+	vm_allocator* alloc = new basic_malloc_allocator();
+	vm_context ctx(alloc, 4096, 4096);
+	ctx.log_exceptions(true);
+	ctx.log_instructions(true);
+
+	try {
+		auto f = ctx.bind<foo>("foo");
+		f.constructor<integer*>();
+		f.method("t", &foo::t);
+		f.prop("x", &foo::x, bind::property_flags::pf_object_pointer);
+		f.prop("y", &foo::y, bind::property_flags::pf_none);
+		f.prop("z", &foo::z, bind::property_flags::pf_none);
+		f.prop("w", &foo::w, bind::property_flags::pf_none);
+		f.finalize();
+
+		ctx.bind(print_foo, "print_foo");
+	} catch (bind_exception& e) {
+		printf("%s\n", e.text.c_str());
+	}
+
+	vm_type* tp = ctx.types()->get<foo>();
+	ctx.add_code("test.gjs", src);
+
+	std::string last_line = "";
+	for (u32 i = 0;i < ctx.code()->size();i++) {
+		vm_function* f = ctx.function(i);
+		if (f) {
+			printf("\n[%s %s(", f->signature.return_type->name.c_str(), f->name.c_str());
+			for(u8 a = 0;a < f->signature.arg_types.size();a++) {
+				if (a > 0) printf(", ");
+				printf("%s arg_%d -> $%s", f->signature.arg_types[a]->name.c_str(), a, register_str[u8(f->signature.arg_locs[a])]);
+			}
+			printf(")");
+
+			if (f->signature.return_type->size == 0) printf(" -> null");
+			else printf(" -> $%s", register_str[u8(f->signature.return_loc)]);
+			printf("]\n");
+		}
+		printf("0x%2.2X: %-32s", i, instruction_to_string((*ctx.code())[i]).c_str());
+
+		auto src = ctx.map()->get(i);
+		if (src.lineText != last_line) {
+			printf("; %s", src.lineText.c_str());
+			last_line = src.lineText;
+		}
+		printf("\n");
+	}
+	printf("-------------result-------------\n");
+
+	int x = 5;
+	foo test(&x);
+	test.y = 10;
+	test.z = 4;
+	integer result = 0;
+	ctx.function("main")->call(&result, &test);
 	return 0;
 }

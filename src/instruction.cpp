@@ -31,6 +31,18 @@ namespace gjs {
 		"divi",
 		"divir",
 
+		// unsigned arithmetic
+		"addu",
+		"addui",
+		"subu",
+		"subui",
+		"subuir",
+		"mulu",
+		"mului",
+		"divu",
+		"divui",
+		"divuir",
+
 		// integer / floating point conversion
 		"ctf",
 		"cti",
@@ -90,8 +102,10 @@ namespace gjs {
 		"xori",
 		"sl",
 		"sli",
+		"slir",
 		"sr",
 		"sri",
+		"srir",
 
 		// control flow
 		"beqz",

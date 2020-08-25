@@ -47,7 +47,6 @@ namespace gjs {
 
 	ast_node* parse_next(parse_context& ctx, tokenizer& t);
 	ast_node* identifier(tokenizer& t, token& tk);
-	void add_node(parse_context& ctx, ast_node* node);
 	void init_tokenizer(tokenizer& t);
 
 
@@ -155,7 +154,6 @@ namespace gjs {
 				}
 
 				ret = op;
-				add_node(ctx, op);
 				set_node_src(op, cur);
 				cur = current();
 			}
@@ -195,7 +193,6 @@ namespace gjs {
 					);
 				}
 
-				add_node(ctx, cond);
 				set_node_src(cond, cur);
 				ret = cond;
 			}
@@ -222,7 +219,6 @@ namespace gjs {
 				}
 
 				ret = op;
-				add_node(ctx, op);
 				set_node_src(op, cur);
 				cur = current();
 			}
@@ -249,7 +245,6 @@ namespace gjs {
 				}
 
 				ret = op;
-				add_node(ctx, op);
 				set_node_src(op, cur);
 				cur = current();
 			}
@@ -276,7 +271,6 @@ namespace gjs {
 				}
 
 				ret = op;
-				add_node(ctx, op);
 				set_node_src(op, cur);
 				cur = current();
 			}
@@ -303,7 +297,6 @@ namespace gjs {
 				}
 
 				ret = op;
-				add_node(ctx, op);
 				set_node_src(op, cur);
 				cur = current();
 			}
@@ -330,7 +323,6 @@ namespace gjs {
 				}
 
 				ret = op;
-				add_node(ctx, op);
 				set_node_src(op, cur);
 				cur = current();
 			}
@@ -358,7 +350,6 @@ namespace gjs {
 				}
 
 				ret = op;
-				add_node(ctx, op);
 				set_node_src(op, cur);
 				cur = current();
 			}
@@ -388,7 +379,6 @@ namespace gjs {
 				}
 
 				ret = op;
-				add_node(ctx, op);
 				set_node_src(op, cur);
 				cur = current();
 			}
@@ -416,7 +406,6 @@ namespace gjs {
 				}
 
 				ret = op;
-				add_node(ctx, op);
 				set_node_src(op, cur);
 				cur = current();
 			}
@@ -444,7 +433,6 @@ namespace gjs {
 				}
 
 				ret = op;
-				add_node(ctx, op);
 				set_node_src(op, cur);
 				cur = current();
 			}
@@ -473,7 +461,6 @@ namespace gjs {
 				}
 
 				ret = op;
-				add_node(ctx, op);
 				set_node_src(op, cur);
 				cur = current();
 			}
@@ -500,7 +487,6 @@ namespace gjs {
 					);
 				}
 
-				add_node(ctx, op);
 				set_node_src(op, cur);
 				return op;
 			}
@@ -525,7 +511,6 @@ namespace gjs {
 				if (cur.text == "--") op->op = ast_node::operation_type::postDec;
 				else op->op = ast_node::operation_type::postInc;
 				op->lvalue = ret;
-				add_node(ctx, op);
 				set_node_src(op, cur);
 				return op;
 			}
@@ -579,7 +564,6 @@ namespace gjs {
 				consume();
 
 				ret = c;
-				add_node(ctx, c);
 				set_node_src(c, cur);
 				cur = current();
 			}
@@ -609,7 +593,6 @@ namespace gjs {
 					if (t.is_identifier(current().text)) {
 						op->rvalue = identifier(t, current());
 						set_node_src(op->rvalue, current());
-						add_node(ctx, op->rvalue);
 						consume();
 					} else {
 						throw parse_exception(
@@ -630,7 +613,6 @@ namespace gjs {
 				}
 
 				ret = op;
-				add_node(ctx, op);
 				set_node_src(op, cur);
 				cur = current();
 			}
@@ -692,7 +674,6 @@ namespace gjs {
 				n->type = ast_node::node_type::identifier;
 				n->set(tok.text);
 				set_node_src(n, tok);
-				add_node(ctx, n);
 				return n;
 			}
 
@@ -707,7 +688,6 @@ namespace gjs {
 			node->c_type = ast_node::constant_type::integer;
 			node->value.i = tok.text == "true" ? 1 : 0;
 			set_node_src(node, tok);
-			add_node(ctx, node);
 			return node;
 		}
 
@@ -718,7 +698,6 @@ namespace gjs {
 				node->c_type = ast_node::constant_type::integer;
 				node->value.i = 0;
 				set_node_src(node, tok);
-				add_node(ctx, node);
 				return node;
 			}
 
@@ -733,7 +712,6 @@ namespace gjs {
 				node->value.i =	atoi(tok.text.c_str());
 			}
 			set_node_src(node, tok);
-			add_node(ctx, node);
 			return node;
 		}
 
@@ -744,7 +722,6 @@ namespace gjs {
 			node->c_type = ast_node::constant_type::string;
 			node->set(tok.text.substr(1, tok.text.length() - 2));
 			set_node_src(node, tok);
-			add_node(ctx, node);
 			return node;
 		}
 
@@ -774,7 +751,6 @@ namespace gjs {
 		next = nullptr;
 		data_type = nullptr;
 		identifier = nullptr;
-		literal = nullptr;
 		body = nullptr;
 		else_body = nullptr;
 		property = nullptr;
@@ -795,10 +771,22 @@ namespace gjs {
 	}
 
 	ast_node::~ast_node() {
-		if (value.s) delete [] value.s;
-		for (u32 i = 0;i < all_nodes.size();i++) {
-			delete all_nodes[i];
-		}
+		if (value.s && c_type == constant_type::string) delete [] value.s;
+		if (next) delete next;
+		if (data_type) delete data_type;
+		if (identifier) delete identifier;
+		if (body) delete body;
+		if (else_body) delete else_body;
+		if (property) delete property;
+		if (arguments) delete arguments;
+		if (initializer) delete initializer;
+		if (lvalue) delete lvalue;
+		if (rvalue) delete rvalue;
+		if (callee) delete callee;
+		if (constructor) delete constructor;
+		if (destructor) delete destructor;
+		if (condition) delete condition;
+		if (modifier) delete modifier;
 	}
 
 	void ast_node::debug_print(u32 tab_level, bool dontIndentFirst, bool inArray) {
@@ -826,7 +814,9 @@ namespace gjs {
 			"constant",
 			"identifier",
 			"type_identifier",
-			"operation"
+			"operation",
+			"context_type",
+			"context_function"
 		};
 		static const char* op_names[] = {
 			"invalid",
@@ -926,7 +916,6 @@ namespace gjs {
 			data_type->debug_print(tab_level + indent, true);
 		}
 		if (identifier) child(identifier, "identifier");
-		if (literal) child(literal, "literal");
 		if (property) child(property, "property");
 		if (arguments) child(arguments, "arguments");
 		if (lvalue) child(lvalue, "lvalue");
@@ -963,33 +952,11 @@ namespace gjs {
 		return n;
 	}
 
-	void add_node(parse_context& ctx, ast_node* n) {
-		ctx.root->all_nodes.push_back(n);
-	}
-
 
 
 	ast_node* parse_data_type(parse_context& ctx, tokenizer& t) {
-		token type = t.keyword(false);
+		token type = t.identifier(false);
 		if (type) {
-			bool valid = false;
-			if (type == "integer") valid = true;
-			else if (type == "decimal") valid = true;
-			else if (type == "string") valid = true;
-			else if (type == "function") valid = true;
-			else if (type == "void") valid = true;
-
-			if (!valid) {
-				throw parse_exception(
-					format("Unexpected keyword '%s'", type.text.c_str()),
-					t, type
-				);
-				return nullptr;
-			}
-
-			return type_identifier(t, type);
-		}
-		else if ((bool)(type = t.identifier(false))) {
 			if (ctx.find_type(type.text)) return type_identifier(t, type);
 			else throw parse_exception("Expected type name", t, type);
 		} else {
@@ -1046,7 +1013,6 @@ namespace gjs {
 	ast_node* parse_variable_declaration(parse_context& ctx, tokenizer& t) {
 		ast_node* type = parse_data_type(ctx, t);
 		if (string(*type) == "void") {
-			add_node(ctx, type);
 			throw parse_exception(
 				t.file,
 				"Variables can not be declared void",
@@ -1062,11 +1028,9 @@ namespace gjs {
 
 		ast_node* vdecl = new ast_node();
 		vdecl->start = type->start;
-		add_node(ctx, vdecl);
 
 		vdecl->type = ast_node::node_type::variable_declaration;
 		vdecl->data_type = type;
-		add_node(ctx, vdecl->data_type);
 
 		token name = t.identifier();
 		ast_node* prevDecl = ctx.find_type(name.text);
@@ -1095,7 +1059,6 @@ namespace gjs {
 			init->src(t, eq);
 			init->body = parse_expression(ctx, t);
 			vdecl->initializer = init;
-			add_node(ctx, vdecl->initializer);
 		}
 
 		frame.variable_declarations.push_back(vdecl);
@@ -1108,26 +1071,13 @@ namespace gjs {
 		ast_node* arguments = new ast_node();
 		arguments->type = ast_node::node_type::function_arguments;
 		arguments->src(t, start);
-		add_node(ctx, arguments);
 
 		token end;
 		bool expectEnd = false;
 		while (!(bool)(end = t.character(')', expectEnd))) {
 			token type = t.keyword(false);
 			if (type) {
-				bool valid = false;
-				if (type == "integer") valid = true;
-				else if (type == "decimal") valid = true;
-				else if (type == "string") valid = true;
-				else if (type == "function") valid = true;
-				else if (type == "void") {
-					throw parse_exception(
-						"Variables can not be declared void",
-						t, type
-					);
-					return nullptr;
-				}
-				else if (type == "const") {
+				if (type == "const") {
 					throw parse_exception(
 						"Function arguments can't be declared const",
 						t, type
@@ -1142,13 +1092,11 @@ namespace gjs {
 					return nullptr;
 				}
 
-				if (!valid) {
-					throw parse_exception(
-						format("Unexpected keyword '%s'", type.text.c_str()),
-						t, type
-					);
-					return nullptr;
-				}
+				throw parse_exception(
+					format("Unexpected keyword '%s'", type.text.c_str()),
+					t, type
+				);
+				return nullptr;
 			}
 			else if ((bool)(type = t.identifier(false))) {
 				if (!ctx.find_type(type.text)) throw parse_exception("Expected type name", t, type);
@@ -1171,13 +1119,10 @@ namespace gjs {
 			ast_node* arg = new ast_node();
 			arg->type = ast_node::node_type::variable_declaration;
 			arg->src(t, type);
-			add_node(ctx, arg);
 
 			arg->data_type = type_identifier(t, type);
-			add_node(ctx, arg->data_type);
 
 			arg->identifier = identifier(t, name);
-			add_node(ctx, arg->identifier);
 
 			if (arguments->body) {
 				ast_node* n = arguments->body;
@@ -1211,7 +1156,6 @@ namespace gjs {
 
 			// make sure the return type is the same
 			if (string(*return_type) != string(*existing->data_type)) {
-				add_node(ctx, return_type);
 				throw parse_exception(
 					t.file,
 					format("Definition for function '%s' has different return type than its declaration", name.text.c_str()),
@@ -1249,7 +1193,6 @@ namespace gjs {
 			}
 
 			if (!same) {
-				add_node(ctx, return_type);
 				throw parse_exception(
 					t.file,
 					format("Definition for function '%s' has different arguments than its declaration", name.text.c_str()),
@@ -1266,10 +1209,8 @@ namespace gjs {
 
 			func = new ast_node();
 			func->type = ast_node::node_type::function_declaration;
-			add_node(ctx, func);
 
 			func->data_type = return_type;
-			add_node(ctx, func->data_type);
 			func->start = func->data_type->start;
 
 			ast_node* prevDecl = ctx.find_type(name.text);
@@ -1283,7 +1224,6 @@ namespace gjs {
 			}
 
 			func->identifier = identifier(t, name);
-			add_node(ctx, func->identifier);
 
 			ctx.frames[ctx.frames.size() - 1].variable_declarations.push_back(func);
 			ctx.node_path.push(func);
@@ -1291,7 +1231,9 @@ namespace gjs {
 			func->arguments = parse_function_declaration_arguments(ctx, t);
 		}
 
+		t.backup_state();
 		if (t.semicolon(false)) {
+			t.restore_state();
 			if (existing) {
 				throw parse_exception(
 					format("Function '%s' already has a forward declaration", name.text.c_str()),
@@ -1303,6 +1245,7 @@ namespace gjs {
 			ctx.node_path.pop();
 			return func;
 		}
+		t.restore_state();
 
 		if (existing) {
 			// function definition for forward declared function
@@ -1340,7 +1283,6 @@ namespace gjs {
 			ast_node* ret = new ast_node();
 			ret->type = ast_node::node_type::empty;
 			ret->start = func->data_type->start;
-			add_node(ctx, ret);
 			return ret;
 		}
 		return func;
@@ -1388,10 +1330,8 @@ namespace gjs {
 		ast_node* n = new ast_node();
 		n->type = ast_node::node_type::format_declaration;
 		n->src(t, start);
-		add_node(ctx, n);
 
 		n->identifier = parse_new_identifier(ctx, t);
-		add_node(ctx, n->identifier);
 
 		t.keyword(true, "=");
 
@@ -1417,7 +1357,6 @@ namespace gjs {
 
 			ast_node* type = parse_data_type(ctx, t);
 			if (string(*type) == "void") {
-				add_node(ctx, type);
 				throw parse_exception(
 					t.file,
 					"Format properties can not be declared void",
@@ -1431,13 +1370,8 @@ namespace gjs {
 			ast_node* prop = new ast_node();
 			prop->start = type->start;
 			prop->type = ast_node::node_type::format_property;
-			add_node(ctx, prop);
-
 			prop->data_type = type;
-			add_node(ctx, prop->data_type);
-
 			prop->identifier = identifier(t, name);
-			add_node(ctx, prop->identifier);
 
 			if (n->body) {
 				ast_node* p = n->body;
@@ -1473,9 +1407,7 @@ namespace gjs {
 		ast_node* c = new ast_node();
 		c->type = ast_node::node_type::class_declaration;
 		c->src(t, start);
-		add_node(ctx, c);
 		c->identifier = parse_new_identifier(ctx, t);
-		add_node(ctx, c->identifier);
 		ctx.frames[ctx.frames.size() - 1].type_declarations.push_back(c);
 		ctx.node_path.push(c);
 		ctx.frames.push_back(parse_frame());
@@ -1495,7 +1427,6 @@ namespace gjs {
 				ast_node* func = new ast_node();
 				func->type = ast_node::node_type::function_declaration;
 				func->src(t, tok);
-				ctx.root->all_nodes.push_back(func);
 
 				ctx.node_path.push(func);
 				ctx.frames.push_back(parse_frame());
@@ -1528,7 +1459,6 @@ namespace gjs {
 				ast_node* func = new ast_node();
 				func->type = ast_node::node_type::function_declaration;
 				func->src(t, tok);
-				ctx.root->all_nodes.push_back(func);
 
 				ctx.node_path.push(func);
 				ctx.frames.push_back(parse_frame());
@@ -1560,13 +1490,16 @@ namespace gjs {
 			t.restore_state();
 			ast_node* decl = nullptr;
 			if (first) {
-				if (first == "integer") decl = parse_declaration(ctx, t);
-				else if (first == "decimal") decl = parse_declaration(ctx, t);
-				else if (first == "string") decl = parse_declaration(ctx, t);
-				else if (first == "function") decl = parse_declaration(ctx, t);
-				else if (first == "void") decl = parse_declaration(ctx, t);
-				else if (first == "const") decl = parse_const_declaration(ctx, t);
+				if (first == "const") decl = parse_const_declaration(ctx, t);
 				else if (first == "static") decl = parse_static_declaration(ctx, t);
+			}
+			if (!decl) {
+				t.backup_state();
+				first = t.identifier(false);
+				t.restore_state();
+				if (first) {
+					if (ctx.find_type(first.text)) decl = parse_declaration(ctx, t);
+				}
 			}
 			
 			if (!decl) throw parse_exception("Expected class method or property declaration", t);
@@ -1602,11 +1535,9 @@ namespace gjs {
 		ast_node* stmt = new ast_node();
 		stmt->type = ast_node::node_type::if_statement;
 		stmt->src(t, start);
-		add_node(ctx, stmt);
 		ctx.node_path.push(stmt);
 
 		stmt->condition = parse_expression(ctx, t);
-		add_node(ctx, stmt->condition);
 
 		t.character(')');
 
@@ -1652,26 +1583,22 @@ namespace gjs {
 		ast_node* l = new ast_node();
 		l->type = ast_node::node_type::for_loop;
 		l->src(t, start);
-		add_node(ctx, l);
 		ctx.frames.push_back(parse_frame());
 		ctx.node_path.push(l);
 
 		t.character('(');
 		if (!t.character(';', false)) {
 			l->initializer = parse_variable_declaration(ctx, t);
-			add_node(ctx, l->initializer);
 			t.character(';');
 		}
 
 		if (!t.character(';', false)) {
 			l->condition = parse_expression(ctx, t);
-			add_node(ctx, l->condition);
 			t.character(';');
 		}
 
 		if (!t.character(')', false)) {
 			l->modifier = parse_expression(ctx, t);
-			add_node(ctx, l->modifier);
 		}
 		t.character(')');
 		
@@ -1697,13 +1624,11 @@ namespace gjs {
 		ast_node* l = new ast_node();
 		l->type = ast_node::node_type::while_loop;
 		l->src(t, start);
-		add_node(ctx, l);
 		ctx.frames.push_back(parse_frame());
 		ctx.node_path.push(l);
 
 		t.character('(');
 		l->condition = parse_expression(ctx, t);
-		add_node(ctx, l->condition);
 		t.character(')');
 
 		if (t.character('{', false)) {
@@ -1728,7 +1653,6 @@ namespace gjs {
 		ast_node* l = new ast_node();
 		l->type = ast_node::node_type::do_while_loop;
 		l->src(t, start);
-		add_node(ctx, l);
 		ctx.frames.push_back(parse_frame());
 		ctx.node_path.push(l);
 
@@ -1746,7 +1670,6 @@ namespace gjs {
 		t.keyword(true, "while");
 		t.character('(');
 		l->condition = parse_expression(ctx, t);
-		add_node(ctx, l->condition);
 		t.character(')');
 
 		ctx.node_path.pop();
@@ -1759,13 +1682,11 @@ namespace gjs {
 		ast_node* r = new ast_node();
 		r->type = ast_node::node_type::return_statement;
 		r->src(t, start);
-		add_node(ctx, r);
 
 		t.backup_state();
 		if (!t.semicolon(false)) {
 			t.commit_state();
 			r->body = parse_expression(ctx, t);
-			add_node(ctx, r->body);
 		} else t.restore_state();
 
 		return r;
@@ -1779,12 +1700,7 @@ namespace gjs {
 		t.restore_state();
 		if (first) {
 			// declaration
-			if (first == "integer") r = parse_declaration(ctx, t);
-			else if (first == "decimal") r = parse_declaration(ctx, t);
-			else if (first == "string") r = parse_declaration(ctx, t);
-			else if (first == "function") r = parse_declaration(ctx, t);
-			else if (first == "void") r = parse_declaration(ctx, t);
-			else if (first == "const") r = parse_const_declaration(ctx, t);
+			if (first == "const") r = parse_const_declaration(ctx, t);
 			else if (first == "static") r = parse_static_declaration(ctx, t);
 			
 			// statement
@@ -1834,8 +1750,10 @@ namespace gjs {
 					t, first
 				);
 			}
-
-			t.semicolon();
+			bool semicolon_optional = false;
+			if (r->type == ast_node::node_type::function_declaration && r->body) semicolon_optional = true;
+			if (r->type == ast_node::node_type::empty) semicolon_optional = true;
+			t.semicolon(!semicolon_optional);
 			return r;
 		}
 
@@ -1858,11 +1776,6 @@ namespace gjs {
 		t.specify_keyword("do");
 		t.specify_keyword("class");
 		t.specify_keyword("format");
-		t.specify_keyword("integer");
-		t.specify_keyword("decimal");
-		t.specify_keyword("string");
-		t.specify_keyword("function");
-		t.specify_keyword("void");
 		t.specify_keyword("return");
 		t.specify_keyword("this");
 		t.specify_keyword("const");
@@ -1916,6 +1829,28 @@ namespace gjs {
 		ctx.root->start.file = file;
 		ctx.node_path.push(ctx.root);
 		ctx.frames.push_back(parse_frame());
+
+		vector<vm_type*> types = env->types()->all();
+		for (u32 i = 0;i < types.size();i++) {
+			ast_node* t = new ast_node();
+			t->type = ast_node::node_type::context_type;
+			t->identifier = new ast_node();
+			t->identifier->type = ast_node::node_type::identifier;
+			t->identifier->set(types[i]->name);
+
+			ctx.frames[0].type_declarations.push_back(t);
+		}
+
+		vector<vm_function*> funcs = env->all_functions();
+		for (u32 i = 0;i < funcs.size();i++) {
+			ast_node* f = new ast_node();
+			f->type = ast_node::node_type::context_function;
+			f->identifier = new ast_node();
+			f->identifier->type = ast_node::node_type::identifier;
+			f->identifier->set(funcs[i]->name);
+
+			ctx.frames[0].variable_declarations.push_back(f);
+		}
 
 		ast_node* node = parse_next(ctx, t);
 		ctx.root->body = node;

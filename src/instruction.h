@@ -41,6 +41,18 @@ namespace gjs {
 		divi			,	// divide register by immediate value				divi	(dest)	(a)		1.0		dest = a / 1
 		divir			,	// divide immediate value by register				divir	(dest)	(a)		1.0		dest = 1 / a
 
+		// unsigned integer arithmetic
+		addu			,	// add two registers								addu	(dest)	(a)		(b)		dest = a + b
+		addui			,	// add register and immediate value					addui	(dest)	(a)		1.0		dest = a + 1
+		subu			,	// subtract register from another					subu	(dest)	(a)		(b)		dest = a - b
+		subui			,	// subtract immediate value from register			subui	(dest)	(a)		1.0		dest = a - 1
+		subuir			,	// subtract register from immediate value			subuir	(dest)	(a)		1.0		dest = 1 - a
+		mulu			,	// multiply two registers							mulu	(dest)	(a)		(b)		dest = a * b
+		mului			,	// multiply register and immediate value			mului	(dest)	(a)		1.0		dest = a * 1
+		divu			,	// divide register by another						divu	(dest)	(a)		(b)		dest = a / b
+		divui			,	// divide register by immediate value				divui	(dest)	(a)		1.0		dest = a / 1
+		divuir			,	// divide immediate value by register				divuir	(dest)	(a)		1.0		dest = 1 / a
+
 		// integer / floating point conversion
 		ctf				,	// convert value to float							ctf		(a)						a = float(a)		(a must be fp)
 		cti				,	// convert float to integer							cti 	(a)						a = integer(a)		(a must be fp)
@@ -57,7 +69,7 @@ namespace gjs {
 		fdivi			,	// divide register by immediate value				fdivi	(dest)	(a)		1.0		dest = a / 1.0
 		fdivir			,	// divide immediate value by register				fdivir	(dest)	(a)		1.0		dest = 1.0 / a
 
-		// comparison
+		// comparison (need unsigned counterparts still)
 		lt				,	// check if register less than register				lt		(dest)	(a)		(b)		dest = a < b
 		lti				,	// check if register less than immediate			lti		(dest)	(a)		1		dest = a < 1
 		lte				,	// check if register less than or equal register	lte		(dest)	(a)		(b)		dest = a <= b
@@ -100,8 +112,10 @@ namespace gjs {
 		xori			,	// exlusive or register and immediate value			xori	(dest)	(a)		0x0F	dest = a ^ 0x0F
 		sl				,	// shift bits left by amount from register			sl		(dest)	(a)		(b)		dest = a << b
 		sli				,	// shift bits left by immediate value				sli		(dest)	(a)		4		dest = a << 4
+		slir			,	// shift bits of immediate left by register value	slir	(dest)	(a)		4		dest = 4 << a
 		sr				,	// shift bits right by amount from register			sr		(dest)	(a)		(b)		dest = a >> b
 		sri				,	// shift bits right by immediate value				sri		(dest)	(a)		4		dest = a >> 4
+		srir			,	// shift bits of immediate right by register value	sri		(dest)	(a)		4		dest = 4 >> a
 
 		// control flow
 		beqz			,	// branch if register equals zero					beqz	(a)		(fail_addr)		if a: goto fail_addr

@@ -17,6 +17,7 @@ namespace gjs {
 			inline void set(u32 index, const instruction_encoder& i) { m_instructions[index] = i; }
 			inline void set(u32 index, instruction i) { m_instructions[index] = i; }
 			inline u32 size() const { return m_count; }
+			void remove(u32 index);
 
 		protected:
 			vm_allocator* m_allocator;

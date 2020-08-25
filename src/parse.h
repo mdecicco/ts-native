@@ -30,7 +30,9 @@ namespace gjs {
 			constant,
 			identifier,
 			type_identifier,
-			operation
+			operation,
+			context_type,
+			context_function
 		};
 		enum class constant_type {
 			none,
@@ -100,7 +102,6 @@ namespace gjs {
 
 		ast_node* data_type;
 		ast_node* identifier;
-		ast_node* literal;
 
 		ast_node* body;
 		ast_node* else_body;
@@ -145,12 +146,6 @@ namespace gjs {
 		operation_type op;
 		bool is_const;
 		bool is_static;
-
-
-		// only used for destruction of the ast
-		// should only be populated on the root
-		// node
-		std::vector<ast_node*> all_nodes;
 	};
 
 	class vm_context;
