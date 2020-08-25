@@ -1,5 +1,24 @@
-# In place of a better description, here's this example
-The following script code:
+## Goals
+- To produce a scripting language for games and hobby projects
+- Be as similar in syntax and core functionality to JS as possible
+- Get reasonably close to the speed of a strictly typed language like C++ that is compiled entirely to machine code, with no garbage collector (so it'll be kind of dangerous)
+- Be easy to bind existing C++ interfaces to
+- Be easy to debug in realtime
+- Be reasonably fast when not compiled to machine code
+- Be easy to include into existing projects, with as few dependencies as possible (Only one right now is asmjit)
+
+## Why
+- v8 is hard to compile and embed in a project without using something like v8pp (which uses specific versions of v8 only)
+- v8 isn't fast enough for me and the garbage collector causes frequent and noticeable stutters
+- Lua is kind of ugly
+- To know everything about the tool so that I can use it to its full potential and modify it to improve that potential if necessary
+
+## Will I finish this
+- Probably not, I have like 5 projects that I usually abandon for months (or years) at a time
+
+
+### To complement this lack of information, here's this example for now
+#### The following script code:
 ```
 i32 test(i32 x);
 i32 something(i32 arg0, i32 arg1, i32 arg2) {
@@ -27,7 +46,7 @@ i32 main(foo a) {
 };
 ```
 
-# Gets compiled to the following:
+#### Gets compiled to the following:
 ```
 0x00: term
 
@@ -127,7 +146,7 @@ i32 main(foo a) {
 0x57: jmpr    $ra
 ```
 
-# With the following host code
+#### With the following host code
 ```
 class foo {
     public:
@@ -173,7 +192,7 @@ try {
 ctx.add_code("test.gjs", src);
 ```
 
-# And executed with the following
+#### And executed with the following
 ```
 int x = 5;
 foo test(&x);
@@ -183,7 +202,7 @@ integer result = 0;
 ctx.function("main")->call(&result, &test);
 ```
 
-# Producing the following output
+#### Producing the following output
 ```
 0x28: null
 0x29: addui   $v1<-858993460>, $a0<215086664>, 0
@@ -323,3 +342,5 @@ foo: 52, 50, 2, 61.689999
 0x57: jmpr    $ra<0>
 0x00: term
 ```
+
+Pretty neat
