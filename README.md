@@ -130,22 +130,22 @@ i32 main(foo a) {
 # With the following host code
 ```
 class foo {
-	  public:
-		    foo(i32* _x) { x = _x; w = 3.0f; }
-	    	~foo() { }
+    public:
+        foo(i32* _x) { x = _x; w = 3.0f; }
+        ~foo() { }
 
-	    	i32 t(i32 a) {
-	    		return printf("%d, %d\n", y, a);
-	    	}
+        i32 t(i32 a) {
+            return printf("%d, %d\n", y, a);
+        }
 
-	    	i32* x;
-	    	i32 y;
-	    	i32 z;
-	    	f32 w;
+        i32* x;
+        i32 y;
+        i32 z;
+        f32 w;
 };
 
 void print_foo(const foo& f) {
-	  printf("foo: %d, %d, %d, %f\n", *f.x, f.y, f.z, f.w);
+    printf("foo: %d, %d, %d, %f\n", *f.x, f.y, f.z, f.w);
 }
 
 // ...
@@ -156,18 +156,18 @@ ctx.log_exceptions(true);
 ctx.log_instructions(true);
 
 try {
-		auto f = ctx.bind<foo>("foo");
-		f.constructor<integer*>();
-		f.method("t", &foo::t);
-		f.prop("x", &foo::x, bind::property_flags::pf_object_pointer);
-		f.prop("y", &foo::y, bind::property_flags::pf_none);
-		f.prop("z", &foo::z, bind::property_flags::pf_none);
-		f.prop("w", &foo::w, bind::property_flags::pf_none);
-		f.finalize();
+    auto f = ctx.bind<foo>("foo");
+    f.constructor<integer*>();
+    f.method("t", &foo::t);
+    f.prop("x", &foo::x, bind::property_flags::pf_object_pointer);
+    f.prop("y", &foo::y, bind::property_flags::pf_none);
+    f.prop("z", &foo::z, bind::property_flags::pf_none);
+    f.prop("w", &foo::w, bind::property_flags::pf_none);
+    f.finalize();
 
-		ctx.bind(print_foo, "print_foo");
+    ctx.bind(print_foo, "print_foo");
 } catch (bind_exception& e) {
-		printf("%s\n", e.text.c_str());
+    printf("%s\n", e.text.c_str());
 }
 
 ctx.add_code("test.gjs", src);
