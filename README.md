@@ -6,6 +6,8 @@
 - Be easy to debug in realtime
 - Be reasonably fast when not compiled to machine code
 - Be easy to include into existing projects, with as few dependencies as possible (Only one right now is asmjit)
+- To have IR code that is similar to MIPS assembly (because that's what I learned with and x86 seems really confusing)
+- To have script code be JIT compiled _entirely_ to native code with no slow checks in place, all checks should happen during compilation
 
 ## Why
 - v8 is hard to compile and embed in a project without using something like v8pp (which uses specific versions of v8 only)
