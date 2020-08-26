@@ -205,7 +205,7 @@ namespace gjs {
 							throw bind_exception(format("Return type '%s' of method '%s' of class '%s' has not been bound yet", base_type_name<Ret>(), name.c_str(), typeid(remove_all<Cls>::type).name()));
 						}
 						arg_is_ptr = { true, (std::is_reference_v<Args> || std::is_pointer_v<Args>)... };
-						address = u64(reinterpret_cast<void*>(&f));
+						address = *(u64*)reinterpret_cast<void*>(&f);
 
 						asmjit::CodeHolder h;
 						h.init(rt.codeInfo());
@@ -427,45 +427,22 @@ namespace gjs {
 
 			template <typename Ret, typename... Args>
 			void call(Ret* result, Args... args) {
-				try {
-					if (sizeof...(args) != signature.arg_locs.size()) {
-						throw runtime_exception(format(
-							"Function '%s' takes %d arguments, %d %s provided",
-							name.c_str(),
-							signature.arg_locs.size(),
-							sizeof...(args),
-							(sizeof...(args)) == 1 ? "was" : "were"
-						));
-					}
+				if (sizeof...(args) != signature.arg_locs.size()) {
+					throw runtime_exception(format(
+						"Function '%s' takes %d arguments, %d %s provided",
+						name.c_str(),
+						signature.arg_locs.size(),
+						sizeof...(args),
+						(sizeof...(args)) == 1 ? "was" : "were"
+					));
+				}
 
-					if (signature.arg_locs.size() > 0) bind::set_arguments(m_ctx, this, 0, args...);
-					if (is_host) m_ctx->vm()->call_external(access.wrapped->address);
-					else m_ctx->vm()->execute(*m_ctx->code(), access.entry);
+				if (signature.arg_locs.size() > 0) bind::set_arguments(m_ctx, this, 0, args...);
+				if (is_host) m_ctx->vm()->call_external(access.wrapped->address);
+				else m_ctx->vm()->execute(*m_ctx->code(), access.entry);
 
-					if (signature.return_type->size != 0) {
-						bind::from_reg(m_ctx, result, &m_ctx->state()->registers[(u8)signature.return_loc]);
-					}
-				} catch (runtime_exception& e) {
-					if (!m_ctx->log_exceptions()) throw e;
-					if (e.raised_from_script) {
-						printf("%s:%d:%d: %s\n", e.file.c_str(), e.line, e.col, e.text.c_str());
-						std::string ln = "";
-						u32 wscount = 0;
-						bool reachedText = false;
-						for (u32 i = 0;i < e.lineText.length();i++) {
-							if (isspace(e.lineText[i]) && !reachedText) wscount++;
-							else {
-								reachedText = true;
-								ln += e.lineText[i];
-							}
-						}
-						printf("%s\n", ln.c_str());
-						for (u32 i = 0;i < e.col - wscount;i++) printf(" ");
-						printf("^\n");
-					} else printf("%s\n", e.text.c_str());
-				} catch (std::exception& e) {
-					if (!m_ctx->log_exceptions()) throw e;
-					printf("Caught exception: %s\n", e.what());
+				if (signature.return_type->size != 0) {
+					bind::from_reg(m_ctx, result, &m_ctx->state()->registers[(u8)signature.return_loc]);
 				}
 			}
 
@@ -492,21 +469,10 @@ namespace gjs {
 				vm_function* setter;
 			};
 
-			enum class operator_func {
-				add,
-				sub,
-				mul,
-				div,
-				eq
-				// ...
-			};
-
 			std::vector<property> properties;
 			vm_function* constructor;
 			vm_function* destructor;
 			std::vector<vm_function*> methods;
-			robin_hood::unordered_map<operator_func, vm_function*> operators;
-			robin_hood::unordered_map<vm_type*, vm_function*> converters;
 
 		protected:
 			friend class type_manager;

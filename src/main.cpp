@@ -1,5 +1,6 @@
 #include <allocator.h>
 #include <context.h>
+#include <stdio.h>
 
 using namespace gjs;
 
@@ -12,6 +13,8 @@ class foo {
 			return printf("%d, %d\n", y, a);
 		}
 
+		operator i32() { return y; }
+
 		i32* x;
 		i32 y;
 		i32 z;
@@ -22,56 +25,45 @@ void print_foo(const foo& f) {
 	printf("foo: %d, %d, %d, %f\n", *f.x, f.y, f.z, f.w);
 }
 
-int main(int arg_count, const char** args) {
-	const char* src =
-		"i32 test(i32 x);\n"
-		"i32 something(i32 arg0, i32 arg1, i32 arg2) {\n"
-		"    i32 x = arg0 + arg1 * 4.0;\n"
-		"    i32 y = x - arg2;\n"
-		"    x = y++;\n"
-		"    for (i32 i = 0;i < 10;i++) {\n"
-		"        x += 3;\n"
-		"    }\n"
-		"    return test(x);\n"
-		"}\n"
-		"i32 test(i32 x) {\n"
-		"    return x * 5;\n"
-		"}\n"
-		"i32 test1(i32 z) {\n"
-		"    return something(z, z + 1, z + 2);\n"
-		"}\n"
-		"i32 main(foo a) {\n"
-		"    a.x = 52;\n"
-		"    a.y *= 5;\n"
-		"    a.z = 2;\n"
-		"    a.w = 61.69;\n"
-		"    print_foo(a);\n"
-		"    return a.t(test1(100));\n"
-		"}\n";
-
-	vm_allocator* alloc = new basic_malloc_allocator();
-	vm_context ctx(alloc, 4096, 4096);
-	ctx.log_exceptions(true);
-	ctx.log_instructions(true);
-
-	try {
-		auto f = ctx.bind<foo>("foo");
-		f.constructor<integer*>();
-		f.method("t", &foo::t);
-		f.prop("x", &foo::x, bind::property_flags::pf_object_pointer);
-		f.prop("y", &foo::y, bind::property_flags::pf_none);
-		f.prop("z", &foo::z, bind::property_flags::pf_none);
-		f.prop("w", &foo::w, bind::property_flags::pf_none);
-		f.finalize();
-
-		ctx.bind(print_foo, "print_foo");
-	} catch (bind_exception& e) {
-		printf("%s\n", e.text.c_str());
+void print_log(vm_context& ctx) {
+	for (u8 i = 0;i < ctx.compiler()->log()->errors.size();i++) {
+		compile_message& m = ctx.compiler()->log()->errors[i];
+		printf("%s:%d:%d: Error: %s\n", m.file.c_str(), m.line, m.col, m.text.c_str());
+		std::string ln = "";
+		u32 wscount = 0;
+		bool reachedText = false;
+		for (u32 i = 0;i < m.lineText.length();i++) {
+			if (isspace(m.lineText[i]) && !reachedText) wscount++;
+			else {
+				reachedText = true;
+				ln += m.lineText[i];
+			}
+		}
+		printf("%s\n", ln.c_str());
+		for (u32 i = 0;i < m.col - wscount;i++) printf(" ");
+		printf("^\n");
 	}
 
-	vm_type* tp = ctx.types()->get<foo>();
-	ctx.add_code("test.gjs", src);
+	for (u8 i = 0;i < ctx.compiler()->log()->warnings.size();i++) {
+		compile_message& m = ctx.compiler()->log()->warnings[i];
+		printf("%s:%d:%d: Warning: %s\n", m.file.c_str(), m.line, m.col, m.text.c_str());
+		std::string ln = "";
+		u32 wscount = 0;
+		bool reachedText = false;
+		for (u32 i = 0;i < m.lineText.length();i++) {
+			if (isspace(m.lineText[i]) && !reachedText) wscount++;
+			else {
+				reachedText = true;
+				ln += m.lineText[i];
+			}
+		}
+		printf("%s\n", ln.c_str());
+		for (u32 i = 0;i < m.col - wscount;i++) printf(" ");
+		printf("^\n");
+	}
+}
 
+void print_code(vm_context& ctx) {
 	std::string last_line = "";
 	for (u32 i = 0;i < ctx.code()->size();i++) {
 		vm_function* f = ctx.function(i);
@@ -96,6 +88,52 @@ int main(int arg_count, const char** args) {
 		}
 		printf("\n");
 	}
+}
+
+int main(int arg_count, const char** args) {
+	std::string dir = args[0];
+	dir = dir.substr(0, dir.find_last_of('\\'));
+	FILE* fp = fopen((dir + "\\test.gjs").c_str(), "r");
+	std::string src;
+	if (fp) {
+		fseek(fp, 0, SEEK_END);
+		size_t sz = ftell(fp);
+		fseek(fp, 0, SEEK_SET);
+		char* c = new char[sz + 1];
+		memset(c, 0, sz + 1);
+		fread(c, sz, 1, fp);
+		src = c;
+		delete [] c;
+		fclose(fp);
+	}
+
+	vm_allocator* alloc = new basic_malloc_allocator();
+	vm_context ctx(alloc, 4096, 4096);
+
+	try {
+		auto f = ctx.bind<foo>("foo");
+		f.constructor<integer*>();
+		f.method("t", &foo::t);
+		f.method("operator i32", &foo::operator i32);
+		f.prop("x", &foo::x, bind::property_flags::pf_object_pointer);
+		f.prop("y", &foo::y, bind::property_flags::pf_none);
+		f.prop("z", &foo::z, bind::property_flags::pf_none);
+		f.prop("w", &foo::w, bind::property_flags::pf_none);
+		f.finalize();
+
+		ctx.bind(print_foo, "print_foo");
+	} catch (bind_exception& e) {
+		printf("%s\n", e.text.c_str());
+	}
+
+	vm_type* tp = ctx.types()->get<foo>();
+	if (!ctx.add_code("test.gjs", src)) {
+		print_log(ctx);
+		return 1;
+	}
+	print_log(ctx);
+	print_code(ctx);
+
 	printf("-------------result-------------\n");
 
 	int x = 5;
@@ -103,6 +141,8 @@ int main(int arg_count, const char** args) {
 	test.y = 10;
 	test.z = 4;
 	integer result = 0;
-	ctx.function("main")->call(&result, &test);
+	vm_function* func = ctx.function("main");
+	ctx.log_instructions(true);
+	if (func) func->call(&result, &test);
 	return 0;
 }

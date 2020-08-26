@@ -27,8 +27,7 @@ namespace gjs {
 
 	vm_context::vm_context(vm_allocator* alloc, u32 stack_size, u32 mem_size) : 
 		m_vm(this, alloc, stack_size, mem_size), m_instructions(alloc), m_is_executing(false),
-		m_catch_exceptions(false), m_log_instructions(false), m_types(this), m_alloc(alloc),
-		m_pipeline(this)
+		m_log_instructions(false), m_types(this), m_alloc(alloc), m_pipeline(this)
 	{
 		m_jit = new asmjit::JitRuntime();
 		m_instructions += encode(vm_instruction::term);
@@ -156,74 +155,23 @@ namespace gjs {
 		return m_types.all();
 	}
 
-	void vm_context::add_code(const std::string& filename, const std::string& code) {
+	bool vm_context::add_code(const std::string& filename, const std::string& code) {
 		try {
-			m_pipeline.compile(filename, code);
+			return m_pipeline.compile(filename, code);
 		} catch (parse_exception& e) {
-			if (!m_catch_exceptions) throw e;
-			printf("%s:%d:%d: %s\n", e.file.c_str(), e.line, e.col, e.text.c_str());
-			std::string ln = "";
-			u32 wscount = 0;
-			bool reachedText = false;
-			for (u32 i = 0;i < e.lineText.length();i++) {
-				if (isspace(e.lineText[i]) && !reachedText) wscount++;
-				else {
-					reachedText = true;
-					ln += e.lineText[i];
-				}
-			}
-			printf("%s\n", ln.c_str());
-			for (u32 i = 0;i < e.col - wscount;i++) printf(" ");
-			printf("^\n");
+			m_pipeline.log()->err(e.text, e.file, e.lineText, e.line, e.col);
 		} catch (compile_exception& e) {
-			if (!m_catch_exceptions) throw e;
-			printf("%s:%d:%d: %s\n", e.file.c_str(), e.line, e.col, e.text.c_str());
-			std::string ln = "";
-			u32 wscount = 0;
-			bool reachedText = false;
-			for (u32 i = 0;i < e.lineText.length();i++) {
-				if (isspace(e.lineText[i]) && !reachedText) wscount++;
-				else {
-					reachedText = true;
-					ln += e.lineText[i];
-				}
-			}
-			printf("%s\n", ln.c_str());
-			for (u32 i = 0;i < e.col - wscount;i++) printf(" ");
-			printf("^\n");
+			m_pipeline.log()->err(e.text, e.file, e.lineText, e.line, e.col);
 		} catch (std::exception& e) {
-			if (!m_catch_exceptions) throw e;
-			printf("Caught exception: %s\n", e.what());
+			m_pipeline.log()->err(e.what(), "[unknown]", "[unknown]", 0, 0);
 		}
+		return false;
 	}
 
 	void vm_context::execute(address entry) {
 		m_is_executing = true;
 
-		try {
-			m_vm.execute(m_instructions, entry);
-		} catch (runtime_exception& e) {
-			if (!m_catch_exceptions) throw e;
-			if (e.raised_from_script) {
-				printf("%s:%d:%d: %s\n", e.file.c_str(), e.line, e.col, e.text.c_str());
-				std::string ln = "";
-				u32 wscount = 0;
-				bool reachedText = false;
-				for (u32 i = 0;i < e.lineText.length();i++) {
-					if (isspace(e.lineText[i]) && !reachedText) wscount++;
-					else {
-						reachedText = true;
-						ln += e.lineText[i];
-					}
-				}
-				printf("%s\n", ln.c_str());
-				for (u32 i = 0;i < e.col - wscount;i++) printf(" ");
-				printf("^\n");
-			} else printf("%s\n", e.text.c_str());
-		} catch (std::exception& e) {
-			if (!m_catch_exceptions) throw e;
-			printf("Caught exception: %s\n", e.what());
-		}
+		m_vm.execute(m_instructions, entry);
 
 		m_is_executing = false;
 	}

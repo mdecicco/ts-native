@@ -4,6 +4,7 @@
 #include <instruction_array.h>
 #include <instruction_encoder.h>
 #include <register.h>
+#include <compile_log.h>
 #include <vm_state.h>
 
 using namespace std;
@@ -72,24 +73,6 @@ namespace gjs {
 	}
 
 	compile_exception::~compile_exception() { }
-
-
-
-	void compile_log::err(const std::string& text, const std::string& file, const std::string& lineText, u32 line, u32 col) {
-		errors.push_back({ file, text, lineText, line, col });
-	}
-
-	void compile_log::err(const std::string& text, ast_node* node) {
-		err(node->start.file, text, node->start.lineText, node->start.line, node->start.col);
-	}
-
-	void compile_log::warn(const std::string& text, const std::string& file, const std::string& lineText, u32 line, u32 col) {
-		warnings.push_back({ file, text, lineText, line, col });
-	}
-
-	void compile_log::warn(const std::string& text, ast_node* node) {
-		warn(node->start.file, text, node->start.lineText, node->start.line, node->start.col);
-	}
 
 
 	struct compile_context;
@@ -383,7 +366,7 @@ namespace gjs {
 
 		// <type>::operator <to type>()
 		func* cast_to_func(data_type* to) {
-			return nullptr;
+			return method("operator " + to->name);
 		}
 
 		// <type>::operator=(<from type> rhs)
@@ -426,7 +409,7 @@ namespace gjs {
 
 	struct compile_context {
 		vm_context* ctx;
-		compile_log log;
+		compile_log* log;
 		instruction_array* out;
 		vector<data_type*> types;
 		vector<func*> funcs;
@@ -1078,10 +1061,10 @@ namespace gjs {
 		while (n) {
 			if (n->type == nt::variable_declaration) {
 				// class
-				data_type* t = ctx.type(*node->data_type);
+				data_type* t = ctx.type(*n->data_type);
 				props.push_back({
 					bind::pf_none,
-					*node->identifier,
+					*n->identifier,
 					t,
 					u32(offset),
 					nullptr,
@@ -1090,10 +1073,10 @@ namespace gjs {
 				offset += t->size;
 			} else if (n->type == nt::format_property) {
 				// format
-				data_type* t = ctx.type(*node->data_type);
+				data_type* t = ctx.type(*n->data_type);
 				props.push_back({
 					bind::pf_none,
-					*node->identifier,
+					*n->identifier,
 					t,
 					u32(offset),
 					nullptr,
@@ -1118,7 +1101,7 @@ namespace gjs {
 		if (!from->type->built_in || (from->type->name == "string" || to->type->name == "string")) {
 			func* cast_func = from->type->cast_to_func(to->type);
 			if (!cast_func) {
-				ctx.log.err(format("No conversion from '%s' to '%s' found", from->type->name.c_str(), to->type->name.c_str()), because);
+				ctx.log->err(format("No conversion from '%s' to '%s' found", from->type->name.c_str(), to->type->name.c_str()), because);
 				return from;
 			}
 
@@ -1126,11 +1109,11 @@ namespace gjs {
 		}
 
 		if (from->type->name == "void") {
-			ctx.log.err(format("Cannot convert from 'void' to '%s'", to->type->name.c_str()), because);
+			ctx.log->err(format("Cannot convert from 'void' to '%s'", to->type->name.c_str()), because);
 			return from;
 		}
 		if (to->type->name == "void") {
-			ctx.log.err(format("Cannot convert from '%s' to 'void'", to->type->name.c_str()), because);
+			ctx.log->err(format("Cannot convert from '%s' to 'void'", to->type->name.c_str()), because);
 			return from;
 		}
 
@@ -1150,6 +1133,7 @@ namespace gjs {
 			);
 			return tmp;
 		} else {
+			// to must be integer
 			if (from->is_imm) return ctx.cur_func->imm(ctx, (integer)from->imm.d);
 			var* tmp = ctx.cur_func->allocate(ctx, to->type);
 			vmr treg = ctx.cur_func->registers.allocate_fp();
@@ -1169,11 +1153,84 @@ namespace gjs {
 			return tmp;
 		}
 
-		ctx.log.err(format("No conversion from '%s' to '%s' found", from->type->name.c_str(), to->type->name.c_str()), because);
+		ctx.log->err(format("No conversion from '%s' to '%s' found", from->type->name.c_str(), to->type->name.c_str()), because);
 		return from;
 	}
 
+
+	#define eval_fi(o) out->imm.d = (l->imm.d ##o r->imm.i)
+	#define eval_if(o) out->imm.i = (l->imm.i ##o r->imm.d)
+	#define eval_ff(o) out->imm.d = (l->imm.d ##o r->imm.d)
+	#define eval_ii(o) out->imm.i = (l->imm.i ##o r->imm.i)
+	#define eval(o)												\
+		if (l->type->is_floating_point) {						\
+			if (r->type->is_floating_point) eval_ff(o);			\
+			else eval_fi(o);									\
+		} else {												\
+			if (r->type->is_floating_point) eval_if(o);			\
+			else eval_ii(o);									\
+		}
+
+	void evaluate_arithmetic_op_maybe_fp(compile_context& ctx, var* l, var* r, var* out, ast_node* because, op operation) {
+		if (out->is_reg) ctx.cur_func->registers.free(out->loc.reg);
+		out->is_reg = false;
+		out->is_imm = true;
+
+		switch (operation) {
+			case op::add: { eval(+); break; }
+			case op::sub: { eval(-); break; }
+			case op::mul: { eval(*); break; }
+			case op::div: { eval(/); break; }
+			case op::less: { eval(<); break; }
+			case op::greater: { eval(>); break; }
+			case op::lessEq: { eval(<=); break; }
+			case op::greaterEq: { eval(>=); break; }
+			case op::notEq: { eval(!=); break; }
+			case op::isEq: { eval(==); break; }
+			case op::addEq:
+			case op::subEq:
+			case op::mulEq:
+			case op::divEq:
+			case op::postInc:
+			case op::postDec: {
+				ctx.log->err("Expression must have a modifiable lvalue", because);
+				break;
+			}
+			case op::preInc:
+			case op::preDec: {
+				ctx.log->err("Expression must have a modifiable rvalue", because);
+				break;
+			}
+		}
+	}
+
+	void evaluate_arithmetic_op(compile_context& ctx, var* l, var* r, var* out, ast_node* because, op operation) {
+		if (out->is_reg) ctx.cur_func->registers.free(out->loc.reg);
+		out->is_reg = false;
+		out->is_imm = true;
+		switch (operation) {
+			case op::shiftLeft: { eval_ii(<<); break; }
+			case op::shiftRight: { eval_ii(>>); break; }
+			case op::land: { eval_ii(&&); break; }
+			case op::lor: { eval_ii(||); break; }
+			case op::band: { eval_ii(&); break; }
+			case op::bor: { eval_ii(|); break; }
+			case op::bxor: { eval_ii(^); break; }
+			case op::shiftLeftEq:
+			case op::shiftRightEq:
+			case op::landEq:
+			case op::lorEq:
+			case op::bandEq:
+			case op::borEq:
+			case op::bxorEq: {
+				ctx.log->err("Expression must have a modifiable lvalue", because);
+			}
+		}
+	}
+
 	void arithmetic_op_maybe_fp(compile_context& ctx, var* l, var* r, var* o, ast_node* because, op operation) {
+		if (!o) return;
+
 		// vmi::null -> swap lvalue and rvalue and use f_reg/f_imm or reg/imm or u_reg/imm
 		// vmi(-1) -> unsupported
 		static vmi possible_arr[][9] = {
@@ -1207,13 +1264,14 @@ namespace gjs {
 			{ op::lessEq    , 6 },
 			{ op::greaterEq , 7 },
 			{ op::notEq     , 8 },
-			{ op::isEq      , 9 }
+			{ op::isEq      , 9 },
+			{ op::eq		, 0 }
 		};
 		vmi* possible = possible_arr[possible_map[operation]];
 		
-		var* rhs = l ? cast(ctx, r, l, because) : r;
+		var* rhs = cast(ctx, r, l ? l : o, because);
 
-		vmr lvr = l ? l->to_reg(because) : vmr::zero;
+		vmr lvr = l && !l->is_imm ? l->to_reg(because) : vmr::zero;
 		if (!rhs->is_imm) rhs->to_reg(because);
 
 		bool op_is_fp = (l && is_fp(lvr)) || is_fp(o->to_reg(because));
@@ -1223,6 +1281,8 @@ namespace gjs {
 
 		if (lv_is_im && rv_is_im) {
 			// just do the math here and set output to an imm
+			evaluate_arithmetic_op_maybe_fp(ctx, l, rhs, o, because, operation);
+			return;
 		}
 
 
@@ -1245,7 +1305,7 @@ namespace gjs {
 
 		bool already_errored = false;
 		if (i == vmi(-1)) {
-			ctx.log.err("Unsupported operation", because);
+			ctx.log->err("Unsupported operation", because);
 			already_errored = true;
 		}
 
@@ -1260,7 +1320,7 @@ namespace gjs {
 		}
 
 		if (i == vmi(-1)) {
-			if (!already_errored) ctx.log.err("Unsupported operation", because);
+			if (!already_errored) ctx.log->err("Unsupported operation", because);
 		}
 
 		instruction_encoder inst = encode(i).operand(o->to_reg(because));
@@ -1285,6 +1345,7 @@ namespace gjs {
 	}
 
 	void arithmetic_op(compile_context& ctx, var* l, var* r, var* o, ast_node* because, op operation) {
+		if (!o) return;
 		static vmi possible_arr[][6] = {
 			// reg/imm  , imm/reg   , reg/reg  , u_reg/imm , imm/u_reg  , u_reg/u_reg
 			{ vmi::sli  , vmi::slir , vmi::sl  , vmi::sli  , vmi::slir  , vmi::sl   }, // shiftLeft
@@ -1313,9 +1374,9 @@ namespace gjs {
 		};
 		vmi* possible = possible_arr[possible_map[operation]];
 
-		var* rhs = l ? cast(ctx, r, l, because) : r;
+		var* rhs = cast(ctx, r, l ? l : o, because);
 
-		vmr lvr = l ? l->to_reg(because) : vmr::zero;
+		vmr lvr = l && !l->is_imm ? l->to_reg(because) : vmr::zero;
 		if (!rhs->is_imm) rhs->to_reg(because);
 
 		bool op_is_fp = (l && is_fp(lvr)) || is_fp(o->to_reg(because));
@@ -1325,6 +1386,8 @@ namespace gjs {
 
 		if (lv_is_im && rv_is_im) {
 			// just do the math here and set output to an imm
+			evaluate_arithmetic_op(ctx, l, rhs, o, because, operation);
+			return;
 		}
 
 
@@ -1447,6 +1510,37 @@ namespace gjs {
 				return dest;
 			}
 			return imm;
+		} else if (node->type == nt::conditional) {
+			//var* result = dest ? dest : ctx.cur_func->allocate(ctx, lvalue->type);
+			var* cond = compile_expression(ctx, node->condition, nullptr);
+			u64 baddr = ctx.out->size();
+			vmr condreg = cond->to_reg(node);
+			ctx.cur_func->free(cond);
+
+			// if cond == 0: goto address of rvalue expression
+			ctx.add(
+				encode(vmi::beqz).operand(condreg).operand(0),
+				node
+			);
+
+			// otherwise, continue to lvalue expression
+			var* result = compile_expression(ctx, node->lvalue, nullptr);
+
+			// then jump past rvalue expression so result isn't overwritten with rvalue
+			u64 tjmpaddr = ctx.out->size();
+			ctx.add(
+				encode(vmi::jmp).operand(0),
+				node->lvalue
+			);
+
+			// update branch failure address
+			ctx.out->set(baddr, encode(vmi::beqz).operand(condreg).operand((uinteger)ctx.out->size()));
+
+			compile_expression(ctx, node->rvalue, result);
+
+			// update post-lvalue expression jump address
+			ctx.out->set(tjmpaddr, encode(vmi::jmp).operand((u64)ctx.out->size()));
+			return result;
 		}
 
 		var* lvalue = nullptr;
@@ -1790,7 +1884,6 @@ namespace gjs {
 					break;
 				}
 				case op::eq: {
-					var* tmp = ctx.cur_func->imm(ctx, (integer)0);
 					arithmetic_op_maybe_fp(ctx, nullptr, rvalue, lvalue, node, node->op);
 					if (dest) lvalue->store_in(dest->to_reg(node), node);
 					ret = dest ? dest : lvalue;
@@ -1900,10 +1993,16 @@ namespace gjs {
 							}
 						}
 
-						var* result = dest ? dest : pval;
-						if (!result->type->equals(prop->type)) {
-							// try to cast
+						if (dest) {
+							if (!prop->type->equals(dest->type)) {
+								var* converted = cast(ctx, pval, dest, node);
+								converted->store_in(dest->to_reg(node), node);
+								if (converted != pval) ctx.cur_func->free(converted);
+							} else pval->store_in(dest->to_reg(node), node);
+
+							ctx.cur_func->free(pval);
 						}
+						var* result = dest ? dest : pval;
 						ret = result;
 					}
 					else {
@@ -1914,7 +2013,7 @@ namespace gjs {
 						} else {
 							ctx.last_type_method = nullptr;
 							string n = *node->rvalue;
-							ctx.log.err(format("'%s' is not a property or method of type '%s'", n.c_str(), lvalue->type->name.c_str()), node);
+							ctx.log->err(format("'%s' is not a property or method of type '%s'", n.c_str(), lvalue->type->name.c_str()), node);
 						}
 					}
 					break;
@@ -1923,7 +2022,7 @@ namespace gjs {
 
 			var* var_assigned = lvalue ? lvalue : rvalue;
 			ast_node* node_assigned = node->lvalue ? node->lvalue : node->rvalue;
-			if (assigned && node_assigned->op == op::member) {
+			if (assigned && node_assigned->op == op::member && ret) {
 				// v1 will hold a pointer to the member
 				if (var_assigned->type->built_in) {
 					if (ctx.last_member_was_pointer) {
@@ -2251,7 +2350,7 @@ namespace gjs {
 		}
 	}
 
-	void compile_ast(vm_context* vctx, ast_node* tree, instruction_array* out, source_map* map) {
+	void compile_ast(vm_context* vctx, ast_node* tree, instruction_array* out, source_map* map, compile_log* log) {
 		if (!tree) {
 			throw compile_exception("No AST to compile", "", "", 0, 0);
 		}
@@ -2260,6 +2359,7 @@ namespace gjs {
 		ctx.ctx = vctx;
 		ctx.map = map;
 		ctx.out = out;
+		ctx.log = log;
 		init_context(ctx);
 
 		ast_node* n = tree->body;

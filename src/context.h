@@ -66,12 +66,10 @@ namespace gjs {
 			inline pipeline*			compiler	() { return &m_pipeline; }
 
 			inline bool is_executing	() const { return m_is_executing; }
-			inline bool log_exceptions	() const { return m_catch_exceptions; }
 			inline bool log_instructions() const { return m_log_instructions; }
-			inline void log_exceptions	(bool doLog) { m_catch_exceptions = doLog; }
 			inline void log_instructions(bool doLog) { m_log_instructions = doLog; }
 
-			void add_code(const std::string& filename, const std::string& code);
+			bool add_code(const std::string& filename, const std::string& code);
 			void execute(address entry);
 
 		protected:
@@ -86,7 +84,6 @@ namespace gjs {
 			vm_allocator* m_alloc;
 			pipeline m_pipeline;
 			bool m_is_executing;
-			bool m_catch_exceptions;
 			bool m_log_instructions;
 	};
 

@@ -35,6 +35,20 @@ namespace gjs {
 		}
 	}
 
+	void instruction_array::remove(u32 from, u32 to) {
+		if (to > m_count) {
+			m_count = from;
+			return;
+		}
+		for (u32 i = from;i < to;i++) {
+			u32 take = to + (i - from);
+			if (take < m_count) m_instructions[i] = m_instructions[take];
+			else break;
+		}
+		if (m_count > (to - from)) m_count -= (to - from);
+		else m_count = 0;
+	}
+
 	void instruction_array::remove(u32 index) {
 		for (u32 i = index;i < m_count - 1;i++) {
 			m_instructions[i] = m_instructions[i + 1];
@@ -42,3 +56,4 @@ namespace gjs {
 		if (m_count > 0) m_count--;
 	}
 };
+    

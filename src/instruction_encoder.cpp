@@ -589,10 +589,7 @@ namespace gjs {
 		while (out.length() < 8) out += ' ';
 		if (check_instr_type_1(i)) {
 			u64 o1 = decode_operand_1ui64(code);
-			char addr[64] = { 0 };
-			_itoa_s<64>(o1, addr, 16);
-			out += "0x";
-			out += addr;
+			out += format("0x%llX", o1);
 		} else if (check_instr_type_2(i)) {
 			vmr o1 = decode_operand_1(code);
 			if (o1 >= vmr::register_count) return "Invalid Instruction";
@@ -606,10 +603,7 @@ namespace gjs {
 			out += ", ";
 
 			integer o2 = decode_operand_2ui(code);
-			char addr[32] = { 0 };
-			_itoa_s<32>(o2, addr, 16);
-			out += "0x";
-			out += addr;
+			out += format("0x%llX", o2);
 		} else if (check_instr_type_5(i)) {
 			vmr o1 = decode_operand_1(code);
 			if (o1 >= vmr::register_count) return "Invalid Instruction";

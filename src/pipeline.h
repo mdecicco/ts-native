@@ -2,6 +2,7 @@
 #include <vector>
 #include <string>
 #include <types.h>
+#include <compile_log.h>
 
 namespace gjs {
 	class vm_context;
@@ -17,6 +18,7 @@ namespace gjs {
 			~pipeline();
 
 			/*
+			 * 0. Clears logs from previous compilation
 			 * 1. Parses the source code and generates an abstract syntax tree
 			 * 2. Executes all of the AST steps on the generated tree (in the order they were added)
 			 * 3. Generates the source map and intermediate representation (VM code/instruction_array) code from the AST
@@ -27,7 +29,7 @@ namespace gjs {
 			 *	- compile_exception
 			 *	- any exceptions thrown by the ir steps or ast steps
 			 */
-			void compile(const std::string& file, const std::string& code);
+			bool compile(const std::string& file, const std::string& code);
 
 			/*
 			 * Takes IR code holder and source map as parameters, and modifies them in some way. Typically
@@ -44,10 +46,13 @@ namespace gjs {
 			 */
 			void add_ast_step(ast_step_func step);
 
+			inline compile_log* log() { return &m_log; }
+
 		protected:
 			vm_context* m_ctx;
 			std::vector<ir_step_func> m_ir_steps;
 			std::vector<ast_step_func> m_ast_steps;
+			compile_log m_log;
 	};
 };
 

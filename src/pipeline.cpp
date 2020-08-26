@@ -10,19 +10,55 @@ namespace gjs {
 	pipeline::~pipeline() {
 	}
 
-	void pipeline::compile(const std::string& file, const std::string& code) {
+	bool pipeline::compile(const std::string& file, const std::string& code) {
+		m_log.errors.clear();
+		m_log.warnings.clear();
+
 		ast_node* ast = parse_source(m_ctx, file, code);
-		for (u8 i = 0;i < m_ast_steps.size();i++) {
-			m_ast_steps[i](m_ctx, ast);
+
+		try {
+			for (u8 i = 0;i < m_ast_steps.size();i++) {
+				m_ast_steps[i](m_ctx, ast);
+			}
+		} catch (compile_exception& e) {
+			delete ast;
+			throw e;
+		} catch (std::exception& e) {
+			delete ast;
+			throw e;
 		}
 
 		u32 new_code_starts_at = m_ctx->code()->size();
-		compile_ast(m_ctx, ast, m_ctx->code(), m_ctx->map());
-		for (u8 i = 0;i < m_ir_steps.size();i++) {
-			m_ir_steps[i](m_ctx, *m_ctx->code(), m_ctx->map(), new_code_starts_at);
+
+		try {
+			compile_ast(m_ctx, ast, m_ctx->code(), m_ctx->map(), &m_log);
+			delete ast;
+		} catch (compile_exception& e) {
+			m_ctx->code()->remove(new_code_starts_at, m_ctx->code()->size());
+			delete ast;
+			throw e;
+		} catch (std::exception& e) {
+			m_ctx->code()->remove(new_code_starts_at, m_ctx->code()->size());
+			delete ast;
+			throw e;
 		}
 
-		delete ast;
+		if (m_log.errors.size() > 0) m_ctx->code()->remove(new_code_starts_at, m_ctx->code()->size());
+		else {
+			try {
+				for (u8 i = 0;i < m_ir_steps.size();i++) {
+					m_ir_steps[i](m_ctx, *m_ctx->code(), m_ctx->map(), new_code_starts_at);
+				}
+			} catch (compile_exception& e) {
+				m_ctx->code()->remove(new_code_starts_at, m_ctx->code()->size());
+				throw e;
+			} catch (std::exception& e) {
+				m_ctx->code()->remove(new_code_starts_at, m_ctx->code()->size());
+				throw e;
+			}
+		}
+
+		return m_log.errors.size() == 0;
 	}
 
 	void pipeline::add_ir_step(ir_step_func step) {

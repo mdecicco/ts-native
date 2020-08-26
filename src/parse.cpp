@@ -184,6 +184,7 @@ namespace gjs {
 						t, cur
 					);
 				}
+				consume();
 
 				cond->rvalue = expr();
 				if (!cond->rvalue) {
