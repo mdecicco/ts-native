@@ -26,8 +26,8 @@ class foo {
 };
 
 struct vec3 { f32 x, y, z; };
-void testvec(void** vec) {
-	vec3& v = **(vec3**)vec;
+void testvec(void* vec) {
+	vec3& v = *(vec3*)vec;
 	printf("%f, %f, %f\n", v.x, v.y, v.z);
 }
 
@@ -146,6 +146,7 @@ int main(int arg_count, const char** args) {
 	print_code(ctx);
 
 	printf("-------------result-------------\n");
+	ctx.function("it")->call<void*>(nullptr);
 
 	int x = 5;
 	foo test(&x);

@@ -67,7 +67,7 @@ namespace gjs {
 		tp->size = sizeof(bool);
 
 		tp = ctx->types()->add("void", "void");
-		tp->is_primitive = true;
+		tp->is_primitive = false;
 		tp->is_builtin = true;
 		tp->size = 0;
 

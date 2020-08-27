@@ -57,3 +57,10 @@ i32 main(foo a) {
     pf(a);
     return a.t(test1(100), a.x);
 };
+void it() {
+    foo a = new foo(0);
+    delete a;
+    vec3 b = new vec3(1.0, 2.0, 3.5);
+    delete b;
+    return;
+}
