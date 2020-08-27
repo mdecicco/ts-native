@@ -12,6 +12,7 @@
 ## Why
 - v8 is hard to compile and embed in a project without using something like v8pp (which uses specific versions of v8 only)
 - v8 isn't fast enough for me and the garbage collector causes frequent and noticeable stutters
+- JS classes can't have custom operator methods
 - Lua is kind of ugly
 - To know everything about the tool so that I can use it to its full potential and modify it to improve that potential if necessary
 
