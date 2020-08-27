@@ -1,4 +1,3 @@
-bin/
 build/
 *.vcxproj
 *.filters
@@ -13,3 +12,6 @@ x64/
 *.editorconfig
 *.yml
 .vs/
+*.exe
+*.ilk
+*.pdb
