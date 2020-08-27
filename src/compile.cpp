@@ -104,6 +104,7 @@ namespace gjs {
 				no_auto_free = false;
 				is_reg = false;
 				is_imm = false;
+				is_const = false;
 				type = nullptr;
 				count = 1;
 				total_ref_count = 0;
@@ -115,6 +116,7 @@ namespace gjs {
 			bool no_auto_free;
 			bool is_reg;
 			bool is_imm;
+			bool is_const;
 			string name;
 			data_type* type;
 			u32 count;
@@ -186,13 +188,17 @@ namespace gjs {
 			auto_free_consumed_vars = true;
 			stack.parent = this;
 			registers.parent = this;
+			returns_pointer = false;
+			this_type = nullptr;
 		}
 
 		func(compile_context& ctx, vm_function* f);
 
 		string name;
+		data_type* this_type;
 		data_type* return_type;
 		vmr return_reg;
+		bool returns_pointer;
 		vector<arg_info> args;
 		u64 entry;
 		vector<scope> scopes;
@@ -293,6 +299,8 @@ namespace gjs {
 
 		var* zero(compile_context& ctx, data_type* type);
 
+		var* self(compile_context& ctx, ast_node* because);
+
 		void free(var* v) {
 			if (v->is_reg) registers.free(v->loc.reg);
 			else stack.free(v->loc.stack_addr);
@@ -320,7 +328,8 @@ namespace gjs {
 			}
 		}
 
-		var* get(ast_node* identifier) {
+		var* get(compile_context& ctx, ast_node* identifier) {
+			if (string(*identifier) == "this") return self(ctx, identifier);
 			for (u8 i = 0;i < scopes.size();i++) {
 				if (scopes[i].vars.count(*identifier) == 0) continue;
 				var* v = scopes[i].vars[*identifier];
@@ -357,7 +366,10 @@ namespace gjs {
 	using var = func::var;
 
 	struct data_type {
-		data_type(const string& _name, bool _built_in = false) : name(_name), built_in(_built_in), is_floating_point(false), is_unsigned(false) { }
+		data_type(const string& _name, bool _built_in = false) :
+			name(_name), built_in(_built_in), is_floating_point(false), is_unsigned(false),
+			ctor(nullptr), dtor(nullptr), type(nullptr), size(0), actual_size(0)
+		{ }
 		data_type(compile_context& ctx, ast_node* node);
 
 		bool equals(data_type* rhs) {
@@ -401,9 +413,14 @@ namespace gjs {
 			return nullptr;
 		}
 
+		// the following two sizes are equal for primitive types
+		// for structures, classes, the size is sizeof(void*)
+		u32 actual_size;
 		u32 size;
 		vector<property> props;
 		vector<func*> methods;
+		func* ctor;
+		func* dtor;
 		vm_type* type;
 	};
 
@@ -417,6 +434,7 @@ namespace gjs {
 		source_map* map;
 
 		// used when compiling expressions involving type properties
+		bool do_store_member_pointer;
 		bool last_member_was_pointer;
 
 		// used when compiling expressions involving type methods
@@ -474,6 +492,7 @@ namespace gjs {
 		}
 		entry = f->is_host ? f->access.wrapped->address : f->access.entry;
 		return_reg = f->signature.return_loc;
+		returns_pointer = f->signature.returns_pointer;
 	}
 
 	var* func::allocate(compile_context& ctx, ast_node* decl, bool is_arg) {
@@ -573,6 +592,7 @@ namespace gjs {
 		l->count = 1;
 		l->is_reg = false;
 		l->is_imm = true;
+		l->is_const = true;
 		l->imm.i = i;
 		return l;
 	}
@@ -586,6 +606,7 @@ namespace gjs {
 		l->count = 1;
 		l->is_reg = false;
 		l->is_imm = true;
+		l->is_const = true;
 		l->imm.d = d;
 		return l;
 	}
@@ -601,6 +622,7 @@ namespace gjs {
 		l.count = 1;
 		l.is_reg = false;
 		l.is_imm = true;
+		l->is_const = true;
 		l.imm.d = d;
 		return &l;
 		*/
@@ -615,9 +637,30 @@ namespace gjs {
 		l->ctx = &ctx;
 		l->type = ctx.type("i32");
 		l->count = 1;
-		l->is_reg = false;
-		l->is_imm = true;
+		l->is_reg = true;
+		l->is_imm = false;
+		l->is_const = true;
 		l->loc.reg = vmr::zero;
+		return l;
+	}
+
+	var* func::self(compile_context& ctx, ast_node* because) {
+		if (!this_type) {
+			ctx.log->err(format("Function '%s' is not a class method, 'this' is invalid in this context", name.c_str()), because);
+			return zero(ctx, ctx.type("i32"));
+		}
+		string name = format("__anon_%d", anon_var_id++);
+		var* l = scopes[scopes.size() - 1].vars[name] = new var();
+		l->is_variable = false;
+		l->ctx = &ctx;
+		l->type = this_type;
+		l->count = 1;
+		l->is_reg = true;
+		l->is_imm = false;
+		l->is_const = true;
+
+		// 'this' will always be passed through a0
+		l->loc.reg = vmr::a0;
 		return l;
 	}
 
@@ -931,22 +974,35 @@ namespace gjs {
 	}
 
 	var* call(compile_context& ctx, func* to, ast_node* because, const vector<var*>& args) {
+		if (args.size() != to->args.size()) {
+			u32 ac = to->args.size();
+			u32 pc = args.size();
+			if (to->name.find_first_of("::") != string::npos) {
+				// class method, subtract 1 for 'this' obj (since it's passed automatically)
+				if (ac > 0) ac--;
+				if (pc > 0) pc--;
+			}
+			ctx.log->err(format(
+				"Function '%s' expects %d argument%s, %d %s provided",
+				to->name.c_str(), ac, ac == 1 ? "" : "s", pc, pc == 1 ? "was" : "were"
+			), because);
+		}
 		// move arguments to the right place, or a temporary place until vars have been
 		// backed up in the stack
 		vector<pair<vmr, vmr>> arg_pairs;
+
+		// non-reg arg pairs
+		vector<pair<vmr, var*>> nr_arg_pairs;
 		for (u8 a = 0;a < args.size();a++) {
 			vmr dest = to->args[a].loc;
 			if (args[a]->is_reg && dest == args[a]->loc.reg) continue; // arg is already in the right place
 
 			if (!ctx.cur_func->in_use(dest)) args[a]->store_in(dest, because);
-			else {
+			else if (args[a]->is_reg) {
 				// current register of arg[a] shouldn't be rewritten between now and the call
-				//vmr tmp;
-				//if (args[a]->type->is_floating_point) tmp = ctx.cur_func->registers.allocate_fp();
-				//else tmp = ctx.cur_func->registers.allocate_gp();
-				//args[a]->store_in(tmp, because);
-				//arg_pairs.push_back(pair<vmr, vmr>(dest, tmp));
 				arg_pairs.push_back(pair<vmr, vmr>(dest, args[a]->to_reg(because)));
+			} else {
+				nr_arg_pairs.push_back(pair<vmr, var*>(dest, args[a]));
 			}
 		}
 
@@ -968,7 +1024,8 @@ namespace gjs {
 		// allocate var for return value, if necessary
 		var* ret = nullptr;
 		vmr ret_reg;
-		if (to->return_type->name != "void") {
+		bool has_return = to->return_type->size > 0;
+		if (has_return) {
 			ret = ctx.cur_func->allocate(ctx, to->return_type);
 			if (to->return_reg == vmr::register_count) {
 				// function must either be calling itself (and compiler hasn't seen a return statement yet)
@@ -995,7 +1052,22 @@ namespace gjs {
 				encode(assign).operand(arg_pairs[i].first).operand(arg_pairs[i].second).operand(vmr::zero),
 				because
 			);
-			ctx.cur_func->registers.free(arg_pairs[i].second);
+		}
+		for (u8 i = 0;i < nr_arg_pairs.size();i++) {
+			vmi assign = is_fp(nr_arg_pairs[i].first) ? vmi::fadd : vmi::add;
+			bool was_stack = !nr_arg_pairs[i].second->is_imm;
+			ctx.add(
+				encode(assign).operand(nr_arg_pairs[i].first).operand(nr_arg_pairs[i].second->to_reg(because)).operand(vmr::zero),
+				because
+			);
+			// Shouldn't allocate a register here indefinitely, it wasn't a register before anyway
+			if (was_stack) nr_arg_pairs[i].second->to_stack(because);
+			else {
+				// restore to imm (value is still there, too!)
+				ctx.cur_func->registers.free(nr_arg_pairs[i].second->to_reg(because));
+				nr_arg_pairs[i].second->is_reg = false;
+				nr_arg_pairs[i].second->is_imm = true;
+			}
 		}
 
 		// backup $ra
@@ -1028,7 +1100,7 @@ namespace gjs {
 		}
 
 		// store return value if necessary
-		if (to->return_type->name != "void") {
+		if (has_return) {
 			if (ret_reg != to->return_reg) {
 				ctx.add(
 					encode(vmi::add).operand(ret_reg).operand(to->return_reg).operand(vmr::zero),
@@ -1055,9 +1127,18 @@ namespace gjs {
 
 
 	data_type::data_type(compile_context& ctx, ast_node* node) {
+		ctor = nullptr;
+		dtor = nullptr;
+		type = nullptr;
+		built_in = false;
+		is_floating_point = false;
+		is_unsigned = false;
 		name = *node->identifier;
 		ast_node* n = node->body;
-		size_t offset = 0;
+		actual_size = 0;
+		size = sizeof(void*);
+
+		ctx.types.push_back(this);
 		while (n) {
 			if (n->type == nt::variable_declaration) {
 				// class
@@ -1066,11 +1147,11 @@ namespace gjs {
 					bind::pf_none,
 					*n->identifier,
 					t,
-					u32(offset),
+					u32(actual_size),
 					nullptr,
 					nullptr
 				});
-				offset += t->size;
+				actual_size += t->size;
 			} else if (n->type == nt::format_property) {
 				// format
 				data_type* t = ctx.type(*n->data_type);
@@ -1078,19 +1159,73 @@ namespace gjs {
 					bind::pf_none,
 					*n->identifier,
 					t,
-					u32(offset),
+					u32(actual_size),
 					nullptr,
 					nullptr
 				});
-				offset += t->size;
-			} else if (n->type == nt::function_declaration) {
-				ctx.funcs.push_back(new func());
-				compile_function(ctx, n, ctx.funcs[ctx.funcs.size() - 1]);
-				methods.push_back(ctx.funcs[ctx.funcs.size() - 1]);
-				func* m = methods[methods.size() - 1];
-				m->name = name + "::" + m->name;
+				actual_size += t->size;
 			}
 			n = n->next;
+		}
+
+		if (node->type == nt::class_declaration) {
+			if (node->constructor) {
+				func* m = new func();
+				m->this_type = this;
+				m->args.push_back({ "this", ctx.type("data"), m->registers.allocate_arg() });
+				compile_function(ctx, node->constructor, m);
+				m->name = name + "::construct";
+				ctor = m;
+				ctx.funcs.push_back(m);
+			}
+
+			if (node->destructor) {
+				func* m = new func();
+				m->this_type = this;
+				m->args.push_back({ "this", this, m->registers.allocate_arg() });
+				compile_function(ctx, node->destructor, m);
+				m->name = name + "::destruct";
+				dtor = m;
+				ctx.funcs.push_back(m);
+			}
+
+			n = node->body;
+			while (n) {
+				if (n->type == nt::function_declaration) {
+					func* m = new func();
+					m->this_type = this;
+					compile_function(ctx, n, m);
+					methods.push_back(m);
+
+					if (m->name.find_first_of("operator") != string::npos) {
+						// determine required argument count
+						vector<string> parts = split(m->name, " \t\n");
+						u32 required_argc = 0;
+						bool casting_op = ctx.type(parts[1]) != nullptr;
+						if (!casting_op) {
+							if (parts[1] != "++" && parts[1] != "--" && parts[1] != "!") {
+								// non-casting binary operator
+								required_argc = 1;
+							}
+						}
+
+						u32 argc = 0;
+						ast_node* a = n->arguments ? n->arguments->body : nullptr;
+						while (a) { argc++; a = a->next; }
+
+						if (argc != required_argc) {
+							if (required_argc == 0) {
+								if (casting_op) ctx.log->err("Casting operators operators must take no arguments", n);
+								else ctx.log->err("Unary operators must take no arguments", n);
+							} else ctx.log->err("Non-casting binary operators must take exactly one argument", n);
+						}
+					}
+
+					m->name = name + "::" + m->name;
+					ctx.funcs.push_back(m);
+				}
+				n = n->next;
+			}
 		}
 	}
 
@@ -1106,6 +1241,11 @@ namespace gjs {
 			}
 
 			return call(ctx, cast_func, because, { from });
+		}
+
+		if (!to->type->built_in) {
+			ctx.log->err(format("Cannot convert from '%s' to '%s'", from->type->name.c_str(), to->type->name.c_str()), because);
+			return from;
 		}
 
 		if (from->type->name == "void") {
@@ -1229,7 +1369,7 @@ namespace gjs {
 	}
 
 	void arithmetic_op_maybe_fp(compile_context& ctx, var* l, var* r, var* o, ast_node* because, op operation) {
-		if (!o) return;
+		if (!o || (!l && !r)) return;
 
 		// vmi::null -> swap lvalue and rvalue and use f_reg/f_imm or reg/imm or u_reg/imm
 		// vmi(-1) -> unsupported
@@ -1494,8 +1634,8 @@ namespace gjs {
 
 	var* compile_expression(compile_context& ctx, ast_node* node, var* dest) {
 		if (node->type == nt::identifier) {
-			if (!dest) return ctx.cur_func->get(node);
-			ctx.cur_func->get(node)->store_in(dest->to_reg(node), node);
+			if (!dest) return ctx.cur_func->get(ctx, node);
+			ctx.cur_func->get(ctx, node)->store_in(dest->to_reg(node), node);
 			return dest;
 		} else if (node->type == nt::constant) {
 			var* imm = nullptr;
@@ -1505,13 +1645,17 @@ namespace gjs {
 				case ast_node::constant_type::string: { imm = ctx.cur_func->imm(ctx, node->value.s); break; }
 			}
 			if (dest) {
-				imm->store_in(dest->to_reg(node), node);
+				var* v = imm;
+				if (!dest->type->equals(v->type)) {
+					v = cast(ctx, v, dest, node);
+				}
+				v->store_in(dest->to_reg(node), node);
 				ctx.cur_func->free(imm);
+				if (v != imm) ctx.cur_func->free(v);
 				return dest;
 			}
 			return imm;
 		} else if (node->type == nt::conditional) {
-			//var* result = dest ? dest : ctx.cur_func->allocate(ctx, lvalue->type);
 			var* cond = compile_expression(ctx, node->condition, nullptr);
 			u64 baddr = ctx.out->size();
 			vmr condreg = cond->to_reg(node);
@@ -1524,7 +1668,7 @@ namespace gjs {
 			);
 
 			// otherwise, continue to lvalue expression
-			var* result = compile_expression(ctx, node->lvalue, nullptr);
+			var* result = compile_expression(ctx, node->lvalue, dest);
 
 			// then jump past rvalue expression so result isn't overwritten with rvalue
 			u64 tjmpaddr = ctx.out->size();
@@ -1540,14 +1684,54 @@ namespace gjs {
 
 			// update post-lvalue expression jump address
 			ctx.out->set(tjmpaddr, encode(vmi::jmp).operand((u64)ctx.out->size()));
+
+			if (dest) {
+				var* v = result;
+				if (!dest->type->equals(v->type)) {
+					v = cast(ctx, v, dest, node);
+				}
+				v->store_in(dest->to_reg(node), node);
+				ctx.cur_func->free(result);
+				if (v != result) ctx.cur_func->free(v);
+				return dest;
+			}
+
 			return result;
+		}
+
+		bool assignsRv = false;
+		bool assignsLv = false;
+		if (node->type == nt::operation) {
+			switch(node->op) {
+				case op::addEq:
+				case op::subEq:
+				case op::mulEq:
+				case op::divEq:
+				case op::modEq:
+				case op::shiftLeftEq:
+				case op::shiftRightEq:
+				case op::landEq:
+				case op::lorEq:
+				case op::bandEq:
+				case op::borEq:
+				case op::bxorEq:
+				case op::postInc:
+				case op::postDec:
+				case op::eq: { assignsLv = true; break; }
+				case op::preInc:
+				case op::preDec: { assignsRv = true; break; }
+				default: {
+					break;
+				}
+			}
 		}
 
 		var* lvalue = nullptr;
 		var* rvalue = nullptr;
 		if (node->lvalue) {
+			if (assignsLv) ctx.do_store_member_pointer = true;
 			if (node->lvalue->type == nt::operation || node->lvalue->type == nt::call) lvalue = compile_expression(ctx, node->lvalue, nullptr);
-			else if (node->lvalue->type == nt::identifier) lvalue = ctx.cur_func->get(node->lvalue);
+			else if (node->lvalue->type == nt::identifier) lvalue = ctx.cur_func->get(ctx, node->lvalue);
 			else if (node->lvalue->type == nt::constant) {
 				switch (node->lvalue->c_type) {
 					case ast_node::constant_type::integer: { lvalue = ctx.cur_func->imm(ctx, (integer)node->lvalue->value.i); break; }
@@ -1555,11 +1739,13 @@ namespace gjs {
 					case ast_node::constant_type::string: { lvalue = ctx.cur_func->imm(ctx, node->lvalue->value.s); break; }
 				}
 			}
+			if (assignsLv) ctx.do_store_member_pointer = false;
 		}
 		if (node->rvalue) {
+			if (assignsRv) ctx.do_store_member_pointer = true;
 			if (node->rvalue->type == nt::operation || node->rvalue->type == nt::call) rvalue = compile_expression(ctx, node->rvalue, nullptr);
 			else if (node->rvalue->type == nt::identifier) {
-				if (node->op != op::member) rvalue = ctx.cur_func->get(node->rvalue);
+				if (node->op != op::member) rvalue = ctx.cur_func->get(ctx, node->rvalue);
 			}
 			else if (node->rvalue->type == nt::constant) {
 				switch (node->rvalue->c_type) {
@@ -1568,6 +1754,7 @@ namespace gjs {
 					case ast_node::constant_type::string: { rvalue = ctx.cur_func->imm(ctx, node->rvalue->value.s); break; }
 				}
 			}
+			if (assignsRv) ctx.do_store_member_pointer = false;
 		}
 
 		var* ret = nullptr;
@@ -1605,6 +1792,20 @@ namespace gjs {
 				ret = call(ctx, t, node, args);
 				for (u32 i = 0;i < args.size();i++) {
 					if (free_arg[i]) ctx.cur_func->free(args[i]);
+				}
+			}
+			
+			if (dest) {
+				if (!ret) ctx.log->err("Cannot assign variable to result of function with no return value", node);
+				else {
+					var* v = ret;
+					if (!dest->type->equals(v->type)) {
+						v = cast(ctx, v, dest, node);
+					}
+					v->store_in(dest->to_reg(node), node);
+					ctx.cur_func->free(ret);
+					if (v != ret) ctx.cur_func->free(v);
+					return dest;
 				}
 			}
 		} else {
@@ -1920,11 +2121,13 @@ namespace gjs {
 					data_type::property* prop = lvalue->type->prop(*node->rvalue);
 					if (prop) {
 						var* pval = ctx.cur_func->allocate(ctx, prop->type);
-						// store pointer to property in v1 in case value should be stored later
-						ctx.add(
-							encode(vmi::addui).operand(vmr::v1).operand(lvalue->to_reg(node)).operand((integer)prop->offset),
-							node
-						);
+						if (ctx.do_store_member_pointer) {
+							// store pointer to property in v1 in case value should be stored later
+							ctx.add(
+								encode(vmi::addui).operand(vmr::v1).operand(lvalue->to_reg(node)).operand(prop->offset),
+								node
+							);
+						}
 
 						if (prop->flags ^ bind::pf_object_pointer) {
 							ctx.last_member_was_pointer = false;
@@ -1938,13 +2141,13 @@ namespace gjs {
 									case 8: { ld = vmi::ld64; break; }
 								}
 								ctx.add(
-									encode(ld).operand(pval->to_reg(node)).operand(vmr::v1).operand(0),
+									encode(ld).operand(pval->to_reg(node)).operand(lvalue->to_reg(node)).operand((u64)prop->offset),
 									node
 								);
 							} else {
 								// get pointer to property in pval
 								ctx.add(
-									encode(vmi::addui).operand(pval->to_reg(node)).operand(vmr::v1).operand(0),
+									encode(vmi::addui).operand(pval->to_reg(node)).operand(lvalue->to_reg(node)).operand(prop->offset),
 									node
 								);
 							}
@@ -1962,7 +2165,7 @@ namespace gjs {
 									case 8: { ld = vmi::ld64; break; }
 								}
 								ctx.add(
-									encode(ld).operand(pval->to_reg(node)).operand(vmr::v1).operand(0),
+									encode(ld).operand(pval->to_reg(node)).operand(lvalue->to_reg(node)).operand(prop->offset),
 									node
 								);
 
@@ -1987,7 +2190,7 @@ namespace gjs {
 									case 8: { ld = vmi::ld64; break; }
 								}
 								ctx.add(
-									encode(ld).operand(pval->to_reg(node)).operand(vmr::v1).operand(0),
+									encode(ld).operand(pval->to_reg(node)).operand(lvalue->to_reg(node)).operand(prop->offset),
 									node
 								);
 							}
@@ -2014,6 +2217,43 @@ namespace gjs {
 							ctx.last_type_method = nullptr;
 							string n = *node->rvalue;
 							ctx.log->err(format("'%s' is not a property or method of type '%s'", n.c_str(), lvalue->type->name.c_str()), node);
+						}
+					}
+					break;
+				}
+				case op::newObj: {
+					// todo: check data-type needs construction
+					data_type* tp = ctx.type(node->data_type);
+					func* getmem = ctx.function("alloc");
+					var* sz = ctx.cur_func->imm(ctx, (integer)tp->actual_size);
+					var* mem = call(ctx, getmem, node, { sz });
+					ctx.cur_func->free(sz);
+
+					func* t = tp->ctor;
+					vector<var*> args = { mem };
+					vector<bool> free_arg = { true };
+					ast_node* arg = node->arguments;
+					while (arg) {
+						args.push_back(compile_expression(ctx, arg, nullptr));
+						free_arg.push_back(!args[args.size() - 1]->is_variable);
+						arg = arg->next;
+					}
+					ret = call(ctx, t, node, args);
+					for (u32 i = 0;i < args.size();i++) {
+						if (free_arg[i]) ctx.cur_func->free(args[i]);
+					}
+
+					if (dest) {
+						if (!ret) ctx.log->err("Cannot assign variable to result of function with no return value", node);
+						else {
+							var* v = ret;
+							if (!dest->type->equals(v->type)) {
+								v = cast(ctx, v, dest, node);
+							}
+							v->store_in(dest->to_reg(node), node);
+							ctx.cur_func->free(ret);
+							if (v != ret) ctx.cur_func->free(v);
+							return dest;
 						}
 					}
 					break;
@@ -2096,6 +2336,20 @@ namespace gjs {
 		var->total_ref_count = count_references(ctx.cur_func->root, var->name);
 
 		if (node->initializer) compile_expression(ctx, node->initializer->body, var);
+	}
+
+	void compile_delete_statement(compile_context& ctx, ast_node* node) {
+		var* del = compile_expression(ctx, node->rvalue, nullptr);
+		if (!del) return; // An error was already emitted
+
+		func* dtor = del->type->dtor;
+		if (!dtor) {
+			call(ctx, ctx.function("free"), node, { del });
+		} else {
+			call(ctx, dtor, node, { del });
+		}
+
+		if (!del->is_variable) ctx.cur_func->free(del);
 	}
 
 	void compile_if_statement(compile_context& ctx, ast_node* node) {
@@ -2247,8 +2501,9 @@ namespace gjs {
 				compile_function(ctx, node, ctx.funcs[ctx.funcs.size() - 1]);
 				break;
 			}
-			case nt::class_declaration: { ctx.types.push_back(new data_type(ctx, node)); break; }
-			case nt::format_declaration: { ctx.types.push_back(new data_type(ctx, node)); break; }
+			// this data_type constructor automatically adds it to ctx, it doesn't go nowhere
+			case nt::class_declaration: { new data_type(ctx, node); break; }
+			case nt::format_declaration: { new data_type(ctx, node); break; }
 			case nt::variable_initializer: break;
 			case nt::format_property: break;
 			case nt::function_arguments: break;
@@ -2277,6 +2532,7 @@ namespace gjs {
 				);
 				break;
 			}
+			case nt::delete_statement: { compile_delete_statement(ctx, node); break; }
 			case nt::object: { break; }
 			case nt::call: {
 				var* tmp = compile_expression(ctx, node, nullptr);
@@ -2306,13 +2562,17 @@ namespace gjs {
 	}
 
 	void init_context(compile_context& ctx) {
+		ctx.do_store_member_pointer = false;
+		ctx.last_member_was_pointer = false;
+		ctx.cur_func = nullptr;
+		ctx.last_type_method = nullptr;
 		data_type* t = nullptr;
 
 		vector<vm_type*> types = ctx.ctx->types()->all();
 		for (u32 i = 0;i < types.size();i++) {
 			ctx.types.push_back(new data_type(types[i]->name));
 			t = ctx.types[ctx.types.size() - 1];
-			t->size = types[i]->size;
+			t->size = t->actual_size = types[i]->size;
 			t->type = types[i];
 			t->built_in = types[i]->is_builtin;
 			t->is_floating_point = types[i]->is_floating_point;
@@ -2322,6 +2582,7 @@ namespace gjs {
 				t->size = sizeof(void*);
 			}
 		}
+
 
 		vector<vm_function*> funcs = ctx.ctx->all_functions();
 		for (u32 i = 0;i < funcs.size();i++) {
@@ -2347,6 +2608,9 @@ namespace gjs {
 			for (u16 m = 0;m < t->type->methods.size();m++) {
 				t->methods.push_back(ctx.function(t->type->methods[m]->name));
 			}
+
+			t->ctor = t->type->constructor ? ctx.function(t->type->constructor->name) : nullptr;
+			t->dtor = t->type->destructor ? ctx.function(t->type->destructor->name) : nullptr;
 		}
 	}
 
@@ -2412,13 +2676,11 @@ namespace gjs {
 
 			for (u32 m = 0;m < t->methods.size();m++) {
 				func* f = t->methods[m];
-				if (f->name == t->name + "::constructor") tp->constructor = vctx->function(f->entry);
-				else if (f->name == t->name + "::destructor") tp->destructor = vctx->function(f->entry);
-				else {
-					// todo: operators, converters
-					tp->methods.push_back(vctx->function(f->entry));
-				}
+				tp->methods.push_back(vctx->function(f->entry));
 			}
+
+			if (t->ctor) tp->constructor = vctx->function(t->ctor->entry);
+			if (t->dtor) tp->destructor = vctx->function(t->dtor->entry);
 		}
 	}
 };

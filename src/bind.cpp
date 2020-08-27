@@ -73,10 +73,16 @@ namespace gjs {
 	vm_function::vm_function(type_manager* mgr, bind::wrapped_function* wrapped) {
 		m_ctx = mgr->m_ctx;
 		signature.return_loc = vm_register::v0;
+		signature.returns_pointer = wrapped->ret_is_ptr;
 		name = wrapped->name;
 		signature.text = wrapped->sig;
 		for (u8 i = 0;i < wrapped->arg_types.size();i++) {
-			signature.arg_types.push_back(mgr->get(wrapped->arg_types[i].name()));
+			vm_type* atp = nullptr;
+			if (std::string(wrapped->arg_types[i].name()) == "void" && wrapped->ret_is_ptr) {
+				atp = mgr->get("void*");
+			} else atp = mgr->get(wrapped->arg_types[i].name());
+
+			signature.arg_types.push_back(atp);
 			if (!signature.arg_types[i]) {
 				throw bind_exception(format("Arg '%d' of function '%s' is of type '%s' that has not been bound yet", i + 1, name.c_str(), wrapped->arg_types[i].name()));
 			}
@@ -94,7 +100,10 @@ namespace gjs {
 			else signature.arg_locs.push_back(vm_register(integer(last_a) + 1));
 		}
 
-		signature.return_type = mgr->get(wrapped->return_type.name());
+		if (std::string(wrapped->return_type.name()) == "void" && wrapped->ret_is_ptr) {
+			signature.return_type = mgr->get("void*");
+		} else signature.return_type = mgr->get(wrapped->return_type.name());
+
 		if (!signature.return_type) {
 			throw bind_exception(format("Return value of function '%s' is of type '%s' that has not been bound yet", name.c_str(), wrapped->return_type.name()));
 		}

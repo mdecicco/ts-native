@@ -23,7 +23,9 @@ namespace gjs {
 			};
 
 			void specify_keyword(const std::string& keyword);
+			void specify_operator(const std::string& op);
 			bool is_keyword(const std::string& thing);
+			bool is_operator(const std::string& op);
 			bool is_number(const std::string& thing);
 			bool is_identifier(const std::string& thing);
 			inline std::string line_str() const { return lines[m_line]; }
@@ -43,6 +45,7 @@ namespace gjs {
 			token any_token();
 			token semicolon(bool expected = true);
 			token keyword(bool expected = true, const std::string& kw = "");
+			token operat0r(bool expected = true, const std::string& op = "");
 			token identifier(bool expected = true, const std::string& identifier = "");
 			token character(char c, bool expected = true);
 			token expression(bool expected = true);
@@ -54,6 +57,7 @@ namespace gjs {
 
 		protected:
 			std::vector<std::string> m_keywords;
+			std::vector<std::string> m_operators;
 			std::string m_input;
 			struct stored_state {
 				u32 idx;

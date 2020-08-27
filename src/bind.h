@@ -1,4 +1,7 @@
 #pragma once
+#include <types.h>
+#include <builtin.h>
+
 #include <any>
 #include <vector>
 #include <typeindex>
@@ -6,9 +9,8 @@
 #include <string>
 
 #include <asmjit/asmjit.h>
-
-#include <types.h>
 #include <robin_hood.h>
+
 
 #define declare_input_binding(type, ctx_name, in_name, reg_name) template<> void to_reg<type>(vm_context* ctx_name, const type& in_name, u64* reg_name)
 #define declare_output_binding(type, ctx_name, out_name, reg_name) template<> void from_reg<type>(vm_context* ctx_name, type* out_name, u64* reg_name)
@@ -99,6 +101,7 @@ namespace gjs {
 			std::string name;
 			std::string sig;
 			std::type_index return_type;
+			bool ret_is_ptr;
 			std::vector<std::type_index> arg_types;
 			std::vector<bool> arg_is_ptr;
 			u64 address;
@@ -139,6 +142,7 @@ namespace gjs {
 					if (!tpm->get<Ret>()) {
 						throw bind_exception(format("Return type '%s' of function '%s' has not been bound yet", base_type_name<Ret>(), name.c_str()));
 					}
+					ret_is_ptr = std::is_reference_v<Ret> || std::is_pointer_v<Ret>;
 					arg_is_ptr = { (std::is_reference_v<Args> || std::is_pointer_v<Args>)... };
 					address = u64(reinterpret_cast<void*>(f));
 					
@@ -204,6 +208,7 @@ namespace gjs {
 						if (!tpm->get<Ret>()) {
 							throw bind_exception(format("Return type '%s' of method '%s' of class '%s' has not been bound yet", base_type_name<Ret>(), name.c_str(), typeid(remove_all<Cls>::type).name()));
 						}
+						ret_is_ptr = std::is_reference_v<Ret> || std::is_pointer_v<Ret>;
 						arg_is_ptr = { true, (std::is_reference_v<Args> || std::is_pointer_v<Args>)... };
 						address = *(u64*)reinterpret_cast<void*>(&f);
 
@@ -275,13 +280,14 @@ namespace gjs {
 		};
 
 		template <typename Cls, typename... Args>
-		Cls* construct_object(Args... args) {
-			return new Cls(args...);
+		Cls* construct_object(void* mem, Args... args) {
+			return new (mem) Cls(args...);
 		}
 
 		template <typename Cls>
 		void destruct_object(Cls* obj) {
-			delete obj;
+			obj->~Cls();
+			script_free(obj);
 		}
 
 		template <typename Cls, typename... Args>
@@ -418,6 +424,7 @@ namespace gjs {
 				std::vector<vm_type*> arg_types;
 				std::vector<vm_register> arg_locs;
 				bool is_thiscall;
+				bool returns_pointer;
 			} signature;
 
 			union {

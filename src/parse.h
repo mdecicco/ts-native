@@ -23,6 +23,7 @@ namespace gjs {
 			import_statement,
 			export_statement,
 			return_statement,
+			delete_statement,
 			object,
 			call,
 			expression,
@@ -81,7 +82,8 @@ namespace gjs {
 			negate,
 			addr,
 			at,
-			member
+			member,
+			newObj
 		};
 
 		struct source_location {

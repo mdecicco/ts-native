@@ -6,11 +6,15 @@ using namespace gjs;
 
 class foo {
 	public:
-		foo(i32* _x) { x = _x; w = 3.0f; }
-		~foo() { }
+		foo(i32* _x) : x(_x), y(0), z(0), w(0.0f) {
+			printf("Construct foo\n");
+		}
+		~foo() {
+			printf("Destruct foo\n");
+		}
 
-		i32 t(i32 a) {
-			return printf("%d, %d\n", y, a);
+		i32 t(i32 a, i32* b) {
+			return printf("%d, %d, %d\n", y, a, *b);
 		}
 
 		operator i32() { return y; }
@@ -20,6 +24,12 @@ class foo {
 		i32 z;
 		f32 w;
 };
+
+struct vec3 { f32 x, y, z; };
+void testvec(void** vec) {
+	vec3& v = **(vec3**)vec;
+	printf("%f, %f, %f\n", v.x, v.y, v.z);
+}
 
 void print_foo(const foo& f) {
 	printf("foo: %d, %d, %d, %f\n", *f.x, f.y, f.z, f.w);
@@ -122,6 +132,7 @@ int main(int arg_count, const char** args) {
 		f.finalize();
 
 		ctx.bind(print_foo, "print_foo");
+		ctx.bind(testvec, "testvec");
 	} catch (bind_exception& e) {
 		printf("%s\n", e.text.c_str());
 	}

@@ -28,9 +28,25 @@ namespace gjs {
 	void tokenizer::specify_keyword(const string& keyword) {
 		m_keywords.push_back(keyword);
 	}
+
+	void tokenizer::specify_operator(const std::string& op) {
+		m_operators.push_back(op);
+		m_keywords.push_back(op);
+	}
+
+	bool tokenizer::is_operator(const std::string& thing) {
+		if (thing.length() == 0) return false;
+
+		for (const string& op : m_operators) {
+			if (op == thing) return true;
+		}
+
+		return false;
+	}
 	
 	bool tokenizer::is_keyword(const string& thing) {
 		if (thing.length() == 0) return false;
+
 		for (const string& kw : m_keywords) {
 			if (kw == thing) return true;
 		}
@@ -325,6 +341,152 @@ namespace gjs {
 			throw parse_exception(
 				file,
 				format("Expected keyword '%s', found '%s'", kw.c_str(), out.text.c_str()),
+				lines[m_line],
+				m_line,
+				m_col
+			);
+		}
+
+		m_idx += offset;
+		m_col += offset;
+
+		return out;
+	}
+
+	tokenizer::token tokenizer::operat0r(bool expected, const string& op) {
+		whitespace();
+
+		backup_state();
+		token ident = identifier(false);
+		restore_state();
+		if (ident) {
+			if (expected) {
+				if (op.length() > 0) {
+					throw parse_exception(
+						file,
+						format("Expected '%s'", op.c_str()),
+						lines[ident.line],
+						ident.line,
+						ident.col
+					);
+				} else {
+					throw parse_exception(
+						file,
+						"Expected operator",
+						lines[ident.line],
+						ident.line,
+						ident.col
+					);
+				}
+			}
+
+			return token();
+		}
+
+		token out = { m_line, m_col, "", file };
+
+		size_t offset = 0;
+
+		if (op.length() == 0) {
+			size_t max_len = 0;
+			for (u32 i = 0;i < m_operators.size();i++) {
+				if (m_operators[i].length() > max_len) max_len = m_operators[i].length();
+			}
+			token longest_kw;
+			size_t kw_offset = 0;
+			while((offset + m_idx) < m_input.size() && out.text.length() < max_len) {
+				char c = m_input[m_idx + offset];
+				offset++;
+				out.text += c;
+				if (is_operator(out.text) && (m_input.size() >= m_idx + offset || !is_operator(out.text + m_input[m_idx + offset]))) {
+					longest_kw = out;
+					kw_offset = offset;
+				}
+			}
+
+			if (!longest_kw && expected) {
+				if (!expected) return token();
+				throw parse_exception(
+					file,
+					"Expected operator",
+					lines[m_line],
+					m_line,
+					m_col
+				);
+			} else if (!longest_kw) return token();
+
+			m_idx += kw_offset;
+			m_col += kw_offset;
+			return longest_kw;
+		}
+
+		while(!at_end()) {
+			char c = m_input[m_idx + offset];
+			if (c >= 48 && c <= 57 && out.text.length() == 0) {
+				if (!expected) return out;
+				// 0 - 9
+				throw parse_exception(
+					file,
+					"Expected operator, found numerical constant",
+					lines[m_line],
+					m_line,
+					m_col
+				);
+			}
+
+			if (c == '\'' || c == '"' && out.text.length() == 0) {
+				if (!expected) return out;
+				throw parse_exception(
+					file,
+					"Expected operator, found string constant",
+					lines[m_line],
+					m_line,
+					m_col
+				);
+			}
+
+			if (
+				(c >= 48 && c <= 57 ) || // 0 - 9
+				(c >= 65 && c <= 90 ) || // A - Z
+				(c >= 97 && c <= 122) || // a - z
+				c == '_' || c == '+' || c == '-' ||
+				c == '*' || c == '/' || c == '&' ||
+				c == '%' || c == '^' || c == '|' ||
+				c == '=' || c == '!' || c == '<' ||
+				c == '>'
+				) {
+				out.text += c;
+				offset++;
+			} else {
+				if (out.text.length() == 0) {
+					if (!expected) return out;
+					throw parse_exception(
+						file,
+						"Expected operator, found something else",
+						lines[m_line],
+						m_line,
+						m_col
+					);
+				} else break;
+			}
+		}
+
+		if (!is_operator(out.text)) {
+			if (!expected) return token();
+			throw parse_exception(
+				file,
+				"Expected operator, found identifier",
+				lines[m_line],
+				m_line,
+				m_col
+			);
+		}
+
+		if (out.text != op && op.length() > 0) {
+			if (!expected) return token();
+			throw parse_exception(
+				file,
+				format("Expected operator '%s', found '%s'", op.c_str(), out.text.c_str()),
 				lines[m_line],
 				m_line,
 				m_col

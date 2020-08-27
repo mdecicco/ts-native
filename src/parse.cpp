@@ -519,7 +519,6 @@ namespace gjs {
 			return ret;
 		}
 
-		// function call, new
 		ast_node* call() {
 			ast_node* ret = member();
 			token cur = current();
@@ -658,6 +657,61 @@ namespace gjs {
 					);
 				}
 				consume();
+				return n;
+			}
+
+			if (match({ "new" })) {
+				token newOp = current();
+				ast_node* op = new ast_node();
+				op->type = ast_node::node_type::operation;
+				op->op = ast_node::operation_type::newObj;
+				consume();
+				op->data_type = parse_type_identifier(current());
+
+				if (!op->data_type) {
+					throw parse_exception(
+						"Expected class or format identifier",
+						t, current()
+					);
+				}
+				consume();
+
+				if (match({ "(" })) {
+					consume();
+
+					op->arguments = expr();
+
+					while(match({ "," })) {
+						if (!op->arguments) {
+							throw parse_exception(
+								"Expected expression for constructor argument",
+								t, current()
+							);
+						}
+
+						token comma = current();
+						consume();
+						ast_node* n = op->arguments;
+						while (n->next) n = n->next;
+						n->next = expr();
+						if (!n->next) {
+							throw parse_exception(
+								"Expected expression for constructor argument",
+								t, comma
+							);
+						}
+					}
+					if (!match({ ")" })) {
+						throw parse_exception(
+							"Expected ')' to close constructor argument list",
+							t, current()
+						);
+					}
+					consume();
+				}
+
+				set_node_src(op, newOp);
+				return op;
 			}
 
 			return n;
@@ -673,6 +727,24 @@ namespace gjs {
 				}
 				ast_node* n = new ast_node();
 				n->type = ast_node::node_type::identifier;
+				n->set(tok.text);
+				set_node_src(n, tok);
+				return n;
+			}
+
+			return nullptr;
+		}
+
+		ast_node* parse_type_identifier(const token& tok) {
+			if (t.is_identifier(tok.text)) {
+				if (!ctx.find_type(tok.text)) {
+					throw parse_exception(
+						format("Expected class or format identifier, found %s", tok.text.c_str()),
+						t, tok
+					);
+				}
+				ast_node* n = new ast_node();
+				n->type = ast_node::node_type::type_identifier;
 				n->set(tok.text);
 				set_node_src(n, tok);
 				return n;
@@ -808,6 +880,7 @@ namespace gjs {
 			"import_statement",
 			"export_statement",
 			"return_statement",
+			"delete_statement",
 			"object",
 			"call",
 			"expression",
@@ -860,7 +933,8 @@ namespace gjs {
 			"negate",
 			"addr",
 			"at",
-			"member"
+			"member",
+			"newObj"
 		};
 		auto tab = [tab_level](u32 offset) {
 			for (u32 i = 0;i < tab_level + offset;i++) printf("    ");
@@ -1146,8 +1220,22 @@ namespace gjs {
 
 	ast_node* parse_function_declaration(parse_context& ctx, tokenizer& t) {
 		ast_node* func = nullptr;
-		ast_node* return_type = parse_data_type(ctx, t);
-		token name = t.identifier();
+		ast_node* return_type = nullptr;
+
+		token name;
+
+		name = t.keyword(false, "operator");
+		if (name) {
+			// cast operator
+			return_type = parse_data_type(ctx, t);
+			name.text += " " + string(*return_type);
+		} else {
+			// regular method, or non-cast operator
+			return_type = parse_data_type(ctx, t);
+			name = t.keyword(false, "operator");
+			if (!name) name = t.identifier();
+			else name.text += " " + t.operat0r().text;
+		}
 
 		// check if there was a declaration without a body
 		ast_node* existing = ctx.find_variable(name.text);
@@ -1290,11 +1378,23 @@ namespace gjs {
 	}
 
 	ast_node* parse_declaration(parse_context& ctx, tokenizer& t) {
-		// next token /will/ be a data type 
+		// next token /will/ be a data type or "operator"
 		t.backup_state();
-		if (!t.keyword(false)) t.identifier();
+		token f = t.keyword(false);
+		if (f && f.text == "operator") {
+			t.restore_state();
+			return parse_function_declaration(ctx, t);
+		}
+		t.identifier();
 
-		// now at either a variable name or a function name
+		// now at either a variable name, function name, or "operator"
+		f = t.keyword(false);
+		if (f && f.text == "operator") {
+			t.restore_state();
+			return parse_function_declaration(ctx, t);
+		}
+
+		// now at either a variable name, function name
 		t.identifier();
 
 		// now at either ';' (uninitialized variable), '=' (initialized variable), or '(' (function definition)
@@ -1427,6 +1527,14 @@ namespace gjs {
 
 				ast_node* func = new ast_node();
 				func->type = ast_node::node_type::function_declaration;
+				func->identifier = new ast_node();
+				func->identifier->type = ast_node::node_type::identifier;
+				func->identifier->set("construct");
+				func->identifier->src(t, tok);
+				func->data_type = new ast_node();
+				func->data_type->type = ast_node::node_type::type_identifier;
+				func->data_type->set(string(*c->identifier));
+				func->data_type->src(t, tok);
 				func->src(t, tok);
 
 				ctx.node_path.push(func);
@@ -1459,6 +1567,14 @@ namespace gjs {
 				}
 				ast_node* func = new ast_node();
 				func->type = ast_node::node_type::function_declaration;
+				func->identifier = new ast_node();
+				func->identifier->type = ast_node::node_type::identifier;
+				func->identifier->set("destruct");
+				func->identifier->src(t, tok);
+				func->data_type = new ast_node();
+				func->data_type->type = ast_node::node_type::type_identifier;
+				func->data_type->set("void");
+				func->data_type->src(t, tok);
 				func->src(t, tok);
 
 				ctx.node_path.push(func);
@@ -1678,6 +1794,15 @@ namespace gjs {
 		return l;
 	}
 
+	ast_node* parse_delete(parse_context& ctx, tokenizer& t) {
+		token start = t.keyword(true, "delete");
+		ast_node* d = new ast_node();
+		d->type = ast_node::node_type::delete_statement;
+		d->src(t, start);
+		d->rvalue = parse_expression(ctx, t);
+		return d;
+	}
+
 	ast_node* parse_return(parse_context& ctx, tokenizer& t) {
 		token start = t.keyword(true, "return");
 		ast_node* r = new ast_node();
@@ -1719,6 +1844,7 @@ namespace gjs {
 			else if (first == "this") r = parse_expression(ctx, t, true);
 			else if (first == "null") r = parse_expression(ctx, t, true);
 			else if (first == "new") r = parse_expression(ctx, t, true);
+			else if (first == "delete") r = parse_delete(ctx, t);
 			else {
 				throw parse_exception(
 					format("Unexpected token '%s'", first.text.c_str()),
@@ -1783,39 +1909,41 @@ namespace gjs {
 		t.specify_keyword("static");
 		t.specify_keyword("null");
 		t.specify_keyword("new");
+		t.specify_keyword("delete");
 		t.specify_keyword("constructor");
 		t.specify_keyword("destructor");
-		t.specify_keyword("++");
-		t.specify_keyword("--");
-		t.specify_keyword("+");
-		t.specify_keyword("-");
-		t.specify_keyword("*");
-		t.specify_keyword("/");
-		t.specify_keyword("%");
-		t.specify_keyword("&");
-		t.specify_keyword("|");
-		t.specify_keyword("^");
-		t.specify_keyword("+=");
-		t.specify_keyword("-=");
-		t.specify_keyword("*=");
-		t.specify_keyword("/=");
-		t.specify_keyword("%=");
-		t.specify_keyword("&=");
-		t.specify_keyword("|=");
-		t.specify_keyword("^=");
-		t.specify_keyword("&&");
-		t.specify_keyword("||");
-		t.specify_keyword(">>");
-		t.specify_keyword("<<");
-		t.specify_keyword(">>=");
-		t.specify_keyword("<<=");
-		t.specify_keyword("<");
-		t.specify_keyword("<=");
-		t.specify_keyword(">");
-		t.specify_keyword(">=");
-		t.specify_keyword("!");
-		t.specify_keyword("=");
-		t.specify_keyword("==");
+		t.specify_keyword("operator");
+		t.specify_operator("++");
+		t.specify_operator("--");
+		t.specify_operator("+");
+		t.specify_operator("-");
+		t.specify_operator("*");
+		t.specify_operator("/");
+		t.specify_operator("%");
+		t.specify_operator("&");
+		t.specify_operator("|");
+		t.specify_operator("^");
+		t.specify_operator("+=");
+		t.specify_operator("-=");
+		t.specify_operator("*=");
+		t.specify_operator("/=");
+		t.specify_operator("%=");
+		t.specify_operator("&=");
+		t.specify_operator("|=");
+		t.specify_operator("^=");
+		t.specify_operator("&&");
+		t.specify_operator("||");
+		t.specify_operator(">>");
+		t.specify_operator("<<");
+		t.specify_operator(">>=");
+		t.specify_operator("<<=");
+		t.specify_operator("<");
+		t.specify_operator("<=");
+		t.specify_operator(">");
+		t.specify_operator(">=");
+		t.specify_operator("!");
+		t.specify_operator("=");
+		t.specify_operator("==");
 	}
 
 	ast_node* parse_source(vm_context* env, const std::string& file, const string& source) {
