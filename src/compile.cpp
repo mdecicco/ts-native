@@ -81,6 +81,7 @@ namespace gjs {
 	void compile_function(compile_context& ctx, ast_node* node, func* out);
 	void compile_node(compile_context& ctx, ast_node* node);
 	void compile_variable_declaration(compile_context& ctx, ast_node* node);
+	u16 count_references(ast_node* node, const string& identifier, bool ignoreNext = false);
 
 
 
@@ -189,6 +190,8 @@ namespace gjs {
 			stack.parent = this;
 			registers.parent = this;
 			returns_pointer = false;
+			is_ctor = false;
+			is_dtor = false;
 			this_type = nullptr;
 		}
 
@@ -198,6 +201,8 @@ namespace gjs {
 		data_type* this_type;
 		data_type* return_type;
 		vmr return_reg;
+		bool is_ctor;
+		bool is_dtor;
 		bool returns_pointer;
 		vector<arg_info> args;
 		u64 entry;
@@ -289,7 +294,9 @@ namespace gjs {
 
 		var* allocate(compile_context& ctx, ast_node* decl, bool is_arg = false);
 
-		var* allocate(compile_context& ctx, data_type* type);
+		var* allocate(compile_context& ctx, data_type* type, bool is_arg = false);
+
+		var* allocate(compile_context& ctx, const string& name, data_type* type, bool is_arg = false);
 
 		var* imm(compile_context& ctx, integer i);
 
@@ -298,8 +305,6 @@ namespace gjs {
 		var* imm(compile_context& ctx, char* s);
 
 		var* zero(compile_context& ctx, data_type* type);
-
-		var* self(compile_context& ctx, ast_node* because);
 
 		void free(var* v) {
 			if (v->is_reg) registers.free(v->loc.reg);
@@ -329,7 +334,6 @@ namespace gjs {
 		}
 
 		var* get(compile_context& ctx, ast_node* identifier) {
-			if (string(*identifier) == "this") return self(ctx, identifier);
 			for (u8 i = 0;i < scopes.size();i++) {
 				if (scopes[i].vars.count(*identifier) == 0) continue;
 				var* v = scopes[i].vars[*identifier];
@@ -368,7 +372,8 @@ namespace gjs {
 	struct data_type {
 		data_type(const string& _name, bool _built_in = false) :
 			name(_name), built_in(_built_in), is_floating_point(false), is_unsigned(false),
-			ctor(nullptr), dtor(nullptr), type(nullptr), size(0), actual_size(0)
+			ctor(nullptr), dtor(nullptr), type(nullptr), size(0), actual_size(0), 
+			is_primitive(false)
 		{ }
 		data_type(compile_context& ctx, ast_node* node);
 
@@ -390,6 +395,7 @@ namespace gjs {
 		bool built_in;
 		bool is_floating_point;
 		bool is_unsigned;
+		bool is_primitive;
 		struct property {
 			u8 flags;
 			string name;
@@ -493,6 +499,7 @@ namespace gjs {
 		entry = f->is_host ? f->access.wrapped->address : f->access.entry;
 		return_reg = f->signature.return_loc;
 		returns_pointer = f->signature.returns_pointer;
+		is_ctor = is_dtor = false;
 	}
 
 	var* func::allocate(compile_context& ctx, ast_node* decl, bool is_arg) {
@@ -544,7 +551,7 @@ namespace gjs {
 	}
 
 	static u32 anon_var_id = 0;
-	func::var* func::allocate(compile_context& ctx, data_type* type) {
+	func::var* func::allocate(compile_context& ctx, data_type* type, bool is_arg) {
 		if (auto_free_consumed_vars) free_consumed_vars();
 
 		u32 count = 1;
@@ -564,7 +571,51 @@ namespace gjs {
 
 		vmr reg;
 		if (type->is_floating_point) reg = registers.allocate_fp();
-		else reg = registers.allocate_gp();
+		else {
+			if (!is_arg) reg = registers.allocate_gp();
+			else reg = registers.allocate_arg();
+		}
+
+		scopes[scopes.size() - 1].vars[name] = new var();
+		var& l = *scopes[scopes.size() - 1].vars[name];
+		l.is_variable = false;
+		l.ctx = &ctx;
+		l.type = type;
+		l.count = count;
+		l.is_imm = false;
+		if (reg != vmr::register_count) {
+			l.is_reg = true;
+			l.loc.reg = reg;
+		} else {
+			l.is_reg = false;
+			l.loc.stack_addr = stack.allocate(type->size);
+		}
+		return &l;
+	}
+
+	var* func::allocate(compile_context& ctx, const string& name, data_type* type, bool is_arg) {
+		if (auto_free_consumed_vars) free_consumed_vars();
+
+		u32 count = 1;
+		if (type->size > 8 || count > 1) {
+			scopes[scopes.size() - 1].vars[name] = new var();
+			var& l = *scopes[scopes.size() - 1].vars[name];
+			l.is_variable = false;
+			l.ctx = &ctx;
+			l.type = type;
+			l.count = count;
+			l.is_reg = false;
+			l.is_imm = false;
+			l.loc.stack_addr = stack.allocate(type->size * count);
+			return &l;
+		}
+
+		vmr reg;
+		if (type->is_floating_point) reg = registers.allocate_fp();
+		else {
+			if (!is_arg) reg = registers.allocate_gp();
+			else reg = registers.allocate_arg();
+		}
 
 		scopes[scopes.size() - 1].vars[name] = new var();
 		var& l = *scopes[scopes.size() - 1].vars[name];
@@ -641,26 +692,6 @@ namespace gjs {
 		l->is_imm = false;
 		l->is_const = true;
 		l->loc.reg = vmr::zero;
-		return l;
-	}
-
-	var* func::self(compile_context& ctx, ast_node* because) {
-		if (!this_type) {
-			ctx.log->err(format("Function '%s' is not a class method, 'this' is invalid in this context", name.c_str()), because);
-			return zero(ctx, ctx.type("i32"));
-		}
-		string name = format("__anon_%d", anon_var_id++);
-		var* l = scopes[scopes.size() - 1].vars[name] = new var();
-		l->is_variable = false;
-		l->ctx = &ctx;
-		l->type = this_type;
-		l->count = 1;
-		l->is_reg = true;
-		l->is_imm = false;
-		l->is_const = true;
-
-		// 'this' will always be passed through a0
-		l->loc.reg = vmr::a0;
 		return l;
 	}
 
@@ -987,87 +1018,22 @@ namespace gjs {
 				to->name.c_str(), ac, ac == 1 ? "" : "s", pc, pc == 1 ? "was" : "were"
 			), because);
 		}
-		// move arguments to the right place, or a temporary place until vars have been
-		// backed up in the stack
-		vector<pair<vmr, vmr>> arg_pairs;
-
-		// non-reg arg pairs
-		vector<pair<vmr, var*>> nr_arg_pairs;
-		for (u8 a = 0;a < args.size();a++) {
-			vmr dest = to->args[a].loc;
-			if (args[a]->is_reg && dest == args[a]->loc.reg) continue; // arg is already in the right place
-
-			if (!ctx.cur_func->in_use(dest)) args[a]->store_in(dest, because);
-			else if (args[a]->is_reg) {
-				// current register of arg[a] shouldn't be rewritten between now and the call
-				arg_pairs.push_back(pair<vmr, vmr>(dest, args[a]->to_reg(because)));
-			} else {
-				nr_arg_pairs.push_back(pair<vmr, var*>(dest, args[a]));
-			}
-		}
 
 		// free any used up variables that don't need to be
-		// stored in the stack, if not in a loop
+		// stored in the stack, if it's safe to do so
 		if (ctx.cur_func->auto_free_consumed_vars) ctx.cur_func->free_consumed_vars();
 
-		// keep track of where vars should be restored to, if they refer to registers
-		vector <pair<var*, vmr>> restore_pairs;
+		// back up register vars to the stack
 		for (u32 s = 0;s < ctx.cur_func->scopes.size();s++) {
 			for (auto i = ctx.cur_func->scopes[s].vars.begin();i != ctx.cur_func->scopes[s].vars.end();++i) {
 				var* v = i->getSecond();
-				if (v->is_reg) {
-					restore_pairs.push_back(pair<var*, vmr>(v, v->loc.reg));
-				}
+				if (v->is_reg) v->to_stack(because);
 			}
-		}
-
-		// allocate var for return value, if necessary
-		var* ret = nullptr;
-		vmr ret_reg;
-		bool has_return = to->return_type->size > 0;
-		if (has_return) {
-			ret = ctx.cur_func->allocate(ctx, to->return_type);
-			if (to->return_reg == vmr::register_count) {
-				// function must either be calling itself (and compiler hasn't seen a return statement yet)
-				// or script writer didn't put a return statement and an error was emitted. Assign register
-				// automatically
-				if (to->return_type->is_floating_point) to->return_reg = to->registers.allocate_fp();
-				else to->return_reg = to->registers.allocate_gp();
-
-				// then free it since it's not actually in use until the statement is reached
-				to->registers.free(to->return_reg);
-			}
-			ret_reg = ret->to_reg(because);
-		}
-
-		// back up register vars to the stack
-		for (u8 i = 0;i < restore_pairs.size();i++) {
-			restore_pairs[i].first->to_stack(because);
 		}
 
 		// move remaining args that couldn't be moved before
-		for (u8 i = 0;i < arg_pairs.size();i++) {
-			vmi assign = is_fp(arg_pairs[i].first) ? vmi::fadd : vmi::add;
-			ctx.add(
-				encode(assign).operand(arg_pairs[i].first).operand(arg_pairs[i].second).operand(vmr::zero),
-				because
-			);
-		}
-		for (u8 i = 0;i < nr_arg_pairs.size();i++) {
-			vmi assign = is_fp(nr_arg_pairs[i].first) ? vmi::fadd : vmi::add;
-			bool was_stack = !nr_arg_pairs[i].second->is_imm;
-			ctx.add(
-				encode(assign).operand(nr_arg_pairs[i].first).operand(nr_arg_pairs[i].second->to_reg(because)).operand(vmr::zero),
-				because
-			);
-			// Shouldn't allocate a register here indefinitely, it wasn't a register before anyway
-			if (was_stack) nr_arg_pairs[i].second->to_stack(because);
-			else {
-				// restore to imm (value is still there, too!)
-				ctx.cur_func->registers.free(nr_arg_pairs[i].second->to_reg(because));
-				nr_arg_pairs[i].second->is_reg = false;
-				nr_arg_pairs[i].second->is_imm = true;
-			}
+		for (u8 i = 0;i < args.size() && i < to->args.size();i++) {
+			args[i]->store_in(to->args[i].loc, because);
 		}
 
 		// backup $ra
@@ -1084,6 +1050,10 @@ namespace gjs {
 				because
 			);
 		}
+		
+		// allocate register for return value if necessary
+		var* ret = nullptr;
+		if (to->return_type->size > 0) ret = ctx.cur_func->allocate(ctx, to->return_type);
 
 		// make the call
 		ctx.add(
@@ -1100,12 +1070,42 @@ namespace gjs {
 		}
 
 		// store return value if necessary
-		if (has_return) {
-			if (ret_reg != to->return_reg) {
-				ctx.add(
-					encode(vmi::add).operand(ret_reg).operand(to->return_reg).operand(vmr::zero),
-					because
-				);
+		if (ret) {
+			if (ret->loc.reg != to->return_reg) {
+				if (!is_fp(ret->loc.reg)) {
+					if (!is_fp(to->return_reg)) {
+						ctx.add(
+							encode(vmi::add).operand(ret->loc.reg).operand(to->return_reg).operand(vmr::zero),
+							because
+						);
+					} else {
+						// this should never happen since a float-returning function would have a float type
+						// and so ret would have allocated a floating point register
+						// but just in case...
+						ctx.add(
+							encode(vmi::cti).operand(to->return_reg),
+							because
+						);
+						ctx.add(
+							encode(vmi::mffp).operand(to->return_reg).operand(ret->loc.reg),
+							because
+						);
+					}
+				} else {
+					if (!is_fp(to->return_reg)) {
+						// should only happen if a host function returns a floating point value
+						// that being the case, don't try to convert it from fixed point
+						ctx.add(
+							encode(vmi::mtfp).operand(to->return_reg).operand(ret->loc.reg),
+							because
+						);
+					} else {
+						ctx.add(
+							encode(vmi::fadd).operand(ret->loc.reg).operand(to->return_reg).operand(vmr::zero),
+							because
+						);
+					}
+				}
 			}
 		}
 
@@ -1116,11 +1116,6 @@ namespace gjs {
 			because
 		);
 
-		// restore register vars
-		for (u8 i = 0;i < restore_pairs.size();i++) {
-			restore_pairs[i].first->move_to(restore_pairs[i].second, because);
-		}
-		
 		return ret;
 	}
 
@@ -1133,6 +1128,7 @@ namespace gjs {
 		built_in = false;
 		is_floating_point = false;
 		is_unsigned = false;
+		is_primitive = false;
 		name = *node->identifier;
 		ast_node* n = node->body;
 		actual_size = 0;
@@ -1172,7 +1168,14 @@ namespace gjs {
 			if (node->constructor) {
 				func* m = new func();
 				m->this_type = this;
-				m->args.push_back({ "this", ctx.type("data"), m->registers.allocate_arg() });
+				m->is_ctor = true;
+				var* self = m->allocate(ctx, "this", this, true);
+				self->is_variable = true;
+				self->is_const = true;
+				self->name = "this";
+				self->total_ref_count = count_references(node->constructor, "this");
+				self->ref_count = 0;
+				m->args.push_back({ "this", ctx.type("data"), self->loc.reg });
 				compile_function(ctx, node->constructor, m);
 				m->name = name + "::construct";
 				ctor = m;
@@ -1182,7 +1185,14 @@ namespace gjs {
 			if (node->destructor) {
 				func* m = new func();
 				m->this_type = this;
-				m->args.push_back({ "this", this, m->registers.allocate_arg() });
+				m->is_dtor = true;
+				var* self = m->allocate(ctx, "this", this, true);
+				self->is_variable = true;
+				self->is_const = true;
+				self->name = "this";
+				self->total_ref_count = count_references(node->destructor, "this");
+				self->ref_count = 0;
+				m->args.push_back({ "this", ctx.type("data"), self->loc.reg });
 				compile_function(ctx, node->destructor, m);
 				m->name = name + "::destruct";
 				dtor = m;
@@ -1194,6 +1204,13 @@ namespace gjs {
 				if (n->type == nt::function_declaration) {
 					func* m = new func();
 					m->this_type = this;
+					var* self = m->allocate(ctx, "this", this, true);
+					self->is_variable = true;
+					self->is_const = true;
+					self->name = "this";
+					self->total_ref_count = count_references(n, "this");
+					self->ref_count = 0;
+					m->args.push_back({ "this", ctx.type("data"), self->loc.reg });
 					compile_function(ctx, n, m);
 					methods.push_back(m);
 
@@ -1229,31 +1246,31 @@ namespace gjs {
 		}
 	}
 
-	var* cast(compile_context& ctx, var* from, var* to, ast_node* because) {
-		if (from->type->equals(to->type)) return from;
-		if (from->type->name == "bool" || to->type->name == "bool") return from;
+	var* cast(compile_context& ctx, var* from, data_type* to, ast_node* because) {
+		if (from->type->equals(to)) return from;
+		if (from->type->name == "bool" || to->name == "bool") return from;
 
-		if (!from->type->built_in || (from->type->name == "string" || to->type->name == "string")) {
-			func* cast_func = from->type->cast_to_func(to->type);
+		if (!from->type->built_in || (from->type->name == "string" || to->name == "string")) {
+			func* cast_func = from->type->cast_to_func(to);
 			if (!cast_func) {
-				ctx.log->err(format("No conversion from '%s' to '%s' found", from->type->name.c_str(), to->type->name.c_str()), because);
+				ctx.log->err(format("No conversion from '%s' to '%s' found", from->type->name.c_str(), to->name.c_str()), because);
 				return from;
 			}
 
 			return call(ctx, cast_func, because, { from });
 		}
 
-		if (!to->type->built_in) {
-			ctx.log->err(format("Cannot convert from '%s' to '%s'", from->type->name.c_str(), to->type->name.c_str()), because);
+		if (!to->built_in) {
+			ctx.log->err(format("Cannot convert from '%s' to '%s'", from->type->name.c_str(), to->name.c_str()), because);
 			return from;
 		}
 
 		if (from->type->name == "void") {
-			ctx.log->err(format("Cannot convert from 'void' to '%s'", to->type->name.c_str()), because);
+			ctx.log->err(format("Cannot convert from 'void' to '%s'", to->name.c_str()), because);
 			return from;
 		}
-		if (to->type->name == "void") {
-			ctx.log->err(format("Cannot convert from '%s' to 'void'", to->type->name.c_str()), because);
+		if (to->name == "void") {
+			ctx.log->err(format("Cannot convert from '%s' to 'void'", to->name.c_str()), because);
 			return from;
 		}
 
@@ -1262,7 +1279,7 @@ namespace gjs {
 		if (!from->type->is_floating_point) {
 			// to must be floating point
 			if (from->is_imm) return ctx.cur_func->imm(ctx, (decimal)from->imm.i);
-			var* tmp = ctx.cur_func->allocate(ctx, to->type);
+			var* tmp = ctx.cur_func->allocate(ctx, to);
 			ctx.add(
 				encode(vmi::mtfp).operand(from->to_reg(because)).operand(tmp->to_reg(because)),
 				because
@@ -1275,7 +1292,7 @@ namespace gjs {
 		} else {
 			// to must be integer
 			if (from->is_imm) return ctx.cur_func->imm(ctx, (integer)from->imm.d);
-			var* tmp = ctx.cur_func->allocate(ctx, to->type);
+			var* tmp = ctx.cur_func->allocate(ctx, to);
 			vmr treg = ctx.cur_func->registers.allocate_fp();
 			ctx.add(
 				encode(vmi::fadd).operand(treg).operand(from->to_reg(because)).operand(vmr::zero),
@@ -1293,8 +1310,13 @@ namespace gjs {
 			return tmp;
 		}
 
-		ctx.log->err(format("No conversion from '%s' to '%s' found", from->type->name.c_str(), to->type->name.c_str()), because);
+		ctx.log->err(format("No conversion from '%s' to '%s' found", from->type->name.c_str(), to->name.c_str()), because);
 		return from;
+	}
+
+	var* cast(compile_context& ctx, var* from, var* to, ast_node* because) {
+		if (!to) return from;
+		return cast(ctx, from, to->type, because);
 	}
 
 
@@ -1580,7 +1602,7 @@ namespace gjs {
 	}
 
 
-	u16 count_references(ast_node* node, const string& identifier, bool ignoreNext = false) {
+	u16 count_references(ast_node* node, const string& identifier, bool ignoreNext) {
 		if (!node) return 0;
 
 		u16 refs = 0;
@@ -1629,7 +1651,79 @@ namespace gjs {
 			n = n->next;
 		}
 
+		if (out->return_reg == vmr::register_count) {
+			if (out->return_type->size == 0) {
+				ctx.add(encode(vmi::jmpr).operand(vmr::ra), node);
+			} else {
+				if (out->is_ctor) {
+					out->return_reg = vmr::a0;
+					ctx.add(encode(vmi::jmpr).operand(vmr::ra), node);
+				} else ctx.log->err(format("Function '%s' must return a value", out->name.c_str()), node);
+			}
+		}
+
 		ctx.cur_func = nullptr;
+	}
+
+	var* compile_complex_operation(compile_context& ctx, var* lv, var* rv, ast_node* node, var* dest) {
+		static unordered_map<op, string> opStr = {
+			{ op::add, "+" },
+			{ op::sub, "-" },
+			{ op::mul, "*" },
+			{ op::div, "/" },
+			{ op::mod, "%" },
+			{ op::shiftLeft, "<<" },
+			{ op::shiftRight, ">>" },
+			{ op::land, "&&" },
+			{ op::lor, "||" },
+			{ op::band, "&" },
+			{ op::bor, "|" },
+			{ op::bxor, "^" },
+			{ op::addEq, "+=" },
+			{ op::subEq, "-=" },
+			{ op::mulEq, "*=" },
+			{ op::divEq, "/=" },
+			{ op::modEq, "%=" },
+			{ op::shiftLeftEq, "<<=" },
+			{ op::shiftRightEq, ">>=" },
+			{ op::landEq, "&&=" },
+			{ op::lorEq, "||=" },
+			{ op::bandEq, "&=" },
+			{ op::borEq, "|=" },
+			{ op::bxorEq, "^=" },
+			{ op::preInc, "++" },
+			{ op::preDec, "--" },
+			{ op::postInc, "++" },
+			{ op::postDec, "--" },
+			{ op::less, "<" },
+			{ op::greater, ">" },
+			{ op::lessEq, "<=" },
+			{ op::greaterEq, ">=" },
+			{ op::notEq, "!=" },
+			{ op::isEq, "==" },
+			{ op::eq, "=" },
+			{ op::not, "!" },
+		};
+
+		var* opOf = lv ? lv : rv;
+		var* param = lv ? rv : nullptr;
+
+		func* opFunc = lv->type->method(format("operator %s", opStr[node->op].c_str()));
+		var* ret = nullptr;
+		if (opFunc) {
+			vector<var*> args = { opOf };
+			if (param) args.push_back(param);
+			ret = call(ctx, opFunc, node, args);
+			if (ret) {
+				if (dest) {
+					ret->store_in(dest->to_reg(node), node);
+					ctx.cur_func->free(ret);
+					ret = dest;
+				}
+			}
+		}
+
+		return ret;
 	}
 
 	var* compile_expression(compile_context& ctx, ast_node* node, var* dest) {
@@ -1812,457 +1906,463 @@ namespace gjs {
 			bool auto_free = ctx.cur_func->auto_free_consumed_vars;
 			ctx.cur_func->auto_free_consumed_vars = false;
 			bool assigned = false;
-			switch (node->op) {
-				case op::invalid: { break; }
-				case op::add: {
-					var* result = dest ? dest : ctx.cur_func->allocate(ctx, lvalue->type);
-					arithmetic_op_maybe_fp(ctx, lvalue, rvalue, result, node, node->op);
-					ret = result;
-					break;
-				}
-				case op::sub: {
-					var* result = dest ? dest : ctx.cur_func->allocate(ctx, lvalue->type);
-					arithmetic_op_maybe_fp(ctx, lvalue, rvalue, result, node, node->op);
-					ret = result;
-					break;
-				}
-				case op::mul: {
-					var* result = dest ? dest : ctx.cur_func->allocate(ctx, lvalue->type);
-					arithmetic_op_maybe_fp(ctx, lvalue, rvalue, result, node, node->op);
-					ret = result;
-					break;
-				}
-				case op::div: {
-					var* result = dest ? dest : ctx.cur_func->allocate(ctx, lvalue->type);
-					arithmetic_op_maybe_fp(ctx, lvalue, rvalue, result, node, node->op);
-					ret = result;
-					break;
-				}
-				case op::mod: {
-					/*
-					var* result = dest ? dest : ctx.cur_func->allocate(ctx, lvalue->type);
-					arithmetic_op(ctx, lvalue, rvalue, result, node, node->op);
-					return result;
-					*/
-					var* result = dest ? dest : ctx.cur_func->allocate(ctx, lvalue->type);
-					ret = result;
-					break;
-				}
-				case op::shiftLeft: {
-					var* result = dest ? dest : ctx.cur_func->allocate(ctx, lvalue->type);
-					arithmetic_op(ctx, lvalue, rvalue, result, node, node->op);
-					ret = result;
-					break;
-				}
-				case op::shiftRight: {
-					var* result = dest ? dest : ctx.cur_func->allocate(ctx, lvalue->type);
-					arithmetic_op(ctx, lvalue, rvalue, result, node, node->op);
-					ret = result;
-					break;
-				}
-				case op::land: {
-					var* result = dest ? dest : ctx.cur_func->allocate(ctx, lvalue->type);
-					arithmetic_op(ctx, lvalue, rvalue, result, node, node->op);
-					ret = result;
-					break;
-				}
-				case op::lor: {
-					var* result = dest ? dest : ctx.cur_func->allocate(ctx, lvalue->type);
-					arithmetic_op(ctx, lvalue, rvalue, result, node, node->op);
-					ret = result;
-					break;
-				}
-				case op::band: {
-					var* result = dest ? dest : ctx.cur_func->allocate(ctx, lvalue->type);
-					arithmetic_op(ctx, lvalue, rvalue, result, node, node->op);
-					ret = result;
-					break;
-				}
-				case op::bor: {
-					var* result = dest ? dest : ctx.cur_func->allocate(ctx, lvalue->type);
-					arithmetic_op(ctx, lvalue, rvalue, result, node, node->op);
-					ret = result;
-					break;
-				}
-				case op::bxor: {
-					var* result = dest ? dest : ctx.cur_func->allocate(ctx, lvalue->type);
-					arithmetic_op(ctx, lvalue, rvalue, result, node, node->op);
-					ret = result;
-					break;
-				}
-				case op::addEq: {
-					arithmetic_op_maybe_fp(ctx, lvalue, rvalue, lvalue, node, node->op);
-					ret = lvalue;
-					assigned = true;
-					break;
-				}
-				case op::subEq: {
-					arithmetic_op_maybe_fp(ctx, lvalue, rvalue, lvalue, node, node->op);
-					ret = lvalue;
-					assigned = true;
-					break;
-				}
-				case op::mulEq: {
-					arithmetic_op_maybe_fp(ctx, lvalue, rvalue, lvalue, node, node->op);
-					ret = lvalue;
-					assigned = true;
-					break;
-				}
-				case op::divEq: {
-					arithmetic_op_maybe_fp(ctx, lvalue, rvalue, lvalue, node, node->op);
-					ret = lvalue;
-					assigned = true;
-					break;
-				}
-				case op::modEq: {
-					/*
-					arithmetic_op(ctx, lvalue, rvalue, lvalue, node, node->op);
-					return result;
-					*/
-					var* result = dest ? dest : ctx.cur_func->allocate(ctx, lvalue->type);
-					ret = result;
-					assigned = true;
-					break;
-				}
-				case op::shiftLeftEq: {
-					arithmetic_op(ctx, lvalue, rvalue, lvalue, node, node->op);
-					ret = lvalue;
-					assigned = true;
-					break;
-				}
-				case op::shiftRightEq: {
-					arithmetic_op(ctx, lvalue, rvalue, lvalue, node, node->op);
-					ret = lvalue;
-					assigned = true;
-					break;
-				}
-				case op::landEq: {
-					arithmetic_op(ctx, lvalue, rvalue, lvalue, node, node->op);
-					ret = lvalue;
-					assigned = true;
-					break;
-				}
-				case op::lorEq: {
-					arithmetic_op(ctx, lvalue, rvalue, lvalue, node, node->op);
-					ret = lvalue;
-					assigned = true;
-					break;
-				}
-				case op::bandEq: {
-					arithmetic_op(ctx, lvalue, rvalue, lvalue, node, node->op);
-					ret = lvalue;
-					assigned = true;
-					break;
-				}
-				case op::borEq: {
-					arithmetic_op(ctx, lvalue, rvalue, lvalue, node, node->op);
-					ret = lvalue;
-					assigned = true;
-					break;
-				}
-				case op::bxorEq: {
-					arithmetic_op(ctx, lvalue, rvalue, lvalue, node, node->op);
-					ret = lvalue;
-					assigned = true;
-					break;
-				}
-				case op::preInc: {
-					var* result = dest ? dest : ctx.cur_func->allocate(ctx, rvalue->type);
-					var* tmp;
-					if (rvalue->type->is_floating_point) tmp = ctx.cur_func->imm(ctx, 1.0f);
-					else tmp = ctx.cur_func->imm(ctx, 1);
 
-					rvalue->store_in(result->to_reg(node), node);
-					arithmetic_op_maybe_fp(ctx, rvalue, tmp, rvalue, node, node->op);
-
-					ctx.cur_func->free(tmp);
-					ret = result;
-					assigned = true;
-					break;
-				}
-				case op::preDec: {
-					var* result = dest ? dest : ctx.cur_func->allocate(ctx, rvalue->type);
-					var* tmp;
-					if (rvalue->type->is_floating_point) tmp = ctx.cur_func->imm(ctx, 1.0f);
-					else tmp = ctx.cur_func->imm(ctx, 1);
-
-					rvalue->store_in(result->to_reg(node), node);
-					arithmetic_op_maybe_fp(ctx, rvalue, tmp, rvalue, node, node->op);
-
-					ctx.cur_func->free(tmp);
-					ret = result;
-					assigned = true;
-					break;
-				}
-				case op::postInc: {
-					var* tmp;
-					if (lvalue->type->is_floating_point) tmp = ctx.cur_func->imm(ctx, 1.0f);
-					else tmp = ctx.cur_func->imm(ctx, 1);
-
-					arithmetic_op_maybe_fp(ctx, lvalue, tmp, lvalue, node, node->op);
-					if (dest) lvalue->store_in(dest->to_reg(node), node);
-
-					ctx.cur_func->free(tmp);
-					ret = dest ? dest : lvalue;
-					assigned = true;
-					break;
-				}
-				case op::postDec: {
-					var* tmp;
-					if (lvalue->type->is_floating_point) tmp = ctx.cur_func->imm(ctx, 1.0f);
-					else tmp = ctx.cur_func->imm(ctx, 1);
-
-					arithmetic_op_maybe_fp(ctx, lvalue, tmp, lvalue, node, node->op);
-					if (dest) lvalue->store_in(dest->to_reg(node), node);
-
-					ctx.cur_func->free(tmp);
-					ret = dest ? dest : lvalue;
-					assigned = true;
-					break;
-				}
-				case op::less: {
-					var* result = dest ? dest : ctx.cur_func->allocate(ctx, ctx.type("bool"));
-					var* lv = lvalue;
-					var* rv = rvalue;
-					op oper = node->op;
-					if (lv->is_imm && !rv->is_imm) {
-						swap(lv, rv);
-						oper = op::greaterEq;
+			bool maybe_complex = (lvalue && !lvalue->type->is_primitive) || (!lvalue && rvalue && !rvalue->type->is_primitive);
+			if (maybe_complex && node->op != op::member) {
+				ret = compile_complex_operation(ctx, lvalue, rvalue, node, dest);
+			} else {
+				switch (node->op) {
+					case op::invalid: { break; }
+					case op::add: {
+						var* result = dest ? dest : ctx.cur_func->allocate(ctx, lvalue->type);
+						arithmetic_op_maybe_fp(ctx, lvalue, rvalue, result, node, node->op);
+						ret = result;
+						break;
 					}
-					arithmetic_op_maybe_fp(ctx, lv, rv, result, node, oper);
-					ret = result;
-					break;
-				}
-				case op::greater: {
-					var* result = dest ? dest : ctx.cur_func->allocate(ctx, ctx.type("bool"));
-					var* lv = lvalue;
-					var* rv = rvalue;
-					op oper = node->op;
-					if (lv->is_imm && !rv->is_imm) {
-						swap(lv, rv);
-						oper = op::lessEq;
+					case op::sub: {
+						var* result = dest ? dest : ctx.cur_func->allocate(ctx, lvalue->type);
+						arithmetic_op_maybe_fp(ctx, lvalue, rvalue, result, node, node->op);
+						ret = result;
+						break;
 					}
-					arithmetic_op_maybe_fp(ctx, lv, rv, result, node, oper);
-					ret = result;
-					break;
-				}
-				case op::lessEq: {
-					var* result = dest ? dest : ctx.cur_func->allocate(ctx, ctx.type("bool"));
-					var* lv = lvalue;
-					var* rv = rvalue;
-					op oper = node->op;
-					if (lv->is_imm && !rv->is_imm) {
-						swap(lv, rv);
-						oper = op::greater;
+					case op::mul: {
+						var* result = dest ? dest : ctx.cur_func->allocate(ctx, lvalue->type);
+						arithmetic_op_maybe_fp(ctx, lvalue, rvalue, result, node, node->op);
+						ret = result;
+						break;
 					}
-					arithmetic_op_maybe_fp(ctx, lv, rv, result, node, oper);
-					ret = result;
-					break;
-				}
-				case op::greaterEq: {
-					var* result = dest ? dest : ctx.cur_func->allocate(ctx, ctx.type("bool"));
-					var* lv = lvalue;
-					var* rv = rvalue;
-					op oper = node->op;
-					if (lv->is_imm && !rv->is_imm) {
-						swap(lv, rv);
-						oper = op::less;
+					case op::div: {
+						var* result = dest ? dest : ctx.cur_func->allocate(ctx, lvalue->type);
+						arithmetic_op_maybe_fp(ctx, lvalue, rvalue, result, node, node->op);
+						ret = result;
+						break;
 					}
-					arithmetic_op_maybe_fp(ctx, lv, rv, result, node, oper);
-					ret = result;
-					break;
-				}
-				case op::notEq: {
-					var* result = dest ? dest : ctx.cur_func->allocate(ctx, ctx.type("bool"));
-					arithmetic_op_maybe_fp(ctx, lvalue, rvalue, result, node, node->op);
-					ret = result;
-					break;
-				}
-				case op::isEq: {
-					var* result = dest ? dest : ctx.cur_func->allocate(ctx, ctx.type("bool"));
-					arithmetic_op_maybe_fp(ctx, lvalue, rvalue, result, node, node->op);
-					ret = result;
-					break;
-				}
-				case op::eq: {
-					arithmetic_op_maybe_fp(ctx, nullptr, rvalue, lvalue, node, node->op);
-					if (dest) lvalue->store_in(dest->to_reg(node), node);
-					ret = dest ? dest : lvalue;
-					assigned = true;
-					break;
-				}
-				case op::not: {
-					var* result = dest ? dest : ctx.cur_func->allocate(ctx, ctx.type("bool"));
-					arithmetic_op_maybe_fp(ctx, nullptr, lvalue, result, node, node->op);
-					ret = result;
-					break;
-				}
-				case op::negate: {
-					// todo: use bitwise operations instead of multiplication
-					var* result = dest ? dest : ctx.cur_func->allocate(ctx, rvalue->type);
-					var* tmp = nullptr;
-					if (rvalue->type->is_floating_point) tmp = ctx.cur_func->imm(ctx, -1.0f);
-					else tmp = ctx.cur_func->imm(ctx, -1);
-					arithmetic_op_maybe_fp(ctx, rvalue, tmp, result, node, node->op);
-					ctx.cur_func->free(tmp);
-					break;
-				}
-				case op::addr: {
-					var* result = dest ? dest : ctx.cur_func->allocate(ctx, lvalue->type);
-					ret = result;
-					break;
-				}
-				case op::at: {
-					var* result = dest ? dest : ctx.cur_func->allocate(ctx, lvalue->type);
-					ret = result;
-					break;
-				}
-				case op::member: {
-					data_type::property* prop = lvalue->type->prop(*node->rvalue);
-					if (prop) {
-						var* pval = ctx.cur_func->allocate(ctx, prop->type);
-						if (ctx.do_store_member_pointer) {
-							// store pointer to property in v1 in case value should be stored later
-							ctx.add(
-								encode(vmi::addui).operand(vmr::v1).operand(lvalue->to_reg(node)).operand(prop->offset),
-								node
-							);
+					case op::mod: {
+						/*
+						var* result = dest ? dest : ctx.cur_func->allocate(ctx, lvalue->type);
+						arithmetic_op(ctx, lvalue, rvalue, result, node, node->op);
+						return result;
+						*/
+						var* result = dest ? dest : ctx.cur_func->allocate(ctx, lvalue->type);
+						ret = result;
+						break;
+					}
+					case op::shiftLeft: {
+						var* result = dest ? dest : ctx.cur_func->allocate(ctx, lvalue->type);
+						arithmetic_op(ctx, lvalue, rvalue, result, node, node->op);
+						ret = result;
+						break;
+					}
+					case op::shiftRight: {
+						var* result = dest ? dest : ctx.cur_func->allocate(ctx, lvalue->type);
+						arithmetic_op(ctx, lvalue, rvalue, result, node, node->op);
+						ret = result;
+						break;
+					}
+					case op::land: {
+						var* result = dest ? dest : ctx.cur_func->allocate(ctx, lvalue->type);
+						arithmetic_op(ctx, lvalue, rvalue, result, node, node->op);
+						ret = result;
+						break;
+					}
+					case op::lor: {
+						var* result = dest ? dest : ctx.cur_func->allocate(ctx, lvalue->type);
+						arithmetic_op(ctx, lvalue, rvalue, result, node, node->op);
+						ret = result;
+						break;
+					}
+					case op::band: {
+						var* result = dest ? dest : ctx.cur_func->allocate(ctx, lvalue->type);
+						arithmetic_op(ctx, lvalue, rvalue, result, node, node->op);
+						ret = result;
+						break;
+					}
+					case op::bor: {
+						var* result = dest ? dest : ctx.cur_func->allocate(ctx, lvalue->type);
+						arithmetic_op(ctx, lvalue, rvalue, result, node, node->op);
+						ret = result;
+						break;
+					}
+					case op::bxor: {
+						var* result = dest ? dest : ctx.cur_func->allocate(ctx, lvalue->type);
+						arithmetic_op(ctx, lvalue, rvalue, result, node, node->op);
+						ret = result;
+						break;
+					}
+					case op::addEq: {
+						arithmetic_op_maybe_fp(ctx, lvalue, rvalue, lvalue, node, node->op);
+						ret = lvalue;
+						assigned = true;
+						break;
+					}
+					case op::subEq: {
+						arithmetic_op_maybe_fp(ctx, lvalue, rvalue, lvalue, node, node->op);
+						ret = lvalue;
+						assigned = true;
+						break;
+					}
+					case op::mulEq: {
+						arithmetic_op_maybe_fp(ctx, lvalue, rvalue, lvalue, node, node->op);
+						ret = lvalue;
+						assigned = true;
+						break;
+					}
+					case op::divEq: {
+						arithmetic_op_maybe_fp(ctx, lvalue, rvalue, lvalue, node, node->op);
+						ret = lvalue;
+						assigned = true;
+						break;
+					}
+					case op::modEq: {
+						/*
+						arithmetic_op(ctx, lvalue, rvalue, lvalue, node, node->op);
+						return result;
+						*/
+						var* result = dest ? dest : ctx.cur_func->allocate(ctx, lvalue->type);
+						ret = result;
+						assigned = true;
+						break;
+					}
+					case op::shiftLeftEq: {
+						arithmetic_op(ctx, lvalue, rvalue, lvalue, node, node->op);
+						ret = lvalue;
+						assigned = true;
+						break;
+					}
+					case op::shiftRightEq: {
+						arithmetic_op(ctx, lvalue, rvalue, lvalue, node, node->op);
+						ret = lvalue;
+						assigned = true;
+						break;
+					}
+					case op::landEq: {
+						arithmetic_op(ctx, lvalue, rvalue, lvalue, node, node->op);
+						ret = lvalue;
+						assigned = true;
+						break;
+					}
+					case op::lorEq: {
+						arithmetic_op(ctx, lvalue, rvalue, lvalue, node, node->op);
+						ret = lvalue;
+						assigned = true;
+						break;
+					}
+					case op::bandEq: {
+						arithmetic_op(ctx, lvalue, rvalue, lvalue, node, node->op);
+						ret = lvalue;
+						assigned = true;
+						break;
+					}
+					case op::borEq: {
+						arithmetic_op(ctx, lvalue, rvalue, lvalue, node, node->op);
+						ret = lvalue;
+						assigned = true;
+						break;
+					}
+					case op::bxorEq: {
+						arithmetic_op(ctx, lvalue, rvalue, lvalue, node, node->op);
+						ret = lvalue;
+						assigned = true;
+						break;
+					}
+					case op::preInc: {
+						var* result = dest ? dest : ctx.cur_func->allocate(ctx, rvalue->type);
+						var* tmp;
+						if (rvalue->type->is_floating_point) tmp = ctx.cur_func->imm(ctx, 1.0f);
+						else tmp = ctx.cur_func->imm(ctx, 1);
+
+						rvalue->store_in(result->to_reg(node), node);
+						arithmetic_op_maybe_fp(ctx, rvalue, tmp, rvalue, node, node->op);
+
+						ctx.cur_func->free(tmp);
+						ret = result;
+						assigned = true;
+						break;
+					}
+					case op::preDec: {
+						var* result = dest ? dest : ctx.cur_func->allocate(ctx, rvalue->type);
+						var* tmp;
+						if (rvalue->type->is_floating_point) tmp = ctx.cur_func->imm(ctx, 1.0f);
+						else tmp = ctx.cur_func->imm(ctx, 1);
+
+						rvalue->store_in(result->to_reg(node), node);
+						arithmetic_op_maybe_fp(ctx, rvalue, tmp, rvalue, node, node->op);
+
+						ctx.cur_func->free(tmp);
+						ret = result;
+						assigned = true;
+						break;
+					}
+					case op::postInc: {
+						var* tmp;
+						if (lvalue->type->is_floating_point) tmp = ctx.cur_func->imm(ctx, 1.0f);
+						else tmp = ctx.cur_func->imm(ctx, 1);
+
+						arithmetic_op_maybe_fp(ctx, lvalue, tmp, lvalue, node, node->op);
+						if (dest) lvalue->store_in(dest->to_reg(node), node);
+
+						ctx.cur_func->free(tmp);
+						ret = dest ? dest : lvalue;
+						assigned = true;
+						break;
+					}
+					case op::postDec: {
+						var* tmp;
+						if (lvalue->type->is_floating_point) tmp = ctx.cur_func->imm(ctx, 1.0f);
+						else tmp = ctx.cur_func->imm(ctx, 1);
+
+						arithmetic_op_maybe_fp(ctx, lvalue, tmp, lvalue, node, node->op);
+						if (dest) lvalue->store_in(dest->to_reg(node), node);
+
+						ctx.cur_func->free(tmp);
+						ret = dest ? dest : lvalue;
+						assigned = true;
+						break;
+					}
+					case op::less: {
+						var* result = dest ? dest : ctx.cur_func->allocate(ctx, ctx.type("bool"));
+						var* lv = lvalue;
+						var* rv = rvalue;
+						op oper = node->op;
+						if (lv->is_imm && !rv->is_imm) {
+							swap(lv, rv);
+							oper = op::greaterEq;
 						}
-
-						if (prop->flags ^ bind::pf_object_pointer) {
-							ctx.last_member_was_pointer = false;
-							if (prop->type->built_in) {
-								// load value at lvalue + n bytes
-								vmi ld;
-								switch (prop->type->size) {
-									case 1: { ld = vmi::ld8; break; }
-									case 2: { ld = vmi::ld16; break; }
-									case 4: { ld = vmi::ld32; break; }
-									case 8: { ld = vmi::ld64; break; }
-								}
+						arithmetic_op_maybe_fp(ctx, lv, rv, result, node, oper);
+						ret = result;
+						break;
+					}
+					case op::greater: {
+						var* result = dest ? dest : ctx.cur_func->allocate(ctx, ctx.type("bool"));
+						var* lv = lvalue;
+						var* rv = rvalue;
+						op oper = node->op;
+						if (lv->is_imm && !rv->is_imm) {
+							swap(lv, rv);
+							oper = op::lessEq;
+						}
+						arithmetic_op_maybe_fp(ctx, lv, rv, result, node, oper);
+						ret = result;
+						break;
+					}
+					case op::lessEq: {
+						var* result = dest ? dest : ctx.cur_func->allocate(ctx, ctx.type("bool"));
+						var* lv = lvalue;
+						var* rv = rvalue;
+						op oper = node->op;
+						if (lv->is_imm && !rv->is_imm) {
+							swap(lv, rv);
+							oper = op::greater;
+						}
+						arithmetic_op_maybe_fp(ctx, lv, rv, result, node, oper);
+						ret = result;
+						break;
+					}
+					case op::greaterEq: {
+						var* result = dest ? dest : ctx.cur_func->allocate(ctx, ctx.type("bool"));
+						var* lv = lvalue;
+						var* rv = rvalue;
+						op oper = node->op;
+						if (lv->is_imm && !rv->is_imm) {
+							swap(lv, rv);
+							oper = op::less;
+						}
+						arithmetic_op_maybe_fp(ctx, lv, rv, result, node, oper);
+						ret = result;
+						break;
+					}
+					case op::notEq: {
+						var* result = dest ? dest : ctx.cur_func->allocate(ctx, ctx.type("bool"));
+						arithmetic_op_maybe_fp(ctx, lvalue, rvalue, result, node, node->op);
+						ret = result;
+						break;
+					}
+					case op::isEq: {
+						var* result = dest ? dest : ctx.cur_func->allocate(ctx, ctx.type("bool"));
+						arithmetic_op_maybe_fp(ctx, lvalue, rvalue, result, node, node->op);
+						ret = result;
+						break;
+					}
+					case op::eq: {
+						arithmetic_op_maybe_fp(ctx, nullptr, rvalue, lvalue, node, node->op);
+						if (dest) lvalue->store_in(dest->to_reg(node), node);
+						ret = dest ? dest : lvalue;
+						assigned = true;
+						break;
+					}
+					case op::not: {
+						var* result = dest ? dest : ctx.cur_func->allocate(ctx, ctx.type("bool"));
+						arithmetic_op_maybe_fp(ctx, nullptr, lvalue, result, node, node->op);
+						ret = result;
+						break;
+					}
+					case op::negate: {
+						// todo: use bitwise operations instead of multiplication
+						var* result = dest ? dest : ctx.cur_func->allocate(ctx, rvalue->type);
+						var* tmp = nullptr;
+						if (rvalue->type->is_floating_point) tmp = ctx.cur_func->imm(ctx, -1.0f);
+						else tmp = ctx.cur_func->imm(ctx, -1);
+						arithmetic_op_maybe_fp(ctx, rvalue, tmp, result, node, node->op);
+						ctx.cur_func->free(tmp);
+						break;
+					}
+					case op::addr: {
+						var* result = dest ? dest : ctx.cur_func->allocate(ctx, lvalue->type);
+						ret = result;
+						break;
+					}
+					case op::at: {
+						var* result = dest ? dest : ctx.cur_func->allocate(ctx, lvalue->type);
+						ret = result;
+						break;
+					}
+					case op::member: {
+						data_type::property* prop = lvalue->type->prop(*node->rvalue);
+						if (prop) {
+							var* pval = ctx.cur_func->allocate(ctx, prop->type);
+							if (ctx.do_store_member_pointer) {
+								// store pointer to property in v1 in case value should be stored later
 								ctx.add(
-									encode(ld).operand(pval->to_reg(node)).operand(lvalue->to_reg(node)).operand((u64)prop->offset),
-									node
-								);
-							} else {
-								// get pointer to property in pval
-								ctx.add(
-									encode(vmi::addui).operand(pval->to_reg(node)).operand(lvalue->to_reg(node)).operand(prop->offset),
+									encode(vmi::addui).operand(vmr::v1).operand(lvalue->to_reg(node)).operand(prop->offset),
 									node
 								);
 							}
 
-							ctx.last_type_method = nullptr;
-						} else {
-							ctx.last_member_was_pointer = true;
-							if (prop->type->built_in) {
-								// load pointer at lvalue + n bytes
-								vmi ld;
-								switch (sizeof(void*)) {
-									case 1: { ld = vmi::ld8; break; }
-									case 2: { ld = vmi::ld16; break; }
-									case 4: { ld = vmi::ld32; break; }
-									case 8: { ld = vmi::ld64; break; }
+							if (prop->flags ^ bind::pf_object_pointer) {
+								ctx.last_member_was_pointer = false;
+								if (prop->type->built_in) {
+									// load value at lvalue + n bytes
+									vmi ld;
+									switch (prop->type->size) {
+										case 1: { ld = vmi::ld8; break; }
+										case 2: { ld = vmi::ld16; break; }
+										case 4: { ld = vmi::ld32; break; }
+										case 8: { ld = vmi::ld64; break; }
+									}
+									ctx.add(
+										encode(ld).operand(pval->to_reg(node)).operand(lvalue->to_reg(node)).operand(prop->offset),
+										node
+									);
+								} else {
+									// get pointer to property in pval
+									ctx.add(
+										encode(vmi::addui).operand(pval->to_reg(node)).operand(lvalue->to_reg(node)).operand(prop->offset),
+										node
+									);
 								}
-								ctx.add(
-									encode(ld).operand(pval->to_reg(node)).operand(lvalue->to_reg(node)).operand(prop->offset),
-									node
-								);
 
-								// load value pointed to by pval
-								switch (prop->type->size) {
-									case 1: { ld = vmi::ld8; break; }
-									case 2: { ld = vmi::ld16; break; }
-									case 4: { ld = vmi::ld32; break; }
-									case 8: { ld = vmi::ld64; break; }
-								}
-								ctx.add(
-									encode(ld).operand(pval->to_reg(node)).operand(pval->to_reg(node)).operand(0),
-									node
-								);
+								ctx.last_type_method = nullptr;
 							} else {
-								// load pointer at lvalue + n bytes
-								vmi ld;
-								switch (sizeof(void*)) {
-									case 1: { ld = vmi::ld8; break; }
-									case 2: { ld = vmi::ld16; break; }
-									case 4: { ld = vmi::ld32; break; }
-									case 8: { ld = vmi::ld64; break; }
+								ctx.last_member_was_pointer = true;
+								if (prop->type->built_in) {
+									// load pointer at lvalue + n bytes
+									vmi ld;
+									switch (sizeof(void*)) {
+										case 1: { ld = vmi::ld8; break; }
+										case 2: { ld = vmi::ld16; break; }
+										case 4: { ld = vmi::ld32; break; }
+										case 8: { ld = vmi::ld64; break; }
+									}
+									ctx.add(
+										encode(ld).operand(pval->to_reg(node)).operand(lvalue->to_reg(node)).operand(prop->offset),
+										node
+									);
+
+									// load value pointed to by pval
+									switch (prop->type->size) {
+										case 1: { ld = vmi::ld8; break; }
+										case 2: { ld = vmi::ld16; break; }
+										case 4: { ld = vmi::ld32; break; }
+										case 8: { ld = vmi::ld64; break; }
+									}
+									ctx.add(
+										encode(ld).operand(pval->to_reg(node)).operand(pval->to_reg(node)).operand(0),
+										node
+									);
+								} else {
+									// load pointer at lvalue + n bytes
+									vmi ld;
+									switch (sizeof(void*)) {
+										case 1: { ld = vmi::ld8; break; }
+										case 2: { ld = vmi::ld16; break; }
+										case 4: { ld = vmi::ld32; break; }
+										case 8: { ld = vmi::ld64; break; }
+									}
+									ctx.add(
+										encode(ld).operand(pval->to_reg(node)).operand(lvalue->to_reg(node)).operand(prop->offset),
+										node
+									);
 								}
-								ctx.add(
-									encode(ld).operand(pval->to_reg(node)).operand(lvalue->to_reg(node)).operand(prop->offset),
-									node
-								);
 							}
+
+							if (dest) {
+								if (!prop->type->equals(dest->type)) {
+									var* converted = cast(ctx, pval, dest, node);
+									converted->store_in(dest->to_reg(node), node);
+									if (converted != pval) ctx.cur_func->free(converted);
+								} else pval->store_in(dest->to_reg(node), node);
+
+								ctx.cur_func->free(pval);
+							}
+							var* result = dest ? dest : pval;
+							ret = result;
+						}
+						else {
+							func* method = lvalue->type->method(*node->rvalue);
+							if (method) {
+								ctx.last_type_method = method;
+								ret = lvalue;
+							} else {
+								ctx.last_type_method = nullptr;
+								string n = *node->rvalue;
+								ctx.log->err(format("'%s' is not a property or method of type '%s'", n.c_str(), lvalue->type->name.c_str()), node);
+							}
+						}
+						break;
+					}
+					case op::newObj: {
+						// todo: check data-type needs construction
+						data_type* tp = ctx.type(node->data_type);
+						func* getmem = ctx.function("alloc");
+						var* sz = ctx.cur_func->imm(ctx, (integer)tp->actual_size);
+						var* mem = call(ctx, getmem, node, { sz });
+						ctx.cur_func->free(sz);
+
+						func* t = tp->ctor;
+						vector<var*> args = { mem };
+						vector<bool> free_arg = { true };
+						ast_node* arg = node->arguments;
+						while (arg) {
+							args.push_back(compile_expression(ctx, arg, nullptr));
+							free_arg.push_back(!args[args.size() - 1]->is_variable);
+							arg = arg->next;
+						}
+						ret = call(ctx, t, node, args);
+						for (u32 i = 0;i < args.size();i++) {
+							if (free_arg[i]) ctx.cur_func->free(args[i]);
 						}
 
 						if (dest) {
-							if (!prop->type->equals(dest->type)) {
-								var* converted = cast(ctx, pval, dest, node);
-								converted->store_in(dest->to_reg(node), node);
-								if (converted != pval) ctx.cur_func->free(converted);
-							} else pval->store_in(dest->to_reg(node), node);
-
-							ctx.cur_func->free(pval);
-						}
-						var* result = dest ? dest : pval;
-						ret = result;
-					}
-					else {
-						func* method = lvalue->type->method(*node->rvalue);
-						if (method) {
-							ctx.last_type_method = method;
-							ret = lvalue;
-						} else {
-							ctx.last_type_method = nullptr;
-							string n = *node->rvalue;
-							ctx.log->err(format("'%s' is not a property or method of type '%s'", n.c_str(), lvalue->type->name.c_str()), node);
-						}
-					}
-					break;
-				}
-				case op::newObj: {
-					// todo: check data-type needs construction
-					data_type* tp = ctx.type(node->data_type);
-					func* getmem = ctx.function("alloc");
-					var* sz = ctx.cur_func->imm(ctx, (integer)tp->actual_size);
-					var* mem = call(ctx, getmem, node, { sz });
-					ctx.cur_func->free(sz);
-
-					func* t = tp->ctor;
-					vector<var*> args = { mem };
-					vector<bool> free_arg = { true };
-					ast_node* arg = node->arguments;
-					while (arg) {
-						args.push_back(compile_expression(ctx, arg, nullptr));
-						free_arg.push_back(!args[args.size() - 1]->is_variable);
-						arg = arg->next;
-					}
-					ret = call(ctx, t, node, args);
-					for (u32 i = 0;i < args.size();i++) {
-						if (free_arg[i]) ctx.cur_func->free(args[i]);
-					}
-
-					if (dest) {
-						if (!ret) ctx.log->err("Cannot assign variable to result of function with no return value", node);
-						else {
-							var* v = ret;
-							if (!dest->type->equals(v->type)) {
-								v = cast(ctx, v, dest, node);
+							if (!ret) ctx.log->err("Cannot assign variable to result of function with no return value", node);
+							else {
+								var* v = ret;
+								if (!dest->type->equals(v->type)) {
+									v = cast(ctx, v, dest, node);
+								}
+								v->store_in(dest->to_reg(node), node);
+								ctx.cur_func->free(ret);
+								if (v != ret) ctx.cur_func->free(v);
+								return dest;
 							}
-							v->store_in(dest->to_reg(node), node);
-							ctx.cur_func->free(ret);
-							if (v != ret) ctx.cur_func->free(v);
-							return dest;
 						}
+						break;
 					}
-					break;
 				}
 			}
 
 			var* var_assigned = lvalue ? lvalue : rvalue;
 			ast_node* node_assigned = node->lvalue ? node->lvalue : node->rvalue;
-			if (assigned && node_assigned->op == op::member && ret) {
+			if ((assignsLv || assignsRv) && node_assigned->op == op::member && ret) {
 				// v1 will hold a pointer to the member
 				if (var_assigned->type->built_in) {
 					if (ctx.last_member_was_pointer) {
@@ -2517,10 +2617,18 @@ namespace gjs {
 				if (node->body) {
 					var* ret = compile_expression(ctx, node->body, nullptr);
 					if (ret) {
-						if (ctx.cur_func->return_reg == vmr::register_count) {
-							ctx.cur_func->return_reg = ret->to_reg(node);
+						if (ctx.cur_func->is_ctor) {
+							ctx.log->err("Class constructors must not return a value", node);
+						} else if (ctx.cur_func->is_dtor) {
+							ctx.log->err("Class destructors must not return a value", node);
 						} else {
-							ret->store_in(ctx.cur_func->return_reg, node);
+							var* ovar = cast(ctx, ret, ctx.cur_func->return_type, node);
+							if (ctx.cur_func->return_reg == vmr::register_count) {
+								ctx.cur_func->return_reg = ovar->to_reg(node);
+							} else {
+								ovar->store_in(ctx.cur_func->return_reg, node);
+							}
+							if (ovar != ret) ctx.cur_func->free(ovar);
 						}
 						if (!ret->is_variable) ctx.cur_func->free(ret);
 					}
@@ -2577,6 +2685,7 @@ namespace gjs {
 			t->built_in = types[i]->is_builtin;
 			t->is_floating_point = types[i]->is_floating_point;
 			t->is_unsigned = types[i]->is_unsigned;
+			t->is_primitive = types[i]->is_primitive;
 			if (!t->built_in || t->name == "string") {
 				// object pointer
 				t->size = sizeof(void*);
@@ -2633,54 +2742,56 @@ namespace gjs {
 			n = n->next;
 		}
 
-		vector<data_type*> new_types;
-		for (u32 i = 0;i < ctx.types.size();i++) {
-			data_type* t = ctx.types[i];
-			if (t->type) continue; // already in context
+		if (ctx.log->errors.size() == 0) {
+			vector<data_type*> new_types;
+			for (u32 i = 0;i < ctx.types.size();i++) {
+				data_type* t = ctx.types[i];
+				if (t->type) continue; // already in context
 
-			vm_type* tp = vctx->types()->add(t->name, t->name);
-			t->type = tp;
-			for (u32 p = 0;p < t->props.size();p++) {
-				data_type::property& sprop = t->props[p];
-				vm_type::property prop;
-				prop.name = sprop.name;
-				prop.offset = sprop.offset;
-				prop.flags = sprop.flags;
-				tp->properties.push_back(prop);
-			}
-			new_types.push_back(t);
-		}
-
-		for (u32 i = 0;i < ctx.funcs.size();i++) {
-			func* sf = ctx.funcs[i];
-			vm_function* f = new vm_function(vctx, sf->name, sf->entry);
-			for (u8 a = 0;a < sf->args.size();a++) {
-				f->signature.arg_types.push_back(sf->args[a].type->type);
-				f->signature.arg_locs.push_back(sf->args[a].loc);
-			}
-			f->signature.return_loc = sf->return_reg;
-			f->signature.return_type = sf->return_type->type;
-			vctx->add(f);
-		}
-
-		for (u32 i = 0;i < new_types.size();i++) {
-			data_type* t = new_types[i];
-			vm_type* tp = t->type;
-			for (u32 p = 0;p < t->props.size();p++) {
-				data_type::property& sprop = t->props[p];
-				vm_type::property& tprop = tp->properties[p];
-				tprop.getter = sprop.getter ? vctx->function(sprop.getter->entry) : nullptr;
-				tprop.setter = sprop.setter ? vctx->function(sprop.setter->entry) : nullptr;
-				tprop.type = sprop.type->type;
+				vm_type* tp = vctx->types()->add(t->name, t->name);
+				t->type = tp;
+				for (u32 p = 0;p < t->props.size();p++) {
+					data_type::property& sprop = t->props[p];
+					vm_type::property prop;
+					prop.name = sprop.name;
+					prop.offset = sprop.offset;
+					prop.flags = sprop.flags;
+					tp->properties.push_back(prop);
+				}
+				new_types.push_back(t);
 			}
 
-			for (u32 m = 0;m < t->methods.size();m++) {
-				func* f = t->methods[m];
-				tp->methods.push_back(vctx->function(f->entry));
+			for (u32 i = 0;i < ctx.funcs.size();i++) {
+				func* sf = ctx.funcs[i];
+				vm_function* f = new vm_function(vctx, sf->name, sf->entry);
+				for (u8 a = 0;a < sf->args.size();a++) {
+					f->signature.arg_types.push_back(sf->args[a].type->type);
+					f->signature.arg_locs.push_back(sf->args[a].loc);
+				}
+				f->signature.return_loc = sf->return_reg;
+				f->signature.return_type = sf->return_type->type;
+				vctx->add(f);
 			}
 
-			if (t->ctor) tp->constructor = vctx->function(t->ctor->entry);
-			if (t->dtor) tp->destructor = vctx->function(t->dtor->entry);
+			for (u32 i = 0;i < new_types.size();i++) {
+				data_type* t = new_types[i];
+				vm_type* tp = t->type;
+				for (u32 p = 0;p < t->props.size();p++) {
+					data_type::property& sprop = t->props[p];
+					vm_type::property& tprop = tp->properties[p];
+					tprop.getter = sprop.getter ? vctx->function(sprop.getter->entry) : nullptr;
+					tprop.setter = sprop.setter ? vctx->function(sprop.setter->entry) : nullptr;
+					tprop.type = sprop.type->type;
+				}
+
+				for (u32 m = 0;m < t->methods.size();m++) {
+					func* f = t->methods[m];
+					tp->methods.push_back(vctx->function(f->entry));
+				}
+
+				if (t->ctor) tp->constructor = vctx->function(t->ctor->entry);
+				if (t->dtor) tp->destructor = vctx->function(t->dtor->entry);
+			}
 		}
 	}
 };

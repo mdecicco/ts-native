@@ -49,6 +49,7 @@ namespace gjs {
 	}
 
 	void ir_remove_trailing_stack_loads(vm_context* ctx, instruction_array& ir, source_map* map, u32 start_addr) {
+		return;
 		vmi min_load = vmi::ld8;
 		vmi max_load = vmi::ld64;
 		vector<u32> remove_addrs;

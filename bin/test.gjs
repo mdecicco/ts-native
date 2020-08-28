@@ -4,15 +4,10 @@ class vec3 {
         this.x = x;
         this.y = y;
         this.z = z;
-        testvec(this);
-        return this;
     }
     
-    vec3 operator += (vec3 r) {
-        this.x += r.x;
-        this.y += r.y;
-        this.z += r.z;
-        return this;
+    vec3 operator + (vec3 r) {
+        return new vec3(this.x + r.x, this.y + r.y, this.z + r.z);
     }
     
     f32 x;
@@ -20,47 +15,8 @@ class vec3 {
     f32 z;
 };
 
-i32 test(i32 x);
-i32 something(i32 arg0, i32 arg1, i32 arg2) {
-    i32 x = arg0 + arg1 * 4.0;
-    i32 y = x - arg2;
-    x = y++;
-    for (i32 i = 0;i < 10;i++) {
-        x += 3;
-    }
-    return test(x);
-}
-i32 test(i32 x) {
-    return x > 5 ? x * 5 : x;
-}
-void pf(foo f) {
-    print_foo(f);
-    return;
-}
-i32 test1(i32 z) {
-    foo a = new foo(0);
-    vec3 b = new vec3(1.0, 2.0, 3.5);
-    testvec(b);
-    a.w = b.z;
-    pf(a);
-    delete a;
-    testvec(b);
-    delete b;
-    return something(z, z + 1, z + 2);
-}
-i32 main(foo a) {
-    a.x = 52;
-    a.y *= 5;
-    a.z = (6 / 3);
-    a.w = 61.69;
-    a.x = a;
-    pf(a);
-    return a.t(test1(100), a.x);
-};
 void it() {
-    foo a = new foo(0);
-    delete a;
-    vec3 b = new vec3(1.0, 2.0, 3.5);
-    delete b;
-    return;
+    vec3 a = new vec3(1.0, 2.0, 3.0);
+    vec3 b = new vec3(3.0, 2.0, 1.0);
+    testvec(a + b);
 }

@@ -85,7 +85,7 @@ void print_code(vm_context& ctx) {
 			}
 			printf(")");
 
-			if (f->signature.return_type->size == 0) printf(" -> null");
+			if (f->signature.return_type->name == "void") printf(" -> null");
 			else printf(" -> $%s", register_str[u8(f->signature.return_loc)]);
 			printf("]\n");
 		}
@@ -146,15 +146,9 @@ int main(int arg_count, const char** args) {
 	print_code(ctx);
 
 	printf("-------------result-------------\n");
-	ctx.function("it")->call<void*>(nullptr);
-
-	int x = 5;
-	foo test(&x);
-	test.y = 10;
-	test.z = 4;
-	integer result = 0;
-	vm_function* func = ctx.function("main");
 	ctx.log_instructions(true);
-	if (func) func->call(&result, &test);
+	ctx.function("it");
+	vm_function* func = ctx.function("it");
+	if (func) func->call<void*>(nullptr);
 	return 0;
 }
