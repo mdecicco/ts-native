@@ -1,6 +1,6 @@
 #include <pipeline.h>
 #include <parse.h>
-#include <compile.h>
+#include <compiler/compiler.h>
 #include <context.h>
 
 namespace gjs {

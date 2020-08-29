@@ -13,29 +13,42 @@ set(
 include_directories(${include_dirs})
 link_directories(${library_dirs})
 
-option(GJS_BIG_INTS "Use 64-bit script integers")
-option(GJS_BIG_FLOATS "Use 64-bit script floats")
-
 add_subdirectory("./deps")
 
-file(GLOB src
+file(GLOB_RECURSE gjs_src
 	"src/*.h"
 	"src/*.hpp"
 	"src/*.cpp"
+	"src/compiler/*.h"
+	"src/compiler/*.hpp"
+	"src/compiler/*.cpp"
 )
-source_group(src FILES ${src})
 
-add_executable(gjs ${src})
+set_property(GLOBAL PROPERTY USE_FOLDERS ON)
+add_executable(gjs ${gjs_src})
 
-set(defines )
+MACRO(SOURCE_GROUP_BY_FOLDER target)
+  SET(SOURCE_GROUP_DELIMITER "/")
+  SET(last_dir "")
+  SET(files "")
+  FOREACH(file ${${target}_src})
+    file(RELATIVE_PATH relative_file "${PROJECT_SOURCE_DIR}" ${file})
+    GET_FILENAME_COMPONENT(dir "${relative_file}" PATH)
+    IF (NOT "${dir}" STREQUAL "${last_dir}")
+      IF (files)
+        SOURCE_GROUP("${last_dir}" FILES ${files})
+      ENDIF (files)
+      SET(files "")
+    ENDIF (NOT "${dir}" STREQUAL "${last_dir}")
+    SET(files ${files} ${file})
+    SET(last_dir "${dir}")
+  ENDFOREACH(file)
+  IF (files)
+    SOURCE_GROUP("${last_dir}" FILES ${files})
+  ENDIF (files)
+ENDMACRO(SOURCE_GROUP_BY_FOLDER)
 
-if (GJS_BIG_INTS)
-	target_compile_definitions(gjs PRIVATE "SCRIPTS_USE_64BIT_INTEGERS=1")
-endif ()
-
-if (GJS_BIG_FLOATS)
-	target_compile_definitions(gjs PRIVATE "SCRIPTS_USE_64BIT_DECIMALS=1")
-endif ()
+SOURCE_GROUP_BY_FOLDER(gjs)
 
 target_link_libraries(gjs asmjit)
 

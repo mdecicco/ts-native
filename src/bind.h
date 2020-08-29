@@ -2,7 +2,6 @@
 #include <types.h>
 #include <builtin.h>
 
-#include <any>
 #include <vector>
 #include <typeindex>
 #include <tuple>
@@ -76,20 +75,11 @@ namespace gjs {
 	};
 
 	namespace bind {
-		using arg_arr = std::vector<std::any>;
-
 		template <typename T>
 		void to_reg(vm_context* context, const T& in, u64* reg_ptr);
 
 		template <typename T>
 		void from_reg(vm_context* context, T* out, u64* reg_ptr);
-
-		template <typename T>
-		std::any to_arg(vm_context* context, u64* reg_ptr) {
-			union { T x; };
-			from_reg<T>(context, &x, reg_ptr);
-			return std::any(x);
-		}
 
 		struct wrapped_function {
 			wrapped_function(std::type_index ret, std::vector<std::type_index> args, const std::string& _name, const std::string& _sig)

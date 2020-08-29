@@ -1,7 +1,7 @@
 #include <context.h>
 #include <bind.h>
 #include <parse.h>
-#include <compile.h>
+#include <compiler/compiler.h>
 #include <asmjit/asmjit.h>
 #include <default_steps.h>
 #include <builtin.h>
