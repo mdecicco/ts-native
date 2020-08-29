@@ -9,6 +9,9 @@ namespace gjs {
 	class compile_log;
 	class instruction_array;
 	struct ast_node;
+	struct compile_context;
+	struct func;
+	struct data_type;
 
 	class compile_exception : public std::exception {
 		public:
@@ -24,5 +27,7 @@ namespace gjs {
 			u32 col;
 	};
 
+	void compile_node(compile_context& ctx, ast_node* node);
+	u16 count_references(ast_node* node, const std::string& identifier, bool ignoreNext = false);
 	void compile_ast(vm_context* ctx, ast_node* tree, instruction_array* out, source_map* map, compile_log* log);
 };
