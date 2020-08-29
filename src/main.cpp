@@ -6,11 +6,19 @@ using namespace gjs;
 
 class foo {
 	public:
-		foo(i32* _x) { x = _x; w = 3.0f; }
-		~foo() { }
+		foo(i32* _x) : x(_x), y(0), z(0), w(0.0f) {
+			printf("Construct foo\n");
+		}
+		~foo() {
+			printf("Destruct foo\n");
+		}
 
-		i32 t(i32 a) {
-			return printf("%d, %d\n", y, a);
+		i32 t(i32 a, i32* b) {
+			return printf("%d, %d, %d\n", y, a, *b);
+		}
+
+		static void static_func(i32 a) {
+			printf("ayyy: %d\n", a);
 		}
 
 		operator i32() { return y; }
@@ -19,7 +27,19 @@ class foo {
 		i32 y;
 		i32 z;
 		f32 w;
+		static f64 s;
 };
+f64 foo::s = 5.5;
+
+struct vec3 { f32 x, y, z; };
+void testvec(void* vec) {
+	vec3& v = *(vec3*)vec;
+	printf("%f, %f, %f\n", v.x, v.y, v.z);
+}
+void dtestvec(void* vec) {
+	vec3& v = *(vec3*)vec;
+	printf("Destroyed: %f, %f, %f\n", v.x, v.y, v.z);
+}
 
 void print_foo(const foo& f) {
 	printf("foo: %d, %d, %d, %f\n", *f.x, f.y, f.z, f.w);
@@ -75,11 +95,17 @@ void print_code(vm_context& ctx) {
 			}
 			printf(")");
 
-			if (f->signature.return_type->size == 0) printf(" -> null");
-			else printf(" -> $%s", register_str[u8(f->signature.return_loc)]);
+			if (f->signature.return_type->name == "void") printf(" -> null");
+			else {
+				if (f->signature.returns_on_stack) {
+					printf(" -> $%s (stack)", register_str[u8(f->signature.return_loc)]);
+				} else {
+					printf(" -> $%s", register_str[u8(f->signature.return_loc)]);
+				}
+			}
 			printf("]\n");
 		}
-		printf("0x%2.2X: %-32s", i, instruction_to_string((*ctx.code())[i]).c_str());
+		printf("0x%2.2X: %-32s", i, (*ctx.code())[i].to_string().c_str());
 
 		auto src = ctx.map()->get(i);
 		if (src.lineText != last_line) {
@@ -112,16 +138,20 @@ int main(int arg_count, const char** args) {
 
 	try {
 		auto f = ctx.bind<foo>("foo");
-		f.constructor<integer*>();
+		f.constructor<i32*>();
 		f.method("t", &foo::t);
 		f.method("operator i32", &foo::operator i32);
+		f.method("static_func", &foo::static_func);
 		f.prop("x", &foo::x, bind::property_flags::pf_object_pointer);
 		f.prop("y", &foo::y, bind::property_flags::pf_none);
 		f.prop("z", &foo::z, bind::property_flags::pf_none);
 		f.prop("w", &foo::w, bind::property_flags::pf_none);
+		f.prop("s", &foo::s, bind::property_flags::pf_none);
 		f.finalize();
 
 		ctx.bind(print_foo, "print_foo");
+		ctx.bind(testvec, "testvec");
+		ctx.bind(dtestvec, "dtestvec");
 	} catch (bind_exception& e) {
 		printf("%s\n", e.text.c_str());
 	}
@@ -135,14 +165,9 @@ int main(int arg_count, const char** args) {
 	print_code(ctx);
 
 	printf("-------------result-------------\n");
-
-	int x = 5;
-	foo test(&x);
-	test.y = 10;
-	test.z = 4;
-	integer result = 0;
-	vm_function* func = ctx.function("main");
-	ctx.log_instructions(true);
-	if (func) func->call(&result, &test);
+	// ctx.log_instructions(true);
+	ctx.function("it");
+	vm_function* func = ctx.function("it");
+	if (func) func->call<void*>(nullptr);
 	return 0;
 }

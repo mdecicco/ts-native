@@ -14,7 +14,7 @@ namespace gjs {
 		map->map.erase(map->map.begin() + addr);
 
 		for (u32 a = start_addr;a < ir.size();a++) {
-			vmi i = decode_instruction(ir[a]);
+			vmi i = ir[a].instr();
 
 			switch (i) {
 				case vmi::beqz:
@@ -23,15 +23,15 @@ namespace gjs {
 				case vmi::bgtez:
 				case vmi::bltz:
 				case vmi::bltez: {
-					vmr reg = decode_operand_1(ir[a]);
-					uinteger fail_addr = decode_operand_2ui(ir[a]);
+					vmr reg = ir[a].op_1r();
+					u64 fail_addr = ir[a].imm_u();
 					if (fail_addr > addr) fail_addr--;
 					ir.set(a, encode(i).operand(reg).operand(fail_addr));
 					break;
 				}
 				case vmi::jmp:
 				case vmi::jal: {
-					u64 jmp_addr = decode_operand_1ui64(ir[a]);
+					u64 jmp_addr = ir[a].imm_u();
 					if (jmp_addr > addr && jmp_addr <= ir.size()) jmp_addr--;
 					ir.set(a, encode(i).operand(jmp_addr));
 					break;
@@ -48,7 +48,9 @@ namespace gjs {
 		}
 	}
 
+	// de-necessitated 
 	void ir_remove_trailing_stack_loads(vm_context* ctx, instruction_array& ir, source_map* map, u32 start_addr) {
+		return;
 		vmi min_load = vmi::ld8;
 		vmi max_load = vmi::ld64;
 		vector<u32> remove_addrs;
@@ -64,19 +66,19 @@ namespace gjs {
 			if (f) cur_func = f;
 			if (!cur_func) continue;
 
-			vmi i = decode_instruction(ir[a]);
-			if (i >= min_load && i <= max_load && !reg_is_safe(decode_operand_1(ir[a]), { vmr::ra, cur_func->signature.return_loc })) {
+			vmi i = ir[a].instr();
+			if (i >= min_load && i <= max_load && !reg_is_safe(ir[a].op_1r(), { vmr::ra, cur_func->signature.return_loc })) {
 				remove_addrs.clear();
 				remove_addrs.push_back(a);
 				bool function_exits_after = true;
 				for (u32 b = a + 1;b < ir.size();b++) {
-					vmi ib = decode_instruction(ir[b]);
+					vmi ib = ir[b].instr();
 					if (ib >= min_load && ib <= max_load) {
-						if (!reg_is_safe(decode_operand_1(ir[a]), { vmr::ra, cur_func->signature.return_loc })) {
+						if (!reg_is_safe(ir[a].op_1r(), { vmr::ra, cur_func->signature.return_loc })) {
 							remove_addrs.push_back(b);
 						}
 					} else if (ib == vmi::jmpr) {
-						vmr to = decode_operand_1(ir[b]);
+						vmr to = ir[b].op_1r();
 						if (to != vmr::ra) function_exits_after = false;
 						break;
 					} else {

@@ -1,23 +1,12 @@
-#include <instruction_encoder.h>
 #include <instruction.h>
+#include <instruction_encoder.h>
 #include <register.h>
-#include <vm_state.h>
-#include <parse_utils.h>
+#include <context.h>
+#include <util.h>
 
 namespace gjs {
 	using vmi = vm_instruction;
 	using vmr = vm_register;
-
-	 #define debug(i) // print_i_bits(i)
-	 void print_i_bits (instruction i) {
-		system("cls");
-		for (int b = 63;b >= 0;b--) printf("%2.2d: %d\n", 64 - b, (u8)(i >> b) & 1);
-	 }
-	
-	instruction_encoder::instruction_encoder(vm_instruction i) {
-		m_result = instruction(i) << instruction_shift;
-		debug(m_result);
-	}
 
 	// term, null
 	#define check_instr_type_0(x)	\
@@ -44,7 +33,7 @@ namespace gjs {
 			|| x == vmi::pop		\
 		)
 
-	// b*, push, pop
+	// bits*, push, pop
 	#define check_instr_type_3(x)	\
 		(							\
 			   x == vmi::beqz		\
@@ -264,9 +253,18 @@ namespace gjs {
 		)
 
 	#define is_fpr(x) (x >= vmr::f0 && x <= vmr::f15)
+	#define decode_instr ((vmi)(m_code >> instr_shift))
+	#define check_flag(f) (((m_code | flag_mask) ^ flag_mask) & f)
+	#define set_flag(f) (m_code |= f)
 
-	instruction_encoder& instruction_encoder::operand(vm_register reg) {
-		vmi instr = decode_instruction(m_result);
+	instruction::instruction() : m_code(0), m_imm(0) { }
+
+	instruction::instruction(vm_instruction i) : m_code(0), m_imm(0) {
+		m_code |= u32(i) << instr_shift;
+	}
+
+	instruction& instruction::operand(vm_register reg) {
+		vmi instr = decode_instr;
 		if (check_instr_type_0(instr)) {
 			// instruction takes no operands
 			// exception
@@ -279,14 +277,14 @@ namespace gjs {
 			return *this;
 		}
 
-		if (m_result & (1 << 2)) {
+		if (check_flag(op_3_assigned)) {
 			// operand 3 already set, no instructions take a 4th operand
 			// exception
 			return *this;
 		}
 
 		// maybe set operand 3
-		if (m_result & (1 << 1)) {
+		if (check_flag(op_2_assigned)) {
 			// operand 2 already set
 			if (!third_operand_is_register(instr)) {
 				// instruction does not need third operand or third operand can not be a register
@@ -300,14 +298,13 @@ namespace gjs {
 				return *this;
 			}
 
-			m_result |= 1 << 2;
-			m_result |= instruction(reg) << operand_3r_shift;
-			debug(m_result);
+			set_flag(op_3_assigned);
+			m_code |= u32(reg) << op_3_shift;
 			return *this;
 		}
 		
 		// maybe set operand 2
-		if (m_result & 1) {
+		if (check_flag(op_1_assigned)) {
 			// operand 1 already set
 			if (!second_operand_is_register(instr)) {
 				// instruction does not need second operand or second operand can not be a register
@@ -321,9 +318,8 @@ namespace gjs {
 				return *this;
 			}
 
-			m_result |= 1 << 1;
-			m_result |= instruction(reg) << operand_2r_shift;
-			debug(m_result);
+			set_flag(op_2_assigned);
+			m_code |= u32(reg) << op_2_shift;
 			return *this;
 		}
 
@@ -340,27 +336,30 @@ namespace gjs {
 			return *this;
 		}
 
-		m_result |= 1;
-		m_result |= instruction(reg) << operand_1r_shift;
-		debug(m_result);
+		set_flag(op_1_assigned);
+		m_code |= u32(reg) << op_1_shift;
 		return *this;
 	}
 
-	instruction_encoder& instruction_encoder::operand(integer immediate) {
-		vmi instr = decode_instruction(m_result);
+	instruction& instruction::operand(i64 immediate) {
+		return operand(*(u64*)&immediate);
+	}
+
+	instruction& instruction::operand(u64 immediate) {
+		vmi instr = decode_instr;
 		if (check_instr_type_0(instr)) {
 			// instruction takes no operands
 			// exception
 			return *this;
 		}
 
-		if (m_result & (1 << 2)) {
+		if (check_flag(op_3_assigned)) {
 			// operand 3 already set
 			// exception
 			return *this;
 		}
 
-		if (m_result & (1 << 1)) {
+		if (check_flag(op_2_assigned)) {
 			// operand 2 already set
 			if (!third_operand_is_immediate(instr)) {
 				// instruction does not take third operand or third operand is not immediate
@@ -374,13 +373,12 @@ namespace gjs {
 				return *this;
 			}
 
-			m_result |= 1 << 2;
-			m_result |= instruction(immediate) << operand_3i_shift;
-			debug(m_result);
+			set_flag(op_3_assigned);
+			m_imm = immediate;
 			return *this;
 		}
 
-		if (m_result & 1) {
+		if (check_flag(op_1_assigned)) {
 			// operand 1 already set
 			if (!second_operand_is_immediate(instr)) {
 				// instruction does not take second operand or second operand is not immediate
@@ -388,9 +386,8 @@ namespace gjs {
 				return *this;
 			}
 
-			m_result |= 1 << 1;
-			m_result |= instruction(immediate) << operand_2i_shift;
-			debug(m_result);
+			set_flag(op_2_assigned);
+			m_imm = immediate;
 			return *this;
 		}
 
@@ -400,87 +397,26 @@ namespace gjs {
 			// exception
 			return *this;
 		}
-		m_result |= 1;
-		m_result |= instruction(immediate) << operand_1i_shift;
-		debug(m_result);
+		
+		set_flag(op_1_assigned);
 		return *this;
 	}
 
-	instruction_encoder& instruction_encoder::operand(uinteger immediate) {
-		vmi instr = decode_instruction(m_result);
+	instruction& instruction::operand(f64 immediate) {
+		vmi instr = decode_instr;
 		if (check_instr_type_0(instr)) {
 			// instruction takes no operands
 			// exception
 			return *this;
 		}
 
-		if (m_result & (1 << 2)) {
+		if (check_flag(op_3_assigned)) {
 			// operand 3 already set
 			// exception
 			return *this;
 		}
 
-		if (m_result & (1 << 1)) {
-			// operand 2 already set
-			if (!third_operand_is_immediate(instr)) {
-				// instruction does not take third operand or third operand is not immediate
-				// exception
-				return *this;
-			}
-
-			if (third_operand_must_be_fpi(instr)) {
-				// instruction requires that the third operand be floating point
-				// exception
-				return *this;
-			}
-
-			m_result |= 1 << 2;
-			m_result |= instruction(immediate) << operand_3i_shift;
-			debug(m_result);
-			return *this;
-		}
-
-		if (m_result & 1) {
-			// operand 1 already set
-			if (!second_operand_is_immediate(instr)) {
-				// instruction does not take second operand or second operand is not immediate
-				// exception
-				return *this;
-			}
-
-			m_result |= 1 << 1;
-			m_result |= instruction(immediate) << operand_2i_shift;
-			debug(m_result);
-			return *this;
-		}
-
-		// operand 1
-		if (!first_operand_is_immediate(instr)) {
-			// instruction does not take an operand or first operand is not immediate
-			// exception
-			return *this;
-		}
-		m_result |= 1;
-		m_result |= instruction(immediate) << operand_1i_shift;
-		debug(m_result);
-		return *this;
-	}
-
-	instruction_encoder& instruction_encoder::operand(decimal immediate) {
-		vmi instr = decode_instruction(m_result);
-		if (check_instr_type_0(instr)) {
-			// instruction takes no operands
-			// exception
-			return *this;
-		}
-
-		if (m_result & (1 << 2)) {
-			// operand 3 already set
-			// exception
-			return *this;
-		}
-
-		if (m_result & (1 << 1)) {
+		if (check_flag(op_2_assigned)) {
 			// operand 2 already set
 			if (!third_operand_is_immediate(instr)) {
 				// instruction does not take third operand or third operand is not immediate
@@ -494,13 +430,8 @@ namespace gjs {
 				return *this;
 			}
 
-			debug(m_result);
-			m_result |= 1 << 2;
-			debug(m_result);
-			m_result |= instruction(1) << operand_3_is_flt_shift;
-			debug(m_result);
-			m_result |= instruction(*(integer*)&immediate) << operand_3i_shift;
-			debug(m_result);
+			set_flag(op_3_is_float);
+			m_imm = *(u64*)&immediate;
 			return *this;
 		}
 
@@ -509,55 +440,11 @@ namespace gjs {
 		return *this;
 	}
 
-	instruction_encoder& instruction_encoder::operand(u64 immediate) {
-		vmi instr = decode_instruction(m_result);
-		if (check_instr_type_0(instr)) {
-			// instruction takes no operands
-			// exception
-			return *this;
-		}
+	std::string instruction::to_string(vm_context* ctx) const {
+		vm_state* state = ctx ? ctx->state() : nullptr;
 
-		if (!check_instr_type_1(instr)) {
-			// only type 1 instructions can take this kind of operand
-			// exception
-			return *this;
-		}
-
-		if (m_result & (1 << 2)) {
-			// operand 3 already set
-			// exception
-			return *this;
-		}
-
-		if (m_result & (1 << 1)) {
-			// operand 2 already set
-			// this type of operand can only be assigned to the first operand
-			// exception
-			return *this;
-		}
-
-		if (m_result & 1) {
-			// operand 1 already set
-			// this type of operand can only be assigned to the first operand
-			// exception
-			return *this;
-		}
-
-		// operand 1
-		if (!first_operand_is_immediate(instr)) {
-			// instruction does not take an operand or first operand is not immediate
-			// exception
-			return *this;
-		}
-
-		m_result |= instruction((immediate | operand_1_integer_mask) ^ operand_1_integer_mask) << operand_1i_shift;
-		debug(m_result);
-		return *this;
-	}
-
-	std::string instruction_to_string(instruction code, vm_state* state) {
 		std::string out;
-		vmi i = decode_instruction(code);
+		vmi i = instr();
 		if (i >= vmi::instruction_count) return "Invalid Instruction";
 
 		if (check_instr_type_0(i)) return instruction_str[(u8)i];
@@ -577,8 +464,8 @@ namespace gjs {
 
 				std::string reg_val = ""; // "<" + state->registers[(integer)r].to_string() + ">"
 
-				if (is_fpr(r)) reg_val = format("<%f>", decimal(state->registers[(integer)r]));
-				else reg_val = format("<%d>", integer(state->registers[(integer)r]));
+				if (is_fpr(r)) reg_val = format("<%f>", *(f32*)&state->registers[(integer)r]);
+				else reg_val = format("<%d>", *(i32*)&state->registers[(integer)r]);
 				return "$" + std::string(register_str[(integer)r]) + reg_val;
 			}
 
@@ -588,76 +475,76 @@ namespace gjs {
 		out += instruction_str[(u8)i];
 		while (out.length() < 8) out += ' ';
 		if (check_instr_type_1(i)) {
-			u64 o1 = decode_operand_1ui64(code);
+			u64 o1 = imm_u();
 			out += format("0x%llX", o1);
 		} else if (check_instr_type_2(i)) {
-			vmr o1 = decode_operand_1(code);
+			vmr o1 = op_1r();
 			if (o1 >= vmr::register_count) return "Invalid Instruction";
 
 			out += reg_str(o1);
 		} else if (check_instr_type_3(i)) {
-			vmr o1 = decode_operand_1(code);
+			vmr o1 = op_1r();
 			if (o1 >= vmr::register_count) return "Invalid Instruction";
 
 			out += reg_str(o1);
 			out += ", ";
 
-			integer o2 = decode_operand_2ui(code);
+			integer o2 = imm_u();
 			out += format("0x%llX", o2);
 		} else if (check_instr_type_5(i)) {
-			vmr o1 = decode_operand_1(code);
+			vmr o1 = op_1r();
 			if (o1 >= vmr::register_count) return "Invalid Instruction";
 
 			out += reg_str(o1);
 			out += ", ";
 
-			vmr o2 = decode_operand_2(code);
+			vmr o2 = op_2r();
 			if (o2 >= vmr::register_count) return "Invalid Instruction";
 
-			integer o3 = decode_operand_3i(code);
+			integer o3 = imm_i();
 			char offset[32] = { 0 };
 			_itoa_s<32>(o3, offset, 10);
 			out += offset;
 			out += '(' + reg_str(o2, o3, true) + ')';
 		} else if (check_instr_type_6(i)) {
-			vmr o1 = decode_operand_1(code);
+			vmr o1 = op_1r();
 			if (o1 >= vmr::register_count) return "Invalid Instruction";
 
 			out += reg_str(o1);
 			out += ", ";
 
-			vmr o2 = decode_operand_2(code);
+			vmr o2 = op_2r();
 			if (o2 >= vmr::register_count) return "Invalid Instruction";
 
 			out += reg_str(o2);
 			out += ", ";
 
-			if (decode_operator_3_is_float(code)) {
-				decimal o3 = decode_operand_3f(code);
+			if (imm_is_flt()) {
+				decimal o3 = imm_f();
 				char imm[32] = { 0 };
 				snprintf(imm, 32, "%f", o3);
 				out += imm;
 			} else {
-				integer o3 = decode_operand_3i(code);
+				integer o3 = imm_i();
 				char imm[32] = { 0 };
 				_itoa_s<32>(o3, imm, 10);
 				out += imm;
 			}
 
 		} else if (check_instr_type_7(i)) {
-			vmr o1 = decode_operand_1(code);
+			vmr o1 = op_1r();
 			if (o1 >= vmr::register_count) return "Invalid Instruction";
 
 			out += reg_str(o1);
 			out += ", ";
 
-			vmr o2 = decode_operand_2(code);
+			vmr o2 = op_2r();
 			if (o2 >= vmr::register_count) return "Invalid Instruction";
 
 			out += reg_str(o2);
 			out += ", ";
 
-			vmr o3 = decode_operand_3(code);
+			vmr o3 = op_3r();
 			if (o3 >= vmr::register_count) return "Invalid Instruction";
 
 			out += reg_str(o3);

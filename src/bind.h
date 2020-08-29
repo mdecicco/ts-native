@@ -1,4 +1,7 @@
 #pragma once
+#include <types.h>
+#include <builtin.h>
+
 #include <any>
 #include <vector>
 #include <typeindex>
@@ -6,9 +9,8 @@
 #include <string>
 
 #include <asmjit/asmjit.h>
-
-#include <types.h>
 #include <robin_hood.h>
+
 
 #define declare_input_binding(type, ctx_name, in_name, reg_name) template<> void to_reg<type>(vm_context* ctx_name, const type& in_name, u64* reg_name)
 #define declare_output_binding(type, ctx_name, out_name, reg_name) template<> void from_reg<type>(vm_context* ctx_name, type* out_name, u64* reg_name)
@@ -91,7 +93,7 @@ namespace gjs {
 
 		struct wrapped_function {
 			wrapped_function(std::type_index ret, std::vector<std::type_index> args, const std::string& _name, const std::string& _sig)
-			: return_type(ret), arg_types(args), name(_name), sig(_sig) { }
+			: return_type(ret), arg_types(args), name(_name), sig(_sig), is_static_method(false), address(0), ret_is_ptr(false) { }
 
 			// class methods must receive /this/ pointer as first argument
 			virtual void call(void* ret, void** args) = 0;
@@ -99,8 +101,10 @@ namespace gjs {
 			std::string name;
 			std::string sig;
 			std::type_index return_type;
+			bool ret_is_ptr;
 			std::vector<std::type_index> arg_types;
 			std::vector<bool> arg_is_ptr;
+			bool is_static_method;
 			u64 address;
 		};
 
@@ -139,6 +143,7 @@ namespace gjs {
 					if (!tpm->get<Ret>()) {
 						throw bind_exception(format("Return type '%s' of function '%s' has not been bound yet", base_type_name<Ret>(), name.c_str()));
 					}
+					ret_is_ptr = std::is_reference_v<Ret> || std::is_pointer_v<Ret>;
 					arg_is_ptr = { (std::is_reference_v<Args> || std::is_pointer_v<Args>)... };
 					address = u64(reinterpret_cast<void*>(f));
 					
@@ -204,6 +209,7 @@ namespace gjs {
 						if (!tpm->get<Ret>()) {
 							throw bind_exception(format("Return type '%s' of method '%s' of class '%s' has not been bound yet", base_type_name<Ret>(), name.c_str(), typeid(remove_all<Cls>::type).name()));
 						}
+						ret_is_ptr = std::is_reference_v<Ret> || std::is_pointer_v<Ret>;
 						arg_is_ptr = { true, (std::is_reference_v<Args> || std::is_pointer_v<Args>)... };
 						address = *(u64*)reinterpret_cast<void*>(&f);
 
@@ -275,13 +281,13 @@ namespace gjs {
 		};
 
 		template <typename Cls, typename... Args>
-		Cls* construct_object(Args... args) {
-			return new Cls(args...);
+		Cls* construct_object(void* mem, Args... args) {
+			return new (mem) Cls(args...);
 		}
 
 		template <typename Cls>
 		void destruct_object(Cls* obj) {
-			delete obj;
+			obj->~Cls();
 		}
 
 		template <typename Cls, typename... Args>
@@ -298,18 +304,19 @@ namespace gjs {
 			pf_none				= 0b00000000,
 			pf_read_only		= 0b00000001,
 			pf_write_only		= 0b00000010,
-			pf_object_pointer	= 0b00000100
+			pf_object_pointer	= 0b00000100,
+			pf_static_prop		= 0b00001000
 		};
 
 		struct wrapped_class {
 			struct property {
-				property(wrapped_function* g, wrapped_function* s, std::type_index t, u32 o, u8 f) :
+				property(wrapped_function* g, wrapped_function* s, std::type_index t, u64 o, u8 f) :
 					getter(g), setter(s), type(t), offset(o), flags(f) { }
 
 				wrapped_function* getter;
 				wrapped_function* setter;
 				std::type_index type;
-				u32 offset;
+				u64 offset;
 				u8 flags;
 			};
 
@@ -349,6 +356,13 @@ namespace gjs {
 				return *this;
 			}
 
+			template <typename Ret, typename... Args>
+			wrap_class& method(const std::string& _name, Ret(*func)(Args...)) {
+				methods[_name] = wrap(types, rt, name + "::" + _name, func);
+				methods[_name]->is_static_method = true;
+				return *this;
+			}
+
 			template <typename T>
 			wrap_class& prop(const std::string& _name, T Cls::*member, u8 flags = property_flags::pf_none) {
 				if (properties.find(_name) != properties.end()) {
@@ -361,6 +375,20 @@ namespace gjs {
 
 				u32 offset = (u8*)&((Cls*)nullptr->*member) - (u8*)nullptr;
 				properties[_name] = new property(nullptr, nullptr, typeid(remove_all<T>::type), offset, flags);
+				return *this;
+			}
+
+			template <typename T>
+			wrap_class& prop(const std::string& _name, T *member, u8 flags = property_flags::pf_none) {
+				if (properties.find(_name) != properties.end()) {
+					throw bind_exception(format("Property '%s' already bound to type '%s'", _name.c_str(), name.c_str()));
+				}
+
+				if (!types->get<T>()) {
+					throw bind_exception(format("Attempting to bind property of type '%s' that has not been bound itself", typeid(remove_all<T>::type).name()));
+				}
+
+				properties[_name] = new property(nullptr, nullptr, typeid(remove_all<T>::type), (u64)member, flags | pf_static_prop);
 				return *this;
 			}
 
@@ -414,10 +442,12 @@ namespace gjs {
 			struct {
 				std::string text;
 				vm_type* return_type;
+				bool returns_on_stack;
 				vm_register return_loc;
 				std::vector<vm_type*> arg_types;
 				std::vector<vm_register> arg_locs;
 				bool is_thiscall;
+				bool returns_pointer;
 			} signature;
 
 			union {
@@ -464,7 +494,7 @@ namespace gjs {
 				u8 flags;
 				std::string name;
 				vm_type* type;
-				u32 offset;
+				u64 offset;
 				vm_function* getter;
 				vm_function* setter;
 			};

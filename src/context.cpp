@@ -4,6 +4,7 @@
 #include <compile.h>
 #include <asmjit/asmjit.h>
 #include <default_steps.h>
+#include <builtin.h>
 
 namespace gjs {
 	runtime_exception::runtime_exception(vm_context* ctx, const std::string& _text) : text(_text), raised_from_script(true), line(0), col(0) {
@@ -33,71 +34,7 @@ namespace gjs {
 		m_instructions += encode(vm_instruction::term);
 		m_map.append("[internal code]", "", 0, 0);
 
-		vm_type* tp = nullptr;
-		tp = m_types.add("i32", typeid(i32).name());
-		tp->is_primitive = true;
-		tp->is_builtin = true;
-		tp->size = sizeof(i32);
-
-		tp = nullptr;
-		tp = m_types.add("u32", typeid(u32).name());
-		tp->is_primitive = true;
-		tp->is_unsigned = true;
-		tp->is_builtin = true;
-		tp->size = sizeof(u32);
-
-		tp = nullptr;
-		tp = m_types.add("i16", typeid(i16).name());
-		tp->is_primitive = true;
-		tp->is_builtin = true;
-		tp->size = sizeof(i16);
-
-		tp = nullptr;
-		tp = m_types.add("u16", typeid(u16).name());
-		tp->is_primitive = true;
-		tp->is_unsigned = true;
-		tp->is_builtin = true;
-		tp->size = sizeof(u16);
-
-		tp = nullptr;
-		tp = m_types.add("i8", typeid(i8).name());
-		tp->is_primitive = true;
-		tp->is_builtin = true;
-		tp->size = sizeof(i8);
-
-		tp = nullptr;
-		tp = m_types.add("u8", typeid(u8).name());
-		tp->is_primitive = true;
-		tp->is_unsigned = true;
-		tp->is_builtin = true;
-		tp->size = sizeof(u8);
-
-		tp = m_types.add("f32", typeid(f32).name());
-		tp->is_primitive = true;
-		tp->is_floating_point = true;
-		tp->is_builtin = true;
-		tp->size = sizeof(f32);
-
-		tp = m_types.add("f64", typeid(f64).name());
-		tp->is_primitive = true;
-		tp->is_floating_point = true;
-		tp->is_builtin = true;
-		tp->size = sizeof(f64);
-
-		tp = m_types.add("bool", typeid(bool).name());
-		tp->is_primitive = true;
-		tp->is_builtin = true;
-		tp->size = sizeof(bool);
-
-		tp = m_types.add("string", "char");
-		tp->is_primitive = false;
-		tp->is_builtin = true;
-		tp->size = sizeof(char*);
-
-		tp = m_types.add("void", "void");
-		tp->is_primitive = true;
-		tp->is_builtin = true;
-		tp->size = 0;
+		init_context(this);
 
 		m_pipeline.add_ir_step(ir_remove_trailing_stack_loads);
 	}
