@@ -627,6 +627,10 @@ namespace gjs {
 			if (n) {
 				token typeTok = current();
 				consume();
+
+				// could be referring to a static method or property
+				if (match({ "." })) return n;
+
 				ast_node* op = new ast_node();
 				op->type = ast_node::node_type::operation;
 				op->op = ast_node::operation_type::stackObj;
@@ -1918,7 +1922,17 @@ namespace gjs {
 		first = t.identifier(false);
 		t.restore_state();
 		if (first) {
-			if (ctx.find_type(first.text)) r = parse_declaration(ctx, t);
+			if (ctx.find_type(first.text)) {
+				t.backup_state();
+				t.identifier();
+				if (t.character('.', false)) {
+					t.restore_state();
+					r = parse_expression(ctx, t, true);
+				} else {
+					t.restore_state();
+					r = parse_declaration(ctx, t);
+				}
+			}
 			else if (ctx.find_variable(first.text)) r = parse_expression(ctx, t);
 			else {
 				throw parse_exception(

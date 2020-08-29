@@ -31,17 +31,18 @@ namespace gjs {
 	#define GR16(r) GRx(r, u16)
 	#define GR32(r) GRx(r, u32)
 	#define GR64(r) GRx(r, u64)
-	#define _O1 decode_operand_1(i)
-	#define _O1i decode_operand_1i(i)
-	#define _O1ui decode_operand_1ui(i)
-	#define _O1ui64 decode_operand_1ui64(i)
-	#define _O2 decode_operand_2(i)
-	#define _O2i decode_operand_2i(i)
-	#define _O2ui decode_operand_2ui(i)
-	#define _O3 decode_operand_3(i)
-	#define _O3i decode_operand_3i(i)
-	#define _O3ui decode_operand_3ui(i)
-	#define _O3f decode_operand_3f(i)
+	#define _O1 i.op_1r()
+	#define _O1i i.imm_i()
+	#define _O1ui i.imm_u()
+	#define _O1ui64 i.imm_u()
+	#define _O2 i.op_2r()
+	#define _O2i i.imm_i()
+	#define _O2ui i.imm_u()
+	#define _O3 i.op_3r()
+	#define _O3i i.imm_i()
+	#define _O3ui i.imm_u()
+	#define _O3ui64 i.imm_u()
+	#define _O3f i.imm_f()
 
 	#define STACK_PADDING_SIZE 8
 
@@ -54,7 +55,7 @@ namespace gjs {
 	void vm::execute(const instruction_array& code, address entry) {
 		jit(code);
 		
-		GR64(vmr::ip) = (integer)entry;
+		GR64(vmr::ip) = entry;
 		GR64(vmr::ra) = 0;
 		GR64(vmr::sp) = (u64)state.memory[0];
 		GR64(vmr::zero) = 0;
@@ -69,10 +70,10 @@ namespace gjs {
 		while ((*ip) <= cs && !term) {
 			i = code[*ip];
 			if (m_ctx->log_instructions()) {
-				printf("0x%2.2x: %s\n", *ip, instruction_to_string(i, &state).c_str());
+				printf("0x%2.2x: %s\n", *ip, i.to_string(m_ctx).c_str());
 			}
 
-			vmi instr = decode_instruction(i);
+			vmi instr = i.instr();
 			switch (instr) {
 				// do nothing
                 case vmi::null: {
@@ -84,7 +85,7 @@ namespace gjs {
 				}
                 // load 1 byte from memory into register			ld8		(dest)	(src)	0		dest = *(src + 0)
                 case vmi::ld8: {
-					u64 offset = GR64(integer(_O2)) + _O3i;
+					u64 offset = GR64(integer(_O2)) + _O3ui64;
 					if (offset >= stack_padding_start && offset <= stack_padding_end) {
 						throw runtime_exception(m_ctx, "Stack overflow detected");
 					}
@@ -94,7 +95,7 @@ namespace gjs {
                 }
                 // load 2 bytes from memory into register			ld8		(dest)	(src)	0		dest = *(src + 0)
                 case vmi::ld16: {
-					u64 offset = GR64(integer(_O2)) + _O3i;
+					u64 offset = GR64(integer(_O2)) + _O3ui64;
 					if (offset >= stack_padding_start && offset <= stack_padding_end) {
 						throw runtime_exception(m_ctx, "Stack overflow detected");
 					}
@@ -104,7 +105,7 @@ namespace gjs {
                 }
                 // load 4 bytes from memory into register			ld8		(dest)	(src)	0		dest = *(src + 0)
                 case vmi::ld32: {
-					u64 offset = GR64(integer(_O2)) + _O3i;
+					u64 offset = GR64(integer(_O2)) + _O3ui64;
 					if (offset >= stack_padding_start && offset <= stack_padding_end) {
 						throw runtime_exception(m_ctx, "Stack overflow detected");
 					}
@@ -114,7 +115,7 @@ namespace gjs {
                 }
                 // load 8 bytes from memory into register			ld8		(dest)	(src)	0		dest = *(src + 0)
                 case vmi::ld64: {
-					u64 offset = GR64(integer(_O2)) + _O3i;
+					u64 offset = GR64(integer(_O2)) + _O3ui64;
 					if (offset >= stack_padding_start && offset <= stack_padding_end) {
 						throw runtime_exception(m_ctx, "Stack overflow detected");
 					}
@@ -124,7 +125,7 @@ namespace gjs {
                 }
                 // store 1 byte in memory from register				store	(src)	(dest)	10		dest = *(src + 10)
                 case vmi::st8: {
-					u64 offset = GR64(integer(_O2)) + _O3i;
+					u64 offset = GR64(integer(_O2)) + _O3ui64;
 					if (offset >= stack_padding_start && offset <= stack_padding_end) {
 						throw runtime_exception(m_ctx, "Stack overflow detected");
 					}
@@ -134,7 +135,7 @@ namespace gjs {
                 }
                 // store 2 bytes in memory from register			store	(src)	(dest)	10		dest = *(src + 10)
                 case vmi::st16: {
-					u64 offset = GR64(integer(_O2)) + _O3i;
+					u64 offset = GR64(integer(_O2)) + _O3ui64;
 					if (offset >= stack_padding_start && offset <= stack_padding_end) {
 						throw runtime_exception(m_ctx, "Stack overflow detected");
 					}
@@ -144,7 +145,7 @@ namespace gjs {
                 }
                 // store 4 bytes in memory from register			store	(src)	(dest)	10		dest = *(src + 10)
                 case vmi::st32: {
-					u64 offset = GR64(integer(_O2)) + _O3i;
+					u64 offset = GR64(integer(_O2)) + _O3ui64;
 					if (offset >= stack_padding_start && offset <= stack_padding_end) {
 						throw runtime_exception(m_ctx, "Stack overflow detected");
 					}
@@ -154,7 +155,7 @@ namespace gjs {
                 }
                 // store 8 bytes in memory from register			store	(src)	(dest)	10		dest = *(src + 10)
                 case vmi::st64: {
-					u64 offset = GR64(integer(_O2)) + _O3i;
+					u64 offset = GR64(integer(_O2)) + _O3ui64;
 					if (offset >= stack_padding_start && offset <= stack_padding_end) {
 						throw runtime_exception(m_ctx, "Stack overflow detected");
 					}
@@ -164,6 +165,7 @@ namespace gjs {
                 }
                 // push register onto stack							push	(a)						*sp = a; sp--
                 case vmi::push: {
+					//todo: remove push, pop instructions
 					integer& offset = GRi(vmr::sp);
 					if (offset - 8 <= 0) {
 						// stack overflow exception
@@ -187,12 +189,12 @@ namespace gjs {
                 }
 				// move from general register to float register		mtfp	(a)		(b)				b = a
 				case vmi::mtfp: {
-					GR32(_O2) = GR32(_O1);
+					GR64(_O2) = GR64(_O1);
 					break;
 				}
 				// move from float register to general register		mffp	(a)		(b)				b =	a
 				case vmi::mffp: {
-					GR32(_O2) = GR32(_O1);
+					GR64(_O2) = GR64(_O1);
 					break;
 				}
                 // add two registers								add		(dest)	(a)		(b)		dest = a + b

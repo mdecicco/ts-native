@@ -10,20 +10,18 @@ namespace gjs {
 			instruction_array(vm_allocator* allocator);
 			~instruction_array();
 
-			void operator += (const instruction_encoder& i);
-			void operator += (instruction i);
+			void operator += (const instruction& i);
 
 			inline instruction operator[](u32 index) const { return m_instructions[index]; }
-			inline void set(u32 index, const instruction_encoder& i) { m_instructions[index] = i; }
-			inline void set(u32 index, instruction i) { m_instructions[index] = i; }
-			inline u32 size() const { return m_count; }
-			void remove(u32 from, u32 to);
-			void remove(u32 index);
+			inline void set(u64 index, const instruction& i) { m_instructions[index] = i; }
+			inline u64 size() const { return m_count; }
+			void remove(u64 from, u64 to);
+			void remove(u64 index);
 
 		protected:
 			vm_allocator* m_allocator;
 			instruction* m_instructions;
-			u32 m_count;
-			u32 m_capacity;
+			u64 m_count;
+			u64 m_capacity;
 	};
 };

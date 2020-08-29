@@ -204,6 +204,7 @@ namespace gjs {
 			reached_return = false;
 			return_loc_determined = false;
 			is_thiscall = false;
+			bound_to = nullptr;
 		}
 
 		func(compile_context& ctx, vm_function* f);
@@ -224,6 +225,7 @@ namespace gjs {
 		bool auto_free_consumed_vars;
 		bool reached_return;
 		bool is_thiscall;
+		vm_function* bound_to;
 		
 		struct {
 			func* parent;
@@ -417,7 +419,7 @@ namespace gjs {
 			u8 flags;
 			string name;
 			data_type* type;
-			u32 offset;
+			u64 offset;
 			func* getter;
 			func* setter;
 		};
@@ -438,8 +440,8 @@ namespace gjs {
 
 		// the following two sizes are equal for primitive types
 		// for structures, classes, the size is sizeof(void*)
-		u32 actual_size;
-		u32 size;
+		u64 actual_size;
+		u64 size;
 		vector<property> props;
 		vector<func*> methods;
 		func* ctor;
@@ -467,7 +469,7 @@ namespace gjs {
 			address addr = out->size();
 			(*out) += i;
 
-			/*
+			///*
 			std::string ln = "";
 			u32 wscount = 0;
 			bool reachedText = false;
@@ -481,8 +483,8 @@ namespace gjs {
 			printf("%s\n", ln.c_str());
 			for (u32 c = 0;c < because->start.col - wscount;c++) printf(" ");
 			printf("^ ");
-			printf("%s\n\n", instruction_to_string(i).c_str());
-			*/
+			printf("%s\n\n", i.to_string().c_str());
+			//*/
 
 			map->append(because);
 		}
@@ -524,7 +526,7 @@ namespace gjs {
 				tmp.ctx = &ctx;
 
 				ctx.add(
-					encode(vmi::addui).operand(vmr::a0).operand(vmr::sp).operand((uinteger)addr),
+					encode(vmi::addui).operand(vmr::a0).operand(vmr::sp).operand(addr),
 					because
 				);
 
@@ -574,7 +576,7 @@ namespace gjs {
 					tmp.ctx = &ctx;
 
 					ctx.add(
-						encode(vmi::addui).operand(vmr::a0).operand(vmr::sp).operand((uinteger)addr),
+						encode(vmi::addui).operand(vmr::a0).operand(vmr::sp).operand(addr),
 						because
 					);
 
@@ -601,6 +603,7 @@ namespace gjs {
 		is_ctor = is_dtor = reached_return = false;
 		return_loc_determined = true;
 		is_thiscall = f->signature.is_thiscall;
+		bound_to = f;
 	}
 
 	var* func::allocate(compile_context& ctx, ast_node* decl, bool is_arg) {
@@ -717,7 +720,7 @@ namespace gjs {
 		l->name = format("__anon_%d", anon_var_id++);
 		l->is_variable = false;
 		l->ctx = &ctx;
-		l->type = ctx.type("i32");
+		l->type = ctx.type("i64");
 		l->count = 1;
 		l->is_reg = false;
 		l->is_imm = true;
@@ -732,7 +735,7 @@ namespace gjs {
 		l->name = format("__anon_%d", anon_var_id++);
 		l->is_variable = false;
 		l->ctx = &ctx;
-		l->type = ctx.type("f32");
+		l->type = ctx.type("f64");
 		l->count = 1;
 		l->is_reg = false;
 		l->is_imm = true;
@@ -794,12 +797,12 @@ namespace gjs {
 		}
 		address addr = ctx->cur_func->stack.allocate(type->size);
 		ctx->add(
-			encode(vmi::addui).operand(vmr::v0).operand(offset).operand((uinteger)addr),
+			encode(vmi::addui).operand(vmr::v0).operand(offset).operand(addr),
 			because
 		);
 
 		ctx->add(
-			encode(store).operand(loc.reg).operand(vmr::v0).operand(0),
+			encode(store).operand(loc.reg).operand(vmr::v0),
 			because
 		);
 
@@ -912,7 +915,7 @@ namespace gjs {
 				case 8: { load = vmi::ld64; break; }
 			}
 			ctx->add(
-				encode(load).operand(reg).operand(vmr::sp).operand((integer)loc.stack_addr + stack_offset),
+				encode(load).operand(reg).operand(vmr::sp).operand(loc.stack_addr + stack_offset),
 				because
 			);
 			ctx->cur_func->stack.free(loc.stack_addr);
@@ -988,7 +991,7 @@ namespace gjs {
 			);
 
 			ctx->add(
-				encode(load).operand(reg).operand(vmr::v0).operand((integer)loc.stack_addr),
+				encode(load).operand(reg).operand(vmr::v0).operand(loc.stack_addr),
 				because
 			);
 			ctx->cur_func->stack.free(loc.stack_addr);
@@ -1027,7 +1030,7 @@ namespace gjs {
 				case 8: { load = vmi::ld64; break; }
 			}
 			ctx->add(
-				encode(load).operand(reg).operand(vmr::sp).operand((integer)loc.stack_addr + stack_offset),
+				encode(load).operand(reg).operand(vmr::sp).operand(loc.stack_addr + stack_offset),
 				because
 			);
 		}
@@ -1065,7 +1068,7 @@ namespace gjs {
 			);
 
 			ctx->add(
-				encode(load).operand(reg).operand(vmr::v0).operand((integer)loc.stack_addr),
+				encode(load).operand(reg).operand(vmr::v0).operand(loc.stack_addr),
 				because
 			);
 		}
@@ -1112,7 +1115,7 @@ namespace gjs {
 		// backup $ra
 		address ra_addr = ctx.cur_func->stack.allocate(4);
 		ctx.add(
-			encode(vmi::st32).operand(vmr::ra).operand(vmr::sp).operand((integer)ra_addr),
+			encode(vmi::st32).operand(vmr::ra).operand(vmr::sp).operand(ra_addr),
 			because
 		);
 
@@ -1161,7 +1164,7 @@ namespace gjs {
 					because
 				);
 				ctx.add(
-					encode(vmi::bneqz).operand(vmr::v0).operand((uinteger)ctx.out->size() + 4),
+					encode(vmi::bneqz).operand(vmr::v0).operand(ctx.out->size() + 4),
 					because
 				);
 
@@ -1173,7 +1176,7 @@ namespace gjs {
 
 				// move size of type to size parameter
 				ctx.add(
-					encode(vmi::addui).operand(vmr::a2).operand(vmr::zero).operand((uinteger)to->return_type->actual_size),
+					encode(vmi::addui).operand(vmr::a2).operand(vmr::zero).operand(to->return_type->actual_size),
 					because
 				);
 
@@ -1236,7 +1239,7 @@ namespace gjs {
 		// restore $ra
 		ctx.cur_func->stack.free(ra_addr);
 		ctx.add(
-			encode(vmi::ld32).operand(vmr::ra).operand(vmr::sp).operand((integer)ra_addr),
+			encode(vmi::ld32).operand(vmr::ra).operand(vmr::sp).operand(ra_addr),
 			because
 		);
 
@@ -1381,9 +1384,8 @@ namespace gjs {
 		}
 
 		// only types remaining are integral
-
+		// todo: conversion between f32/f64
 		if (!from->type->is_floating_point) {
-			// to must be floating point
 			if (from->is_imm) return ctx.cur_func->imm(ctx, (decimal)from->imm.i);
 			var* tmp = ctx.cur_func->allocate(ctx, to);
 			ctx.add(
@@ -1396,7 +1398,6 @@ namespace gjs {
 			);
 			return tmp;
 		} else {
-			// to must be integer
 			if (from->is_imm) return ctx.cur_func->imm(ctx, (integer)from->imm.d);
 			var* tmp = ctx.cur_func->allocate(ctx, to);
 			vmr treg = ctx.cur_func->registers.allocate_fp();
@@ -1591,7 +1592,7 @@ namespace gjs {
 			if (!already_errored) ctx.log->err("Unsupported operation", because);
 		}
 
-		instruction_encoder inst = encode(i).operand(o->to_reg(because));
+		instruction inst = encode(i).operand(o->to_reg(because));
 
 		if (swap) {
 			inst.operand(rhs->to_reg(because));
@@ -1686,7 +1687,7 @@ namespace gjs {
 			}
 		}
 
-		instruction_encoder inst = encode(i).operand(o->to_reg(because));
+		instruction inst = encode(i).operand(o->to_reg(because));
 
 		if (swap) {
 			inst.operand(rhs->to_reg(because));
@@ -1883,7 +1884,7 @@ namespace gjs {
 
 			// if cond == 0: goto address of rvalue expression
 			ctx.add(
-				encode(vmi::beqz).operand(condreg).operand(0),
+				encode(vmi::beqz).operand(condreg),
 				node
 			);
 
@@ -1893,17 +1894,17 @@ namespace gjs {
 			// then jump past rvalue expression so result isn't overwritten with rvalue
 			u64 tjmpaddr = ctx.out->size();
 			ctx.add(
-				encode(vmi::jmp).operand(0),
+				encode(vmi::jmp),
 				node->lvalue
 			);
 
 			// update branch failure address
-			ctx.out->set(baddr, encode(vmi::beqz).operand(condreg).operand((uinteger)ctx.out->size()));
+			ctx.out->set(baddr, encode(vmi::beqz).operand(condreg).operand(ctx.out->size()));
 
 			compile_expression(ctx, node->rvalue, result);
 
 			// update post-lvalue expression jump address
-			ctx.out->set(tjmpaddr, encode(vmi::jmp).operand((u64)ctx.out->size()));
+			ctx.out->set(tjmpaddr, encode(vmi::jmp).operand(ctx.out->size()));
 
 			if (dest) {
 				var* v = result;
@@ -1984,7 +1985,7 @@ namespace gjs {
 				if (node->callee->op == op::member) {
 					ctx.last_type_method = nullptr;
 					var* this_obj = compile_expression(ctx, node->callee, nullptr);
-					this_obj->no_auto_free = true;
+					if (this_obj) this_obj->no_auto_free = true;
 					if (ctx.last_type_method) {
 						vector<var*> args;
 						vector<bool> free_arg;
@@ -2203,7 +2204,7 @@ namespace gjs {
 					case op::preInc: {
 						var* tmp;
 						if (rvalue->type->is_floating_point) tmp = ctx.cur_func->imm(ctx, 1.0f);
-						else tmp = ctx.cur_func->imm(ctx, 1);
+						else tmp = ctx.cur_func->imm(ctx, i64(1));
 
 						arithmetic_op_maybe_fp(ctx, rvalue, tmp, rvalue, node, node->op);
 						if (dest) rvalue->store_in(dest->to_reg(node), node);
@@ -2216,7 +2217,7 @@ namespace gjs {
 					case op::preDec: {
 						var* tmp;
 						if (rvalue->type->is_floating_point) tmp = ctx.cur_func->imm(ctx, 1.0f);
-						else tmp = ctx.cur_func->imm(ctx, 1);
+						else tmp = ctx.cur_func->imm(ctx, i64(1));
 
 						arithmetic_op_maybe_fp(ctx, rvalue, tmp, rvalue, node, node->op);
 						if (dest) rvalue->store_in(dest->to_reg(node), node);
@@ -2230,7 +2231,7 @@ namespace gjs {
 						var* result = dest ? dest : ctx.cur_func->allocate(ctx, lvalue->type);
 						var* tmp;
 						if (lvalue->type->is_floating_point) tmp = ctx.cur_func->imm(ctx, 1.0f);
-						else tmp = ctx.cur_func->imm(ctx, 1);
+						else tmp = ctx.cur_func->imm(ctx, i64(1));
 
 						lvalue->store_in(result->to_reg(node), node);
 						arithmetic_op_maybe_fp(ctx, lvalue, tmp, lvalue, node, node->op);
@@ -2244,7 +2245,7 @@ namespace gjs {
 						var* result = dest ? dest : ctx.cur_func->allocate(ctx, lvalue->type);
 						var* tmp;
 						if (lvalue->type->is_floating_point) tmp = ctx.cur_func->imm(ctx, 1.0f);
-						else tmp = ctx.cur_func->imm(ctx, 1);
+						else tmp = ctx.cur_func->imm(ctx, i64(1));
 
 						lvalue->store_in(result->to_reg(node), node);
 						arithmetic_op_maybe_fp(ctx, lvalue, tmp, lvalue, node, node->op);
@@ -2336,22 +2337,134 @@ namespace gjs {
 						var* result = dest ? dest : ctx.cur_func->allocate(ctx, rvalue->type);
 						var* tmp = nullptr;
 						if (rvalue->type->is_floating_point) tmp = ctx.cur_func->imm(ctx, -1.0f);
-						else tmp = ctx.cur_func->imm(ctx, -1);
+						else tmp = ctx.cur_func->imm(ctx, i64(-1));
 						arithmetic_op_maybe_fp(ctx, rvalue, tmp, result, node, node->op);
 						ctx.cur_func->free(tmp);
 						break;
 					}
 					case op::addr: {
+						// todo: remove
 						var* result = dest ? dest : ctx.cur_func->allocate(ctx, lvalue->type);
 						ret = result;
 						break;
 					}
 					case op::at: {
+						// todo: remove
 						var* result = dest ? dest : ctx.cur_func->allocate(ctx, lvalue->type);
 						ret = result;
 						break;
 					}
 					case op::member: {
+						if (!lvalue) {
+							data_type* t = ctx.type(node->lvalue);
+							data_type::property* prop = t->prop(*node->rvalue);
+							if (prop) {
+								if (!(prop->flags & bind::property_flags::pf_static_prop)) {
+									ctx.log->err(format("Expected static method or property of type '%s'", t->name.c_str()), node->rvalue);
+								} else {
+									var* pval = ctx.cur_func->allocate(ctx, prop->type);
+									if (ctx.do_store_member_pointer) {
+										// store pointer to property in v1 in case value should be stored later
+										ctx.add(
+											encode(vmi::addui).operand(vmr::v1).operand(vmr::zero).operand(prop->offset),
+											node
+										);
+									}
+
+									if (prop->flags ^ bind::pf_object_pointer) {
+										ctx.last_member_was_pointer = false;
+										if (prop->type->built_in) {
+											// load value
+											vmi ld;
+											switch (prop->type->size) {
+												case 1: { ld = vmi::ld8; break; }
+												case 2: { ld = vmi::ld16; break; }
+												case 4: { ld = vmi::ld32; break; }
+												case 8: { ld = vmi::ld64; break; }
+											}
+											ctx.add(
+												encode(ld).operand(pval->to_reg(node)).operand(vmr::zero).operand(prop->offset),
+												node
+											);
+										} else {
+											// get pointer to property in pval
+											ctx.add(
+												encode(vmi::addui).operand(pval->to_reg(node)).operand(vmr::zero).operand(prop->offset),
+												node
+											);
+										}
+
+										ctx.last_type_method = nullptr;
+									} else {
+										ctx.last_member_was_pointer = true;
+										if (prop->type->built_in) {
+											// load pointer
+											vmi ld;
+											switch (sizeof(void*)) {
+											case 1: { ld = vmi::ld8; break; }
+											case 2: { ld = vmi::ld16; break; }
+											case 4: { ld = vmi::ld32; break; }
+											case 8: { ld = vmi::ld64; break; }
+											}
+											ctx.add(
+												encode(ld).operand(pval->to_reg(node)).operand(vmr::zero).operand(prop->offset),
+												node
+											);
+
+											// load value pointed to by pval
+											switch (prop->type->size) {
+												case 1: { ld = vmi::ld8; break; }
+												case 2: { ld = vmi::ld16; break; }
+												case 4: { ld = vmi::ld32; break; }
+												case 8: { ld = vmi::ld64; break; }
+											}
+											ctx.add(
+												encode(ld).operand(pval->to_reg(node)).operand(pval->to_reg(node)),
+												node
+											);
+										} else {
+											// load pointer
+											vmi ld;
+											switch (sizeof(void*)) {
+												case 1: { ld = vmi::ld8; break; }
+												case 2: { ld = vmi::ld16; break; }
+												case 4: { ld = vmi::ld32; break; }
+												case 8: { ld = vmi::ld64; break; }
+											}
+											ctx.add(
+												encode(ld).operand(pval->to_reg(node)).operand(vmr::zero).operand(prop->offset),
+												node
+											);
+										}
+									}
+
+									if (dest) {
+										if (!prop->type->equals(dest->type)) {
+											var* converted = cast(ctx, pval, dest, node);
+											converted->store_in(dest->to_reg(node), node);
+											if (converted != pval) ctx.cur_func->free(converted);
+										} else pval->store_in(dest->to_reg(node), node);
+
+										ctx.cur_func->free(pval);
+									}
+									var* result = dest ? dest : pval;
+									ret = result;
+								}
+
+								return ret;
+							} else {
+								func* sf = t->method(*node->rvalue);
+								if (!sf || sf->is_thiscall) {
+									ctx.log->err(format("Expected static method or property of type '%s'", t->name.c_str()), node->rvalue);
+								} else {
+									ctx.last_member_was_pointer = false;
+									ctx.last_type_method = sf;
+								}
+
+								return nullptr;
+							}
+						}
+
 						data_type::property* prop = lvalue->type->prop(*node->rvalue);
 						if (prop) {
 							var* pval = ctx.cur_func->allocate(ctx, prop->type);
@@ -2411,7 +2524,7 @@ namespace gjs {
 										case 8: { ld = vmi::ld64; break; }
 									}
 									ctx.add(
-										encode(ld).operand(pval->to_reg(node)).operand(pval->to_reg(node)).operand(0),
+										encode(ld).operand(pval->to_reg(node)).operand(pval->to_reg(node)),
 										node
 									);
 								} else {
@@ -2543,7 +2656,7 @@ namespace gjs {
 							case 8: { ld = vmi::ld64; break; }
 						}
 						ctx.add(
-							encode(ld).operand(vmr::v1).operand(vmr::v1).operand(0),
+							encode(ld).operand(vmr::v1).operand(vmr::v1),
 							node
 						);
 
@@ -2557,7 +2670,7 @@ namespace gjs {
 							case 8: { st = vmi::st64; break; }
 						}
 						ctx.add(
-							encode(st).operand(ret->to_reg(node)).operand(vmr::v1).operand(0),
+							encode(st).operand(ret->to_reg(node)).operand(vmr::v1),
 							node
 						);
 					} else {
@@ -2570,7 +2683,7 @@ namespace gjs {
 							case 8: { st = vmi::st64; break; }
 						}
 						ctx.add(
-							encode(st).operand(ret->to_reg(node)).operand(vmr::v1).operand(0),
+							encode(st).operand(ret->to_reg(node)).operand(vmr::v1),
 							node
 						);
 					}
@@ -2584,7 +2697,7 @@ namespace gjs {
 						case 8: { st = vmi::st64; break; }
 					}
 					ctx.add(
-						encode(st).operand(ret->to_reg(node)).operand(vmr::v1).operand(0),
+						encode(st).operand(ret->to_reg(node)).operand(vmr::v1),
 						node
 					);
 				}
@@ -2639,7 +2752,7 @@ namespace gjs {
 		func::var* cond = compile_expression(ctx, node->condition, nullptr);
 		address branchAddr = ctx.out->size();
 		ctx.add(
-			encode(vmi::bneqz).operand(cond->to_reg(node)).operand(0),
+			encode(vmi::bneqz).operand(cond->to_reg(node)),
 			node
 		);
 		ctx.cur_func->free(cond);
@@ -2654,7 +2767,7 @@ namespace gjs {
 		instruction branch = (*ctx.out)[branchAddr];
 		ctx.out->set(
 			branchAddr,
-			encode(decode_instruction(branch)).operand(decode_operand_1(branch)).operand((integer)ctx.out->size())
+			encode(branch.instr()).operand(branch.op_1r()).operand(ctx.out->size())
 		);
 
 		n = node->else_body;
@@ -2676,7 +2789,7 @@ namespace gjs {
 			func::var* cond = compile_expression(ctx, node->condition, nullptr);
 			branch_addr = ctx.out->size();
 			ctx.add(
-				encode(vmi::bneqz).operand(cond->to_reg(node->condition)).operand(0),
+				encode(vmi::bneqz).operand(cond->to_reg(node->condition)),
 				node->condition
 			);
 			ctx.cur_func->free(cond);
@@ -2694,7 +2807,7 @@ namespace gjs {
 		}
 
 		ctx.add(
-			encode(vmi::jmp).operand((u64)loop_cond),
+			encode(vmi::jmp).operand(loop_cond),
 			node
 		);
 
@@ -2703,7 +2816,7 @@ namespace gjs {
 			instruction branch = (*ctx.out)[branch_addr];
 			ctx.out->set(
 				branch_addr,
-				encode(decode_instruction(branch)).operand(decode_operand_1(branch)).operand((uinteger)ctx.out->size())
+				encode(branch.instr()).operand(branch.op_1r()).operand(ctx.out->size())
 			);
 		}
 
@@ -2717,7 +2830,7 @@ namespace gjs {
 		func::var* cond = compile_expression(ctx, node->condition, nullptr);
 		address branchAddr = ctx.out->size();
 		ctx.add(
-			encode(vmi::bneqz).operand(cond->to_reg(node)).operand(0),
+			encode(vmi::bneqz).operand(cond->to_reg(node)),
 			node
 		);
 		ctx.cur_func->free(cond);
@@ -2729,7 +2842,7 @@ namespace gjs {
 		}
 
 		ctx.add(
-			encode(vmi::jmp).operand((uinteger)condAddr),
+			encode(vmi::jmp).operand(condAddr),
 			node
 		);
 
@@ -2737,7 +2850,7 @@ namespace gjs {
 		instruction branch = (*ctx.out)[branchAddr];
 		ctx.out->set(
 			branchAddr,
-			encode(decode_instruction(branch)).operand(decode_operand_1(branch)).operand((uinteger)ctx.out->size())
+			encode(branch.instr()).operand(branch.op_1r()).operand(ctx.out->size())
 		);
 
 		n = node->else_body;
@@ -2761,13 +2874,13 @@ namespace gjs {
 
 		func::var* cond = compile_expression(ctx, node->condition, nullptr);
 		ctx.add(
-			encode(vmi::bneqz).operand(cond->to_reg(node)).operand((uinteger)ctx.out->size() + 1),
+			encode(vmi::bneqz).operand(cond->to_reg(node)).operand(ctx.out->size() + 1),
 			node
 		);
 		ctx.cur_func->free(cond);
 
 		ctx.add(
-			encode(vmi::jmp).operand((uinteger)startAddr),
+			encode(vmi::jmp).operand(startAddr),
 			node->condition
 		);
 
@@ -2998,6 +3111,7 @@ namespace gjs {
 			}
 
 			for (u32 i = 0;i < ctx.funcs.size();i++) {
+				if (ctx.funcs[i]->bound_to) continue;
 				func* sf = ctx.funcs[i];
 				vm_function* f = new vm_function(vctx, sf->name, sf->entry);
 				for (u8 a = 0;a < sf->args.size();a++) {

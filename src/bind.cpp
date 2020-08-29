@@ -84,10 +84,10 @@ namespace gjs {
 				atp = mgr->get("void*");
 			} else atp = mgr->get(wrapped->arg_types[i].name());
 
-			signature.arg_types.push_back(atp);
-			if (!signature.arg_types[i]) {
+			if (!atp) {
 				throw bind_exception(format("Arg '%d' of function '%s' is of type '%s' that has not been bound yet", i + 1, name.c_str(), wrapped->arg_types[i].name()));
 			}
+			signature.arg_types.push_back(atp);
 
 			vm_register last_a = vm_register(integer(vm_register::a0) - 1);
 			vm_register last_f = vm_register(integer(vm_register::f0) - 1);

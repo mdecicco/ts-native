@@ -304,18 +304,19 @@ namespace gjs {
 			pf_none				= 0b00000000,
 			pf_read_only		= 0b00000001,
 			pf_write_only		= 0b00000010,
-			pf_object_pointer	= 0b00000100
+			pf_object_pointer	= 0b00000100,
+			pf_static_prop		= 0b00001000
 		};
 
 		struct wrapped_class {
 			struct property {
-				property(wrapped_function* g, wrapped_function* s, std::type_index t, u32 o, u8 f) :
+				property(wrapped_function* g, wrapped_function* s, std::type_index t, u64 o, u8 f) :
 					getter(g), setter(s), type(t), offset(o), flags(f) { }
 
 				wrapped_function* getter;
 				wrapped_function* setter;
 				std::type_index type;
-				u32 offset;
+				u64 offset;
 				u8 flags;
 			};
 
@@ -374,6 +375,20 @@ namespace gjs {
 
 				u32 offset = (u8*)&((Cls*)nullptr->*member) - (u8*)nullptr;
 				properties[_name] = new property(nullptr, nullptr, typeid(remove_all<T>::type), offset, flags);
+				return *this;
+			}
+
+			template <typename T>
+			wrap_class& prop(const std::string& _name, T *member, u8 flags = property_flags::pf_none) {
+				if (properties.find(_name) != properties.end()) {
+					throw bind_exception(format("Property '%s' already bound to type '%s'", _name.c_str(), name.c_str()));
+				}
+
+				if (!types->get<T>()) {
+					throw bind_exception(format("Attempting to bind property of type '%s' that has not been bound itself", typeid(remove_all<T>::type).name()));
+				}
+
+				properties[_name] = new property(nullptr, nullptr, typeid(remove_all<T>::type), (u64)member, flags | pf_static_prop);
 				return *this;
 			}
 
@@ -479,7 +494,7 @@ namespace gjs {
 				u8 flags;
 				std::string name;
 				vm_type* type;
-				u32 offset;
+				u64 offset;
 				vm_function* getter;
 				vm_function* setter;
 			};

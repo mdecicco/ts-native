@@ -27,7 +27,9 @@ class foo {
 		i32 y;
 		i32 z;
 		f32 w;
+		static f64 s;
 };
+f64 foo::s = 5.5;
 
 struct vec3 { f32 x, y, z; };
 void testvec(void* vec) {
@@ -103,7 +105,7 @@ void print_code(vm_context& ctx) {
 			}
 			printf("]\n");
 		}
-		printf("0x%2.2X: %-32s", i, instruction_to_string((*ctx.code())[i]).c_str());
+		printf("0x%2.2X: %-32s", i, (*ctx.code())[i].to_string().c_str());
 
 		auto src = ctx.map()->get(i);
 		if (src.lineText != last_line) {
@@ -136,7 +138,7 @@ int main(int arg_count, const char** args) {
 
 	try {
 		auto f = ctx.bind<foo>("foo");
-		f.constructor<integer*>();
+		f.constructor<i32*>();
 		f.method("t", &foo::t);
 		f.method("operator i32", &foo::operator i32);
 		f.method("static_func", &foo::static_func);
@@ -144,6 +146,7 @@ int main(int arg_count, const char** args) {
 		f.prop("y", &foo::y, bind::property_flags::pf_none);
 		f.prop("z", &foo::z, bind::property_flags::pf_none);
 		f.prop("w", &foo::w, bind::property_flags::pf_none);
+		f.prop("s", &foo::s, bind::property_flags::pf_none);
 		f.finalize();
 
 		ctx.bind(print_foo, "print_foo");

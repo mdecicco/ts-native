@@ -9,67 +9,59 @@ namespace gjs {
 	/*
 	 * Anatomy of an encoded instruction
 	 *
-	 * type 0  | instruction |-----------------------------------------------------------------------------------------------------------------| <- term, null
-	 * type 1  | instruction |                                               57-bit jump address                                               | <- jal, jmp
-	 * type 2  | instruction |  operand  |-----------------------------------------------------------------------------------------------------| <- jalr, jmpr, ctf, cti, push, pop
-	 * type 3  | instruction |  operand  |             32-bit branch failure address                     |-------------------------------------| <- b*
-	 * type 4  | instruction |  operand  |  operand  |-----------------------------------------------------------------------------------------| <- mtfp, mffp
-	 * type 5  | instruction |  operand  |  operand  |x|                      32-bit immediate value                   |-----------------------| <- ld*, st*
-	 * type 6  | instruction |  operand  |  operand  |x|                      32-bit immediate value                   |-----------------------| <- *i, *ir
-	 * type 7  | instruction |  operand  |  operand  |  operand  |-----------------------------------------------------------------------------| <- the rest
-	 *         |0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0| (bits)
-	 *         |               |               |               |               |               |               |               |               | (bytes)
-	 *                       ^ 57        ^ 51        ^ 45        ^ 39                                    | ^18         ^ 12
-	 *	x = immediate value is float32 (boolean)
+	 * type 0  | instruction |-----------------------------------------| flags | <- term, null
+	 * type 1  | instruction |-----------------------------------------| flags | <- jal, jmp
+	 * type 2  | instruction |  operand  |-----------------------------| flags | <- jalr, jmpr, ctf, cti, push, pop
+	 * type 3  | instruction |  operand  |-----------------------------| flags | <- b*
+	 * type 4  | instruction |  operand  |  operand  |-----------------| flags | <- mtfp, mffp
+	 * type 5  | instruction |  operand  |  operand  |-----------------| flags | <- ld*, st*
+	 * type 6  | instruction |  operand  |  operand  |-----------------| flags | <- *i, *ir
+	 * type 7  | instruction |  operand  |  operand  |  operand  |-----| flags | <- the rest
+	 *         |0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0| (bits)
+	 *         |32             |24             |16             |8              | (bytes)
 	 */
 
-	class instruction_encoder {
+	static const u32 instr_shift = 25;
+	static const u32 op_1_shift = 19;
+	static const u32 op_2_shift = 13;
+	static const u32 op_3_shift = 7; 
+	static const u32 op_mask   = 0b11111111111111111111111111000000;
+	static const u32 flag_mask = 0b11111111111111111111111111110000;
+
+	class vm_context;
+	class instruction {
 		public:
-			instruction_encoder(vm_instruction i);
-			~instruction_encoder() { }
+			enum flags {
+				op_1_assigned = 0b0001,
+				op_2_assigned = 0b0010,
+				op_3_assigned = 0b0100,
+				op_3_is_float = 0b1000
+			};
+			instruction();
+			instruction(vm_instruction i);
+			~instruction() { }
 
-			instruction_encoder& operand(vm_register reg);
-			instruction_encoder& operand(integer immediate);
-			instruction_encoder& operand(uinteger immediate);
-			instruction_encoder& operand(u64 immediate);
-			instruction_encoder& operand(decimal immediate);
+			instruction& operand(vm_register reg);
+			instruction& operand(i64 immediate);
+			instruction& operand(u64 immediate);
+			instruction& operand(f64 immediate);
 
-			inline operator instruction() const { return m_result; }
+			FORCE_INLINE vm_instruction instr() const { return vm_instruction(m_code >> instr_shift); }
+			FORCE_INLINE vm_register	op_1r() const { return vm_register   (((m_code >> op_1_shift ) | op_mask) ^ op_mask); }
+			FORCE_INLINE vm_register	op_2r() const { return vm_register   (((m_code >> op_2_shift ) | op_mask) ^ op_mask); }
+			FORCE_INLINE vm_register	op_3r() const { return vm_register   (((m_code >> op_3_shift ) | op_mask) ^ op_mask); }
+			FORCE_INLINE i64			imm_i() const { return *(i64*)&m_imm; }
+			FORCE_INLINE u64			imm_u() const { return m_imm; }
+			FORCE_INLINE f64			imm_f() const { return *(f64*)&m_imm; }
+			FORCE_INLINE bool	   imm_is_flt() const { return ((m_code | flag_mask) ^ flag_mask) & op_3_is_float; }
 
+			std::string to_string(vm_context* ctx = nullptr) const;
 		protected:
-			instruction m_result;
+			u32 m_code;
+			u64 m_imm;
 	};
 
-	inline instruction_encoder encode(vm_instruction i) { return instruction_encoder(i); }
+	FORCE_INLINE instruction encode(vm_instruction i) { return instruction(i); }
 
-	const u64 instruction_shift = 57;
-	const u64 operand_1r_shift = 51;
-	const u64 operand_1i_shift = 0;
-	const u64 operand_2r_shift = 45;
-	const u64 operand_2i_shift = 18;
-	const u64 operand_3r_shift = 39;
-	const u64 operand_3i_shift = 12;
-	const u64 operand_3_is_flt_shift = 44;
-	const u64 operand_register_mask =  0b1111111111111111111111111111111111111111111111111111111111000000UL;
-	const u64 operand_1_integer_mask = 0b1111111000000000000000000000000000000000000000000000000000000000UL;
-
-
-	// the following have undefined results if the instruction does not support the item being decoded
-	FORCE_INLINE vm_instruction decode_instruction			(instruction i) { return (vm_instruction)(i >> instruction_shift); }
-	FORCE_INLINE vm_register	decode_operand_1			(instruction i) { return (vm_register)(((i >> operand_1r_shift) | operand_register_mask) ^ operand_register_mask); }
-	FORCE_INLINE integer		decode_operand_1i			(instruction i) { return ((i >> operand_1i_shift) | operand_1_integer_mask) ^ operand_1_integer_mask; }
-	FORCE_INLINE uinteger		decode_operand_1ui			(instruction i) { return ((i >> operand_1i_shift) | operand_1_integer_mask) ^ operand_1_integer_mask; }
-	FORCE_INLINE u64			decode_operand_1ui64		(instruction i) { return ((i >> operand_1i_shift) | operand_1_integer_mask) ^ operand_1_integer_mask; }
-	FORCE_INLINE vm_register	decode_operand_2			(instruction i) { return (vm_register)(((i >> operand_2r_shift) | operand_register_mask) ^ operand_register_mask); }
-	FORCE_INLINE integer		decode_operand_2i			(instruction i) { return i >> operand_2i_shift; }
-	FORCE_INLINE uinteger		decode_operand_2ui			(instruction i) { return i >> operand_2i_shift; }
-	FORCE_INLINE vm_register	decode_operand_3			(instruction i) { return (vm_register)(((i >> operand_3r_shift) | operand_register_mask) ^ operand_register_mask); }
-	FORCE_INLINE bool			decode_operator_3_is_float	(instruction i) { return (i >> operand_3_is_flt_shift) & 1; }
-	FORCE_INLINE decimal		decode_operand_3f			(instruction i) { float r; *((integer*)&r) = i >> operand_3i_shift; return r; }
-	FORCE_INLINE integer		decode_operand_3i			(instruction i) { return i >> operand_3i_shift; }
-	FORCE_INLINE uinteger		decode_operand_3ui			(instruction i) { return i >> operand_3i_shift; }
-
-	class vm_state;
-	std::string instruction_to_string(instruction i, vm_state* state = nullptr);
 };
 

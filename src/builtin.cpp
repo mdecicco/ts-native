@@ -11,6 +11,22 @@ namespace gjs {
 
 	void init_context(vm_context* ctx) {
 		vm_type* tp = nullptr;
+
+		tp = nullptr;
+		tp = ctx->types()->add("i64", typeid(i64).name());
+		tp->is_primitive = true;
+		tp->is_builtin = true;
+		tp->size = sizeof(i64);
+
+
+		tp = nullptr;
+		tp = ctx->types()->add("u64", typeid(u64).name());
+		tp->is_primitive = true;
+		tp->is_unsigned = true;
+		tp->is_builtin = true;
+		tp->size = sizeof(u64);
+
+		tp = nullptr;
 		tp = ctx->types()->add("i32", typeid(i32).name());
 		tp->is_primitive = true;
 		tp->is_builtin = true;
