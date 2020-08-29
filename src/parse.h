@@ -38,7 +38,8 @@ namespace gjs {
 		enum class constant_type {
 			none,
 			integer,
-			decimal,
+			f32,
+			f64,
 			string
 		};
 		enum class operation_type {
@@ -123,16 +124,19 @@ namespace gjs {
 		constant_type c_type;
 		union {
 			i64 i;
-			double d;
+			f32 f_32;
+			f64 f_64;
 			char* s;
 		} value;
 
-		inline void set(i64 v) { value.i = v; }
-		inline void set(double v) { value.d = v; }
+		inline void set(i64 v) { value.i = v; c_type = constant_type::integer; }
+		inline void set(f32 v) { value.f_32 = v; c_type = constant_type::f32; }
+		inline void set(f64 v) { value.f_64 = v; c_type = constant_type::f64; }
 		inline void set(const std::string& v) {
 			value.s = new char[v.length() + 1];
 			memset(value.s, 0, v.length() + 1);
 			snprintf(value.s, v.length() + 1, "%s", v.c_str());
+			c_type = constant_type::string;
 		}
 		inline void src(const tokenizer& t, const tokenizer::token& tk) {
 			start.lineText = t.lines[tk.line];
@@ -143,7 +147,8 @@ namespace gjs {
 
 		operator std::string() const { return value.s; }
 		operator i64() { return value.i; }
-		operator double() { return value.d; }
+		operator f32() { return value.f_32; }
+		operator f64() { return value.f_64; }
 
 		// per-type values
 		operation_type op;

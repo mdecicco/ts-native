@@ -20,49 +20,6 @@ namespace gjs {
 	using op = ast_node::operation_type;
 	using vmr = vm_register;
 	using vmi = vm_instruction;
-	static const char* op_symbol[] = {
-		"invalid",
-		"+",
-		"-",
-		"*",
-		"/",
-		"%",
-		"<<",
-		">>",
-		"&&",
-		"||",
-		"&",
-		"|",
-		"^",
-		"+=",
-		"-=",
-		"*=",
-		"/=",
-		"%=",
-		"<<=",
-		">>=",
-		"&&=",
-		"||=",
-		"&=",
-		"|=",
-		"^=",
-		"++",
-		"--",
-		"++",
-		"--",
-		"<",
-		">",
-		"<=",
-		">=",
-		"!=",
-		"==",
-		"=",
-		"!",
-		"- (negate)",
-		"& (address)",
-		"* (dereference)",
-		"."
-	};
 
 	#define is_fp(r) (r >= vmr::f0 && r <= vmr::f15)
 	#define is_arg(r) (r >= vmr::a0 && r <= vmr::a7)

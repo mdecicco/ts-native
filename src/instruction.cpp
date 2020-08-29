@@ -44,8 +44,18 @@ namespace gjs {
 		"divuir",
 
 		// integer / floating point conversion
-		"ctf",
-		"cti",
+		"cvt.i.f",
+		"cvt.i.d",
+		"cvt.i.u",
+		"cvt.u.f",
+		"cvt.u.d",
+		"cvt.u.i",
+		"cvt.f.i",
+		"cvt.f.u",
+		"cvt.f.d",
+		"cvt.d.i",
+		"cvt.d.u",
+		"cvt.d.f",
 
 		// floating point arithmetic
 		"fadd",
@@ -58,6 +68,16 @@ namespace gjs {
 		"fdiv",
 		"fdivi",
 		"fdivir",
+		"dadd",
+		"daddi",
+		"dsub",
+		"dsubi",
+		"dsubir",
+		"dmul",
+		"dmuli",
+		"ddiv",
+		"ddivi",
+		"ddivir",
 
 		// comparison
 		"lt",
@@ -86,6 +106,18 @@ namespace gjs {
 		"fcmpi",
 		"fncmp",
 		"fncmpi",
+		"dlt",
+		"dlti",
+		"dlte",
+		"dltei",
+		"dgt",
+		"dgti",
+		"dgte",
+		"dgtei",
+		"dcmp",
+		"dcmpi",
+		"dncmp",
+		"dncmpi",
 
 		// boolean
 		"and",
