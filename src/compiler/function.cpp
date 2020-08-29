@@ -323,7 +323,22 @@ namespace gjs {
 		return l;
 	}
 
-	var* func::imm(compile_context& ctx, decimal d) {
+	var* func::imm(compile_context& ctx, f32 f) {
+		var* l = new var();
+		scopes[scopes.size() - 1].vars.push_back(l);
+		l->name = format("__anon_%d", anon_var_id++);
+		l->is_variable = false;
+		l->ctx = &ctx;
+		l->type = ctx.type("f32");
+		l->count = 1;
+		l->is_reg = false;
+		l->is_imm = true;
+		l->is_const = true;
+		l->imm.f_32 = f;
+		return l;
+	}
+
+	var* func::imm(compile_context& ctx, f64 d) {
 		var* l = new var();
 		scopes[scopes.size() - 1].vars.push_back(l);
 		l->name = format("__anon_%d", anon_var_id++);
@@ -334,7 +349,7 @@ namespace gjs {
 		l->is_reg = false;
 		l->is_imm = true;
 		l->is_const = true;
-		l->imm.d = d;
+		l->imm.f_64 = d;
 		return l;
 	}
 
@@ -574,10 +589,31 @@ namespace gjs {
 							// this should never happen since a float-returning function would have a float type
 							// and so ret would have allocated a floating point register
 							// but just in case...
-							ctx.add(
-								encode(vmi::cti).operand(to->return_loc),
-								because
-							);
+							if (to->return_type->size == sizeof(f64)) {
+								if (ret->type->is_unsigned) {
+									ctx.add(
+										encode(vmi::cvt_du).operand(to->return_loc),
+										because
+									);
+								} else {
+									ctx.add(
+										encode(vmi::cvt_di).operand(to->return_loc),
+										because
+									);
+								}
+							} else {
+								if (ret->type->is_unsigned) {
+									ctx.add(
+										encode(vmi::cvt_fu).operand(to->return_loc),
+										because
+									);
+								} else {
+									ctx.add(
+										encode(vmi::cvt_fi).operand(to->return_loc),
+										because
+									);
+								}
+							}
 							ctx.add(
 								encode(vmi::mffp).operand(to->return_loc).operand(ret->loc.reg),
 								because

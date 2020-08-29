@@ -25,8 +25,9 @@ namespace gjs {
 	using vmr = vm_register;
 	
 	#define GRx(r, x) *((x*)&state.registers[u8(r)])
-	#define GRi(r) GRx(r, integer)
-	#define GRd(r) GRx(r, decimal)
+	#define GRi(r) GRx(r, i64)
+	#define GRd(r) GRx(r, f64)
+	#define GRf(r) GRx(r, f32)
 	#define GR8(r) GRx(r, u8)
 	#define GR16(r) GRx(r, u16)
 	#define GR32(r) GRx(r, u32)
@@ -42,7 +43,8 @@ namespace gjs {
 	#define _O3i i.imm_i()
 	#define _O3ui i.imm_u()
 	#define _O3ui64 i.imm_u()
-	#define _O3f i.imm_f()
+	#define _O3f f32(i.imm_f())
+	#define _O3d i.imm_f()
 
 	#define STACK_PADDING_SIZE 8
 
@@ -297,54 +299,182 @@ namespace gjs {
 					GRx(_O1, u64) = _O3ui / GRx(_O2, u64);
 					break;
 				}
+				// convert integer to f32							cvt_if	(a)						a = f32(a)
+				case vmi::cvt_if: {
+					i64* r = &GRx(_O1, i64);
+					f32 v = *r;
+					*r = 0;
+					(*(f32*)r) = v;
+					break;
+				}
+				// convert integer to f64							cvt_id	(a)						a = f64(a)
+				case vmi::cvt_id: {
+					i64* r = &GRx(_O1, i64);
+					(*(f64*)r) = *r;
+					break;
+				}
+				// convert integer to uinteger						cvt_iu	(a)						a = uinteger_tp(a)
+				case vmi::cvt_iu: {
+					i64* r = &GRx(_O1, i64);
+					(*(u64*)r) = *r;
+					break;
+				}
+				// convert uinteger to f32							cvt_if	(a)						a = f32(a)
+				case vmi::cvt_uf: {
+					u64* r = &GRx(_O1, u64);
+					f32 v = *r;
+					*r = 0;
+					(*(f32*)r) = v;
+					break;
+				}
+				// convert uinteger to f64							cvt_id	(a)						a = f64(a)
+				case vmi::cvt_ud: {
+					u64* r = &GRx(_O1, u64);
+					(*(f64*)r) = *r;
+					break;
+				}
+				// convert uinteger to integer						cvt_iu	(a)						a = integer_tp(a)
+				case vmi::cvt_ui: {
+					u64* r = &GRx(_O1, u64);
+					(*(i64*)r) = *r;
+					break;
+				}
+				// convert f32 to integer							cvt_fi 	(a)						a = integer_tp(a)
+				case vmi::cvt_fi: {
+					f32* r = &GRx(_O1, f32);
+					(*(i64*)r) = *r;
+					break;
+				}
+				// convert f32 to uinteger							cvt_fi 	(a)						a = uinteger_tp(a)
+				case vmi::cvt_fu: {
+					f32* r = &GRx(_O1, f32);
+					(*(u64*)r) = *r;
+					break;
+				}
+				// convert f32 to f64								cvt_fd 	(a)						a = f64(a)
+				case vmi::cvt_fd: {
+					f32* r = &GRx(_O1, f32);
+					(*(f64*)r) = *r;
+					break;
+				}
+				// convert f64 to integer							cvt_di 	(a)						a = integer_tp(a)
+				case vmi::cvt_di: {
+					f64* r = &GRx(_O1, f64);
+					(*(i64*)r) = *r;
+					break;
+				}
+				// convert f64 to uinteger							cvt_di 	(a)						a = uinteger_tp(a)
+				case vmi::cvt_du: {
+					f64* r = &GRx(_O1, f64);
+					(*(u64*)r) = *r;
+					break;
+				}
+				// convert f64 to f32								cvt_df 	(a)						a = f32(a)
+				case vmi::cvt_df: {
+					f64* r = &GRx(_O1, f64);
+					f32 v = *r;
+					(*(u64*)r) = 0;
+					(*(f32*)r) = v;
+					break;
+				}
                 // add two registers								add		(dest)	(a)		(b)		dest = a + b
 				case vmi::fadd: {
-					GRd(_O1) = GRd(_O2) + GRd(_O3);
+					GRf(_O1) = GRf(_O2) + GRf(_O3);
                     break;
                 }
                 // add register and immediate value					faddi	(dest)	(a)		1.0		dest = a + 1.0
                 case vmi::faddi: {
-					GRd(_O1) = GRd(_O2) + _O3f;
+					GRf(_O1) = GRf(_O2) + _O3f;
 					break;
                 }
                 // subtract register from another					fsub	(dest)	(a)		(b)		dest = a - b
                 case vmi::fsub: {
-					GRd(_O1) = GRd(_O2) - GRd(_O3);
+					GRf(_O1) = GRf(_O2) - GRf(_O3);
                     break;
                 }
                 // subtract immediate value from register			fsubi	(dest)	(a)		1.0		dest = a - 1.0
                 case vmi::fsubi: {
-					GRd(_O1) = GRd(_O2) - _O3f;
+					GRf(_O1) = GRf(_O2) - _O3f;
                     break;
                 }
                 // subtract register from immediate value			fsubir	(dest)	(a)		1.0		dest = 1.0 - a
                 case vmi::fsubir: {
-					GRd(_O1) = _O3f - GRd(_O2);
+					GRf(_O1) = _O3f - GRf(_O2);
                     break;
                 }
                 // multiply two registers							fmul	(dest)	(a)		(b)		dest = a * b
                 case vmi::fmul: {
-					GRd(_O1) = GRd(_O2) * GRd(_O3);
+					GRf(_O1) = GRf(_O2) * GRf(_O3);
                     break;
                 }
                 // multiply register and immediate value			fmuli	(dest)	(a)		1.0		dest = a * 1.0
                 case vmi::fmuli: {
-					GRd(_O1) = GRd(_O2) * _O3f;
+					GRf(_O1) = GRf(_O2) * _O3f;
                     break;
                 }
                 // divide register by another						fdiv	(dest)	(a)		(b)		dest = a / b
                 case vmi::fdiv: {
-					GRd(_O1) = GRd(_O2) / GRd(_O3);
+					GRf(_O1) = GRf(_O2) / GRf(_O3);
                     break;
                 }
                 // divide register by immediate value				fdivi	(dest)	(a)		1.0		dest = a / 1.0
                 case vmi::fdivi: {
-					GRd(_O1) = GRd(_O2) / _O3f;
+					GRf(_O1) = GRf(_O2) / _O3f;
                     break;
                 }
                 // divide immediate value by register				fdivir	(dest)	(a)		1.0		dest = 1.0 / a
                 case vmi::fdivir: {
-					GRd(_O1) = _O3f / GRd(_O2);
+					GRf(_O1) = _O3f / GRf(_O2);
+                    break;
+                }
+                // add two registers								add		(dest)	(a)		(b)		dest = a + b
+				case vmi::dadd: {
+					GRd(_O1) = GRd(_O2) + GRd(_O3);
+                    break;
+                }
+                // add register and immediate value					faddi	(dest)	(a)		1.0		dest = a + 1.0
+                case vmi::daddi: {
+					GRd(_O1) = GRd(_O2) + _O3d;
+					break;
+                }
+                // subtract register from another					fsub	(dest)	(a)		(b)		dest = a - b
+                case vmi::dsub: {
+					GRd(_O1) = GRd(_O2) - GRd(_O3);
+                    break;
+                }
+                // subtract immediate value from register			fsubi	(dest)	(a)		1.0		dest = a - 1.0
+                case vmi::dsubi: {
+					GRd(_O1) = GRd(_O2) - _O3d;
+                    break;
+                }
+                // subtract register from immediate value			fsubir	(dest)	(a)		1.0		dest = 1.0 - a
+                case vmi::dsubir: {
+					GRd(_O1) = _O3d - GRd(_O2);
+                    break;
+                }
+                // multiply two registers							fmul	(dest)	(a)		(b)		dest = a * b
+                case vmi::dmul: {
+					GRd(_O1) = GRd(_O2) * GRd(_O3);
+                    break;
+                }
+                // multiply register and immediate value			fmuli	(dest)	(a)		1.0		dest = a * 1.0
+                case vmi::dmuli: {
+					GRd(_O1) = GRd(_O2) * _O3d;
+                    break;
+                }
+                // divide register by another						fdiv	(dest)	(a)		(b)		dest = a / b
+                case vmi::ddiv: {
+					GRd(_O1) = GRd(_O2) / GRd(_O3);
+                    break;
+                }
+                // divide register by immediate value				fdivi	(dest)	(a)		1.0		dest = a / 1.0
+                case vmi::ddivi: {
+					GRd(_O1) = GRd(_O2) / _O3d;
+                    break;
+                }
+                // divide immediate value by register				fdivir	(dest)	(a)		1.0		dest = 1.0 / a
+                case vmi::ddivir: {
+					GRd(_O1) = _O3d / GRd(_O2);
                     break;
                 }
                 // logical and										and		(dest)	(a)		(b)		dest = a && b
@@ -479,62 +609,122 @@ namespace gjs {
 				}
 				// check if register less than register				flt		(dest)	(a)		(b)		dest = a < b
 				case vmi::flt: {
-					GR64(_O1) = GRd(_O2) < GRd(_O3);
+					GR64(_O1) = GRf(_O2) < GRf(_O3);
 					break;
 				}
 				// check if register less than immediate			flti	(dest)	(a)		1.0		dest = a < 1.0
 				case vmi::flti: {
-					GR64(_O1) = GRd(_O2) < _O3f;
+					GR64(_O1) = GRf(_O2) < _O3f;
 					break;
 				}
 				// check if register less than or equal register	flte	(dest)	(a)		(b)		dest = a <= b
 				case vmi::flte: {
-					GR64(_O1) = GRd(_O2) <= GRd(_O3);
+					GR64(_O1) = GRf(_O2) <= GRf(_O3);
 					break;
 				}
 				// check if register less than or equal immediate	fltei	(dest)	(a)		1.0		dest = a <= 1.0
 				case vmi::fltei: {
-					GR64(_O1) = GRd(_O2) <= _O3f;
+					GR64(_O1) = GRf(_O2) <= _O3f;
 					break;
 				}
 				// check if register greater than register			fgt		(dest)	(a)		(b)		dest = a > b
 				case vmi::fgt: {
-					GR64(_O1) = GRd(_O2) > GRd(_O3);
+					GR64(_O1) = GRf(_O2) > GRf(_O3);
 					break;
 				}
 				// check if register greater than immediate			fgti	(dest)	(a)		1.0		dest = a > 1.0
 				case vmi::fgti: {
-					GR64(_O1) = GRd(_O2) > _O3f;
+					GR64(_O1) = GRf(_O2) > _O3f;
 					break;
 				}
 				// check if register greater than or equal register	fgte	(dest)	(a)		(b)		dest = a >= b
 				case vmi::fgte: {
-					GR64(_O1) = GRd(_O2) >= GRd(_O3);
+					GR64(_O1) = GRf(_O2) >= GRf(_O3);
 					break;
 				}
 				// check if register greater than or equal imm.		fgtei	(dest)	(a)		1.0		dest = a >= 1.0
 				case vmi::fgtei: {
-					GR64(_O1) = GRd(_O2) >= _O3f;
+					GR64(_O1) = GRf(_O2) >= _O3f;
 					break;
 				}
 				// check if register equal register					fcmp	(dest)	(a)		(b)		dest = a == b
 				case vmi::fcmp: {
-					GR64(_O1) = GRd(_O2) == GRd(_O3);
+					GR64(_O1) = GRf(_O2) == GRf(_O3);
 					break;
 				}
 				// check if register equal immediate				fcmpi	(dest)	(a)		1.0		dest = a == 1.0
 				case vmi::fcmpi: {
-					GR64(_O1) = GRd(_O2) == _O3f;
+					GR64(_O1) = GRf(_O2) == _O3f;
 					break;
 				}
 				// check if register not equal register				fncmp	(dest)	(a)		(b)		dest = a != b
 				case vmi::fncmp: {
-					GR64(_O1) = GRd(_O2) != GRd(_O3);
+					GR64(_O1) = GRf(_O2) != GRf(_O3);
 					break;
 				}
 				// check if register not equal immediate			fncmpi	(dest)	(a)		1.0		dest = a != 1.0
 				case vmi::fncmpi: {
-					GR64(_O1) = GRd(_O2) != _O3f;
+					GR64(_O1) = GRf(_O2) != _O3f;
+					break;
+				}
+				// check if register less than register				flt		(dest)	(a)		(b)		dest = a < b
+				case vmi::dlt: {
+					GR64(_O1) = GRd(_O2) < GRd(_O3);
+					break;
+				}
+				// check if register less than immediate			flti	(dest)	(a)		1.0		dest = a < 1.0
+				case vmi::dlti: {
+					GR64(_O1) = GRd(_O2) < _O3d;
+					break;
+				}
+				// check if register less than or equal register	flte	(dest)	(a)		(b)		dest = a <= b
+				case vmi::dlte: {
+					GR64(_O1) = GRd(_O2) <= GRd(_O3);
+					break;
+				}
+				// check if register less than or equal immediate	fltei	(dest)	(a)		1.0		dest = a <= 1.0
+				case vmi::dltei: {
+					GR64(_O1) = GRd(_O2) <= _O3d;
+					break;
+				}
+				// check if register greater than register			fgt		(dest)	(a)		(b)		dest = a > b
+				case vmi::dgt: {
+					GR64(_O1) = GRd(_O2) > GRd(_O3);
+					break;
+				}
+				// check if register greater than immediate			fgti	(dest)	(a)		1.0		dest = a > 1.0
+				case vmi::dgti: {
+					GR64(_O1) = GRd(_O2) > _O3d;
+					break;
+				}
+				// check if register greater than or equal register	fgte	(dest)	(a)		(b)		dest = a >= b
+				case vmi::dgte: {
+					GR64(_O1) = GRd(_O2) >= GRd(_O3);
+					break;
+				}
+				// check if register greater than or equal imm.		fgtei	(dest)	(a)		1.0		dest = a >= 1.0
+				case vmi::dgtei: {
+					GR64(_O1) = GRd(_O2) >= _O3d;
+					break;
+				}
+				// check if register equal register					fcmp	(dest)	(a)		(b)		dest = a == b
+				case vmi::dcmp: {
+					GR64(_O1) = GRd(_O2) == GRd(_O3);
+					break;
+				}
+				// check if register equal immediate				fcmpi	(dest)	(a)		1.0		dest = a == 1.0
+				case vmi::dcmpi: {
+					GR64(_O1) = GRd(_O2) == _O3d;
+					break;
+				}
+				// check if register not equal register				fncmp	(dest)	(a)		(b)		dest = a != b
+				case vmi::dncmp: {
+					GR64(_O1) = GRd(_O2) != GRd(_O3);
+					break;
+				}
+				// check if register not equal immediate			fncmpi	(dest)	(a)		1.0		dest = a != 1.0
+				case vmi::dncmpi: {
+					GR64(_O1) = GRd(_O2) != _O3d;
 					break;
 				}
                 // branch if register equals zero					beqz	(a)		(fail_addr)		if a: goto fail_addr

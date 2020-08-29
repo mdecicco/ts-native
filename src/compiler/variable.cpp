@@ -172,18 +172,25 @@ namespace gjs {
 					because
 				);
 			} else {
-				ctx->add(
-					encode(vmi::faddi).operand(reg).operand(vmr::zero).operand(imm.d),
-					because
-				);
+				if (type->size == sizeof(f64)) {
+					ctx->add(
+						encode(vmi::daddi).operand(reg).operand(vmr::zero).operand(imm.f_64),
+						because
+					);
+				} else {
+					ctx->add(
+						encode(vmi::faddi).operand(reg).operand(vmr::zero).operand(imm.f_32),
+						because
+					);
+				}
 			}
 		} else {
 			vmi load;
 			switch (type->size) {
-			case 1: { load = vmi::ld8; break; }
-			case 2: { load = vmi::ld16; break; }
-			case 4: { load = vmi::ld32; break; }
-			case 8: { load = vmi::ld64; break; }
+				case 1: { load = vmi::ld8; break; }
+				case 2: { load = vmi::ld16; break; }
+				case 4: { load = vmi::ld32; break; }
+				case 8: { load = vmi::ld64; break; }
 			}
 			ctx->add(
 				encode(load).operand(reg).operand(vmr::sp).operand(loc.stack_addr + stack_offset),
@@ -243,10 +250,17 @@ namespace gjs {
 					because
 				);
 			} else {
-				ctx->add(
-					encode(vmi::faddi).operand(reg).operand(vmr::zero).operand(imm.d),
-					because
-				);
+				if (type->size == sizeof(f64)) {
+					ctx->add(
+						encode(vmi::daddi).operand(reg).operand(vmr::zero).operand(imm.f_64),
+						because
+					);
+				} else {
+					ctx->add(
+						encode(vmi::faddi).operand(reg).operand(vmr::zero).operand(imm.f_32),
+						because
+					);
+				}
 			}
 		} else {
 			vmi load;
@@ -276,29 +290,64 @@ namespace gjs {
 	void var::store_in(vmr reg, ast_node* because, integer stack_offset) {
 		if (is_reg) {
 			if (loc.reg == reg) return;
-			ctx->add(
-				encode(vmi::add).operand(reg).operand(loc.reg).operand(vmr::zero),
-				because
-			);
+			if (is_fp(reg) == is_fp(loc.reg)) {
+				if (is_fp(reg)) {
+					ctx->add(
+						encode(vmi::fadd).operand(reg).operand(loc.reg).operand(vmr::zero),
+						because
+					);
+				} else {
+					ctx->add(
+						encode(vmi::add).operand(reg).operand(loc.reg).operand(vmr::zero),
+						because
+					);
+				}
+			} else {
+				if (is_fp(loc.reg)) {
+					ctx->add(
+						encode(vmi::mffp).operand(loc.reg).operand(reg),
+						because
+					);
+				} else {
+					ctx->add(
+						encode(vmi::mtfp).operand(loc.reg).operand(reg),
+						because
+					);
+				}
+			}
 		} else if (is_imm) {
 			if (!type->is_floating_point) {
-				ctx->add(
-					encode(vmi::addi).operand(reg).operand(vmr::zero).operand(imm.i),
-					because
-				);
+				if (type->is_unsigned) {
+					ctx->add(
+						encode(vmi::addui).operand(reg).operand(vmr::zero).operand(imm.i),
+						because
+					);
+				} else {
+					ctx->add(
+						encode(vmi::addi).operand(reg).operand(vmr::zero).operand(imm.i),
+						because
+					);
+				}
 			} else {
-				ctx->add(
-					encode(vmi::faddi).operand(reg).operand(vmr::zero).operand(imm.d),
-					because
-				);
+				if (type->size == sizeof(f64)) {
+					ctx->add(
+						encode(vmi::daddi).operand(reg).operand(vmr::zero).operand(imm.f_64),
+						because
+					);
+				} else {
+					ctx->add(
+						encode(vmi::faddi).operand(reg).operand(vmr::zero).operand(imm.f_32),
+						because
+					);
+				}
 			}
 		} else {
 			vmi load;
 			switch (type->size) {
-			case 1: { load = vmi::ld8; break; }
-			case 2: { load = vmi::ld16; break; }
-			case 4: { load = vmi::ld32; break; }
-			case 8: { load = vmi::ld64; break; }
+				case 1: { load = vmi::ld8; break; }
+				case 2: { load = vmi::ld16; break; }
+				case 4: { load = vmi::ld32; break; }
+				case 8: { load = vmi::ld64; break; }
 			}
 			ctx->add(
 				encode(load).operand(reg).operand(vmr::sp).operand(loc.stack_addr + stack_offset),
@@ -320,18 +369,25 @@ namespace gjs {
 					because
 				);
 			} else {
-				ctx->add(
-					encode(vmi::faddi).operand(reg).operand(vmr::zero).operand(imm.d),
-					because
-				);
+				if (type->size == sizeof(f64)) {
+					ctx->add(
+						encode(vmi::daddi).operand(reg).operand(vmr::zero).operand(imm.f_64),
+						because
+					);
+				} else {
+					ctx->add(
+						encode(vmi::faddi).operand(reg).operand(vmr::zero).operand(imm.f_32),
+						because
+					);
+				}
 			}
 		} else {
 			vmi load;
 			switch (type->size) {
-			case 1: { load = vmi::ld8; break; }
-			case 2: { load = vmi::ld16; break; }
-			case 4: { load = vmi::ld32; break; }
-			case 8: { load = vmi::ld64; break; }
+				case 1: { load = vmi::ld8; break; }
+				case 2: { load = vmi::ld16; break; }
+				case 4: { load = vmi::ld32; break; }
+				case 8: { load = vmi::ld64; break; }
 			}
 			ctx->add(
 				encode(vmi::add).operand(vmr::v0).operand(vmr::sp).operand(stack_offset),
@@ -361,6 +417,7 @@ namespace gjs {
 			return call(ctx, cast_func, because, { from });
 		}
 
+		// todo: once overloading is supported, look for constructor that accepts from->type as the only parameter
 		if (!to->built_in) {
 			ctx.log->err(format("Cannot convert from '%s' to '%s'", from->type->name.c_str(), to->name.c_str()), because);
 			return from;
@@ -375,42 +432,83 @@ namespace gjs {
 			return from;
 		}
 
+		var* out = ctx.cur_func->allocate(ctx, to);
+		from->store_in(out->to_reg(because), because);
+
+		// signed -> signed or unsigned -> unsigned can be handled implicitly
+		if (from->type->is_unsigned == to->is_unsigned && !from->type->is_floating_point && !to->is_floating_point) return out;
+
+		vmi instr;
+
 		// only types remaining are integral
-		// todo: conversion between f32/f64
-		if (!from->type->is_floating_point) {
-			if (from->is_imm) return ctx.cur_func->imm(ctx, (decimal)from->imm.i);
-			var* tmp = ctx.cur_func->allocate(ctx, to);
-			ctx.add(
-				encode(vmi::mtfp).operand(from->to_reg(because)).operand(tmp->to_reg(because)),
-				because
-			);
-			ctx.add(
-				encode(vmi::ctf).operand(tmp->to_reg(because)),
-				because
-			);
-			return tmp;
+		if (from->type->is_floating_point) {
+			if (from->type->size == sizeof(f64)) {
+				// convert from f64
+				if (to->is_floating_point) {
+					// to f32
+					instr = vmi::cvt_df;
+				} else {
+					if (to->is_unsigned) {
+						// to u64, u32, u16, u8
+						instr = vmi::cvt_du;
+					} else {
+						// to i64, i32, i16, i8
+						instr = vmi::cvt_di;
+					}
+				}
+			} else {
+				// convert from f32
+				if (to->is_floating_point) {
+					// to f64
+					instr = vmi::cvt_fd;
+				} else {
+					if (to->is_unsigned) {
+						// to u64, u32, u16, u8
+						instr = vmi::cvt_fu;
+					} else {
+						// to i64, i32, i16, i8
+						instr = vmi::cvt_fi;
+					}
+				}
+			}
 		} else {
-			if (from->is_imm) return ctx.cur_func->imm(ctx, (integer)from->imm.d);
-			var* tmp = ctx.cur_func->allocate(ctx, to);
-			vmr treg = ctx.cur_func->registers.allocate_fp();
-			ctx.add(
-				encode(vmi::fadd).operand(treg).operand(from->to_reg(because)).operand(vmr::zero),
-				because
-			);
-			ctx.add(
-				encode(vmi::cti).operand(treg),
-				because
-			);
-			ctx.add(
-				encode(vmi::mffp).operand(treg).operand(tmp->to_reg(because)),
-				because
-			);
-			ctx.cur_func->registers.free(treg);
-			return tmp;
+			if (from->type->is_unsigned) {
+				// convert from u64, u32, u16, u8
+				if (to->is_floating_point) {
+					if (to->size == sizeof(f64)) {
+						// to f64
+						instr = vmi::cvt_ud;
+					} else {
+						// to f32
+						instr = vmi::cvt_uf;
+					}
+				} else {
+					// to i64, i32, i16, i8
+					instr = vmi::cvt_ui;
+				}
+			} else {
+				// convert from i64, i32, i16, i8
+				if (to->is_floating_point) {
+					if (to->size == sizeof(f64)) {
+						// to f64
+						instr = vmi::cvt_id;
+					} else {
+						// to f32
+						instr = vmi::cvt_if;
+					}
+				} else {
+					// to u64, u32, u16, u8
+					instr = vmi::cvt_iu;
+				}
+			}
 		}
 
-		ctx.log->err(format("No conversion from '%s' to '%s' found", from->type->name.c_str(), to->name.c_str()), because);
-		return from;
+		ctx.add(
+			encode(instr).operand(out->to_reg(because)),
+			because
+		);
+
+		return out;
 	}
 
 	var* cast(compile_context& ctx, var* from, var* to, ast_node* because) {

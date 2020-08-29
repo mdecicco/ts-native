@@ -830,8 +830,13 @@ namespace gjs {
 			ast_node* node = new ast_node();
 			node->type = ast_node::node_type::constant;
 			if (tok.text.find_first_of('.') != string::npos) {
-				node->c_type = ast_node::constant_type::decimal;
-				node->value.d =	atof(tok.text.c_str());
+				if (tok.text[tok.text.length() - 1] == 'f') {
+					node->c_type = ast_node::constant_type::f32;
+					node->value.f_32 = atof(tok.text.c_str());
+				} else {
+					node->c_type = ast_node::constant_type::f64;
+					node->value.f_64 = atof(tok.text.c_str());
+				}
 			} else {
 				node->c_type = ast_node::constant_type::integer;
 				node->value.i =	atoi(tok.text.c_str());
@@ -1017,7 +1022,8 @@ namespace gjs {
 
 		switch(c_type) {
 			case constant_type::integer: { tab(indent); printf("value: %lld,\n", value.i); break; }
-			case constant_type::decimal: { tab(indent); printf("value: %f,\n", value.d); break; }
+			case constant_type::f32: { tab(indent); printf("value: %f,\n", value.f_32); break; }
+			case constant_type::f64: { tab(indent); printf("value: %f,\n", value.f_64); break; }
 			case constant_type::string: { tab(indent); printf("value: '%s',\n", value.s); break; }
 			default: break;
 		}

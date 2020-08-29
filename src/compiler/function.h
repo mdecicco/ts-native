@@ -83,7 +83,8 @@ namespace gjs {
 		var* allocate(compile_context& ctx, const std::string& name, data_type* type, bool is_arg = false);
 		var* allocate_stack_var(compile_context& ctx, data_type* type, ast_node* because);
 		var* imm(compile_context& ctx, integer i);
-		var* imm(compile_context& ctx, decimal d);
+		var* imm(compile_context& ctx, f32 f);
+		var* imm(compile_context& ctx, f64 d);
 		var* imm(compile_context& ctx, char* s);
 		var* zero(compile_context& ctx, data_type* type);
 		void free(var* v);

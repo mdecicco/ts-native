@@ -54,10 +54,21 @@ namespace gjs {
 		divuir			,	// divide immediate value by register				divuir	(dest)	(a)		1.0		dest = 1 / a
 
 		// integer / floating point conversion
-		ctf				,	// convert value to float							ctf		(a)						a = float(a)		(a must be fp)
-		cti				,	// convert float to integer							cti 	(a)						a = integer(a)		(a must be fp)
+		cvt_if			,	// convert integer to f32							cvt_if	(a)						a = f32(a)
+		cvt_id			,	// convert integer to f64							cvt_id	(a)						a = f64(a)
+		cvt_iu			,	// convert integer to uinteger						cvt_iu	(a)						a = uinteger_tp(a)
+		cvt_uf			,	// convert uinteger to f32							cvt_if	(a)						a = f32(a)
+		cvt_ud			,	// convert uinteger to f64							cvt_id	(a)						a = f64(a)
+		cvt_ui			,	// convert uinteger to integer						cvt_ui	(a)						a = integer_tp(a)
+		cvt_fi			,	// convert f32 to integer							cvt_fi 	(a)						a = integer_tp(a)
+		cvt_fu			,	// convert f32 to uinteger							cvt_fi 	(a)						a = uinteger_tp(a)
+		cvt_fd			,	// convert f32 to f64								cvt_fd 	(a)						a = f64(a)
+		cvt_di			,	// convert f64 to integer							cvt_di 	(a)						a = integer_tp(a)
+		cvt_du			,	// convert f64 to uinteger							cvt_di 	(a)						a = uinteger_tp(a)
+		cvt_df			,	// convert f64 to f32								cvt_df 	(a)						a = f32(a)
 
 		// floating point arithmetic (only accepts $fxx registers and floating point immediates)
+		// f32
 		fadd			,	// add two registers								fadd	(dest)	(a)		(b)		dest = a + b
 		faddi			,	// add register and immediate value					faddi	(dest)	(a)		1.0		dest = a + 1.0
 		fsub			,	// subtract register from another					fsub	(dest)	(a)		(b)		dest = a - b
@@ -68,6 +79,17 @@ namespace gjs {
 		fdiv			,	// divide register by another						fdiv	(dest)	(a)		(b)		dest = a / b
 		fdivi			,	// divide register by immediate value				fdivi	(dest)	(a)		1.0		dest = a / 1.0
 		fdivir			,	// divide immediate value by register				fdivir	(dest)	(a)		1.0		dest = 1.0 / a
+		// f64
+		dadd			,	// add two registers								fadd	(dest)	(a)		(b)		dest = a + b
+		daddi			,	// add register and immediate value					faddi	(dest)	(a)		1.0		dest = a + 1.0
+		dsub			,	// subtract register from another					fsub	(dest)	(a)		(b)		dest = a - b
+		dsubi			,	// subtract immediate value from register			fsubi	(dest)	(a)		1.0		dest = a - 1.0
+		dsubir			,	// subtract register from immediate value			fsubir	(dest)	(a)		1.0		dest = 1.0 - a
+		dmul			,	// multiply two registers							fmul	(dest)	(a)		(b)		dest = a * b
+		dmuli			,	// multiply register and immediate value			fmuli	(dest)	(a)		1.0		dest = a * 1.0
+		ddiv			,	// divide register by another						fdiv	(dest)	(a)		(b)		dest = a / b
+		ddivi			,	// divide register by immediate value				fdivi	(dest)	(a)		1.0		dest = a / 1.0
+		ddivir			,	// divide immediate value by register				fdivir	(dest)	(a)		1.0		dest = 1.0 / a
 
 		// comparison (need unsigned counterparts still)
 		lt				,	// check if register less than register				lt		(dest)	(a)		(b)		dest = a < b
@@ -84,6 +106,7 @@ namespace gjs {
 		ncmpi			,	// check if register not equal immediate			ncmpi	(dest)	(a)		1		dest = a != 1
 
 		// floating point comparison
+		// f32
 		flt				,	// check if register less than register				flt		(dest)	(a)		(b)		dest = a < b
 		flti			,	// check if register less than immediate			flti	(dest)	(a)		1.0		dest = a < 1.0
 		flte			,	// check if register less than or equal register	flte	(dest)	(a)		(b)		dest = a <= b
@@ -96,6 +119,19 @@ namespace gjs {
 		fcmpi			,	// check if register equal immediate				fcmpi	(dest)	(a)		1.0		dest = a == 1.0
 		fncmp			,	// check if register not equal register				fncmp	(dest)	(a)		(b)		dest = a != b
 		fncmpi			,	// check if register not equal immediate			fncmpi	(dest)	(a)		1.0		dest = a != 1.0
+		// f64
+		dlt				,	// check if register less than register				flt		(dest)	(a)		(b)		dest = a < b
+		dlti			,	// check if register less than immediate			flti	(dest)	(a)		1.0		dest = a < 1.0
+		dlte			,	// check if register less than or equal register	flte	(dest)	(a)		(b)		dest = a <= b
+		dltei			,	// check if register less than or equal immediate	fltei	(dest)	(a)		1.0		dest = a <= 1.0
+		dgt				,	// check if register greater than register			fgt		(dest)	(a)		(b)		dest = a > b
+		dgti			,	// check if register greater than immediate			fgti	(dest)	(a)		1.0		dest = a > 1.0
+		dgte			,	// check if register greater than or equal register	fgte	(dest)	(a)		(b)		dest = a >= b
+		dgtei			,	// check if register greater than or equal imm.		fgtei	(dest)	(a)		1.0		dest = a >= 1.0
+		dcmp			,	// check if register equal register					fcmp	(dest)	(a)		(b)		dest = a == b
+		dcmpi			,	// check if register equal immediate				fcmpi	(dest)	(a)		1.0		dest = a == 1.0
+		dncmp			,	// check if register not equal register				fncmp	(dest)	(a)		(b)		dest = a != b
+		dncmpi			,	// check if register not equal immediate			fncmpi	(dest)	(a)		1.0		dest = a != 1.0
 
 		// boolean
 		and				,	// logical and										and		(dest)	(a)		(b)		dest = a && b

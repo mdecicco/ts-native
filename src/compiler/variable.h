@@ -34,7 +34,8 @@ namespace gjs {
 
 		union {
 			integer i;
-			decimal d;
+			f32 f_32;
+			f64 f_64;
 		} imm;
 
 		void move_stack_reference(var* to);

@@ -1,4 +1,4 @@
 
 void it() {
-    foo.s = 1.5;
+    foo.s += 1.5f;
 }

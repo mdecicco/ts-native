@@ -64,6 +64,7 @@ namespace gjs {
 				decimal_found = true;
 				continue;
 			}
+			if (thing[idx] == 'f' && idx == thing.length() - 1) continue;
 			if (thing[idx] < 48 || thing[idx] > 57) return false;
 		}
 
@@ -772,6 +773,7 @@ namespace gjs {
 
 		bool isNeg = false;
 		bool hasDecimal = false;
+		bool is_f32 = false;
 		size_t offset = 0;
 
 		while (!at_end()) {
@@ -796,6 +798,10 @@ namespace gjs {
 				out.text += c;
 				offset++;
 			} else if (c >= 48 && c <= 57) {
+				out.text += c;
+				offset++;
+			} else if (c == 'f' && !is_f32) {
+				is_f32 = true;
 				out.text += c;
 				offset++;
 			} else {

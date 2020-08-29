@@ -27,9 +27,9 @@ class foo {
 		i32 y;
 		i32 z;
 		f32 w;
-		static f64 s;
+		static f32 s;
 };
-f64 foo::s = 5.5;
+f32 foo::s = 5.5;
 
 struct vec3 { f32 x, y, z; };
 void testvec(void* vec) {

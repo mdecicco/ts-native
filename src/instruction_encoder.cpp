@@ -22,13 +22,21 @@ namespace gjs {
 			|| x == vmi::jmp		\
 		)
 
-	// jalr, jmpr, push, pop, ctf, cti
+	// jalr, jmpr, push, pop, cvt_*
 	#define check_instr_type_2(x)	\
 		(							\
 			   x == vmi::jalr		\
 			|| x == vmi::jmpr		\
-			|| x == vmi::ctf		\
-			|| x == vmi::cti		\
+			|| x == vmi::cvt_if		\
+			|| x == vmi::cvt_id		\
+			|| x == vmi::cvt_uf		\
+			|| x == vmi::cvt_ud		\
+			|| x == vmi::cvt_fi		\
+			|| x == vmi::cvt_fu		\
+			|| x == vmi::cvt_fd		\
+			|| x == vmi::cvt_di		\
+			|| x == vmi::cvt_du		\
+			|| x == vmi::cvt_df		\
 			|| x == vmi::push		\
 			|| x == vmi::pop		\
 		)
@@ -80,12 +88,36 @@ namespace gjs {
 			|| x == vmi::mului		\
 			|| x == vmi::divui		\
 			|| x == vmi::divuir		\
+			|| x == vmi::lti		\
+			|| x == vmi::ltei		\
+			|| x == vmi::gti		\
+			|| x == vmi::gtei		\
+			|| x == vmi::cmpi		\
+			|| x == vmi::ncmpi		\
 			|| x == vmi::faddi		\
 			|| x == vmi::fsubi		\
 			|| x == vmi::fsubir		\
 			|| x == vmi::fmuli		\
 			|| x == vmi::fdivi		\
 			|| x == vmi::fdivir		\
+			|| x == vmi::flti		\
+			|| x == vmi::fltei		\
+			|| x == vmi::fgti		\
+			|| x == vmi::fgtei		\
+			|| x == vmi::fcmpi		\
+			|| x == vmi::fncmpi		\
+			|| x == vmi::daddi		\
+			|| x == vmi::dsubi		\
+			|| x == vmi::dsubir		\
+			|| x == vmi::dmuli		\
+			|| x == vmi::ddivi		\
+			|| x == vmi::ddivir		\
+			|| x == vmi::dlti		\
+			|| x == vmi::dltei		\
+			|| x == vmi::dgti		\
+			|| x == vmi::dgtei		\
+			|| x == vmi::dcmpi		\
+			|| x == vmi::dncmpi		\
 			|| x == vmi::bandi		\
 			|| x == vmi::bori		\
 			|| x == vmi::xori		\
@@ -95,18 +127,6 @@ namespace gjs {
 			|| x == vmi::srir		\
 			|| x == vmi::andi		\
 			|| x == vmi::ori		\
-			|| x == vmi::lti		\
-			|| x == vmi::ltei		\
-			|| x == vmi::gti		\
-			|| x == vmi::gtei		\
-			|| x == vmi::cmpi		\
-			|| x == vmi::ncmpi		\
-			|| x == vmi::flti		\
-			|| x == vmi::fltei		\
-			|| x == vmi::fgti		\
-			|| x == vmi::fgtei		\
-			|| x == vmi::fcmpi		\
-			|| x == vmi::fncmpi		\
 		)
 
 	// the rest
@@ -120,10 +140,32 @@ namespace gjs {
 			|| x == vmi::subu		\
 			|| x == vmi::mulu		\
 			|| x == vmi::divu		\
+			|| x == vmi::lt			\
+			|| x == vmi::lte		\
+			|| x == vmi::gt			\
+			|| x == vmi::gte		\
+			|| x == vmi::cmp		\
+			|| x == vmi::ncmp		\
 			|| x == vmi::fadd		\
 			|| x == vmi::fsub		\
 			|| x == vmi::fmul		\
 			|| x == vmi::fdiv		\
+			|| x == vmi::flt		\
+			|| x == vmi::flte		\
+			|| x == vmi::fgt		\
+			|| x == vmi::fgte		\
+			|| x == vmi::fcmp		\
+			|| x == vmi::fncmp		\
+			|| x == vmi::dadd		\
+			|| x == vmi::dsub		\
+			|| x == vmi::dmul		\
+			|| x == vmi::ddiv		\
+			|| x == vmi::dlt		\
+			|| x == vmi::dlte		\
+			|| x == vmi::dgt		\
+			|| x == vmi::dgte		\
+			|| x == vmi::dcmp		\
+			|| x == vmi::dncmp		\
 			|| x == vmi::and		\
 			|| x == vmi::or			\
 			|| x == vmi::band		\
@@ -131,18 +173,6 @@ namespace gjs {
 			|| x == vmi::xor		\
 			|| x == vmi::sl			\
 			|| x == vmi::sr			\
-			|| x == vmi::lt			\
-			|| x == vmi::lte		\
-			|| x == vmi::gt			\
-			|| x == vmi::gte		\
-			|| x == vmi::cmp		\
-			|| x == vmi::ncmp		\
-			|| x == vmi::flt		\
-			|| x == vmi::flte		\
-			|| x == vmi::fgt		\
-			|| x == vmi::fgte		\
-			|| x == vmi::fcmp		\
-			|| x == vmi::fncmp		\
 		)
 
 	#define first_operand_is_register(x) \
@@ -180,8 +210,6 @@ namespace gjs {
 	#define first_operand_must_be_fpr(x) \
 		(								 \
 			   x == vmi::mffp			 \
-			|| x == vmi::ctf			 \
-			|| x == vmi::cti			 \
 			|| x == vmi::fadd			 \
 			|| x == vmi::fsub			 \
 			|| x == vmi::fmul			 \
@@ -192,6 +220,54 @@ namespace gjs {
 			|| x == vmi::fmuli			 \
 			|| x == vmi::fdivi			 \
 			|| x == vmi::fdivir			 \
+			|| x == vmi::flti			  \
+			|| x == vmi::fltei			  \
+			|| x == vmi::fgti			  \
+			|| x == vmi::fgtei			  \
+			|| x == vmi::fcmpi			  \
+			|| x == vmi::fncmpi			  \
+			|| x == vmi::dadd			  \
+			|| x == vmi::dsub			  \
+			|| x == vmi::dmul			  \
+			|| x == vmi::ddiv			  \
+			|| x == vmi::daddi			  \
+			|| x == vmi::dsubi			  \
+			|| x == vmi::dsubir			  \
+			|| x == vmi::dmuli			  \
+			|| x == vmi::ddivi			  \
+			|| x == vmi::ddivir			  \
+			|| x == vmi::dncmpi			  \
+			|| x == vmi::dlti			  \
+			|| x == vmi::dltei			  \
+			|| x == vmi::dgti			  \
+			|| x == vmi::dgtei			  \
+			|| x == vmi::dcmpi			  \
+			|| x == vmi::dncmpi			  \
+		)
+
+	// push, pop, cvt_*
+	#define first_operand_can_be_fpr(x)	\
+		(								\
+		       x == vmi::ld8			\
+			|| x == vmi::ld16			\
+			|| x == vmi::ld32			\
+			|| x == vmi::ld64			\
+			|| x == vmi::st8			\
+			|| x == vmi::st16			\
+			|| x == vmi::st32			\
+			|| x == vmi::st64			\
+			|| x == vmi::cvt_if			\
+			|| x == vmi::cvt_id			\
+			|| x == vmi::cvt_uf			\
+			|| x == vmi::cvt_ud			\
+			|| x == vmi::cvt_fi			\
+			|| x == vmi::cvt_fu			\
+			|| x == vmi::cvt_fd			\
+			|| x == vmi::cvt_di			\
+			|| x == vmi::cvt_du			\
+			|| x == vmi::cvt_df			\
+			|| x == vmi::push			\
+			|| x == vmi::pop			\
 		)
 	
 	#define second_operand_must_be_fpr(x) \
@@ -219,6 +295,28 @@ namespace gjs {
 			|| x == vmi::fgte			  \
 			|| x == vmi::fcmp			  \
 			|| x == vmi::fncmp			  \
+			|| x == vmi::dadd			  \
+			|| x == vmi::dsub			  \
+			|| x == vmi::dmul			  \
+			|| x == vmi::ddiv			  \
+			|| x == vmi::daddi			  \
+			|| x == vmi::dsubi			  \
+			|| x == vmi::dsubir			  \
+			|| x == vmi::dmuli			  \
+			|| x == vmi::ddivi			  \
+			|| x == vmi::ddivir			  \
+			|| x == vmi::dlti			  \
+			|| x == vmi::dltei			  \
+			|| x == vmi::dgti			  \
+			|| x == vmi::dgtei			  \
+			|| x == vmi::dcmpi			  \
+			|| x == vmi::dncmpi			  \
+			|| x == vmi::dlt			  \
+			|| x == vmi::dlte			  \
+			|| x == vmi::dgt			  \
+			|| x == vmi::dgte			  \
+			|| x == vmi::dcmp			  \
+			|| x == vmi::dncmp			  \
 		)
 	
 	#define third_operand_must_be_fpr(x)  \
@@ -227,13 +325,22 @@ namespace gjs {
 			|| x == vmi::fsub			  \
 			|| x == vmi::fmul			  \
 			|| x == vmi::fdiv			  \
-			|| x == vmi::fncmpi			  \
 			|| x == vmi::flt			  \
 			|| x == vmi::flte			  \
 			|| x == vmi::fgt			  \
 			|| x == vmi::fgte			  \
 			|| x == vmi::fcmp			  \
 			|| x == vmi::fncmp			  \
+			|| x == vmi::dadd			  \
+			|| x == vmi::dsub			  \
+			|| x == vmi::dmul			  \
+			|| x == vmi::ddiv			  \
+			|| x == vmi::dlt			  \
+			|| x == vmi::dlte			  \
+			|| x == vmi::dgt			  \
+			|| x == vmi::dgte			  \
+			|| x == vmi::dcmp			  \
+			|| x == vmi::dncmp			  \
 		)
 	
 	#define third_operand_must_be_fpi(x) \
@@ -250,6 +357,19 @@ namespace gjs {
 			|| x == vmi::fgtei			 \
 			|| x == vmi::fcmpi			 \
 			|| x == vmi::fncmpi			 \
+			|| x == vmi::daddi			 \
+			|| x == vmi::dsubi			 \
+			|| x == vmi::dsubir			 \
+			|| x == vmi::dmuli			 \
+			|| x == vmi::ddivi			 \
+			|| x == vmi::ddivir			 \
+			|| x == vmi::dncmpi			 \
+			|| x == vmi::dlti			 \
+			|| x == vmi::dltei			 \
+			|| x == vmi::dgti			 \
+			|| x == vmi::dgtei			 \
+			|| x == vmi::dcmpi			 \
+			|| x == vmi::dncmpi			 \
 		)
 
 	#define is_fpr(x) (x >= vmr::f0 && x <= vmr::f15)
@@ -330,7 +450,7 @@ namespace gjs {
 			return *this;
 		}
 
-		if (first_operand_must_be_fpr(instr) != is_fpr(reg) && !(check_instr_type_5(instr) && is_fpr(reg))) {
+		if (first_operand_must_be_fpr(instr) != is_fpr(reg) && !(first_operand_can_be_fpr(instr) && is_fpr(reg))) {
 			// insnstruction requires operand 1 to be floating point register
 			// exception
 			return *this;

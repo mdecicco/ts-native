@@ -21,18 +21,34 @@ namespace gjs {
 	using vmi = vm_instruction;
 	using op = ast_node::operation_type;
 	using nt = ast_node::node_type;
-
-	#define eval_fi(o) out->imm.d = (l->imm.d ##o r->imm.i)
-	#define eval_if(o) out->imm.i = (l->imm.i ##o r->imm.d)
-	#define eval_ff(o) out->imm.d = (l->imm.d ##o r->imm.d)
-	#define eval_ii(o) out->imm.i = (l->imm.i ##o r->imm.i)
-	#define eval(o)												\
-		if (l->type->is_floating_point) {						\
-			if (r->type->is_floating_point) eval_ff(o);			\
-			else eval_fi(o);									\
-		} else {												\
-			if (r->type->is_floating_point) eval_if(o);			\
-			else eval_ii(o);									\
+	
+	#define eval_fd(o) out->imm.f_32 = (l->imm.f_32 ##o r->imm.f_64)
+	#define eval_ff(o) out->imm.f_32 = (l->imm.f_32 ##o r->imm.f_32)
+	#define eval_fi(o) out->imm.f_32 = (l->imm.f_32 ##o r->imm.i   )
+	#define eval_dd(o) out->imm.f_64 = (l->imm.f_64 ##o r->imm.f_64)
+	#define eval_df(o) out->imm.f_64 = (l->imm.f_64 ##o r->imm.f_32)
+	#define eval_di(o) out->imm.f_64 = (l->imm.f_64 ##o r->imm.i   )
+	#define eval_id(o) out->imm.i    = (l->imm.i    ##o r->imm.f_64)
+	#define eval_ii(o) out->imm.i    = (l->imm.i    ##o r->imm.i   )
+	#define eval_if(o) out->imm.i    = (l->imm.i    ##o r->imm.f_32)
+	#define eval(o)													\
+		if (l->type->is_floating_point) {							\
+			if (l->type->size == sizeof(f64)) {						\
+				if (r->type->is_floating_point) {					\
+					if (r->type->size == sizeof(f64)) eval_fd(o);	\
+					else eval_ff(o);								\
+				} else eval_fi(o);									\
+			} else {												\
+				if (r->type->is_floating_point) {					\
+					if (r->type->size == sizeof(f64)) eval_dd(o);	\
+					else eval_df(o);								\
+				} else eval_di(o);									\
+			}														\
+		} else {													\
+			if (r->type->is_floating_point) {						\
+				if (r->type->size == sizeof(f64)) eval_id(o);		\
+				else eval_if(o);									\
+			} else eval_ii(o);										\
 		}
 
 	void evaluate_arithmetic_op_maybe_fp(compile_context& ctx, var* l, var* r, var* out, ast_node* because, op operation) {
@@ -97,18 +113,18 @@ namespace gjs {
 
 		// vmi::null -> swap lvalue and rvalue and use f_reg/f_imm or reg/imm or u_reg/imm
 		// vmi(-1) -> unsupported
-		static vmi possible_arr[][9] = {
-			// f_reg/f_imm, f_imm/f_reg, f_reg/f_reg, reg/imm   , imm/reg   , reg/reg  , u_reg/imm , imm/u_reg  , u_reg/u_reg
-			{ vmi::faddi  , vmi::null  , vmi::fadd  , vmi::addi , vmi::null , vmi::add , vmi::addui, vmi::null  , vmi::addu }, // add
-			{ vmi::fsubi  , vmi::fsubir, vmi::fsub  , vmi::subi , vmi::subir, vmi::sub , vmi::subui, vmi::subuir, vmi::subu }, // sub
-			{ vmi::fmuli  , vmi::null  , vmi::fmul  , vmi::muli , vmi::null , vmi::mul , vmi::mului, vmi::null  , vmi::mulu }, // mul
-			{ vmi::fdivi  , vmi::fdivir, vmi::fdiv  , vmi::divi , vmi::divir, vmi::div , vmi::divui, vmi::divuir, vmi::divu }, // div
-			{ vmi::flti   , vmi(-1)	   , vmi::flt   , vmi::lti  , vmi(-1)   , vmi::lt  , vmi::lti  , vmi(-1)    , vmi::lt   }, // less
-			{ vmi::fgti   , vmi(-1)	   , vmi::fgt   , vmi::gti  , vmi(-1)   , vmi::gt  , vmi::gti  , vmi(-1)    , vmi::gt   }, // greater
-			{ vmi::fltei  , vmi(-1)	   , vmi::flte  , vmi::ltei , vmi(-1)   , vmi::lte , vmi::ltei , vmi(-1)    , vmi::lte  }, // lessEq
-			{ vmi::fgtei  , vmi(-1)	   , vmi::fgte  , vmi::gtei , vmi(-1)   , vmi::gte , vmi::gtei , vmi(-1)    , vmi::gte  }, // greaterEq
-			{ vmi::fncmpi , vmi::null  , vmi::fncmp , vmi::ncmpi, vmi::null , vmi::ncmp, vmi::ncmpi, vmi::null  , vmi::ncmp }, // notEq
-			{ vmi::fcmpi  , vmi::null  , vmi::fcmp  , vmi::cmpi , vmi::null , vmi::cmp , vmi::cmpi , vmi::null  , vmi::cmp  }, // isEq1
+		static vmi possible_arr[][12] = {
+			// d_reg/d_imm, d_imm/d_reg, d_reg/d_reg, f_reg/f_imm , f_imm/f_reg, f_reg/f_reg, reg/imm   , imm/reg   , reg/reg  , u_reg/imm , imm/u_reg  , u_reg/u_reg
+			{ vmi::daddi  , vmi::null  , vmi::dadd  , vmi::faddi  , vmi::null  , vmi::fadd  , vmi::addi , vmi::null , vmi::add , vmi::addui, vmi::null  , vmi::addu }, // add
+			{ vmi::dsubi  , vmi::dsubir, vmi::dsub  , vmi::fsubi  , vmi::fsubir, vmi::fsub  , vmi::subi , vmi::subir, vmi::sub , vmi::subui, vmi::subuir, vmi::subu }, // sub
+			{ vmi::dmuli  , vmi::null  , vmi::dmul  , vmi::fmuli  , vmi::null  , vmi::fmul  , vmi::muli , vmi::null , vmi::mul , vmi::mului, vmi::null  , vmi::mulu }, // mul
+			{ vmi::ddivi  , vmi::ddivir, vmi::ddiv  , vmi::fdivi  , vmi::fdivir, vmi::fdiv  , vmi::divi , vmi::divir, vmi::div , vmi::divui, vmi::divuir, vmi::divu }, // div
+			{ vmi::dlti   , vmi(-1)	   , vmi::dlt   , vmi::flti   , vmi(-1)	   , vmi::flt   , vmi::lti  , vmi(-1)   , vmi::lt  , vmi::lti  , vmi(-1)    , vmi::lt   }, // less
+			{ vmi::dgti   , vmi(-1)	   , vmi::dgt   , vmi::fgti   , vmi(-1)	   , vmi::fgt   , vmi::gti  , vmi(-1)   , vmi::gt  , vmi::gti  , vmi(-1)    , vmi::gt   }, // greater
+			{ vmi::dltei  , vmi(-1)	   , vmi::dlte  , vmi::fltei  , vmi(-1)	   , vmi::flte  , vmi::ltei , vmi(-1)   , vmi::lte , vmi::ltei , vmi(-1)    , vmi::lte  }, // lessEq
+			{ vmi::dgtei  , vmi(-1)	   , vmi::dgte  , vmi::fgtei  , vmi(-1)	   , vmi::fgte  , vmi::gtei , vmi(-1)   , vmi::gte , vmi::gtei , vmi(-1)    , vmi::gte  }, // greaterEq
+			{ vmi::dncmpi , vmi::null  , vmi::dncmp , vmi::fncmpi , vmi::null  , vmi::fncmp , vmi::ncmpi, vmi::null , vmi::ncmp, vmi::ncmpi, vmi::null  , vmi::ncmp }, // notEq
+			{ vmi::dcmpi  , vmi::null  , vmi::dcmp  , vmi::fcmpi  , vmi::null  , vmi::fcmp  , vmi::cmpi , vmi::null , vmi::cmp , vmi::cmpi , vmi::null  , vmi::cmp  }, // isEq1
 		};
 		static robin_hood::unordered_map<op, u32> possible_map = {
 			{ op::add		, 0 },
@@ -138,12 +154,13 @@ namespace gjs {
 		vmr lvr = l && !l->is_imm ? l->to_reg(because) : vmr::zero;
 		if (!rhs->is_imm) rhs->to_reg(because);
 
-		bool op_is_fp = (l && is_fp(lvr)) || is_fp(o->to_reg(because));
-		bool lv_is_im = l && l->is_imm;
-		bool rv_is_im = rhs && rhs->is_imm;
-		bool op_is_us = (l && l->type->type && l->type->type->is_unsigned) || (o->type->type && o->type->type->is_unsigned);
+		bool op_is_fpr = (l && is_fp(lvr)) || is_fp(o->to_reg(because));
+		bool op_is_f64 = op_is_fpr ? ((l && l->type->size == sizeof(f64)) || (o->type->size == sizeof(f64))) : false;
+		bool lv_is_imm = l && l->is_imm;
+		bool rv_is_imm = rhs && rhs->is_imm;
+		bool op_is_uns = (l && l->type->type && l->type->type->is_unsigned) || (o->type->type && o->type->type->is_unsigned);
 
-		if (lv_is_im && rv_is_im) {
+		if (lv_is_imm && rv_is_imm) {
 			// just do the math here and set output to an imm
 			evaluate_arithmetic_op_maybe_fp(ctx, l, rhs, o, because, operation);
 			return;
@@ -151,19 +168,25 @@ namespace gjs {
 
 
 		vmi i;
-		if (op_is_fp) {
-			if (lv_is_im) i = possible[1];
-			else if (rv_is_im) i = possible[0];
-			else i = possible[2];
-		} else {
-			if (op_is_us) {
-				if (lv_is_im) i = possible[7];
-				else if (rv_is_im) i = possible[6];
-				else i = possible[8];
+		if (op_is_fpr) {
+			if (op_is_f64) {
+				if (lv_is_imm) i = possible[1];
+				else if (rv_is_imm) i = possible[0];
+				else i = possible[2];
 			} else {
-				if (lv_is_im) i = possible[4];
-				else if (rv_is_im) i = possible[3];
+				if (lv_is_imm) i = possible[4];
+				else if (rv_is_imm) i = possible[3];
 				else i = possible[5];
+			}
+		} else {
+			if (op_is_uns) {
+				if (lv_is_imm) i = possible[10];
+				else if (rv_is_imm) i = possible[9];
+				else i = possible[11];
+			} else {
+				if (lv_is_imm) i = possible[7];
+				else if (rv_is_imm) i = possible[6];
+				else i = possible[8];
 			}
 		}
 
@@ -176,10 +199,13 @@ namespace gjs {
 		bool swap = false;
 		if (i == vmi::null) {
 			swap = true;
-			if (op_is_fp) i = possible[0];
-			else {
-				if (op_is_us) i = possible[6];
+			if (op_is_fpr) {
+				if (op_is_f64) i = possible[0];
 				else i = possible[3];
+			}
+			else {
+				if (op_is_uns) i = possible[9];
+				else i = possible[6];
 			}
 		}
 
@@ -191,14 +217,20 @@ namespace gjs {
 
 		if (swap) {
 			inst.operand(rhs->to_reg(because));
-			if (lv_is_im) {
-				if (op_is_fp) inst.operand(l->imm.d);
+			if (lv_is_imm) {
+				if (op_is_fpr) {
+					if (l->type->size == sizeof(f64)) inst.operand(l->imm.f_64);
+					else inst.operand(l->imm.f_32);
+				}
 				else inst.operand(l->imm.i);
 			} else inst.operand(lvr);
 		} else {
 			inst.operand(lvr);
-			if (rv_is_im) {
-				if (op_is_fp) inst.operand(rhs->imm.d);
+			if (rv_is_imm) {
+				if (op_is_fpr) {
+					if (rhs->type->size == sizeof(f64)) inst.operand(rhs->imm.f_64);
+					else inst.operand(rhs->imm.f_32);
+				}
 				else inst.operand(rhs->imm.i);
 			} else inst.operand(rhs->to_reg(because));
 		}
@@ -287,14 +319,18 @@ namespace gjs {
 		if (swap) {
 			inst.operand(rhs->to_reg(because));
 			if (lv_is_im) {
-				if (op_is_fp) inst.operand(l->imm.d);
-				else inst.operand(l->imm.i);
+				if (op_is_fp) {
+					if (l->type->size == sizeof(f64)) inst.operand(l->imm.f_64);
+					else inst.operand(l->imm.f_32);
+				} else inst.operand(l->imm.i);
 			} else inst.operand(lvr);
 		} else {
 			inst.operand(lvr);
 			if (rv_is_im) {
-				if (op_is_fp) inst.operand(rhs->imm.d);
-				else inst.operand(rhs->imm.i);
+				if (op_is_fp) {
+					if (rhs->type->size == sizeof(f64)) inst.operand(rhs->imm.f_64);
+					else inst.operand(rhs->imm.f_32);
+				} else inst.operand(rhs->imm.i);
 			} else inst.operand(rhs->to_reg(because));
 		}
 
@@ -379,7 +415,8 @@ namespace gjs {
 			var* imm = nullptr;
 			switch (node->c_type) {
 				case ast_node::constant_type::integer: { imm = ctx.cur_func->imm(ctx, (integer)node->value.i); break; }
-				case ast_node::constant_type::decimal: { imm = ctx.cur_func->imm(ctx, (decimal)node->value.d); break; }
+				case ast_node::constant_type::f32: { imm = ctx.cur_func->imm(ctx, node->value.f_32); break; }
+				case ast_node::constant_type::f64: { imm = ctx.cur_func->imm(ctx, node->value.f_64); break; }
 				case ast_node::constant_type::string: { imm = ctx.cur_func->imm(ctx, node->value.s); break; }
 			}
 			if (dest) {
@@ -474,7 +511,8 @@ namespace gjs {
 			else if (node->lvalue->type == nt::constant) {
 				switch (node->lvalue->c_type) {
 					case ast_node::constant_type::integer: { lvalue = ctx.cur_func->imm(ctx, (integer)node->lvalue->value.i); break; }
-					case ast_node::constant_type::decimal: { lvalue = ctx.cur_func->imm(ctx, (decimal)node->lvalue->value.d); break; }
+					case ast_node::constant_type::f32: { lvalue = ctx.cur_func->imm(ctx, (f32)node->lvalue->value.f_32); break; }
+					case ast_node::constant_type::f64: { lvalue = ctx.cur_func->imm(ctx, (f64)node->lvalue->value.f_64); break; }
 					case ast_node::constant_type::string: { lvalue = ctx.cur_func->imm(ctx, node->lvalue->value.s); break; }
 				}
 			}
@@ -489,7 +527,8 @@ namespace gjs {
 			else if (node->rvalue->type == nt::constant) {
 				switch (node->rvalue->c_type) {
 					case ast_node::constant_type::integer: { rvalue = ctx.cur_func->imm(ctx, (integer)node->rvalue->value.i); break; }
-					case ast_node::constant_type::decimal: { rvalue = ctx.cur_func->imm(ctx, (decimal)node->rvalue->value.d); break; }
+					case ast_node::constant_type::f32: { rvalue = ctx.cur_func->imm(ctx, (f32)node->rvalue->value.f_32); break; }
+					case ast_node::constant_type::f64: { rvalue = ctx.cur_func->imm(ctx, (f64)node->rvalue->value.f_64); break; }
 					case ast_node::constant_type::string: { rvalue = ctx.cur_func->imm(ctx, node->rvalue->value.s); break; }
 				}
 			}
