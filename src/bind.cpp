@@ -68,10 +68,12 @@ namespace gjs {
 		name = _name;
 		access.entry = addr;
 		is_host = false;
+		signature.returns_on_stack = false;
 	}
 
 	vm_function::vm_function(type_manager* mgr, bind::wrapped_function* wrapped) {
 		m_ctx = mgr->m_ctx;
+		signature.returns_on_stack = false;
 		signature.return_loc = vm_register::v0;
 		signature.returns_pointer = wrapped->ret_is_ptr;
 		name = wrapped->name;
@@ -108,8 +110,7 @@ namespace gjs {
 			throw bind_exception(format("Return value of function '%s' is of type '%s' that has not been bound yet", name.c_str(), wrapped->return_type.name()));
 		}
 
-		signature.is_thiscall = wrapped->name.find_first_of(':') != std::string::npos;
-		signature.return_loc = vm_register::v0;
+		signature.is_thiscall = wrapped->name.find_first_of(':') != std::string::npos && !wrapped->is_static_method;
 		access.wrapped = wrapped;
 		mgr->m_ctx->add(this);
 	}

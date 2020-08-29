@@ -623,6 +623,53 @@ namespace gjs {
 		ast_node* primary() {
 			ast_node* n = nullptr;
 
+			n = parse_type_identifier(current(), false);
+			if (n) {
+				token typeTok = current();
+				consume();
+				ast_node* op = new ast_node();
+				op->type = ast_node::node_type::operation;
+				op->op = ast_node::operation_type::stackObj;
+				op->data_type = n;
+
+				if (match({ "(" })) {
+					consume();
+
+					op->arguments = expr();
+
+					while(match({ "," })) {
+						if (!op->arguments) {
+							throw parse_exception(
+								"Expected expression for constructor argument",
+								t, current()
+							);
+						}
+
+						token comma = current();
+						consume();
+						ast_node* n = op->arguments;
+						while (n->next) n = n->next;
+						n->next = expr();
+						if (!n->next) {
+							throw parse_exception(
+								"Expected expression for constructor argument",
+								t, comma
+							);
+						}
+					}
+					if (!match({ ")" })) {
+						throw parse_exception(
+							"Expected ')' to close constructor argument list",
+							t, current()
+						);
+					}
+					consume();
+				}
+
+				set_node_src(op, typeTok);
+				return op;
+			}
+
 			n = parse_identifier(current());
 			if (n) {
 				consume();
@@ -735,9 +782,10 @@ namespace gjs {
 			return nullptr;
 		}
 
-		ast_node* parse_type_identifier(const token& tok) {
+		ast_node* parse_type_identifier(const token& tok, bool expected = true) {
 			if (t.is_identifier(tok.text)) {
 				if (!ctx.find_type(tok.text)) {
+					if (!expected) return nullptr;
 					throw parse_exception(
 						format("Expected class or format identifier, found %s", tok.text.c_str()),
 						t, tok
@@ -934,7 +982,8 @@ namespace gjs {
 			"addr",
 			"at",
 			"member",
-			"newObj"
+			"newObj",
+			"stackObj"
 		};
 		auto tab = [tab_level](u32 offset) {
 			for (u32 i = 0;i < tab_level + offset;i++) printf("    ");

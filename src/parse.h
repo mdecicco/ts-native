@@ -83,7 +83,8 @@ namespace gjs {
 			addr,
 			at,
 			member,
-			newObj
+			newObj,
+			stackObj
 		};
 
 		struct source_location {

@@ -48,6 +48,7 @@ namespace gjs {
 		}
 	}
 
+	// de-necessitated 
 	void ir_remove_trailing_stack_loads(vm_context* ctx, instruction_array& ir, source_map* map, u32 start_addr) {
 		return;
 		vmi min_load = vmi::ld8;

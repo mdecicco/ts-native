@@ -93,7 +93,7 @@ namespace gjs {
 
 		struct wrapped_function {
 			wrapped_function(std::type_index ret, std::vector<std::type_index> args, const std::string& _name, const std::string& _sig)
-			: return_type(ret), arg_types(args), name(_name), sig(_sig) { }
+			: return_type(ret), arg_types(args), name(_name), sig(_sig), is_static_method(false), address(0), ret_is_ptr(false) { }
 
 			// class methods must receive /this/ pointer as first argument
 			virtual void call(void* ret, void** args) = 0;
@@ -104,6 +104,7 @@ namespace gjs {
 			bool ret_is_ptr;
 			std::vector<std::type_index> arg_types;
 			std::vector<bool> arg_is_ptr;
+			bool is_static_method;
 			u64 address;
 		};
 
@@ -287,7 +288,6 @@ namespace gjs {
 		template <typename Cls>
 		void destruct_object(Cls* obj) {
 			obj->~Cls();
-			script_free(obj);
 		}
 
 		template <typename Cls, typename... Args>
@@ -352,6 +352,13 @@ namespace gjs {
 			template <typename Ret, typename... Args>
 			wrap_class& method(const std::string& _name, Ret(Cls::*func)(Args...)) {
 				methods[_name] = wrap(types, rt, name + "::" + _name, func);
+				return *this;
+			}
+
+			template <typename Ret, typename... Args>
+			wrap_class& method(const std::string& _name, Ret(*func)(Args...)) {
+				methods[_name] = wrap(types, rt, name + "::" + _name, func);
+				methods[_name]->is_static_method = true;
 				return *this;
 			}
 
@@ -420,6 +427,7 @@ namespace gjs {
 			struct {
 				std::string text;
 				vm_type* return_type;
+				bool returns_on_stack;
 				vm_register return_loc;
 				std::vector<vm_type*> arg_types;
 				std::vector<vm_register> arg_locs;

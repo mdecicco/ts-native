@@ -84,9 +84,10 @@ namespace gjs {
 
 		ctx->bind(script_allocate, "alloc");
 		ctx->bind(script_free, "free");
+		ctx->bind(script_copymem, "memcopy");
 	}
 
-	void* script_allocate(u32 size) {
+	void* script_allocate(uinteger size) {
 		// todo: allocate from context memory
 		void* mem = malloc(size);
 		return mem;
@@ -94,5 +95,9 @@ namespace gjs {
 
 	void script_free(void* ptr) {
 		free(ptr);
+	}
+
+	void script_copymem(void* to, void* from, uinteger size) {
+		memmove(to, from, size);
 	}
 };
