@@ -147,6 +147,17 @@ namespace gjs {
 
 	func* data_type::method(const std::string& _name) {
 		for (u32 m = 0;m < methods.size();m++) {
+			if (_name.find_first_of(' ') != string::npos) {
+				// probably an operator
+				vector<string> mparts = split(split(methods[m]->name, ":")[1], " \t\n\r");
+				vector<string> sparts = split(_name, " \t\n\r");
+				if (mparts.size() != sparts.size()) continue;
+				bool matched = true;
+				for (u32 i = 0;matched && i < mparts.size();i++) {
+					matched = mparts[i] == sparts[i];
+				}
+				if (matched) return methods[m];
+			}
 			if (methods[m]->name == name + "::" + _name) return methods[m];
 		}
 		return nullptr;

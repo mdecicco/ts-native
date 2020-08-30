@@ -579,7 +579,7 @@ namespace gjs {
 
 				ast_node* op = new ast_node();
 				op->type = ast_node::node_type::operation;
-				op->op = ast_node::operation_type::member;
+				op->op = cur.text == "[" ? ast_node::operation_type::index : ast_node::operation_type::member;
 				op->lvalue = ret;
 				if (cur.text == "[") {
 					op->rvalue = primary();
@@ -1011,6 +1011,7 @@ namespace gjs {
 			"addr",
 			"at",
 			"member",
+			"index",
 			"newObj",
 			"stackObj"
 		};
@@ -2040,6 +2041,7 @@ namespace gjs {
 		t.specify_operator("!");
 		t.specify_operator("=");
 		t.specify_operator("==");
+		t.specify_operator("[]");
 	}
 
 	ast_node* parse_source(vm_context* env, const std::string& file, const string& source) {

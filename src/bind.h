@@ -174,6 +174,9 @@ namespace gjs {
 				}
 
 				virtual void call(void* ret, void** args) {
+					if (!func) {
+						throw runtime_exception("Attempted to call improperly bound function");
+					}
 					func(ret, args);
 				}
 
@@ -255,6 +258,9 @@ namespace gjs {
 					}
 
 					virtual void call(void* ret, void** args) {
+						if (!func) {
+							throw runtime_exception("Attempted to call improperly bound function");
+						}
 						return func(ret, args);
 					}
 

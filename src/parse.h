@@ -84,6 +84,7 @@ namespace gjs {
 			addr,
 			at,
 			member,
+			index,
 			newObj,
 			stackObj
 		};

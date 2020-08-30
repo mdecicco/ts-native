@@ -9,6 +9,10 @@ namespace gjs {
 		ctx = _ctx;
 	}
 
+	f32 f(u32 x) {
+		return x;
+	}
+
 	void init_context(vm_context* ctx) {
 		vm_type* tp = nullptr;
 
@@ -96,9 +100,14 @@ namespace gjs {
 		tp->size = sizeof(char*);
 
 		
-		tp = ctx->bind<script_array>("array").constructor<vm_type*>().finalize();
+		auto arr = ctx->bind<script_array>("array");
+		arr.constructor<vm_type*>();
+		arr.method("operator []", &script_array::operator[]);
+		tp = arr.finalize();
 		tp->requires_subtype = true;
 		tp->is_builtin = true;
+
+		ctx->bind(f, "test");
 
 		ctx->bind(script_allocate, "alloc");
 		ctx->bind(script_free, "free");
@@ -125,5 +134,9 @@ namespace gjs {
 	}
 
 	script_array::~script_array() {
+	}
+
+	f32 script_array::operator[](u32 idx) {
+		return idx;
 	}
 };

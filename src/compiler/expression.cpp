@@ -377,6 +377,7 @@ namespace gjs {
 			{ op::isEq, "==" },
 			{ op::eq, "=" },
 			{ op::not, "!" },
+			{ op::index, "[]" },
 		};
 
 		// todo: in case of post-inc/dec, clone object before calling the operator and use clone as return value
@@ -1123,6 +1124,10 @@ namespace gjs {
 								ctx.log->err(format("'%s' is not a property or method of type '%s'", n.c_str(), lvalue->type->name.c_str()), node);
 							}
 						}
+						break;
+					}
+					case op::index: {
+						ctx.log->err(format("Type '%s' has no [] operator", lvalue->type->name.c_str()), node);
 						break;
 					}
 					case op::newObj: {

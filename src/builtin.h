@@ -15,5 +15,7 @@ namespace gjs {
 		public:
 			script_array(vm_type* type);
 			~script_array();
+
+			f32 operator[](u32 idx);
 	};
 };
