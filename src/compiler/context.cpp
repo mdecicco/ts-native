@@ -3,6 +3,7 @@
 #include <compiler/data_type.h>
 
 #include <instruction_array.h>
+#include <compile_log.h>
 #include <parse.h>
 #include <source_map.h>
 
@@ -41,7 +42,31 @@ namespace gjs {
 	}
 
 	data_type* compile_context::type(ast_node* node) {
-		return type(*node);
+		data_type* t = type(*node);
+		if (t && node->data_type) {
+			if (!t->accepts_subtype) {
+				log->err(format("Type '%s' does not accept a sub-type", t->name.c_str()), node->data_type);
+			} else {
+				data_type* st = type(node->data_type);
+				data_type* ct = type(t->name + "<" + st->name + ">");
+				if (!ct) {
+					// combined type must be created
+					ct = new data_type(t->name + "<" + st->name + ">");
+					ct->size = t->size;
+					ct->actual_size = t->actual_size;
+					ct->built_in = t->built_in;
+					ct->ctor = t->ctor;
+					ct->dtor = t->dtor;
+					ct->props = t->props;
+					ct->methods = t->methods;
+					ct->base_type = t;
+					ct->sub_type = st;
+					types.push_back(ct);
+					return ct;
+				}
+			}
+		}
+		return t;
 	}
 
 	func* compile_context::function(const string& name) {

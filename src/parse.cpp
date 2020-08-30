@@ -628,6 +628,16 @@ namespace gjs {
 				token typeTok = current();
 				consume();
 
+				if (match({ "<" })) {
+					consume();
+					n->data_type = parse_type_identifier(current());
+					consume();
+					if (!match({ ">" })) {
+						throw parse_exception("Expected '>'", t, current());
+					}
+					consume();
+				}
+
 				// could be referring to a static method or property
 				if (match({ "." })) return n;
 
@@ -726,6 +736,16 @@ namespace gjs {
 					);
 				}
 				consume();
+
+				if (match({ "<" })) {
+					consume();
+					n->data_type->data_type = parse_type_identifier(current());
+					consume();
+					if (!match({ ">" })) {
+						throw parse_exception("Expected '>'", t, current());
+					}
+					consume();
+				}
 
 				if (match({ "(" })) {
 					consume();
@@ -1091,7 +1111,14 @@ namespace gjs {
 	ast_node* parse_data_type(parse_context& ctx, tokenizer& t) {
 		token type = t.identifier(false);
 		if (type) {
-			if (ctx.find_type(type.text)) return type_identifier(t, type);
+			if (ctx.find_type(type.text)) {
+				ast_node* tp = type_identifier(t, type);
+				if (t.character('<', false)) {
+					tp->data_type = parse_data_type(ctx, t);
+					t.character('>');
+				}
+				return tp;
+			}
 			else throw parse_exception("Expected type name", t, type);
 		} else {
 			throw parse_exception("Expected type name", t);

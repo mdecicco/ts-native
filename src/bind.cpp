@@ -26,7 +26,7 @@ namespace gjs {
 		return t;
 	}
 
-	void type_manager::finalize_class(bind::wrapped_class* wrapped) {
+	vm_type* type_manager::finalize_class(bind::wrapped_class* wrapped) {
 		auto it = m_types.find(wrapped->internal_name);
 		if (it == m_types.end()) {
 			throw bind_exception(format("Type '%s' not found and can not be finalized", wrapped->name.c_str()));
@@ -53,6 +53,8 @@ namespace gjs {
 		for (auto i = wrapped->methods.begin();i != wrapped->methods.end();++i) {
 			t->methods.push_back(new vm_function(this, i->getSecond()));
 		}
+
+		return t;
 	}
 
 	std::vector<vm_type*> type_manager::all() {
@@ -140,6 +142,7 @@ namespace gjs {
 		is_floating_point = false;
 		is_unsigned = false;
 		is_builtin = false;
+		accepts_subtype = false;
 		m_wrapped = nullptr;
 	}
 

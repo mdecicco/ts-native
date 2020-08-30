@@ -83,20 +83,25 @@ namespace gjs {
 		tp->size = sizeof(bool);
 
 		tp = ctx->types()->add("void", "void");
-		tp->is_primitive = false;
 		tp->is_builtin = true;
 		tp->size = 0;
 
 		tp = ctx->types()->add("data", "void*");
-		tp->is_primitive = false;
 		tp->is_builtin = true;
 		tp->size = sizeof(void*);
 		tp->is_unsigned = true;
 
 		tp = ctx->types()->add("string", "char");
-		tp->is_primitive = false;
 		tp->is_builtin = true;
 		tp->size = sizeof(char*);
+
+		struct sarr_test {
+			u32 size;
+		};
+
+		tp = ctx->bind<sarr_test>("array").prop("size", &sarr_test::size, bind::property_flags::pf_none).finalize();
+		tp->accepts_subtype = true;
+		tp->is_builtin = true;
 
 		ctx->bind(script_allocate, "alloc");
 		ctx->bind(script_free, "free");

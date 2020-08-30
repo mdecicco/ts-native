@@ -64,7 +64,7 @@ namespace gjs {
 
 			vm_type* add(const std::string& name, const std::string& internal_name);
 
-			void finalize_class(bind::wrapped_class* wrapped);
+			vm_type* finalize_class(bind::wrapped_class* wrapped);
 
 			std::vector<vm_type*> all();
 
@@ -402,8 +402,8 @@ namespace gjs {
 				return *this;
 			}
 
-			void finalize() {
-				types->finalize_class(this);
+			vm_type* finalize() {
+				return types->finalize_class(this);
 			}
 
 			type_manager* types;
@@ -479,6 +479,7 @@ namespace gjs {
 			bool is_unsigned;
 			bool is_floating_point;
 			bool is_builtin;
+			bool accepts_subtype;
 
 			struct property {
 				u8 flags;

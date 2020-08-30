@@ -431,6 +431,7 @@ namespace gjs {
 			t->is_floating_point = types[i]->is_floating_point;
 			t->is_unsigned = types[i]->is_unsigned;
 			t->is_primitive = types[i]->is_primitive;
+			t->accepts_subtype = types[i]->accepts_subtype;
 			if (!t->built_in || t->name == "string") {
 				// object pointer
 				t->size = sizeof(void*);
@@ -494,8 +495,10 @@ namespace gjs {
 			for (u32 i = 0;i < ctx.types.size();i++) {
 				data_type* t = ctx.types[i];
 				if (t->type) continue; // already in context
+				if (t->sub_type) continue; // sub-typed types only exist for the compiler's convenience, don't need to be added
 
 				vm_type* tp = vctx->types()->add(t->name, t->name);
+				tp->accepts_subtype = t->accepts_subtype;
 				t->type = tp;
 				for (u32 p = 0;p < t->props.size();p++) {
 					data_type::property& sprop = t->props[p];
