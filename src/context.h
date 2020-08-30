@@ -45,7 +45,7 @@ namespace gjs {
 			template <typename Ret, typename... Args>
 			void bind(Ret(*func)(Args...), const std::string& name) {
 				bind::wrapped_function* w = bind::wrap(&m_types, *m_jit, name, func);
-				new vm_function(&m_types, w);
+				new vm_function(&m_types, nullptr, w);
 			}
 
 			void add(vm_function* func);

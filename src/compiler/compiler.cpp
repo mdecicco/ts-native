@@ -117,10 +117,52 @@ namespace gjs {
 	}
 
 	void compile_variable_declaration(compile_context& ctx, ast_node* node) {
-		var* var = ctx.cur_func->allocate(ctx, node);
-		var->total_ref_count = count_references(ctx.cur_func->root, var->name);
+		if (node->initializer) {
+			var* v = ctx.cur_func->allocate(ctx, node);
+			v->total_ref_count = count_references(ctx.cur_func->root, v->name);
+			v->no_auto_free = true;
+			compile_expression(ctx, node->initializer->body, v);
+			v->no_auto_free = false;
+		} else {
+			data_type* tp = ctx.type(node->data_type);
+			if (tp->ctor) {
+				// create a stack object
+				if (tp->requires_subtype) {
+					if (tp->sub_type) {
+						var* obj = ctx.cur_func->allocate_stack_var(ctx, tp, node);
+						vector<var*> args = { obj, ctx.cur_func->imm(ctx, (i64)tp->sub_type->type_id) };
 
-		if (node->initializer) compile_expression(ctx, node->initializer->body, var);
+						var* ret = call(ctx, tp->ctor, node, args);
+						ret->name = *node->identifier;
+						ret->is_variable = true;
+						ret->ref_count = 1;
+						ret->total_ref_count = count_references(ctx.cur_func->root, ret->name);
+						obj->move_stack_reference(ret);
+
+						for (u32 i = 0;i < args.size();i++) ctx.cur_func->free(args[i]);
+					} else {
+						ctx.log->err(format("Type '%s' can not be constructed without a sub-type", tp->name.c_str()), node);
+
+						// Prevent errors that would stem from this
+						var* v = ctx.cur_func->allocate(ctx, node);
+						v->total_ref_count = count_references(ctx.cur_func->root, v->name);
+					}
+				} else {
+					var* obj = ctx.cur_func->allocate_stack_var(ctx, tp, node);
+
+					var* ret = call(ctx, tp->ctor, node, { obj });
+					ret->name = *node->identifier;
+					ret->is_variable = true;
+					ret->ref_count = 1;
+					ret->total_ref_count = count_references(ctx.cur_func->root, ret->name);
+					obj->move_stack_reference(ret);
+					ctx.cur_func->free(obj);
+				}
+			} else {
+				var* v = ctx.cur_func->allocate(ctx, node);
+				v->total_ref_count = count_references(ctx.cur_func->root, v->name);
+			}
+		}
 	}
 
 	void compile_delete_statement(compile_context& ctx, ast_node* node) {
@@ -425,13 +467,14 @@ namespace gjs {
 		for (u32 i = 0;i < types.size();i++) {
 			ctx.types.push_back(new data_type(types[i]->name));
 			t = ctx.types[ctx.types.size() - 1];
+			t->type_id = types[i]->id();
 			t->size = t->actual_size = types[i]->size;
 			t->type = types[i];
 			t->built_in = types[i]->is_builtin;
 			t->is_floating_point = types[i]->is_floating_point;
 			t->is_unsigned = types[i]->is_unsigned;
 			t->is_primitive = types[i]->is_primitive;
-			t->accepts_subtype = types[i]->accepts_subtype;
+			t->requires_subtype = types[i]->requires_subtype;
 			if (!t->built_in || t->name == "string") {
 				// object pointer
 				t->size = sizeof(void*);
@@ -495,10 +538,9 @@ namespace gjs {
 			for (u32 i = 0;i < ctx.types.size();i++) {
 				data_type* t = ctx.types[i];
 				if (t->type) continue; // already in context
-				if (t->sub_type) continue; // sub-typed types only exist for the compiler's convenience, don't need to be added
 
 				vm_type* tp = vctx->types()->add(t->name, t->name);
-				tp->accepts_subtype = t->accepts_subtype;
+				tp->requires_subtype = t->requires_subtype;
 				t->type = tp;
 				for (u32 p = 0;p < t->props.size();p++) {
 					data_type::property& sprop = t->props[p];
@@ -528,6 +570,7 @@ namespace gjs {
 			for (u32 i = 0;i < new_types.size();i++) {
 				data_type* t = new_types[i];
 				vm_type* tp = t->type;
+
 				for (u32 p = 0;p < t->props.size();p++) {
 					data_type::property& sprop = t->props[p];
 					vm_type::property& tprop = tp->properties[p];
@@ -535,6 +578,9 @@ namespace gjs {
 					tprop.setter = sprop.setter ? vctx->function(sprop.setter->entry) : nullptr;
 					tprop.type = sprop.type->type;
 				}
+
+				tp->base_type = t->base_type->type;
+				tp->sub_type = t->sub_type->type;
 
 				for (u32 m = 0;m < t->methods.size();m++) {
 					func* f = t->methods[m];

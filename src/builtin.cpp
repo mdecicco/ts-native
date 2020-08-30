@@ -95,12 +95,9 @@ namespace gjs {
 		tp->is_builtin = true;
 		tp->size = sizeof(char*);
 
-		struct sarr_test {
-			u32 size;
-		};
-
-		tp = ctx->bind<sarr_test>("array").prop("size", &sarr_test::size, bind::property_flags::pf_none).finalize();
-		tp->accepts_subtype = true;
+		
+		tp = ctx->bind<script_array>("array").constructor<vm_type*>().finalize();
+		tp->requires_subtype = true;
 		tp->is_builtin = true;
 
 		ctx->bind(script_allocate, "alloc");
@@ -120,5 +117,13 @@ namespace gjs {
 
 	void script_copymem(void* to, void* from, uinteger size) {
 		memmove(to, from, size);
+	}
+
+
+	script_array::script_array(vm_type* type) {
+		printf("script_array<%s> instantiated\n", type->name.c_str());
+	}
+
+	script_array::~script_array() {
 	}
 };

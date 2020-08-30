@@ -6,7 +6,7 @@ using namespace gjs;
 
 class foo {
 	public:
-		foo(i32* _x) : x(_x), y(0), z(0), w(0.0f) {
+		foo() : y(0), z(0), w(0.0f) {
 			printf("Construct foo\n");
 		}
 		~foo() {
@@ -23,7 +23,6 @@ class foo {
 
 		operator i32() { return y; }
 
-		i32* x;
 		i32 y;
 		i32 z;
 		f32 w;
@@ -42,7 +41,7 @@ void dtestvec(void* vec) {
 }
 
 void print_foo(const foo& f) {
-	printf("foo: %d, %d, %d, %f\n", *f.x, f.y, f.z, f.w);
+	printf("foo: %d, %d, %f\n", f.y, f.z, f.w);
 }
 
 void print_log(vm_context& ctx) {
@@ -138,11 +137,10 @@ int main(int arg_count, const char** args) {
 
 	try {
 		auto f = ctx.bind<foo>("foo");
-		f.constructor<i32*>();
+		f.constructor();
 		f.method("t", &foo::t);
 		f.method("operator i32", &foo::operator i32);
 		f.method("static_func", &foo::static_func);
-		f.prop("x", &foo::x, bind::property_flags::pf_object_pointer);
 		f.prop("y", &foo::y, bind::property_flags::pf_none);
 		f.prop("z", &foo::z, bind::property_flags::pf_none);
 		f.prop("w", &foo::w, bind::property_flags::pf_none);

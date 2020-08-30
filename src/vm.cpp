@@ -811,6 +811,14 @@ namespace gjs {
 			vm_type* tp = f->signature.arg_types[a];
 			u64* reg = &(m_ctx->state()->registers[(u8)f->signature.arg_locs[a]]);
 			bool is_ptr = f->access.wrapped->arg_is_ptr[a];
+
+			if (f->signature.is_subtype_obj_ctor && a == 1) {
+				// arg refers to a type id
+				vm_type* tp = m_ctx->types()->get(*(u32*)reg);
+				args.push_back(tp);
+				continue;
+			}
+
 			if (tp->is_primitive) {
 				// *reg is some primitive value (integer, decimal, ...)
 				if (is_ptr) {

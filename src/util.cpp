@@ -39,4 +39,10 @@ namespace gjs {
 		va_end(l);
 		return out;
 	}
+
+	u32 hash(const std::string& str) {
+		u32 h = 0;
+		for (u32 i = 0;i < str.length();i++) h = 37 * h + str[i];
+		return h + (h >> 5);
+	}
 };

@@ -1136,6 +1136,20 @@ namespace gjs {
 						if (tp->ctor) {
 							vector<var*> args = { ret };
 							vector<bool> free_arg = { true };
+
+							if (tp->requires_subtype) {
+								if (tp->sub_type) {
+									args.push_back(ctx.cur_func->imm(ctx, (i64)tp->sub_type->type_id));
+									free_arg.push_back(true);
+								} else {
+									ctx.log->err(format("Type '%s' can not be constructed without a sub-type", tp->name.c_str()), node);
+
+									// Prevent errors that would stem from this
+									args.push_back(ctx.cur_func->imm(ctx, (i64)0));
+									free_arg.push_back(true);
+								}
+							}
+
 							ast_node* arg = node->arguments;
 							while (arg) {
 								args.push_back(compile_expression(ctx, arg, nullptr));
@@ -1168,6 +1182,20 @@ namespace gjs {
 						if (tp->ctor) {
 							vector<var*> args = { obj };
 							vector<bool> free_arg = { true };
+
+							if (tp->requires_subtype) {
+								if (tp->sub_type) {
+									args.push_back(ctx.cur_func->imm(ctx, (i64)tp->sub_type->type_id));
+									free_arg.push_back(true);
+								} else {
+									ctx.log->err(format("Type '%s' can not be constructed without a sub-type", tp->name.c_str()), node);
+
+									// Prevent errors that would stem from this
+									args.push_back(ctx.cur_func->imm(ctx, (i64)0));
+									free_arg.push_back(true);
+								}
+							}
+
 							ast_node* arg = node->arguments;
 							while (arg) {
 								args.push_back(compile_expression(ctx, arg, nullptr));

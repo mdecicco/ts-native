@@ -13,15 +13,27 @@ namespace gjs {
 		return m_types[name];
 	}
 
+	vm_type* type_manager::get(u32 id) {
+		if (m_types_by_id.count(id) == 0) return nullptr;
+		return m_types_by_id[id];
+	}
+
 	vm_type* type_manager::add(const std::string& name, const std::string& internal_name) {
 		if (m_types.count(internal_name) > 0) {
 			throw bind_exception(format("Type '%s' already bound", name.c_str()));
 		}
+		u32 id = hash(name);
+		if (m_types_by_id.count(id) > 0) {
+			throw bind_exception(format("There was a type id collision while binding type '%s'", name.c_str()));
+		}
+
 		vm_type* t = new vm_type();
+		t->m_id = id;
 		t->name = name;
 		t->internal_name = internal_name;
 
 		m_types[internal_name] = t;
+		m_types_by_id[id] = t;
 
 		return t;
 	}
@@ -34,10 +46,10 @@ namespace gjs {
 
 		vm_type* t = it->getSecond();
 		t->m_wrapped = wrapped;
-
+		t->requires_subtype = wrapped->requires_subtype;
 		t->size = wrapped->size;
-		t->constructor = wrapped->ctor ? new vm_function(this, wrapped->ctor) : nullptr;
-		t->destructor = wrapped->dtor ? new vm_function(this, wrapped->dtor) : nullptr;
+		t->constructor = wrapped->ctor ? new vm_function(this, t, wrapped->ctor, true) : nullptr;
+		t->destructor = wrapped->dtor ? new vm_function(this, t, wrapped->dtor) : nullptr;
 
 		for (auto i = wrapped->properties.begin();i != wrapped->properties.end();++i) {
 			t->properties.push_back({
@@ -45,13 +57,13 @@ namespace gjs {
 				i->getFirst(),
 				get(i->getSecond()->type.name()),
 				i->getSecond()->offset,
-				i->getSecond()->getter ? new vm_function(this, i->getSecond()->getter) : nullptr,
-				i->getSecond()->setter ? new vm_function(this, i->getSecond()->setter) : nullptr
+				i->getSecond()->getter ? new vm_function(this, t, i->getSecond()->getter) : nullptr,
+				i->getSecond()->setter ? new vm_function(this, t, i->getSecond()->setter) : nullptr
 			});
 		}
 
 		for (auto i = wrapped->methods.begin();i != wrapped->methods.end();++i) {
-			t->methods.push_back(new vm_function(this, i->getSecond()));
+			t->methods.push_back(new vm_function(this, t, i->getSecond()));
 		}
 
 		return t;
@@ -71,19 +83,23 @@ namespace gjs {
 		access.entry = addr;
 		is_host = false;
 		signature.returns_on_stack = false;
+		signature.is_subtype_obj_ctor = false;
 	}
 
-	vm_function::vm_function(type_manager* mgr, bind::wrapped_function* wrapped) {
+	vm_function::vm_function(type_manager* mgr, vm_type* tp, bind::wrapped_function* wrapped, bool is_ctor) {
 		m_ctx = mgr->m_ctx;
 		signature.returns_on_stack = false;
 		signature.return_loc = vm_register::v0;
 		signature.returns_pointer = wrapped->ret_is_ptr;
 		name = wrapped->name;
 		signature.text = wrapped->sig;
+		signature.is_subtype_obj_ctor = tp && tp->requires_subtype && is_ctor;
 		for (u8 i = 0;i < wrapped->arg_types.size();i++) {
 			vm_type* atp = nullptr;
 			if (std::string(wrapped->arg_types[i].name()) == "void" && wrapped->ret_is_ptr) {
-				atp = mgr->get("void*");
+				atp = mgr->get("void*"); // some object or primitive pointer
+			} else if (tp && i == 1 && tp->requires_subtype && is_ctor) {
+				atp = mgr->get("void*"); // vm_type*
 			} else atp = mgr->get(wrapped->arg_types[i].name());
 
 			if (!atp) {
@@ -112,7 +128,7 @@ namespace gjs {
 			throw bind_exception(format("Return value of function '%s' is of type '%s' that has not been bound yet", name.c_str(), wrapped->return_type.name()));
 		}
 
-		signature.is_thiscall = wrapped->name.find_first_of(':') != std::string::npos && !wrapped->is_static_method;
+		signature.is_thiscall = tp && !wrapped->is_static_method;
 		access.wrapped = wrapped;
 		mgr->m_ctx->add(this);
 	}
@@ -142,8 +158,10 @@ namespace gjs {
 		is_floating_point = false;
 		is_unsigned = false;
 		is_builtin = false;
-		accepts_subtype = false;
+		requires_subtype = false;
 		m_wrapped = nullptr;
+		base_type = nullptr;
+		sub_type = nullptr;
 	}
 
 	vm_type::~vm_type() {

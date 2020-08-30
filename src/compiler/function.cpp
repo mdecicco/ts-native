@@ -46,6 +46,7 @@ namespace gjs {
 		this_type = nullptr;
 		reached_return = false;
 		return_loc_determined = false;
+		is_subtype_obj_ctor = false;
 		is_thiscall = false;
 		bound_to = nullptr;
 	}
@@ -64,6 +65,7 @@ namespace gjs {
 		is_ctor = is_dtor = reached_return = false;
 		return_loc_determined = true;
 		is_thiscall = f->signature.is_thiscall;
+		is_subtype_obj_ctor = f->signature.is_subtype_obj_ctor;
 		bound_to = f;
 	}
 
@@ -461,6 +463,12 @@ namespace gjs {
 			u32 pc = args.size();
 			if (to->name.find_first_of("::") != string::npos) {
 				// class method, subtract 1 for 'this' obj (since it's passed automatically)
+				if (ac > 0) ac--;
+				if (pc > 0) pc--;
+			}
+
+			if (to->is_subtype_obj_ctor) {
+				// subtype object constructor, subtract 1 for type id (since it's passed automatically)
 				if (ac > 0) ac--;
 				if (pc > 0) pc--;
 			}

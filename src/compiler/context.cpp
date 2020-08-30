@@ -44,7 +44,7 @@ namespace gjs {
 	data_type* compile_context::type(ast_node* node) {
 		data_type* t = type(*node);
 		if (t && node->data_type) {
-			if (!t->accepts_subtype) {
+			if (!t->requires_subtype) {
 				log->err(format("Type '%s' does not accept a sub-type", t->name.c_str()), node->data_type);
 			} else {
 				data_type* st = type(node->data_type);
@@ -52,6 +52,8 @@ namespace gjs {
 				if (!ct) {
 					// combined type must be created
 					ct = new data_type(t->name + "<" + st->name + ">");
+					ct->requires_subtype = true;
+					ct->type_id = hash(ct->name);
 					ct->size = t->size;
 					ct->actual_size = t->actual_size;
 					ct->built_in = t->built_in;
@@ -62,8 +64,9 @@ namespace gjs {
 					ct->base_type = t;
 					ct->sub_type = st;
 					types.push_back(ct);
-					return ct;
 				}
+
+				return ct;
 			}
 		}
 		return t;

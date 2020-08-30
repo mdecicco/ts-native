@@ -739,7 +739,7 @@ namespace gjs {
 
 				if (match({ "<" })) {
 					consume();
-					n->data_type->data_type = parse_type_identifier(current());
+					op->data_type->data_type = parse_type_identifier(current());
 					consume();
 					if (!match({ ">" })) {
 						throw parse_exception("Expected '>'", t, current());

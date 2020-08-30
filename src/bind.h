@@ -57,6 +57,8 @@ namespace gjs {
 
 			vm_type* get(const std::string& internal_name);
 
+			vm_type* get(u32 id);
+
 			template <typename T>
 			vm_type* get() {
 				return get(base_type_name<T>());
@@ -72,6 +74,7 @@ namespace gjs {
 			friend class vm_function;
 			vm_context* m_ctx;
 			robin_hood::unordered_map<std::string, vm_type*> m_types;
+			robin_hood::unordered_map<u32, vm_type*> m_types_by_id;
 	};
 
 	namespace bind {
@@ -311,7 +314,7 @@ namespace gjs {
 			};
 
 			wrapped_class(asmjit::JitRuntime& _rt, const std::string& _name, const std::string& _internal_name, size_t _size) :
-				rt(_rt), name(_name), internal_name(_internal_name), size(_size), ctor(nullptr), dtor(nullptr)
+				rt(_rt), name(_name), internal_name(_internal_name), size(_size), ctor(nullptr), dtor(nullptr), requires_subtype(false)
 			{
 			}
 
@@ -320,6 +323,7 @@ namespace gjs {
 			asmjit::JitRuntime& rt;
 			std::string name;
 			std::string internal_name;
+			bool requires_subtype;
 			wrapped_function* ctor;
 			robin_hood::unordered_map<std::string, wrapped_function*> methods;
 			robin_hood::unordered_map<std::string, property*> properties;
@@ -333,7 +337,15 @@ namespace gjs {
 				vm_type* tp = tpm->add(name, typeid(remove_all<Cls>::type).name());
 			}
 
-			template <typename... Args>
+			template <typename... Args, std::enable_if_t<sizeof...(Args) != 0, int> = 0>
+			wrap_class& constructor() {
+				requires_subtype = std::is_same_v<std::tuple_element_t<0, std::tuple<Args...>>, vm_type*>;
+				ctor = wrap_constructor<Cls, Args...>(types, rt);
+				if (!dtor) dtor = wrap_destructor<Cls>(types, rt);
+				return *this;
+			}
+
+			template <typename... Args, std::enable_if_t<sizeof...(Args) == 0, int> = 0>
 			wrap_class& constructor() {
 				ctor = wrap_constructor<Cls, Args...>(types, rt);
 				if (!dtor) dtor = wrap_destructor<Cls>(types, rt);
@@ -422,7 +434,7 @@ namespace gjs {
 	class vm_function {
 		public:
 			vm_function(vm_context* ctx, const std::string name, address addr);
-			vm_function(type_manager* mgr, bind::wrapped_function* wrapped);
+			vm_function(type_manager* mgr, vm_type* tp, bind::wrapped_function* wrapped, bool is_ctor = false);
 
 			void arg(vm_type* type);
 
@@ -438,6 +450,7 @@ namespace gjs {
 				std::vector<vm_register> arg_locs;
 				bool is_thiscall;
 				bool returns_pointer;
+				bool is_subtype_obj_ctor;
 			} signature;
 
 			union {
@@ -479,7 +492,7 @@ namespace gjs {
 			bool is_unsigned;
 			bool is_floating_point;
 			bool is_builtin;
-			bool accepts_subtype;
+			bool requires_subtype;
 
 			struct property {
 				u8 flags;
@@ -490,14 +503,19 @@ namespace gjs {
 				vm_function* setter;
 			};
 
+			vm_type* base_type;
+			vm_type* sub_type;
 			std::vector<property> properties;
 			vm_function* constructor;
 			vm_function* destructor;
 			std::vector<vm_function*> methods;
 
+			inline u32 id() const { return m_id; }
+
 		protected:
 			friend class type_manager;
 			bind::wrapped_class* m_wrapped;
+			u32 m_id;
 			vm_type();
 			~vm_type();
 	};

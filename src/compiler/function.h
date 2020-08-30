@@ -46,6 +46,7 @@ namespace gjs {
 		bool auto_free_consumed_vars;
 		bool reached_return;
 		bool is_thiscall;
+		bool is_subtype_obj_ctor;
 		vm_function* bound_to;
 
 		struct _stack {

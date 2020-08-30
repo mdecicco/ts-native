@@ -12,11 +12,12 @@ namespace gjs {
 
 	data_type::data_type(const std::string& _name, bool _built_in) :
 		name(_name), built_in(_built_in), is_floating_point(false), is_unsigned(false), ctor(nullptr),
-		dtor(nullptr), type(nullptr), size(0), actual_size(0), is_primitive(false), accepts_subtype(false),
-		base_type(nullptr), sub_type(nullptr)
+		dtor(nullptr), type(nullptr), size(0), actual_size(0), is_primitive(false), requires_subtype(false),
+		base_type(nullptr), sub_type(nullptr), type_id(hash(_name))
 	{ }
 
 	data_type::data_type(compile_context& ctx, ast_node* node) {
+		type_id = hash(*node->identifier);
 		ctor = nullptr;
 		dtor = nullptr;
 		type = nullptr;
@@ -24,7 +25,7 @@ namespace gjs {
 		is_floating_point = false;
 		is_unsigned = false;
 		is_primitive = false;
-		accepts_subtype = false;
+		requires_subtype = false;
 		base_type = nullptr;
 		sub_type = nullptr;
 		name = *node->identifier;

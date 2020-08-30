@@ -519,6 +519,7 @@ namespace gjs {
 		}
 		
 		set_flag(op_1_assigned);
+		m_imm = immediate;
 		return *this;
 	}
 
