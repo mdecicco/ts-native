@@ -475,7 +475,7 @@ namespace gjs {
 			t->is_unsigned = types[i]->is_unsigned;
 			t->is_primitive = types[i]->is_primitive;
 			t->requires_subtype = types[i]->requires_subtype;
-			if (!t->built_in || t->name == "string") {
+			if (!t->is_primitive && !t->size == 0) {
 				// object pointer
 				t->size = sizeof(void*);
 			}

@@ -550,7 +550,7 @@ namespace gjs {
 
 						if (ctx.last_type_method->is_thiscall) {
 							args.push_back(this_obj);
-							free_arg.push_back(true);
+							free_arg.push_back(!this_obj->is_variable);
 						}
 
 						ast_node* arg = node->arguments;

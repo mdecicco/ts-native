@@ -612,6 +612,16 @@ namespace gjs {
 
 			integer o2 = imm_u();
 			out += format("0x%llX", o2);
+		} else if (check_instr_type_4(i)) {
+			vmr o1 = op_1r();
+			if (o1 >= vmr::register_count) return "Invalid Instruction";
+
+			out += reg_str(o1);
+			out += ", ";
+
+			vmr o2 = op_2r();
+			if (o2 >= vmr::register_count) return "Invalid Instruction";
+			out += reg_str(o2);
 		} else if (check_instr_type_5(i)) {
 			vmr o1 = op_1r();
 			if (o1 >= vmr::register_count) return "Invalid Instruction";

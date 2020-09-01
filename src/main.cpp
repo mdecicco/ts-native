@@ -163,7 +163,7 @@ int main(int arg_count, const char** args) {
 	print_code(ctx);
 
 	printf("-------------result-------------\n");
-	// ctx.log_instructions(true);
+	ctx.log_instructions(true);
 	ctx.function("it");
 	vm_function* func = ctx.function("it");
 	if (func) func->call<void*>(nullptr);

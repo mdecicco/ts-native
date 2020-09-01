@@ -453,7 +453,12 @@ namespace gjs {
 	}
 
 
-
+	/*
+	 * Todo:
+	 *	subtype classes need a c++ data type that is a proxy to the type's subtype,
+	 *  whatever it may be. Compiler should be aware of which type to use
+	 *
+	 */
 
 
 
@@ -496,9 +501,14 @@ namespace gjs {
 			}
 		}
 
-		// move remaining args that couldn't be moved before
+		// move args that couldn't be moved before
 		for (u8 i = 0;i < args.size() && i < to->args.size();i++) {
-			args[i]->store_in(to->args[i].loc, because);
+			var* a = cast(ctx, args[i], to->args[i].type, because);
+			if (a) {
+				if (a != args[i]) args[i]->move_stack_reference(a);
+				a->store_in(to->args[i].loc, because);
+				if (a != args[i]) ctx.cur_func->free(a);
+			}
 		}
 
 		// backup $ra

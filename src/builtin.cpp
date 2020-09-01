@@ -1,5 +1,6 @@
 #include <builtin.h>
 #include <context.h>
+#include <bind.h>
 
 namespace gjs {
 	// todo: thread_id:ctx map
@@ -7,10 +8,6 @@ namespace gjs {
 
 	void set_builtin_context(vm_context* _ctx) {
 		ctx = _ctx;
-	}
-
-	f32 f(u32 x) {
-		return x;
 	}
 
 	void init_context(vm_context* ctx) {
@@ -21,7 +18,6 @@ namespace gjs {
 		tp->is_primitive = true;
 		tp->is_builtin = true;
 		tp->size = sizeof(i64);
-
 
 		tp = nullptr;
 		tp = ctx->types()->add("u64", typeid(u64).name());
@@ -99,15 +95,14 @@ namespace gjs {
 		tp->is_builtin = true;
 		tp->size = sizeof(char*);
 
-		
 		auto arr = ctx->bind<script_array>("array");
 		arr.constructor<vm_type*>();
+		arr.method("push", &script_array::push);
 		arr.method("operator []", &script_array::operator[]);
 		tp = arr.finalize();
 		tp->requires_subtype = true;
 		tp->is_builtin = true;
 
-		ctx->bind(f, "test");
 
 		ctx->bind(script_allocate, "alloc");
 		ctx->bind(script_free, "free");
@@ -129,14 +124,23 @@ namespace gjs {
 	}
 
 
-	script_array::script_array(vm_type* type) {
-		printf("script_array<%s> instantiated\n", type->name.c_str());
+	script_array::script_array(vm_type* type) : m_size(0), m_count(0), m_capacity(0), m_type(type) {
 	}
 
 	script_array::~script_array() {
 	}
 
-	f32 script_array::operator[](u32 idx) {
-		return idx;
+	void script_array::push(void* elem) {
+		if (m_capacity == 0) {
+			m_data = new u8[32 * m_type->size];
+			m_capacity = 32;
+		}
+		u32 t = *(u32*)(&elem);
+		memcpy(m_data + (m_count * m_type->size), &elem, m_type->size);
+		m_count++;
+	}
+
+	void* script_array::operator[](u32 idx) {
+		return m_data + (idx * m_type->size);
 	}
 };

@@ -14,7 +14,7 @@ namespace gjs {
 		address addr = out->size();
 		(*out) += i;
 
-		///*
+		/*
 		std::string ln = "";
 		u32 wscount = 0;
 		bool reachedText = false;

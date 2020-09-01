@@ -144,7 +144,7 @@ namespace gjs {
 					h.init(rt.codeInfo());
 					compiler c(&h);
 					c.addFunc(asmjit::FuncSignatureT<void, void*, void**>(asmjit::CallConv::kIdHost));
-					reg out = c.newGp(asmjit::Type::IdOfT<void*>::kTypeId);
+					reg out = c.newGp(asmjit::Type::IdOfT<Ret*>::kTypeId);
 					reg in_args = c.newGp(asmjit::Type::IdOfT<void**>::kTypeId);
 					c.setArg(0, out);
 					c.setArg(1, in_args);
@@ -156,18 +156,27 @@ namespace gjs {
 						c.mov(params[i], asmjit::x86::Mem(temp, i * sizeof(void*)));
 					}
 
-					if (std::is_void<Ret>::value) {
-						auto fcall = c.call(fimm(f), asmjit::FuncSignatureT<Ret, Args...>(asmjit::CallConv::kIdHost));
-						for (u8 i = 0;i < arg_count::value;i++) fcall->setArg(i, params[i]);
-						c.ret();
-					} else {
-						reg ret = c.newGp(asmjit::Type::IdOfT<Ret>::kTypeId);
-						auto fcall = c.call(fimm(f), asmjit::FuncSignatureT<Ret, Args...>(asmjit::CallConv::kIdHost));
-						for (u8 i = 0;i < arg_count::value;i++) fcall->setArg(i, params[i]);
-						fcall->setRet(0, ret);
-						c.mov(asmjit::x86::Mem(out, 0), ret);
-						c.ret();
+					auto fcall = c.call(fimm(f), asmjit::FuncSignatureT<Ret, Args...>(asmjit::CallConv::kIdHost));
+					for (u8 i = 0;i < arg_count::value;i++) fcall->setArg(i, params[i]);
+
+					if constexpr (!std::is_void<Ret>::value) {
+						if (std::is_floating_point_v<Ret>) {
+							asmjit::x86::Xmm ret = c.newXmm();
+							fcall->setRet(0, ret);
+							if (sizeof(Ret) == 4) {
+								c.movss(asmjit::x86::ptr(out), ret);
+							} else if (sizeof(Ret) == 8) {
+								c.movsd(asmjit::x86::ptr(out), ret);
+							} else {
+								c.movdqu(asmjit::x86::ptr(out), ret);
+							}
+						} else {
+							reg ret = c.newGp(asmjit::Type::IdOfT<Ret>::kTypeId);
+							fcall->setRet(0, ret);
+							c.mov(asmjit::x86::ptr(out), ret);
+						}
 					}
+					c.ret();
 					c.endFunc();
 					c.finalize();
 					rt.add(&func, &h);
@@ -222,8 +231,8 @@ namespace gjs {
 						fs.setCallConv(asmjit::CallConv::kIdHost);
 						fs.setRetT<Ret>();
 
-						c.addFunc(asmjit::FuncSignatureT<void, void*, void**>(asmjit::CallConv::kIdHost));
-						reg out = c.newGp(asmjit::Type::IdOfT<void*>::kTypeId);
+						c.addFunc(asmjit::FuncSignatureT<void, Ret*, void**>(asmjit::CallConv::kIdHost));
+						reg out = c.newGp(asmjit::Type::IdOfT<Ret*>::kTypeId);
 						reg in_args = c.newGp(asmjit::Type::IdOfT<void**>::kTypeId);
 						c.setArg(0, out);
 						c.setArg(1, in_args);
@@ -237,21 +246,30 @@ namespace gjs {
 						for (u8 i = 0;i < ac::value + 1;i++) {
 							c.mov(params[i], asmjit::x86::Mem(temp, i * sizeof(void*)));
 						}
-						if (std::is_void<Ret>::value) {
-							auto call = c.call(asmjit::imm(original_func), fs);
-							call->setArg(0, asmjit::imm(*reinterpret_cast<intptr_t*>(&f)));
-							for (u8 i = 0;i <= ac::value;i++) call->setArg(i + 1, params[i]);
-							c.ret();
-						} else {
-							reg ret = c.newGp(asmjit::Type::IdOfT<Ret>::kTypeId);
-							auto call = c.call(asmjit::imm(original_func), fs);
-							call->setArg(0, asmjit::imm(*reinterpret_cast<intptr_t*>(&f)));
-							for (u8 i = 0;i <= ac::value;i++) call->setArg(i + 1, params[i]);
-							call->setRet(0, ret);
-							c.mov(asmjit::x86::Mem(out, 0), ret);
-							c.ret();
 
+						auto fcall = c.call(asmjit::imm(original_func), fs);
+						fcall->setArg(0, asmjit::imm(*reinterpret_cast<intptr_t*>(&f)));
+						for (u8 i = 0;i <= ac::value;i++) fcall->setArg(i + 1, params[i]);
+
+						if constexpr (!std::is_void<Ret>::value) {
+							if (std::is_floating_point_v<Ret>) {
+								asmjit::x86::Xmm ret = c.newXmm();
+								fcall->setRet(0, ret);
+								if (sizeof(Ret) == 4) {
+									c.movss(asmjit::x86::ptr(out), ret);
+								} else if (sizeof(Ret) == 8) {
+									c.movsd(asmjit::x86::ptr(out), ret);
+								} else {
+									c.movdqu(asmjit::x86::ptr(out), ret);
+								}
+							} else {
+								reg ret = c.newGp(asmjit::Type::IdOfT<Ret>::kTypeId);
+								fcall->setRet(0, ret);
+								c.mov(asmjit::x86::ptr(out), ret);
+							}
 						}
+
+						c.ret();
 						c.endFunc();
 						c.finalize();
 						rt.add(&func, &h);

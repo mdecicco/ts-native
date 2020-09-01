@@ -16,6 +16,14 @@ namespace gjs {
 			script_array(vm_type* type);
 			~script_array();
 
-			f32 operator[](u32 idx);
+			void push(void* elem);
+			void* operator[](u32 idx);
+
+		protected:
+			u64 m_size;
+			u32 m_count;
+			u32 m_capacity;
+			u8* m_data;
+			vm_type* m_type;
 	};
 };
