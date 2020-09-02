@@ -1,4 +1,7 @@
+#include <vm_function.h>
+#include <vm_type.h>
 #include <builtin.h>
+#include <vm_type.h>
 #include <context.h>
 #include <bind.h>
 
@@ -95,6 +98,8 @@ namespace gjs {
 		tp->is_builtin = true;
 		tp->size = sizeof(char*);
 
+		ctx->bind<subtype_t>("__subtype__").finalize();
+
 		auto arr = ctx->bind<script_array>("array");
 		arr.constructor<vm_type*>();
 		arr.method("push", &script_array::push);
@@ -130,17 +135,16 @@ namespace gjs {
 	script_array::~script_array() {
 	}
 
-	void script_array::push(void* elem) {
+	void script_array::push(subtype_t* elem) {
 		if (m_capacity == 0) {
 			m_data = new u8[32 * m_type->size];
 			m_capacity = 32;
 		}
-		u32 t = *(u32*)(&elem);
-		memcpy(m_data + (m_count * m_type->size), &elem, m_type->size);
+		memcpy(m_data + (m_count * m_type->size), &elem->data, m_type->size);
 		m_count++;
 	}
 
-	void* script_array::operator[](u32 idx) {
-		return m_data + (idx * m_type->size);
+	subtype_t* script_array::operator[](u32 idx) {
+		return (subtype_t*)(m_data + (idx * m_type->size));
 	}
 };

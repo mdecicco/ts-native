@@ -7,7 +7,7 @@
 namespace gjs {
 	class vm_context;
 	class instruction_array;
-	class source_map;
+	struct source_map;
 	struct ast_node;
 	class pipeline {
 		public:

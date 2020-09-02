@@ -3,6 +3,8 @@
 #include <stdarg.h>
 #include <string.h>
 #include <context.h>
+#include <vm_function.h>
+#include <vm_type.h>
 
 #include <asmjit/asmjit.h>
 using namespace asmjit;
@@ -818,6 +820,17 @@ namespace gjs {
 				vm_type* tp = m_ctx->types()->get(*(u32*)reg);
 				args.push_back(tp);
 				continue;
+			}
+
+			if (tp->name == "__subtype__") {
+				// get subtype from $v2
+				tp = m_ctx->types()->get(*(u32*)&m_ctx->state()->registers[(u8)vmr::v2]);
+				if (!tp) {
+					throw runtime_exception(m_ctx, format(
+						"Function '%s' is a method of a sub-type class but no type ID was provided. This is not a user error",
+						f->name.c_str()
+					));
+				}
 			}
 
 			if (tp->is_primitive) {

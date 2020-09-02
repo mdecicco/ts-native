@@ -7,7 +7,6 @@ namespace gjs {
 	class vm_function;
 	struct ast_node;
 	struct compile_context;
-	struct func;
 	struct var;
 	struct data_type;
 
@@ -102,5 +101,5 @@ namespace gjs {
 
 	void compile_function(compile_context& ctx, ast_node* node, func* out);
 	void compile_variable_declaration(compile_context& ctx, ast_node* node);
-	var* call(compile_context& ctx, func* to, ast_node* because, const std::vector<var*>& args);
+	var* call(compile_context& ctx, func* to, ast_node* because, const std::vector<var*>& args, data_type* method_of = nullptr);
 };

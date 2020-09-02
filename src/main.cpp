@@ -1,5 +1,7 @@
 #include <allocator.h>
+#include <vm_function.h>
 #include <context.h>
+#include <vm_type.h>
 #include <stdio.h>
 
 using namespace gjs;
@@ -20,6 +22,9 @@ class foo {
 		static void static_func(i32 a) {
 			printf("ayyy: %d\n", a);
 		}
+		f32 ft(f32 a) {
+			return s = a;
+		}
 
 		operator i32() { return y; }
 
@@ -35,6 +40,7 @@ void testvec(void* vec) {
 	vec3& v = *(vec3*)vec;
 	printf("%f, %f, %f\n", v.x, v.y, v.z);
 }
+
 void dtestvec(void* vec) {
 	vec3& v = *(vec3*)vec;
 	printf("Destroyed: %f, %f, %f\n", v.x, v.y, v.z);
@@ -139,6 +145,7 @@ int main(int arg_count, const char** args) {
 		auto f = ctx.bind<foo>("foo");
 		f.constructor();
 		f.method("t", &foo::t);
+		f.method("ft", &foo::ft);
 		f.method("operator i32", &foo::operator i32);
 		f.method("static_func", &foo::static_func);
 		f.prop("y", &foo::y, bind::property_flags::pf_none);

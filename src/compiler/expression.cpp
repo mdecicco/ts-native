@@ -3,6 +3,8 @@
 #include <compiler/variable.h>
 #include <compiler/function.h>
 #include <compiler/data_type.h>
+#include <vm_function.h>
+#include <vm_type.h>
 #include <compile_log.h>
 #include <instruction_array.h>
 #include <instruction_encoder.h>
@@ -390,7 +392,7 @@ namespace gjs {
 		if (opFunc) {
 			vector<var*> args = { opOf };
 			if (param) args.push_back(param);
-			ret = call(ctx, opFunc, node, args);
+			ret = call(ctx, opFunc, node, args, opOf->type);
 			if (ret) {
 				if (dest) {
 					ret->store_in(dest->to_reg(node), node);
@@ -559,7 +561,7 @@ namespace gjs {
 							free_arg.push_back(!args[args.size() - 1]->is_variable);
 							arg = arg->next;
 						}
-						ret = call(ctx, ctx.last_type_method, node, args);
+						ret = call(ctx, ctx.last_type_method, node, args, this_obj ? this_obj->type : nullptr);
 						for (u32 i = 0;i < args.size();i++) {
 							if (free_arg[i]) ctx.cur_func->free(args[i]);
 						}
@@ -917,7 +919,7 @@ namespace gjs {
 							data_type* t = ctx.type(node->lvalue);
 							data_type::property* prop = t->prop(*node->rvalue);
 							if (prop) {
-								if (!(prop->flags & bind::property_flags::pf_static_prop)) {
+								if (!(prop->flags & bind::property_flags::pf_static)) {
 									ctx.log->err(format("Expected static method or property of type '%s'", t->name.c_str()), node->rvalue);
 								} else {
 									var* pval = ctx.cur_func->allocate(ctx, prop->type);
@@ -929,7 +931,7 @@ namespace gjs {
 										);
 									}
 
-									if (prop->flags ^ bind::pf_object_pointer) {
+									if (prop->flags ^ bind::pf_pointer) {
 										ctx.last_member_was_pointer = false;
 										if (prop->type->built_in) {
 											// load value
@@ -1034,7 +1036,7 @@ namespace gjs {
 								);
 							}
 
-							if (prop->flags ^ bind::pf_object_pointer) {
+							if (prop->flags ^ bind::pf_pointer) {
 								ctx.last_member_was_pointer = false;
 								if (prop->type->built_in) {
 									// load value at lvalue + n bytes
@@ -1162,6 +1164,7 @@ namespace gjs {
 								arg = arg->next;
 							}
 							ret = call(ctx, tp->ctor, node, args);
+							ret->type = tp;
 							for (u32 i = 0;i < args.size();i++) {
 								if (free_arg[i]) ctx.cur_func->free(args[i]);
 							}
@@ -1209,6 +1212,7 @@ namespace gjs {
 							}
 							ret = call(ctx, tp->ctor, node, args);
 							obj->move_stack_reference(ret);
+							ret->type = tp;
 
 							for (u32 i = 0;i < args.size();i++) {
 								if (free_arg[i]) ctx.cur_func->free(args[i]);

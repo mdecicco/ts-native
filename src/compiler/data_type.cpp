@@ -158,7 +158,8 @@ namespace gjs {
 				}
 				if (matched) return methods[m];
 			}
-			if (methods[m]->name == name + "::" + _name) return methods[m];
+			string& bt_name = base_type ? base_type->name : name;
+			if (methods[m]->name == bt_name + "::" + _name) return methods[m];
 		}
 		return nullptr;
 	}

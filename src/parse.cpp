@@ -1,6 +1,8 @@
 #include <parse.h>
 #include <parse_utils.h>
 #include <context.h>
+#include <vm_type.h>
+#include <vm_function.h>
 
 using namespace std;
 

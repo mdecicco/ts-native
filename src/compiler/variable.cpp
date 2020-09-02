@@ -330,15 +330,41 @@ namespace gjs {
 				}
 			} else {
 				if (type->size == sizeof(f64)) {
-					ctx->add(
-						encode(vmi::daddi).operand(reg).operand(vmr::zero).operand(imm.f_64),
-						because
-					);
+					if (!is_fp(reg)) {
+						vmr tmp = ctx->cur_func->registers.allocate_fp();
+						ctx->add(
+							encode(vmi::daddi).operand(tmp).operand(vmr::zero).operand(imm.f_64),
+							because
+						);
+						ctx->add(
+							encode(vmi::mffp).operand(tmp).operand(reg),
+							because
+						);
+						ctx->cur_func->registers.free(tmp);
+					} else {
+						ctx->add(
+							encode(vmi::daddi).operand(reg).operand(vmr::zero).operand(imm.f_64),
+							because
+						);
+					}
 				} else {
-					ctx->add(
-						encode(vmi::faddi).operand(reg).operand(vmr::zero).operand(imm.f_32),
-						because
-					);
+					if (!is_fp(reg)) {
+						vmr tmp = ctx->cur_func->registers.allocate_fp();
+						ctx->add(
+							encode(vmi::faddi).operand(tmp).operand(vmr::zero).operand(imm.f_32),
+							because
+						);
+						ctx->add(
+							encode(vmi::mffp).operand(tmp).operand(reg),
+							because
+						);
+						ctx->cur_func->registers.free(tmp);
+					} else {
+						ctx->add(
+							encode(vmi::faddi).operand(reg).operand(vmr::zero).operand(imm.f_32),
+							because
+						);
+					}
 				}
 			}
 		} else {
@@ -406,6 +432,10 @@ namespace gjs {
 	var* cast(compile_context& ctx, var* from, data_type* to, ast_node* because) {
 		if (from->type->equals(to)) return from;
 		if (from->type->name == "bool" || to->name == "bool") return from;
+
+		// a pointer is a pointer no matter what it points to
+		if (!from->type->is_primitive && to->name == "data") return from;
+		if (from->type->name == "data" && !to->is_primitive) return from;
 
 		if (!from->type->built_in || (from->type->name == "string" || to->name == "string")) {
 			func* cast_func = from->type->cast_to_func(to);

@@ -784,6 +784,7 @@ namespace gjs {
 				out.text += c;
 				offset++;
 			} else if (c == '.') {
+				if (out.text.length() == 0) break;
 				if (hasDecimal) {
 					if (!expected) return token();
 					throw parse_exception(

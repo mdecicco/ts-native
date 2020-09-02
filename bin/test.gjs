@@ -1,6 +1,6 @@
 
 void it() {
-    array<u32> arr;
-    arr.push(25);
-    foo.s = arr[0];
+    array<f32> x;
+    x.push(1.23f);
+    x.push(x[0]);
 }

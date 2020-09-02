@@ -1,4 +1,6 @@
 #include <context.h>
+#include <vm_function.h>
+#include <vm_type.h>
 #include <bind.h>
 #include <parse.h>
 #include <compiler/compiler.h>
@@ -28,7 +30,8 @@ namespace gjs {
 
 	vm_context::vm_context(vm_allocator* alloc, u32 stack_size, u32 mem_size) : 
 		m_vm(this, alloc, stack_size, mem_size), m_instructions(alloc), m_is_executing(false),
-		m_log_instructions(false), m_types(this), m_alloc(alloc), m_pipeline(this)
+		m_log_instructions(false), m_types(new type_manager(this)), m_alloc(alloc),
+		m_pipeline(this)
 	{
 		m_jit = new asmjit::JitRuntime();
 		m_instructions += encode(vm_instruction::term);
@@ -89,7 +92,7 @@ namespace gjs {
 	}
 
 	std::vector<vm_type*> vm_context::all_types() {
-		return m_types.all();
+		return m_types->all();
 	}
 
 	bool vm_context::add_code(const std::string& filename, const std::string& code) {

@@ -4,6 +4,8 @@
 namespace gjs {
 	class vm_context;
 	class vm_type;
+	struct subtype_t;
+
 	void set_builtin_context(vm_context* ctx);
 	void init_context(vm_context* ctx);
 	
@@ -16,8 +18,8 @@ namespace gjs {
 			script_array(vm_type* type);
 			~script_array();
 
-			void push(void* elem);
-			void* operator[](u32 idx);
+			void push(subtype_t* elem);
+			subtype_t* operator[](u32 idx);
 
 		protected:
 			u64 m_size;

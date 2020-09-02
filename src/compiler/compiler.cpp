@@ -6,6 +6,8 @@
 #include <compiler/expression.h>
 #include <compiler/compiler.h>
 
+#include <vm_function.h>
+#include <vm_type.h>
 #include <context.h>
 #include <instruction_array.h>
 #include <register.h>
@@ -133,6 +135,7 @@ namespace gjs {
 						vector<var*> args = { obj, ctx.cur_func->imm(ctx, (i64)tp->sub_type->type_id) };
 
 						var* ret = call(ctx, tp->ctor, node, args);
+						ret->type = tp;
 						ret->name = *node->identifier;
 						ret->is_variable = true;
 						ret->ref_count = 1;
@@ -417,27 +420,12 @@ namespace gjs {
 			case nt::export_statement: break;
 			case nt::return_statement: { compile_return_statement(ctx, node); break; }
 			case nt::delete_statement: { compile_delete_statement(ctx, node); break; }
-			case nt::object: { break; }
-			case nt::call: {
-				var* tmp = compile_expression(ctx, node, nullptr);
-				if (tmp) {
-					ctx.cur_func->free_stack_object(tmp, node);
-					ctx.cur_func->free(tmp);
-				}
-				break;
-			}
-			case nt::expression: {
-				var* tmp = compile_expression(ctx, node, nullptr);
-				if (tmp && !tmp->is_variable) {
-					ctx.cur_func->free_stack_object(tmp, node);
-					ctx.cur_func->free(tmp);
-				}
-				break;
-			}
-			case nt::conditional: { break; }
-			case nt::constant: { break; }
-			case nt::identifier: { break; }
-			case nt::type_identifier: { break; }
+			case nt::object: break;
+			case nt::call:
+			case nt::expression:
+			case nt::conditional:
+			case nt::constant:
+			case nt::identifier:
 			case nt::operation: {
 				var* tmp = compile_expression(ctx, node, nullptr);
 				if (tmp && !tmp->is_variable) {
@@ -446,6 +434,7 @@ namespace gjs {
 				}
 				break;
 			}
+			case nt::type_identifier: { break; }
 			case nt::context_function: { break; }
 			case nt::context_type: { break; }
 			default: {

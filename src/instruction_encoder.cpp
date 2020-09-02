@@ -29,8 +29,10 @@ namespace gjs {
 			|| x == vmi::jmpr		\
 			|| x == vmi::cvt_if		\
 			|| x == vmi::cvt_id		\
+			|| x == vmi::cvt_iu		\
 			|| x == vmi::cvt_uf		\
 			|| x == vmi::cvt_ud		\
+			|| x == vmi::cvt_ui		\
 			|| x == vmi::cvt_fi		\
 			|| x == vmi::cvt_fu		\
 			|| x == vmi::cvt_fd		\
