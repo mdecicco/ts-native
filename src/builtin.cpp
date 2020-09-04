@@ -104,6 +104,7 @@ namespace gjs {
 		arr.constructor<vm_type*>();
 		arr.method("push", &script_array::push);
 		arr.method("operator []", &script_array::operator[]);
+		arr.prop(std::string("length"), &script_array::length, bind::property_flags::pf_read_only);
 		tp = arr.finalize();
 		tp->requires_subtype = true;
 		tp->is_builtin = true;
@@ -146,5 +147,9 @@ namespace gjs {
 
 	subtype_t* script_array::operator[](u32 idx) {
 		return (subtype_t*)(m_data + (idx * m_type->size));
+	}
+
+	u32 script_array::length() {
+		return m_count;
 	}
 };

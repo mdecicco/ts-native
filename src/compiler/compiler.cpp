@@ -446,10 +446,9 @@ namespace gjs {
 	}
 
 	void init_context(compile_context& ctx) {
-		ctx.do_store_member_pointer = false;
-		ctx.last_member_was_pointer = false;
+		ctx.do_store_member_info = false;
+		ctx.clear_last_member_info();
 		ctx.cur_func = nullptr;
-		ctx.last_type_method = nullptr;
 		data_type* t = nullptr;
 
 		vector<vm_type*> types = ctx.ctx->types()->all();

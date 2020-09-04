@@ -11,6 +11,7 @@ namespace gjs {
 	struct func;
 	struct ast_node;
 	struct data_type;
+	struct var;
 
 	struct compile_context {
 		vm_context* ctx;
@@ -22,11 +23,16 @@ namespace gjs {
 		std::vector<func*> funcs;
 
 		// used when compiling expressions involving type properties
-		bool do_store_member_pointer;
-		bool last_member_was_pointer;
+		bool do_store_member_info;
+		struct {
+			bool is_set;
+			std::string name;
+			data_type* type;
+			var* subject;
+			func* method;
+		} last_member_or_method;
 
-		// used when compiling expressions involving type methods
-		func* last_type_method;
+		void clear_last_member_info();
 
 		void add(instruction& i, ast_node* because);
 

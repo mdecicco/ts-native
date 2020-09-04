@@ -28,6 +28,13 @@ class foo {
 
 		operator i32() { return y; }
 
+		i32 get_x() {
+			return x;
+		}
+		i32 set_x(i32 _x) {
+			return x = _x;
+		}
+		i32 x;
 		i32 y;
 		i32 z;
 		f32 w;
@@ -148,6 +155,7 @@ int main(int arg_count, const char** args) {
 		f.method("ft", &foo::ft);
 		f.method("operator i32", &foo::operator i32);
 		f.method("static_func", &foo::static_func);
+		f.prop("x", &foo::get_x, &foo::set_x, bind::property_flags::pf_none);
 		f.prop("y", &foo::y, bind::property_flags::pf_none);
 		f.prop("z", &foo::z, bind::property_flags::pf_none);
 		f.prop("w", &foo::w, bind::property_flags::pf_none);

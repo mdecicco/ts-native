@@ -471,7 +471,7 @@ namespace gjs {
 			}
 
 			template <typename T>
-			wrap_class& prop(const std::string& _name, T(Cls::*getter)(), T(Cls::*setter)(T) = nullptr, u8 flags = property_flags::pf_none) {
+			wrap_class& prop(const std::string& _name, T(Cls::*getter)(), T(Cls::*setter)(T), u8 flags = property_flags::pf_none) {
 				if (properties.find(_name) != properties.end()) {
 					throw bind_exception(format("Property '%s' already bound to type '%s'", _name.c_str(), name.c_str()));
 				}
@@ -481,8 +481,29 @@ namespace gjs {
 				}
 
 				properties[_name] = new property(
-					wrap(rt, name + "::get_" + _name, getter),
-					setter ? wrap(rt, name + "::set_" + _name, setter) : nullptr,
+					wrap(types, rt, name + "::get_" + _name, getter),
+					wrap(types, rt, name + "::set_" + _name, setter),
+					typeid(remove_all<T>::type),
+					0,
+					flags
+				);
+				return *this;
+			}
+
+
+			template <typename T>
+			wrap_class& prop(const std::string& _name, T(Cls::*getter)(), u8 flags = property_flags::pf_none) {
+				if (properties.find(_name) != properties.end()) {
+					throw bind_exception(format("Property '%s' already bound to type '%s'", _name.c_str(), name.c_str()));
+				}
+
+				if (!types->get<T>()) {
+					throw bind_exception(format("Attempting to bind property of type '%s' that has not been bound itself", typeid(remove_all<T>::type).name()));
+				}
+
+				properties[_name] = new property(
+					wrap(types, rt, name + "::get_" + _name, getter),
+					nullptr,
 					typeid(remove_all<T>::type),
 					0,
 					flags

@@ -531,13 +531,19 @@ namespace gjs {
 				// if it's not a pointer, it is either a primitive type or an unsupported host stack return
 				if (ret->loc.reg != to->return_loc) {
 					if (!is_fp(ret->loc.reg)) {
+						vmi assign = vmi::add;
+						if (ret->type->is_unsigned) assign = vmi::addu;
+
 						ctx.add(
-							encode(vmi::add).operand(ret->loc.reg).operand(to->return_loc).operand(vmr::zero),
+							encode(assign).operand(ret->loc.reg).operand(to->return_loc).operand(vmr::zero),
 							because
 						);
 					} else {
+						vmi assign = vmi::fadd;
+						if (ret->type->size == sizeof(f64)) assign = vmi::dadd;
+
 						ctx.add(
-							encode(vmi::fadd).operand(ret->loc.reg).operand(to->return_loc).operand(vmr::zero),
+							encode(assign).operand(ret->loc.reg).operand(to->return_loc).operand(vmr::zero),
 							because
 						);
 					}
