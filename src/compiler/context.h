@@ -8,6 +8,7 @@ namespace gjs {
 	class instruction_array;
 	class source_map;
 	class vm_context;
+	enum class vm_register;
 	struct func;
 	struct ast_node;
 	struct data_type;
@@ -33,6 +34,10 @@ namespace gjs {
 		} last_member_or_method;
 
 		void clear_last_member_info();
+
+		bool do_store_func_return_ptr;
+		bool did_store_func_return_ptr;
+		vm_register func_return_ptr_loc;
 
 		void add(instruction& i, ast_node* because);
 

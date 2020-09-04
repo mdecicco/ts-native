@@ -516,6 +516,15 @@ namespace gjs {
 						case 8: { ld = vmi::ld64; break; }
 					}
 
+					if (ctx.do_store_func_return_ptr) {
+						ctx.add(
+							encode(vmi::addui).operand(vmr::v1).operand(to->return_loc),
+							because
+						);
+						ctx.did_store_func_return_ptr = true;
+						ctx.func_return_ptr_loc = vmr::v1;
+					}
+
 					ctx.add(
 						encode(ld).operand(ret->loc.reg).operand(to->return_loc),
 						because
@@ -526,6 +535,8 @@ namespace gjs {
 						encode(vmi::add).operand(ret->loc.reg).operand(to->return_loc).operand(vmr::zero),
 						because
 					);
+					ctx.did_store_func_return_ptr = true;
+					ctx.func_return_ptr_loc = ret->loc.reg;
 				}
 			} else {
 				// if it's not a pointer, it is either a primitive type or an unsupported host stack return
@@ -654,6 +665,8 @@ namespace gjs {
 		}
 
 		// store return value if necessary
+		ctx.did_store_func_return_ptr = false;
+		ctx.func_return_ptr_loc = vmr::register_count;
 		if (ret) {
 			data_type* ret_tp = to->return_type;
 			if (to->return_type->name == "__subtype__") ret_tp = method_of->sub_type;
