@@ -2,6 +2,7 @@
 #include <instruction_array.h>
 #include <source_map.h>
 #include <context.h>
+#include <vm_function.h>
 
 using namespace std;
 

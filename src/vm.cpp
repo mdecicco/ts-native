@@ -3,6 +3,8 @@
 #include <stdarg.h>
 #include <string.h>
 #include <context.h>
+#include <vm_function.h>
+#include <vm_type.h>
 
 #include <asmjit/asmjit.h>
 using namespace asmjit;
@@ -256,6 +258,7 @@ namespace gjs {
 				}
 				// add register and immediate value					addi	(dest)	(a)		1.0		dest = a + 1
 				case vmi::addui: {
+					u64* raddr = &GRx(_O1, u64);
 					GRx(_O1, u64) = GRx(_O2, u64) + _O3ui;
 					break;
 				}
@@ -811,6 +814,25 @@ namespace gjs {
 			vm_type* tp = f->signature.arg_types[a];
 			u64* reg = &(m_ctx->state()->registers[(u8)f->signature.arg_locs[a]]);
 			bool is_ptr = f->access.wrapped->arg_is_ptr[a];
+
+			if (f->signature.is_subtype_obj_ctor && a == 1) {
+				// arg refers to a type id
+				vm_type* tp = m_ctx->types()->get(*(u32*)reg);
+				args.push_back(tp);
+				continue;
+			}
+
+			if (tp->name == "__subtype__") {
+				// get subtype from $v2
+				tp = m_ctx->types()->get(*(u32*)&m_ctx->state()->registers[(u8)vmr::v2]);
+				if (!tp) {
+					throw runtime_exception(m_ctx, format(
+						"Function '%s' is a method of a sub-type class but no type ID was provided. This is not a user error",
+						f->name.c_str()
+					));
+				}
+			}
+
 			if (tp->is_primitive) {
 				// *reg is some primitive value (integer, decimal, ...)
 				if (is_ptr) {
@@ -834,6 +856,10 @@ namespace gjs {
 		void* ret_addr = nullptr;
 		if (f->signature.return_type->size > 0) {
 			ret_addr = &(m_ctx->state()->registers[(u8)f->signature.return_loc]);
+
+			// make sure there are no left over bits or bytes from the previous value
+			(*(u64*)ret_addr) = 0;
+
 			if (f->signature.returns_on_stack) {
 				u64 return_value_end = u64(ret_addr) + f->signature.return_type->size;
 				u64 stack_end = (u64)state.memory[0] + m_stack_size;

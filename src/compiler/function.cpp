@@ -8,6 +8,8 @@
 #include <instruction_array.h>
 #include <register.h>
 #include <parse.h>
+#include <vm_function.h>
+#include <vm_type.h>
 
 #define is_fp(r) (r >= vmr::f0 && r <= vmr::f15)
 #define is_arg(r) (r >= vmr::a0 && r <= vmr::a7)
@@ -46,6 +48,7 @@ namespace gjs {
 		this_type = nullptr;
 		reached_return = false;
 		return_loc_determined = false;
+		is_subtype_obj_ctor = false;
 		is_thiscall = false;
 		bound_to = nullptr;
 	}
@@ -64,6 +67,7 @@ namespace gjs {
 		is_ctor = is_dtor = reached_return = false;
 		return_loc_determined = true;
 		is_thiscall = f->signature.is_thiscall;
+		is_subtype_obj_ctor = f->signature.is_subtype_obj_ctor;
 		bound_to = f;
 	}
 
@@ -86,12 +90,21 @@ namespace gjs {
 	}
 
 	void func::free_consumed_vars() {
+		/*
 		for (u8 i = 0;i < scopes.size();i++) {
 			for (u16 vi = 0;vi < scopes[i].vars.size();vi++) {
 				var* v = scopes[i].vars[vi];
 				if (!v->is_variable || v->no_auto_free) continue;
 				if (v->ref_count == v->total_ref_count) free(v);
 			}
+		}
+		*/
+
+		// only free consumed vars in current scope
+		for (u16 vi = 0;vi < scopes[scopes.size() - 1].vars.size();vi++) {
+			var* v = scopes[scopes.size() - 1].vars[vi];
+			if (!v->is_variable || v->no_auto_free) continue;
+			if (v->ref_count == v->total_ref_count) free(v);
 		}
 	}
 
@@ -451,16 +464,126 @@ namespace gjs {
 	}
 
 
+	void get_return_value(compile_context& ctx, func* to, ast_node* because, var* ret, data_type* ret_tp) {
+		if (to->returns_on_stack) {
+			address dest_stack_loc = ctx.cur_func->stack.allocate(ret_tp->actual_size);
+			// call memcopy to copy from called function's stack to current stack
+
+			// move $sp + dest_stack_loc to the destination parameter
+			ctx.add(
+				encode(vmi::addui).operand(vmr::a0).operand(vmr::sp).operand(dest_stack_loc),
+				because
+			);
+
+			// check if the source == dest, and if so, skip the call to memcopy
+			ctx.add(
+				encode(vmi::cmp).operand(vmr::v0).operand(vmr::a0).operand(to->return_loc),
+				because
+			);
+			ctx.add(
+				encode(vmi::bneqz).operand(vmr::v0).operand(ctx.out->size() + 4),
+				because
+			);
+
+			// move return_loc to the source parameter
+			ctx.add(
+				encode(vmi::addui).operand(vmr::a1).operand(to->return_loc).operand(vmr::zero),
+				because
+			);
+
+			// move size of type to size parameter
+			ctx.add(
+				encode(vmi::addui).operand(vmr::a2).operand(vmr::zero).operand(ret_tp->actual_size),
+				because
+			);
+
+			// make the call
+			func* memcopy = ctx.function("memcopy");
+			ctx.add(
+				encode(vmi::jal).operand(memcopy->entry),
+				because
+			);
 
 
+			// move the address into return value
+			ctx.add(
+				encode(vmi::addui).operand(ret->to_reg(because)).operand(vmr::sp).operand(dest_stack_loc),
+				because
+			);
+			ret->refers_to_stack_addr = dest_stack_loc;
+			ret->refers_to_stack_obj = true;
+			ctx.cur_func->scopes[ctx.cur_func->scopes.size() - 1].stack_objects.push_back(pair<address, data_type*>(dest_stack_loc, ret_tp));
+		} else {
+			if (to->returns_pointer) {
+				if (ret_tp->is_primitive) {
+					// load value directly to return var
+					vmi ld;
+					switch (ret_tp->size) {
+						case 1: { ld = vmi::ld8; break; }
+						case 2: { ld = vmi::ld16; break; }
+						case 4: { ld = vmi::ld32; break; }
+						case 8: { ld = vmi::ld64; break; }
+					}
 
+					if (ctx.do_store_func_return_ptr) {
+						ctx.add(
+							encode(vmi::addui).operand(vmr::v1).operand(to->return_loc),
+							because
+						);
+						ctx.did_store_func_return_ptr = true;
+						ctx.func_return_ptr_loc = vmr::v1;
+					}
 
-	var* call(compile_context& ctx, func* to, ast_node* because, const vector<var*>& args) {
+					ctx.add(
+						encode(ld).operand(ret->loc.reg).operand(to->return_loc),
+						because
+					);
+				} else if (ret->loc.reg != to->return_loc) {
+					// it should be a pointer
+					ctx.add(
+						encode(vmi::add).operand(ret->loc.reg).operand(to->return_loc).operand(vmr::zero),
+						because
+					);
+					ctx.did_store_func_return_ptr = true;
+					ctx.func_return_ptr_loc = ret->loc.reg;
+				}
+			} else {
+				// if it's not a pointer, it is either a primitive type or an unsupported host stack return
+				if (ret->loc.reg != to->return_loc) {
+					if (!is_fp(ret->loc.reg)) {
+						vmi assign = vmi::add;
+						if (ret->type->is_unsigned) assign = vmi::addu;
+
+						ctx.add(
+							encode(assign).operand(ret->loc.reg).operand(to->return_loc).operand(vmr::zero),
+							because
+						);
+					} else {
+						vmi assign = vmi::fadd;
+						if (ret->type->size == sizeof(f64)) assign = vmi::dadd;
+
+						ctx.add(
+							encode(assign).operand(ret->loc.reg).operand(to->return_loc).operand(vmr::zero),
+							because
+						);
+					}
+				}
+			}
+		}
+	}
+
+	var* call(compile_context& ctx, func* to, ast_node* because, const vector<var*>& args, data_type* method_of) {
 		if (args.size() != to->args.size()) {
 			u32 ac = to->args.size();
 			u32 pc = args.size();
 			if (to->name.find_first_of("::") != string::npos) {
 				// class method, subtract 1 for 'this' obj (since it's passed automatically)
+				if (ac > 0) ac--;
+				if (pc > 0) pc--;
+			}
+
+			if (to->is_subtype_obj_ctor) {
+				// subtype object constructor, subtract 1 for type id (since it's passed automatically)
 				if (ac > 0) ac--;
 				if (pc > 0) pc--;
 			}
@@ -480,17 +603,46 @@ namespace gjs {
 		// stored in the stack, if it's safe to do so
 		if (ctx.cur_func->auto_free_consumed_vars) ctx.cur_func->free_consumed_vars();
 
+		// allocate register for return value if necessary
+		var* ret = nullptr;
+		if (to->return_type->size > 0) {
+			data_type* ret_tp = to->return_type;
+			if (to->return_type->name == "__subtype__") ret_tp = method_of->sub_type;
+			ret = ctx.cur_func->allocate(ctx, ret_tp);
+		}
+
 		// back up register vars to the stack
+		vector<pair<var*, vmr>> restore_pairs;
 		for (u32 s = 0;s < ctx.cur_func->scopes.size();s++) {
 			for (u16 vi = 0;vi < ctx.cur_func->scopes[s].vars.size();vi++) {
 				var* v = ctx.cur_func->scopes[s].vars[vi];
-				if (v->is_reg) v->to_stack(because);
+				if (v->is_reg && v != ret) {
+					restore_pairs.push_back({ v, v->loc.reg });
+					v->to_stack(because);
+				}
 			}
 		}
 
-		// move remaining args that couldn't be moved before
+		// set arguments
 		for (u8 i = 0;i < args.size() && i < to->args.size();i++) {
-			args[i]->store_in(to->args[i].loc, because);
+			data_type* tp = to->args[i].type;
+			if (tp->name == "__subtype__") {
+				// argument type should be whatever the subtype is
+				tp = method_of->sub_type;
+
+				// set $v2 to argument type so the VM knows how to handle the argument
+				ctx.add(
+					encode(vmi::addui).operand(vmr::v2).operand(vmr::zero).operand((u64)tp->type_id),
+					because
+				);
+			}
+
+			var* a = cast(ctx, args[i], tp, because);
+			if (a) {
+				if (a != args[i]) args[i]->move_stack_reference(a);
+				a->store_in(to->args[i].loc, because);
+				if (a != args[i]) ctx.cur_func->free(a);
+			}
 		}
 
 		// backup $ra
@@ -509,10 +661,6 @@ namespace gjs {
 			);
 		}
 
-		// allocate register for return value if necessary
-		var* ret = nullptr;
-		if (to->return_type->size > 0) ret = ctx.cur_func->allocate(ctx, to->return_type);
-
 		// make the call
 		ctx.add(
 			encode(vmi::jal).operand(to->entry),
@@ -527,115 +675,18 @@ namespace gjs {
 			);
 		}
 
+		// restore register vars
+		for (u8 i = 0;i < restore_pairs.size();i++) {
+			restore_pairs[i].first->move_to(restore_pairs[i].second, because);
+		}
+
 		// store return value if necessary
+		ctx.did_store_func_return_ptr = false;
+		ctx.func_return_ptr_loc = vmr::register_count;
 		if (ret) {
-			if (to->returns_on_stack) {
-				address dest_stack_loc = ctx.cur_func->stack.allocate(to->return_type->actual_size);
-				// call memcopy to copy from called function's stack to current stack
-
-				// move $sp + dest_stack_loc to the destination parameter
-				ctx.add(
-					encode(vmi::addui).operand(vmr::a0).operand(vmr::sp).operand(dest_stack_loc),
-					because
-				);
-
-				// check if the source == dest, and if so, skip the call to memcopy
-				ctx.add(
-					encode(vmi::cmp).operand(vmr::v0).operand(vmr::a0).operand(to->return_loc),
-					because
-				);
-				ctx.add(
-					encode(vmi::bneqz).operand(vmr::v0).operand(ctx.out->size() + 4),
-					because
-				);
-
-				// move return_loc to the source parameter
-				ctx.add(
-					encode(vmi::addui).operand(vmr::a1).operand(to->return_loc).operand(vmr::zero),
-					because
-				);
-
-				// move size of type to size parameter
-				ctx.add(
-					encode(vmi::addui).operand(vmr::a2).operand(vmr::zero).operand(to->return_type->actual_size),
-					because
-				);
-
-				// make the call
-				func* memcopy = ctx.function("memcopy");
-				ctx.add(
-					encode(vmi::jal).operand(memcopy->entry),
-					because
-				);
-
-
-				// move the address into return value
-				ctx.add(
-					encode(vmi::addui).operand(ret->to_reg(because)).operand(vmr::sp).operand(dest_stack_loc),
-					because
-				);
-				ret->refers_to_stack_addr = dest_stack_loc;
-				ret->refers_to_stack_obj = true;
-				ctx.cur_func->scopes[ctx.cur_func->scopes.size() - 1].stack_objects.push_back(pair<address, data_type*>(dest_stack_loc, to->return_type));
-			} else {
-				if (ret->loc.reg != to->return_loc) {
-					if (!is_fp(ret->loc.reg)) {
-						if (!is_fp(to->return_loc)) {
-							ctx.add(
-								encode(vmi::add).operand(ret->loc.reg).operand(to->return_loc).operand(vmr::zero),
-								because
-							);
-						} else {
-							// this should never happen since a float-returning function would have a float type
-							// and so ret would have allocated a floating point register
-							// but just in case...
-							if (to->return_type->size == sizeof(f64)) {
-								if (ret->type->is_unsigned) {
-									ctx.add(
-										encode(vmi::cvt_du).operand(to->return_loc),
-										because
-									);
-								} else {
-									ctx.add(
-										encode(vmi::cvt_di).operand(to->return_loc),
-										because
-									);
-								}
-							} else {
-								if (ret->type->is_unsigned) {
-									ctx.add(
-										encode(vmi::cvt_fu).operand(to->return_loc),
-										because
-									);
-								} else {
-									ctx.add(
-										encode(vmi::cvt_fi).operand(to->return_loc),
-										because
-									);
-								}
-							}
-							ctx.add(
-								encode(vmi::mffp).operand(to->return_loc).operand(ret->loc.reg),
-								because
-							);
-						}
-					} else {
-						if (!is_fp(to->return_loc)) {
-							// should only happen if a host function returns a floating point value
-							// that being the case, don't try to convert it from fixed point
-							ctx.add(
-								encode(vmi::mtfp).operand(to->return_loc).operand(ret->loc.reg),
-								because
-							);
-						} else {
-							ctx.add(
-								encode(vmi::fadd).operand(ret->loc.reg).operand(to->return_loc).operand(vmr::zero),
-								because
-							);
-						}
-					}
-				}
-			}
+			data_type* ret_tp = to->return_type;
+			if (to->return_type->name == "__subtype__") ret_tp = method_of->sub_type;
+			get_return_value(ctx, to, because, ret, ret_tp);
 		}
 
 		// restore $ra
@@ -646,7 +697,7 @@ namespace gjs {
 		);
 
 		for (u8 a = 0;a < args.size();a++) args[a]->no_auto_free = arg_af[a];
-		ctx.cur_func->free_consumed_vars();
+		if (ctx.cur_func->auto_free_consumed_vars) ctx.cur_func->free_consumed_vars();
 
 		return ret;
 	}

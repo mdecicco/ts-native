@@ -29,8 +29,10 @@ namespace gjs {
 			|| x == vmi::jmpr		\
 			|| x == vmi::cvt_if		\
 			|| x == vmi::cvt_id		\
+			|| x == vmi::cvt_iu		\
 			|| x == vmi::cvt_uf		\
 			|| x == vmi::cvt_ud		\
+			|| x == vmi::cvt_ui		\
 			|| x == vmi::cvt_fi		\
 			|| x == vmi::cvt_fu		\
 			|| x == vmi::cvt_fd		\
@@ -519,6 +521,7 @@ namespace gjs {
 		}
 		
 		set_flag(op_1_assigned);
+		m_imm = immediate;
 		return *this;
 	}
 
@@ -585,7 +588,7 @@ namespace gjs {
 				std::string reg_val = ""; // "<" + state->registers[(integer)r].to_string() + ">"
 
 				if (is_fpr(r)) reg_val = format("<%f>", *(f32*)&state->registers[(integer)r]);
-				else reg_val = format("<%d>", *(i32*)&state->registers[(integer)r]);
+				else reg_val = format("<%lld>", *(i64*)&state->registers[(integer)r]);
 				return "$" + std::string(register_str[(integer)r]) + reg_val;
 			}
 
@@ -611,6 +614,16 @@ namespace gjs {
 
 			integer o2 = imm_u();
 			out += format("0x%llX", o2);
+		} else if (check_instr_type_4(i)) {
+			vmr o1 = op_1r();
+			if (o1 >= vmr::register_count) return "Invalid Instruction";
+
+			out += reg_str(o1);
+			out += ", ";
+
+			vmr o2 = op_2r();
+			if (o2 >= vmr::register_count) return "Invalid Instruction";
+			out += reg_str(o2);
 		} else if (check_instr_type_5(i)) {
 			vmr o1 = op_1r();
 			if (o1 >= vmr::register_count) return "Invalid Instruction";

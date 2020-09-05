@@ -1,5 +1,9 @@
+#include <vm_function.h>
+#include <vm_type.h>
 #include <builtin.h>
+#include <vm_type.h>
 #include <context.h>
+#include <bind.h>
 
 namespace gjs {
 	// todo: thread_id:ctx map
@@ -17,7 +21,6 @@ namespace gjs {
 		tp->is_primitive = true;
 		tp->is_builtin = true;
 		tp->size = sizeof(i64);
-
 
 		tp = nullptr;
 		tp = ctx->types()->add("u64", typeid(u64).name());
@@ -83,20 +86,29 @@ namespace gjs {
 		tp->size = sizeof(bool);
 
 		tp = ctx->types()->add("void", "void");
-		tp->is_primitive = false;
 		tp->is_builtin = true;
 		tp->size = 0;
 
 		tp = ctx->types()->add("data", "void*");
-		tp->is_primitive = false;
 		tp->is_builtin = true;
 		tp->size = sizeof(void*);
 		tp->is_unsigned = true;
 
 		tp = ctx->types()->add("string", "char");
-		tp->is_primitive = false;
 		tp->is_builtin = true;
 		tp->size = sizeof(char*);
+
+		ctx->bind<subtype_t>("__subtype__").finalize();
+
+		auto arr = ctx->bind<script_array>("array");
+		arr.constructor<vm_type*>();
+		arr.method("push", &script_array::push);
+		arr.method("operator []", &script_array::operator[]);
+		arr.prop(std::string("length"), &script_array::length, bind::property_flags::pf_read_only);
+		tp = arr.finalize();
+		tp->requires_subtype = true;
+		tp->is_builtin = true;
+
 
 		ctx->bind(script_allocate, "alloc");
 		ctx->bind(script_free, "free");
@@ -115,5 +127,32 @@ namespace gjs {
 
 	void script_copymem(void* to, void* from, uinteger size) {
 		memmove(to, from, size);
+	}
+
+
+	script_array::script_array(vm_type* type) : m_size(0), m_count(0), m_capacity(0), m_type(type) {
+	}
+
+	script_array::~script_array() {
+	}
+
+	void script_array::push(subtype_t* elem) {
+		if (m_capacity == 0) {
+			m_data = new u8[32 * m_type->size];
+			m_capacity = 32;
+		}
+		f32 t = *(f32*)&elem->data;
+		memcpy(m_data + (m_count * m_type->size), &elem->data, m_type->size);
+		m_count++;
+	}
+
+	subtype_t* script_array::operator[](u32 idx) {
+		subtype_t* o = (subtype_t*)(m_data + (idx * m_type->size));
+		f32 t = *(f32*)&o->data;
+		return o;
+	}
+
+	u32 script_array::length() {
+		return m_count;
 	}
 };

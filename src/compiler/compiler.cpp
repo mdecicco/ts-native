@@ -6,6 +6,8 @@
 #include <compiler/expression.h>
 #include <compiler/compiler.h>
 
+#include <vm_function.h>
+#include <vm_type.h>
 #include <context.h>
 #include <instruction_array.h>
 #include <register.h>
@@ -116,11 +118,60 @@ namespace gjs {
 		ctx.cur_func = nullptr;
 	}
 
-	void compile_variable_declaration(compile_context& ctx, ast_node* node) {
-		var* var = ctx.cur_func->allocate(ctx, node);
-		var->total_ref_count = count_references(ctx.cur_func->root, var->name);
+	var* compile_variable_declaration(compile_context& ctx, ast_node* node) {
+		if (node->initializer) {
+			var* v = ctx.cur_func->allocate(ctx, node);
+			v->total_ref_count = count_references(ctx.cur_func->root, v->name);
+			v->no_auto_free = true;
+			compile_expression(ctx, node->initializer->body, v);
+			v->no_auto_free = false;
+			return v;
+		} else {
+			data_type* tp = ctx.type(node->data_type);
+			if (tp->ctor) {
+				// create a stack object
+				if (tp->requires_subtype) {
+					if (tp->sub_type) {
+						var* obj = ctx.cur_func->allocate_stack_var(ctx, tp, node);
+						vector<var*> args = { obj, ctx.cur_func->imm(ctx, (i64)tp->sub_type->type_id) };
 
-		if (node->initializer) compile_expression(ctx, node->initializer->body, var);
+						var* ret = call(ctx, tp->ctor, node, args);
+						ret->type = tp;
+						ret->name = *node->identifier;
+						ret->is_variable = true;
+						ret->ref_count = 1;
+						ret->total_ref_count = count_references(ctx.cur_func->root, ret->name);
+						obj->move_stack_reference(ret);
+
+						for (u32 i = 0;i < args.size();i++) ctx.cur_func->free(args[i]);
+
+						return ret;
+					} else {
+						ctx.log->err(format("Type '%s' can not be constructed without a sub-type", tp->name.c_str()), node);
+
+						// Prevent errors that would stem from this
+						var* v = ctx.cur_func->allocate(ctx, node);
+						v->total_ref_count = count_references(ctx.cur_func->root, v->name);
+						return v;
+					}
+				} else {
+					var* obj = ctx.cur_func->allocate_stack_var(ctx, tp, node);
+
+					var* ret = call(ctx, tp->ctor, node, { obj });
+					ret->name = *node->identifier;
+					ret->is_variable = true;
+					ret->ref_count = 1;
+					ret->total_ref_count = count_references(ctx.cur_func->root, ret->name);
+					obj->move_stack_reference(ret);
+					ctx.cur_func->free(obj);
+					return ret;
+				}
+			} else {
+				var* v = ctx.cur_func->allocate(ctx, node);
+				v->total_ref_count = count_references(ctx.cur_func->root, v->name);
+				return v;
+			}
+		}
 	}
 
 	void compile_delete_statement(compile_context& ctx, ast_node* node) {
@@ -178,9 +229,14 @@ namespace gjs {
 
 	void compile_for_loop(compile_context& ctx, ast_node* node) {
 		ctx.cur_func->push_scope();
-		ctx.cur_func->auto_free_consumed_vars = false;
 		
-		if (node->initializer) compile_variable_declaration(ctx, node->initializer);
+		if (node->initializer) {
+			compile_variable_declaration(ctx, node->initializer);
+
+			// variables declared inside for loop statement should be alone in their scope
+			// (to prevent them from being freed during the scope of the body)
+			ctx.cur_func->push_scope();
+		}
 		address loop_cond = ctx.out->size();
 		address branch_addr = 0;
 		if (node->condition) {
@@ -193,15 +249,15 @@ namespace gjs {
 			ctx.cur_func->free(cond);
 		}
 
-		if (node->modifier) {
-			var* mod = compile_expression(ctx, node->modifier, nullptr);
-			ctx.cur_func->free(mod);
-		}
-
 		ast_node* n = node->body;
 		while (n) {
 			compile_node(ctx, n);
 			n = n->next;
+		}
+
+		if (node->modifier) {
+			var* mod = compile_expression(ctx, node->modifier, nullptr);
+			ctx.cur_func->free(mod);
 		}
 
 		ctx.add(
@@ -217,8 +273,7 @@ namespace gjs {
 				encode(branch.instr()).operand(branch.op_1r()).operand(ctx.out->size())
 			);
 		}
-
-		ctx.cur_func->auto_free_consumed_vars = true;
+		if (node->initializer) ctx.cur_func->pop_scope(ctx, node);
 		ctx.cur_func->pop_scope(ctx, node);
 	}
 
@@ -375,27 +430,12 @@ namespace gjs {
 			case nt::export_statement: break;
 			case nt::return_statement: { compile_return_statement(ctx, node); break; }
 			case nt::delete_statement: { compile_delete_statement(ctx, node); break; }
-			case nt::object: { break; }
-			case nt::call: {
-				var* tmp = compile_expression(ctx, node, nullptr);
-				if (tmp) {
-					ctx.cur_func->free_stack_object(tmp, node);
-					ctx.cur_func->free(tmp);
-				}
-				break;
-			}
-			case nt::expression: {
-				var* tmp = compile_expression(ctx, node, nullptr);
-				if (tmp && !tmp->is_variable) {
-					ctx.cur_func->free_stack_object(tmp, node);
-					ctx.cur_func->free(tmp);
-				}
-				break;
-			}
-			case nt::conditional: { break; }
-			case nt::constant: { break; }
-			case nt::identifier: { break; }
-			case nt::type_identifier: { break; }
+			case nt::object: break;
+			case nt::call:
+			case nt::expression:
+			case nt::conditional:
+			case nt::constant:
+			case nt::identifier:
 			case nt::operation: {
 				var* tmp = compile_expression(ctx, node, nullptr);
 				if (tmp && !tmp->is_variable) {
@@ -404,6 +444,7 @@ namespace gjs {
 				}
 				break;
 			}
+			case nt::type_identifier: { break; }
 			case nt::context_function: { break; }
 			case nt::context_type: { break; }
 			default: {
@@ -415,23 +456,25 @@ namespace gjs {
 	}
 
 	void init_context(compile_context& ctx) {
-		ctx.do_store_member_pointer = false;
-		ctx.last_member_was_pointer = false;
+		ctx.do_store_member_info = false;
+		ctx.last_member_or_method.subject = nullptr;
+		ctx.clear_last_member_info();
 		ctx.cur_func = nullptr;
-		ctx.last_type_method = nullptr;
 		data_type* t = nullptr;
 
 		vector<vm_type*> types = ctx.ctx->types()->all();
 		for (u32 i = 0;i < types.size();i++) {
 			ctx.types.push_back(new data_type(types[i]->name));
 			t = ctx.types[ctx.types.size() - 1];
+			t->type_id = types[i]->id();
 			t->size = t->actual_size = types[i]->size;
 			t->type = types[i];
 			t->built_in = types[i]->is_builtin;
 			t->is_floating_point = types[i]->is_floating_point;
 			t->is_unsigned = types[i]->is_unsigned;
 			t->is_primitive = types[i]->is_primitive;
-			if (!t->built_in || t->name == "string") {
+			t->requires_subtype = types[i]->requires_subtype;
+			if (!t->is_primitive && !t->size == 0) {
 				// object pointer
 				t->size = sizeof(void*);
 			}
@@ -496,6 +539,7 @@ namespace gjs {
 				if (t->type) continue; // already in context
 
 				vm_type* tp = vctx->types()->add(t->name, t->name);
+				tp->requires_subtype = t->requires_subtype;
 				t->type = tp;
 				for (u32 p = 0;p < t->props.size();p++) {
 					data_type::property& sprop = t->props[p];
@@ -525,6 +569,7 @@ namespace gjs {
 			for (u32 i = 0;i < new_types.size();i++) {
 				data_type* t = new_types[i];
 				vm_type* tp = t->type;
+
 				for (u32 p = 0;p < t->props.size();p++) {
 					data_type::property& sprop = t->props[p];
 					vm_type::property& tprop = tp->properties[p];
@@ -532,6 +577,9 @@ namespace gjs {
 					tprop.setter = sprop.setter ? vctx->function(sprop.setter->entry) : nullptr;
 					tprop.type = sprop.type->type;
 				}
+
+				tp->base_type = t->base_type->type;
+				tp->sub_type = t->sub_type->type;
 
 				for (u32 m = 0;m < t->methods.size();m++) {
 					func* f = t->methods[m];

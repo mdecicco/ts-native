@@ -3,6 +3,8 @@
 #include <compiler/variable.h>
 #include <compiler/function.h>
 #include <compiler/data_type.h>
+#include <vm_function.h>
+#include <vm_type.h>
 #include <compile_log.h>
 #include <instruction_array.h>
 #include <instruction_encoder.h>
@@ -377,6 +379,7 @@ namespace gjs {
 			{ op::isEq, "==" },
 			{ op::eq, "=" },
 			{ op::not, "!" },
+			{ op::index, "[]" },
 		};
 
 		// todo: in case of post-inc/dec, clone object before calling the operator and use clone as return value
@@ -389,7 +392,7 @@ namespace gjs {
 		if (opFunc) {
 			vector<var*> args = { opOf };
 			if (param) args.push_back(param);
-			ret = call(ctx, opFunc, node, args);
+			ret = call(ctx, opFunc, node, args, opOf->type);
 			if (ret) {
 				if (dest) {
 					ret->store_in(dest->to_reg(node), node);
@@ -467,6 +470,7 @@ namespace gjs {
 					v = cast(ctx, v, dest, node);
 				}
 				v->store_in(dest->to_reg(node), node);
+                v->move_stack_reference(dest);
 				ctx.cur_func->free(result);
 				if (v != result) ctx.cur_func->free(v);
 				return dest;
@@ -505,7 +509,7 @@ namespace gjs {
 		var* lvalue = nullptr;
 		var* rvalue = nullptr;
 		if (node->lvalue) {
-			if (assignsLv) ctx.do_store_member_pointer = true;
+			if (assignsLv) ctx.do_store_member_info = true;
 			if (node->lvalue->type == nt::operation || node->lvalue->type == nt::call) lvalue = compile_expression(ctx, node->lvalue, nullptr);
 			else if (node->lvalue->type == nt::identifier) lvalue = ctx.cur_func->get(ctx, node->lvalue);
 			else if (node->lvalue->type == nt::constant) {
@@ -516,10 +520,10 @@ namespace gjs {
 					case ast_node::constant_type::string: { lvalue = ctx.cur_func->imm(ctx, node->lvalue->value.s); break; }
 				}
 			}
-			if (assignsLv) ctx.do_store_member_pointer = false;
+			if (assignsLv) ctx.do_store_member_info = false;
 		}
 		if (node->rvalue) {
-			if (assignsRv) ctx.do_store_member_pointer = true;
+			if (assignsRv) ctx.do_store_member_info = true;
 			if (node->rvalue->type == nt::operation || node->rvalue->type == nt::call) rvalue = compile_expression(ctx, node->rvalue, nullptr);
 			else if (node->rvalue->type == nt::identifier) {
 				if (node->op != op::member) rvalue = ctx.cur_func->get(ctx, node->rvalue);
@@ -532,7 +536,7 @@ namespace gjs {
 					case ast_node::constant_type::string: { rvalue = ctx.cur_func->imm(ctx, node->rvalue->value.s); break; }
 				}
 			}
-			if (assignsRv) ctx.do_store_member_pointer = false;
+			if (assignsRv) ctx.do_store_member_info = false;
 		}
 
 		var* ret = nullptr;
@@ -540,16 +544,18 @@ namespace gjs {
 		if (node->type == nt::call) {
 			if (node->callee->type == nt::operation) {
 				if (node->callee->op == op::member) {
-					ctx.last_type_method = nullptr;
+					ctx.clear_last_member_info();
+					ctx.do_store_member_info = true;
 					var* this_obj = compile_expression(ctx, node->callee, nullptr);
+					ctx.do_store_member_info = false;
 					if (this_obj) this_obj->no_auto_free = true;
-					if (ctx.last_type_method) {
+					if (ctx.last_member_or_method.method) {
 						vector<var*> args;
 						vector<bool> free_arg;
 
-						if (ctx.last_type_method->is_thiscall) {
+						if (ctx.last_member_or_method.method->is_thiscall) {
 							args.push_back(this_obj);
-							free_arg.push_back(true);
+							free_arg.push_back(!this_obj->is_variable);
 						}
 
 						ast_node* arg = node->arguments;
@@ -558,7 +564,7 @@ namespace gjs {
 							free_arg.push_back(!args[args.size() - 1]->is_variable);
 							arg = arg->next;
 						}
-						ret = call(ctx, ctx.last_type_method, node, args);
+						ret = call(ctx, ctx.last_member_or_method.method, node, args, this_obj ? this_obj->type : nullptr);
 						for (u32 i = 0;i < args.size();i++) {
 							if (free_arg[i]) ctx.cur_func->free(args[i]);
 						}
@@ -588,6 +594,7 @@ namespace gjs {
 						v = cast(ctx, v, dest, node);
 					}
 					v->store_in(dest->to_reg(node), node);
+                    v->move_stack_reference(dest);
 					ctx.cur_func->free(ret);
 					if (v != ret) ctx.cur_func->free(v);
 					return dest;
@@ -602,7 +609,9 @@ namespace gjs {
 
 			bool maybe_complex = (lvalue && !lvalue->type->is_primitive) || (!lvalue && rvalue && !rvalue->type->is_primitive);
 			if (maybe_complex && node->op != op::member) {
+				if (node->op == op::index) ctx.do_store_func_return_ptr = ctx.do_store_member_info;
 				ret = compile_complex_operation(ctx, lvalue, rvalue, node, dest);
+				ctx.do_store_func_return_ptr = false;
 			} else {
 				switch (node->op) {
 					case op::invalid: { break; }
@@ -913,85 +922,93 @@ namespace gjs {
 					}
 					case op::member: {
 						if (!lvalue) {
+							// static method or property
 							data_type* t = ctx.type(node->lvalue);
 							data_type::property* prop = t->prop(*node->rvalue);
 							if (prop) {
-								if (!(prop->flags & bind::property_flags::pf_static_prop)) {
-									ctx.log->err(format("Expected static method or property of type '%s'", t->name.c_str()), node->rvalue);
-								} else {
-									var* pval = ctx.cur_func->allocate(ctx, prop->type);
-									if (ctx.do_store_member_pointer) {
-										// store pointer to property in v1 in case value should be stored later
-										ctx.add(
-											encode(vmi::addui).operand(vmr::v1).operand(vmr::zero).operand(prop->offset),
-											node
-										);
+								var* pval = nullptr;
+								if (ctx.do_store_member_info) {
+									ctx.clear_last_member_info();
+									ctx.last_member_or_method.is_set = true;
+									ctx.last_member_or_method.name = *node->rvalue;
+									ctx.last_member_or_method.subject = nullptr;
+									ctx.last_member_or_method.type = t;
+									ctx.last_member_or_method.method = nullptr;
+								}
+								if (prop->getter) {
+									pval = call(ctx, prop->getter, node->rvalue, {}, lvalue->type);
+								}
+								else {
+									if (!(prop->flags & bind::property_flags::pf_static)) {
+										ctx.log->err(format("Expected static method or property of type '%s'", t->name.c_str()), node->rvalue);
 									}
+									else {
+										pval = ctx.cur_func->allocate(ctx, prop->type);
 
-									if (prop->flags ^ bind::pf_object_pointer) {
-										ctx.last_member_was_pointer = false;
-										if (prop->type->built_in) {
-											// load value
-											vmi ld;
-											switch (prop->type->size) {
+										if (prop->flags ^ bind::pf_pointer) {
+											if (prop->type->built_in) {
+												// load value
+												vmi ld;
+												switch (prop->type->size) {
 												case 1: { ld = vmi::ld8; break; }
 												case 2: { ld = vmi::ld16; break; }
 												case 4: { ld = vmi::ld32; break; }
 												case 8: { ld = vmi::ld64; break; }
+												}
+												ctx.add(
+													encode(ld).operand(pval->to_reg(node)).operand(vmr::zero).operand(prop->offset),
+													node
+												);
 											}
-											ctx.add(
-												encode(ld).operand(pval->to_reg(node)).operand(vmr::zero).operand(prop->offset),
-												node
-											);
-										} else {
-											// get pointer to property in pval
-											ctx.add(
-												encode(vmi::addui).operand(pval->to_reg(node)).operand(vmr::zero).operand(prop->offset),
-												node
-											);
+											else {
+												// get pointer to property in pval
+												ctx.add(
+													encode(vmi::addui).operand(pval->to_reg(node)).operand(vmr::zero).operand(prop->offset),
+													node
+												);
+											}
 										}
-
-										ctx.last_type_method = nullptr;
-									} else {
-										ctx.last_member_was_pointer = true;
-										if (prop->type->built_in) {
-											// load pointer
-											vmi ld;
-											switch (sizeof(void*)) {
-											case 1: { ld = vmi::ld8; break; }
-											case 2: { ld = vmi::ld16; break; }
-											case 4: { ld = vmi::ld32; break; }
-											case 8: { ld = vmi::ld64; break; }
-											}
-											ctx.add(
-												encode(ld).operand(pval->to_reg(node)).operand(vmr::zero).operand(prop->offset),
-												node
-											);
-
-											// load value pointed to by pval
-											switch (prop->type->size) {
+										else {
+											if (prop->type->built_in) {
+												// load pointer
+												vmi ld;
+												switch (sizeof(void*)) {
 												case 1: { ld = vmi::ld8; break; }
 												case 2: { ld = vmi::ld16; break; }
 												case 4: { ld = vmi::ld32; break; }
 												case 8: { ld = vmi::ld64; break; }
-											}
-											ctx.add(
-												encode(ld).operand(pval->to_reg(node)).operand(pval->to_reg(node)),
-												node
-											);
-										} else {
-											// load pointer
-											vmi ld;
-											switch (sizeof(void*)) {
+												}
+												ctx.add(
+													encode(ld).operand(pval->to_reg(node)).operand(vmr::zero).operand(prop->offset),
+													node
+												);
+
+												// load value pointed to by pval
+												switch (prop->type->size) {
 												case 1: { ld = vmi::ld8; break; }
 												case 2: { ld = vmi::ld16; break; }
 												case 4: { ld = vmi::ld32; break; }
 												case 8: { ld = vmi::ld64; break; }
+												}
+												ctx.add(
+													encode(ld).operand(pval->to_reg(node)).operand(pval->to_reg(node)),
+													node
+												);
 											}
-											ctx.add(
-												encode(ld).operand(pval->to_reg(node)).operand(vmr::zero).operand(prop->offset),
-												node
-											);
+											else {
+												// load pointer
+												vmi ld;
+												switch (sizeof(void*)) {
+												case 1: { ld = vmi::ld8; break; }
+												case 2: { ld = vmi::ld16; break; }
+												case 4: { ld = vmi::ld32; break; }
+												case 8: { ld = vmi::ld64; break; }
+												}
+												ctx.add(
+													encode(ld).operand(pval->to_reg(node)).operand(vmr::zero).operand(prop->offset),
+													node
+												);
+											}
 										}
 									}
 
@@ -1000,7 +1017,8 @@ namespace gjs {
 											var* converted = cast(ctx, pval, dest, node);
 											converted->store_in(dest->to_reg(node), node);
 											if (converted != pval) ctx.cur_func->free(converted);
-										} else pval->store_in(dest->to_reg(node), node);
+										}
+										else pval->store_in(dest->to_reg(node), node);
 
 										ctx.cur_func->free(pval);
 									}
@@ -1014,8 +1032,14 @@ namespace gjs {
 								if (!sf || sf->is_thiscall) {
 									ctx.log->err(format("Expected static method or property of type '%s'", t->name.c_str()), node->rvalue);
 								} else {
-									ctx.last_member_was_pointer = false;
-									ctx.last_type_method = sf;
+									if (ctx.do_store_member_info) {
+										ctx.clear_last_member_info();
+										ctx.last_member_or_method.is_set = true;
+										ctx.last_member_or_method.name = *node->rvalue;
+										ctx.last_member_or_method.subject = nullptr;
+										ctx.last_member_or_method.type = t;
+										ctx.last_member_or_method.method = sf;
+									}
 								}
 
 								return nullptr;
@@ -1024,79 +1048,84 @@ namespace gjs {
 
 						data_type::property* prop = lvalue->type->prop(*node->rvalue);
 						if (prop) {
-							var* pval = ctx.cur_func->allocate(ctx, prop->type);
-							if (ctx.do_store_member_pointer) {
-								// store pointer to property in v1 in case value should be stored later
-								ctx.add(
-									encode(vmi::addui).operand(vmr::v1).operand(lvalue->to_reg(node)).operand(prop->offset),
-									node
-								);
+							var* pval = nullptr;
+							if (ctx.do_store_member_info) {
+								ctx.clear_last_member_info();
+								ctx.last_member_or_method.is_set = true;
+								ctx.last_member_or_method.name = *node->rvalue;
+								ctx.last_member_or_method.subject = lvalue;
+								ctx.last_member_or_method.subject->no_auto_free = true;
+								ctx.last_member_or_method.type = prop->type;
+								ctx.last_member_or_method.method = nullptr;
 							}
 
-							if (prop->flags ^ bind::pf_object_pointer) {
-								ctx.last_member_was_pointer = false;
-								if (prop->type->built_in) {
-									// load value at lvalue + n bytes
-									vmi ld;
-									switch (prop->type->size) {
-										case 1: { ld = vmi::ld8; break; }
-										case 2: { ld = vmi::ld16; break; }
-										case 4: { ld = vmi::ld32; break; }
-										case 8: { ld = vmi::ld64; break; }
-									}
-									ctx.add(
-										encode(ld).operand(pval->to_reg(node)).operand(lvalue->to_reg(node)).operand(prop->offset),
-										node
-									);
-								} else {
-									// get pointer to property in pval
-									ctx.add(
-										encode(vmi::addui).operand(pval->to_reg(node)).operand(lvalue->to_reg(node)).operand(prop->offset),
-										node
-									);
-								}
-
-								ctx.last_type_method = nullptr;
+							if (prop->getter) {
+								pval = call(ctx, prop->getter, node->rvalue, { lvalue }, lvalue->type);
 							} else {
-								ctx.last_member_was_pointer = true;
-								if (prop->type->built_in) {
-									// load pointer at lvalue + n bytes
-									vmi ld;
-									switch (sizeof(void*)) {
-										case 1: { ld = vmi::ld8; break; }
-										case 2: { ld = vmi::ld16; break; }
-										case 4: { ld = vmi::ld32; break; }
-										case 8: { ld = vmi::ld64; break; }
-									}
-									ctx.add(
-										encode(ld).operand(pval->to_reg(node)).operand(lvalue->to_reg(node)).operand(prop->offset),
-										node
-									);
+								pval = ctx.cur_func->allocate(ctx, prop->type); 
 
-									// load value pointed to by pval
-									switch (prop->type->size) {
-										case 1: { ld = vmi::ld8; break; }
-										case 2: { ld = vmi::ld16; break; }
-										case 4: { ld = vmi::ld32; break; }
-										case 8: { ld = vmi::ld64; break; }
+								if (prop->flags ^ bind::pf_pointer) {
+									if (prop->type->built_in) {
+										// load value at lvalue + n bytes
+										vmi ld;
+										switch (prop->type->size) {
+											case 1: { ld = vmi::ld8; break; }
+											case 2: { ld = vmi::ld16; break; }
+											case 4: { ld = vmi::ld32; break; }
+											case 8: { ld = vmi::ld64; break; }
+										}
+										ctx.add(
+											encode(ld).operand(pval->to_reg(node)).operand(lvalue->to_reg(node)).operand(prop->offset),
+											node
+										);
+									} else {
+										// get pointer to property in pval
+										ctx.add(
+											encode(vmi::addui).operand(pval->to_reg(node)).operand(lvalue->to_reg(node)).operand(prop->offset),
+											node
+										);
 									}
-									ctx.add(
-										encode(ld).operand(pval->to_reg(node)).operand(pval->to_reg(node)),
-										node
-									);
-								} else {
-									// load pointer at lvalue + n bytes
-									vmi ld;
-									switch (sizeof(void*)) {
-										case 1: { ld = vmi::ld8; break; }
-										case 2: { ld = vmi::ld16; break; }
-										case 4: { ld = vmi::ld32; break; }
-										case 8: { ld = vmi::ld64; break; }
+								}
+								else {
+									if (prop->type->built_in) {
+										// load pointer at lvalue + n bytes
+										vmi ld;
+										switch (sizeof(void*)) {
+											case 1: { ld = vmi::ld8; break; }
+											case 2: { ld = vmi::ld16; break; }
+											case 4: { ld = vmi::ld32; break; }
+											case 8: { ld = vmi::ld64; break; }
+										}
+										ctx.add(
+											encode(ld).operand(pval->to_reg(node)).operand(lvalue->to_reg(node)).operand(prop->offset),
+											node
+										);
+
+										// load value pointed to by pval
+										switch (prop->type->size) {
+											case 1: { ld = vmi::ld8; break; }
+											case 2: { ld = vmi::ld16; break; }
+											case 4: { ld = vmi::ld32; break; }
+											case 8: { ld = vmi::ld64; break; }
+										}
+										ctx.add(
+											encode(ld).operand(pval->to_reg(node)).operand(pval->to_reg(node)),
+											node
+										);
+									} else {
+										// load pointer at lvalue + n bytes
+										vmi ld;
+										switch (sizeof(void*)) {
+											case 1: { ld = vmi::ld8; break; }
+											case 2: { ld = vmi::ld16; break; }
+											case 4: { ld = vmi::ld32; break; }
+											case 8: { ld = vmi::ld64; break; }
+										}
+										ctx.add(
+											encode(ld).operand(pval->to_reg(node)).operand(lvalue->to_reg(node)).operand(prop->offset),
+											node
+										);
 									}
-									ctx.add(
-										encode(ld).operand(pval->to_reg(node)).operand(lvalue->to_reg(node)).operand(prop->offset),
-										node
-									);
 								}
 							}
 
@@ -1115,14 +1144,25 @@ namespace gjs {
 						else {
 							func* method = lvalue->type->method(*node->rvalue);
 							if (method) {
-								ctx.last_type_method = method;
 								ret = lvalue;
+								if (ctx.do_store_member_info) {
+									ctx.clear_last_member_info();
+									ctx.last_member_or_method.is_set = true;
+									ctx.last_member_or_method.name = *node->rvalue;
+									ctx.last_member_or_method.subject = lvalue;
+									ctx.last_member_or_method.subject->no_auto_free = true;
+									ctx.last_member_or_method.type = method->return_type;
+									ctx.last_member_or_method.method = method;
+								}
 							} else {
-								ctx.last_type_method = nullptr;
 								string n = *node->rvalue;
 								ctx.log->err(format("'%s' is not a property or method of type '%s'", n.c_str(), lvalue->type->name.c_str()), node);
 							}
 						}
+						break;
+					}
+					case op::index: {
+						ctx.log->err(format("Type '%s' has no [] operator", lvalue->type->name.c_str()), node);
 						break;
 					}
 					case op::newObj: {
@@ -1136,6 +1176,20 @@ namespace gjs {
 						if (tp->ctor) {
 							vector<var*> args = { ret };
 							vector<bool> free_arg = { true };
+
+							if (tp->requires_subtype) {
+								if (tp->sub_type) {
+									args.push_back(ctx.cur_func->imm(ctx, (i64)tp->sub_type->type_id));
+									free_arg.push_back(true);
+								} else {
+									ctx.log->err(format("Type '%s' can not be constructed without a sub-type", tp->name.c_str()), node);
+
+									// Prevent errors that would stem from this
+									args.push_back(ctx.cur_func->imm(ctx, (i64)0));
+									free_arg.push_back(true);
+								}
+							}
+
 							ast_node* arg = node->arguments;
 							while (arg) {
 								args.push_back(compile_expression(ctx, arg, nullptr));
@@ -1143,6 +1197,7 @@ namespace gjs {
 								arg = arg->next;
 							}
 							ret = call(ctx, tp->ctor, node, args);
+							ret->type = tp;
 							for (u32 i = 0;i < args.size();i++) {
 								if (free_arg[i]) ctx.cur_func->free(args[i]);
 							}
@@ -1168,6 +1223,20 @@ namespace gjs {
 						if (tp->ctor) {
 							vector<var*> args = { obj };
 							vector<bool> free_arg = { true };
+
+							if (tp->requires_subtype) {
+								if (tp->sub_type) {
+									args.push_back(ctx.cur_func->imm(ctx, (i64)tp->sub_type->type_id));
+									free_arg.push_back(true);
+								} else {
+									ctx.log->err(format("Type '%s' can not be constructed without a sub-type", tp->name.c_str()), node);
+
+									// Prevent errors that would stem from this
+									args.push_back(ctx.cur_func->imm(ctx, (i64)0));
+									free_arg.push_back(true);
+								}
+							}
+
 							ast_node* arg = node->arguments;
 							while (arg) {
 								args.push_back(compile_expression(ctx, arg, nullptr));
@@ -1176,6 +1245,7 @@ namespace gjs {
 							}
 							ret = call(ctx, tp->ctor, node, args);
 							obj->move_stack_reference(ret);
+							ret->type = tp;
 
 							for (u32 i = 0;i < args.size();i++) {
 								if (free_arg[i]) ctx.cur_func->free(args[i]);
@@ -1198,76 +1268,65 @@ namespace gjs {
 				}
 			}
 
-			var* var_assigned = lvalue ? lvalue : rvalue;
 			ast_node* node_assigned = node->lvalue ? node->lvalue : node->rvalue;
-			if ((assignsLv || assignsRv) && node_assigned->op == op::member && ret) {
-				// v1 will hold a pointer to the member
-				if (var_assigned->type->built_in) {
-					if (ctx.last_member_was_pointer) {
-						// load pointer stored at address in v1 (and put it in v1)
-						vmi ld;
-						switch (sizeof(void*)) {
-							case 1: { ld = vmi::ld8; break; }
-							case 2: { ld = vmi::ld16; break; }
-							case 4: { ld = vmi::ld32; break; }
-							case 8: { ld = vmi::ld64; break; }
+			if ((assignsLv || assignsRv) && (node_assigned->op == op::member || node_assigned->op == op::index) && ret) {
+				// store result
+				if (node_assigned->op == op::member) {
+					data_type::property* prop = ctx.last_member_or_method.subject->type->prop(ctx.last_member_or_method.name);
+					if (prop->getter) {
+						// require setter
+						if (prop->setter) {
+							var* result = call(ctx, prop->setter, node, { ctx.last_member_or_method.subject, ret }, ctx.last_member_or_method.type);
+							if (result) {
+								if (!ret->is_variable) ctx.cur_func->free(ret);
+								ret = result;
+							}
+						} else {
+							ctx.log->err(format("Cannot assign property '%s' of '%s' which has a getter but no setter", prop->name.c_str(), ctx.last_member_or_method.type->name.c_str()), node);
 						}
-						ctx.add(
-							encode(ld).operand(vmr::v1).operand(vmr::v1),
-							node
-						);
-
-
-						// store value at address in v1
-						vmi st;
-						switch(var_assigned->type->size) {
-							case 1: { st = vmi::st8; break; }
-							case 2: { st = vmi::st16; break; }
-							case 4: { st = vmi::st32; break; }
-							case 8: { st = vmi::st64; break; }
-						}
-						ctx.add(
-							encode(st).operand(ret->to_reg(node)).operand(vmr::v1),
-							node
-						);
 					} else {
-						// store value at address in v1
+						// set the property directly
 						vmi st;
-						switch(var_assigned->type->size) {
+						switch (prop->type->size) {
 							case 1: { st = vmi::st8; break; }
 							case 2: { st = vmi::st16; break; }
 							case 4: { st = vmi::st32; break; }
 							case 8: { st = vmi::st64; break; }
 						}
 						ctx.add(
-							encode(st).operand(ret->to_reg(node)).operand(vmr::v1),
+							encode(st).operand(ret->to_reg(node)).operand(ctx.last_member_or_method.subject->to_reg(node)).operand(prop->offset),
 							node
 						);
 					}
 				} else {
-					// store pointer to value at address in v1
-					vmi st;
-					switch(sizeof(void*)) {
-						case 1: { st = vmi::st8; break; }
-						case 2: { st = vmi::st16; break; }
-						case 4: { st = vmi::st32; break; }
-						case 8: { st = vmi::st64; break; }
+					if (ctx.did_store_func_return_ptr) {
+						vmi st;
+						switch (ret->type->size) {
+							case 1: { st = vmi::st8; break; }
+							case 2: { st = vmi::st16; break; }
+							case 4: { st = vmi::st32; break; }
+							case 8: { st = vmi::st64; break; }
+						}
+						ctx.add(
+							encode(st).operand(ret->to_reg(node)).operand(ctx.func_return_ptr_loc),
+							node
+						);
+					} else {
+						ctx.log->err(node->lvalue ? "Expression lvalue is not modifiable" : "Expression is not modifiable", node);
 					}
-					ctx.add(
-						encode(st).operand(ret->to_reg(node)).operand(vmr::v1),
-						node
-					);
 				}
+
+				ctx.clear_last_member_info();
 			}
 
 			ctx.cur_func->auto_free_consumed_vars = auto_free;
 		}
 
-		if (lvalue && !lvalue->is_variable && lvalue != ret) {
+		if (lvalue && !lvalue->is_variable && lvalue != ret && lvalue != ctx.last_member_or_method.subject) {
 			ctx.cur_func->free_stack_object(lvalue, node);
 			ctx.cur_func->free(lvalue);
 		}
-		if (rvalue && !rvalue->is_variable && rvalue != ret) {
+		if (rvalue && !rvalue->is_variable && rvalue != ret && rvalue != ctx.last_member_or_method.subject) {
 			ctx.cur_func->free_stack_object(rvalue, node);
 			ctx.cur_func->free(rvalue);
 		}

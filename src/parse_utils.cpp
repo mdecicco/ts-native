@@ -178,7 +178,7 @@ namespace gjs {
 		}
 
 
-		while(!at_end()) {
+		while(!at_end(false)) {
 			if (whitespace()) break;
 			c = m_input[m_idx];
 			if (out.text.length() > 0 && (c == '(' || c == ')')) break;
@@ -784,6 +784,7 @@ namespace gjs {
 				out.text += c;
 				offset++;
 			} else if (c == '.') {
+				if (out.text.length() == 0) break;
 				if (hasDecimal) {
 					if (!expected) return token();
 					throw parse_exception(

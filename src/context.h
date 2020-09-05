@@ -31,6 +31,7 @@ namespace gjs {
 	};
 
 	class type_manager;
+	class vm_function;
 	class vm_context {
 		public:
 			vm_context(vm_allocator* alloc, u32 stack_size, u32 mem_size);
@@ -39,13 +40,13 @@ namespace gjs {
 			template <class Cls>
 			bind::wrap_class<Cls>& bind(const std::string& name) {
 				// as long as wrap_class::finalize is called, this will be deleted when it should be
-				return *(new bind::wrap_class<Cls>(&m_types, *m_jit, name));
+				return *(new bind::wrap_class<Cls>(m_types, *m_jit, name));
 			}
 
 			template <typename Ret, typename... Args>
 			void bind(Ret(*func)(Args...), const std::string& name) {
-				bind::wrapped_function* w = bind::wrap(&m_types, *m_jit, name, func);
-				new vm_function(&m_types, w);
+				bind::wrapped_function* w = bind::wrap(m_types, *m_jit, name, func);
+				new vm_function(m_types, nullptr, w);
 			}
 
 			void add(vm_function* func);
@@ -59,7 +60,7 @@ namespace gjs {
 			inline vm_state*			state		() { return &m_vm.state; }
 			inline instruction_array*	code		() { return &m_instructions; }
 			inline source_map*			map			() { return &m_map; }
-			inline type_manager*		types		() { return &m_types; }
+			inline type_manager*		types		() { return m_types; }
 			inline gjs::vm*				vm			() { return &m_vm; }
 			inline asmjit::JitRuntime*	jit			() { return m_jit; }
 			inline vm_allocator*		allocator	() { return m_alloc; }
@@ -77,7 +78,7 @@ namespace gjs {
 			robin_hood::unordered_map<std::string, vm_function*> m_funcs;
 
 			asmjit::JitRuntime* m_jit;
-			type_manager m_types;
+			type_manager* m_types;
 			gjs::vm m_vm;
 			instruction_array m_instructions;
 			source_map m_map;

@@ -24,15 +24,19 @@ namespace gjs {
 		bool is_floating_point;
 		bool is_unsigned;
 		bool is_primitive;
+		bool requires_subtype;
 
 		// the following two sizes are equal for primitive types
 		// for structures, classes, the size is sizeof(void*)
+		u32 type_id;
 		u64 actual_size;
 		u64 size;
 		std::vector<property> props;
 		std::vector<func*> methods;
 		func* ctor;
 		func* dtor;
+		data_type* base_type;
+		data_type* sub_type;
 		vm_type* type;
 
 		data_type(const std::string& _name, bool _built_in = false);

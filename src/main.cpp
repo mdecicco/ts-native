@@ -1,12 +1,14 @@
 #include <allocator.h>
+#include <vm_function.h>
 #include <context.h>
+#include <vm_type.h>
 #include <stdio.h>
 
 using namespace gjs;
 
 class foo {
 	public:
-		foo(i32* _x) : x(_x), y(0), z(0), w(0.0f) {
+		foo() : x(0), y(0), z(0), w(0.0f) {
 			printf("Construct foo\n");
 		}
 		~foo() {
@@ -20,10 +22,20 @@ class foo {
 		static void static_func(i32 a) {
 			printf("ayyy: %d\n", a);
 		}
+		f32 ft(f32 a) {
+			return s = a;
+		}
 
 		operator i32() { return y; }
 
-		i32* x;
+		i32 get_x() {
+			return x;
+		}
+		i32 set_x(i32 _x) {
+			return x = _x;
+		}
+
+		i32 x;
 		i32 y;
 		i32 z;
 		f32 w;
@@ -36,13 +48,18 @@ void testvec(void* vec) {
 	vec3& v = *(vec3*)vec;
 	printf("%f, %f, %f\n", v.x, v.y, v.z);
 }
+
 void dtestvec(void* vec) {
 	vec3& v = *(vec3*)vec;
 	printf("Destroyed: %f, %f, %f\n", v.x, v.y, v.z);
 }
 
 void print_foo(const foo& f) {
-	printf("foo: %d, %d, %d, %f\n", *f.x, f.y, f.z, f.w);
+	printf("foo: %d, %d, %d, %f\n", f.x, f.y, f.z, f.w);
+}
+
+void print_f32(u8 i, f32 f) {
+	printf("%d: %f\n", i, f);
 }
 
 void print_log(vm_context& ctx) {
@@ -138,11 +155,12 @@ int main(int arg_count, const char** args) {
 
 	try {
 		auto f = ctx.bind<foo>("foo");
-		f.constructor<i32*>();
+		f.constructor();
 		f.method("t", &foo::t);
+		f.method("ft", &foo::ft);
 		f.method("operator i32", &foo::operator i32);
 		f.method("static_func", &foo::static_func);
-		f.prop("x", &foo::x, bind::property_flags::pf_object_pointer);
+		f.prop("x", &foo::get_x, &foo::set_x, bind::property_flags::pf_none);
 		f.prop("y", &foo::y, bind::property_flags::pf_none);
 		f.prop("z", &foo::z, bind::property_flags::pf_none);
 		f.prop("w", &foo::w, bind::property_flags::pf_none);
@@ -152,6 +170,7 @@ int main(int arg_count, const char** args) {
 		ctx.bind(print_foo, "print_foo");
 		ctx.bind(testvec, "testvec");
 		ctx.bind(dtestvec, "dtestvec");
+		ctx.bind(print_f32, "print_f32");
 	} catch (bind_exception& e) {
 		printf("%s\n", e.text.c_str());
 	}
@@ -162,10 +181,10 @@ int main(int arg_count, const char** args) {
 		return 1;
 	}
 	print_log(ctx);
-	print_code(ctx);
+	//print_code(ctx);
 
 	printf("-------------result-------------\n");
-	// ctx.log_instructions(true);
+	//ctx.log_instructions(true);
 	ctx.function("it");
 	vm_function* func = ctx.function("it");
 	if (func) func->call<void*>(nullptr);

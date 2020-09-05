@@ -12,10 +12,12 @@ namespace gjs {
 
 	data_type::data_type(const std::string& _name, bool _built_in) :
 		name(_name), built_in(_built_in), is_floating_point(false), is_unsigned(false), ctor(nullptr),
-		dtor(nullptr), type(nullptr), size(0), actual_size(0), is_primitive(false)
+		dtor(nullptr), type(nullptr), size(0), actual_size(0), is_primitive(false), requires_subtype(false),
+		base_type(nullptr), sub_type(nullptr), type_id(hash(_name))
 	{ }
 
 	data_type::data_type(compile_context& ctx, ast_node* node) {
+		type_id = hash(*node->identifier);
 		ctor = nullptr;
 		dtor = nullptr;
 		type = nullptr;
@@ -23,6 +25,9 @@ namespace gjs {
 		is_floating_point = false;
 		is_unsigned = false;
 		is_primitive = false;
+		requires_subtype = false;
+		base_type = nullptr;
+		sub_type = nullptr;
 		name = *node->identifier;
 		ast_node* n = node->body;
 		actual_size = 0;
@@ -142,7 +147,19 @@ namespace gjs {
 
 	func* data_type::method(const std::string& _name) {
 		for (u32 m = 0;m < methods.size();m++) {
-			if (methods[m]->name == name + "::" + _name) return methods[m];
+			if (_name.find_first_of(' ') != string::npos) {
+				// probably an operator
+				vector<string> mparts = split(split(methods[m]->name, ":")[1], " \t\n\r");
+				vector<string> sparts = split(_name, " \t\n\r");
+				if (mparts.size() != sparts.size()) continue;
+				bool matched = true;
+				for (u32 i = 0;matched && i < mparts.size();i++) {
+					matched = mparts[i] == sparts[i];
+				}
+				if (matched) return methods[m];
+			}
+			string& bt_name = base_type ? base_type->name : name;
+			if (methods[m]->name == bt_name + "::" + _name) return methods[m];
 		}
 		return nullptr;
 	}
