@@ -41,6 +41,7 @@ namespace gjs {
 			void restore_state();
 
 			bool whitespace();
+			bool newline();
 			std::string thing();
 			token any_token();
 			token semicolon(bool expected = true);
@@ -51,6 +52,8 @@ namespace gjs {
 			token expression(bool expected = true);
 			token string_constant(bool expected = true, bool strip_quotes = false, bool allow_empty = true);
 			token number_constant(bool expected = true);
+			token line_comment();
+			token block_comment();
 
 			std::vector<std::string> lines;
 			std::string file;

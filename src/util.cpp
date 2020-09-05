@@ -15,16 +15,12 @@ namespace gjs {
 			}
 
 			if (isDelim) {
-				if (!lastWasDelim) {
-					out.push_back(cur);
-					cur = "";
-					lastWasDelim = true;
-				}
+				out.push_back(cur);
+				cur = "";
 				continue;
 			}
 
 			cur += str[i];
-			lastWasDelim = false;
 		}
 
 		if (cur.length() > 0) out.push_back(cur);

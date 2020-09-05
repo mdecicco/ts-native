@@ -105,27 +105,20 @@ namespace gjs {
 	}
 
 	bool tokenizer::whitespace() {
-		bool lastWasNewline = false;
+		char last = 0;
 		bool hadWhitespace = false;
 		while (!at_end(false)) {
 			char c = m_input[m_idx];
 			if (c == ' ' || c == '\t') {
-				lastWasNewline = false;
 				hadWhitespace = true;
+				last = c;
 				m_col++;
 				m_idx++;
 				continue;
 			}
 
-			if (c == '\n' || c == '\r') {
-				if (!lastWasNewline) {
-					lastWasNewline = true;
-					if (m_line < lines.size() - 1) {
-						m_line++;
-						m_col = 0;
-					}
-				}
-				m_idx++;
+			if (newline()) {
+				hadWhitespace = true;
 				continue;
 			}
 
@@ -133,6 +126,25 @@ namespace gjs {
 		}
 
 		return hadWhitespace;
+	}
+
+	bool tokenizer::newline() {
+		if (m_input[m_idx] == '\n') {
+			m_idx++;
+			m_line++;
+			m_col = 0;
+			if (m_idx < m_input.size() && m_input[m_idx] == '\r') m_idx++;
+			return true;
+		}
+
+		if (m_input[m_idx] == '\r') {
+			m_idx++;
+			m_line++;
+			m_col = 0;
+			return true;
+		}
+
+		return false;
 	}
 
 	string tokenizer::thing() {
@@ -612,18 +624,22 @@ namespace gjs {
 		std::stack<token> parens;
 		token out = { m_line, m_col, "", file };
 		token quote;
+		bool lastWasNewline = false;
 
 		char last = 0;
 		while (!at_end(false)) {
 			char c = m_input[m_idx++];
 			m_col++;
 			if (c == '\n' || c == '\r') {
+				if (!lastWasNewline) {
+					m_line++;
+					m_col = 0;
+					lastWasNewline = true;
+				} else lastWasNewline = false;
 				last = c;
-				m_line++;
-				m_col = 0;
 				out.text += c;
 				continue;
-			}
+			} else lastWasNewline = false;
 
 			if (quote && ((c != '\'' && c != '"') || last == '\\')) {
 				last = c;
@@ -740,7 +756,7 @@ namespace gjs {
 					lastWasNewline = true;
 					m_line++;
 					m_col = 0;
-				}
+				} else lastWasNewline = false;
 			} else lastWasNewline = false;
 		}
 
@@ -822,6 +838,51 @@ namespace gjs {
 
 		m_idx += offset;
 		m_col += offset;
+
+		return out;
+	}
+	
+	tokenizer::token tokenizer::line_comment() {
+		whitespace();
+		if (m_idx + 1 >= m_input.size()) return token();
+		if (m_input[m_idx] != '/' && m_input[m_idx + 1] != '/') return token();
+		token out = { m_line, m_col, "", file };
+		while (!at_end(false)) {
+			if (m_input[m_idx] == '\n' || m_input[m_idx] == '\r') break;
+			out.text += m_input[m_idx];
+			m_idx++;
+			m_col++;
+		}
+		return out;
+	}
+
+	tokenizer::token tokenizer::block_comment() {
+		whitespace();
+		if (m_idx + 1 >= m_input.size()) return token();
+		if (m_input[m_idx] != '/' && m_input[m_idx + 1] != '*') return token();
+		token out = { m_line, m_col, "", file };
+		bool lastWasNewLine = false;
+		while (!at_end(false)) {
+			if (m_idx + 1 >= m_input.size()) break;
+
+			if (m_input[m_idx] == '*' && m_input[m_idx + 1] == '/') {
+				out.text += "*/";
+				m_idx += 2;
+				break;
+			}
+
+			out.text += m_input[m_idx];
+			m_idx++;
+			m_col++;
+
+			if (m_input[m_idx] == '\n' || m_input[m_idx] == '\r') {
+				if (!lastWasNewLine) {
+					m_col = 0;
+					m_line++;
+					lastWasNewLine = true;
+				} else lastWasNewLine = false;
+			} else lastWasNewLine = false;
+		}
 
 		return out;
 	}
