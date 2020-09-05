@@ -1,6 +1,7 @@
 #include <compiler/context.h>
 #include <compiler/function.h>
 #include <compiler/data_type.h>
+#include <compiler/variable.h>
 
 #include <instruction_array.h>
 #include <compile_log.h>
@@ -10,6 +11,16 @@
 using namespace std;
 
 namespace gjs {
+	void compile_context::clear_last_member_info() {
+		if (last_member_or_method.subject) last_member_or_method.subject->no_auto_free = false;
+		do_store_member_info = false;
+		last_member_or_method.is_set = false;
+		last_member_or_method.name = "";
+		last_member_or_method.subject = nullptr;
+		last_member_or_method.type = nullptr;
+		last_member_or_method.method = nullptr;
+	}
+
 	void compile_context::add(instruction& i, ast_node* because) {
 		address addr = out->size();
 		(*out) += i;

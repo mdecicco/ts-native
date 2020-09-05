@@ -20,6 +20,7 @@ namespace gjs {
 
 			void push(subtype_t* elem);
 			subtype_t* operator[](u32 idx);
+			u32 length();
 
 		protected:
 			u64 m_size;

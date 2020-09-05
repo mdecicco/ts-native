@@ -178,7 +178,7 @@ namespace gjs {
 		}
 
 
-		while(!at_end()) {
+		while(!at_end(false)) {
 			if (whitespace()) break;
 			c = m_input[m_idx];
 			if (out.text.length() > 0 && (c == '(' || c == ')')) break;

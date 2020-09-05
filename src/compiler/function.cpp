@@ -90,12 +90,21 @@ namespace gjs {
 	}
 
 	void func::free_consumed_vars() {
+		/*
 		for (u8 i = 0;i < scopes.size();i++) {
 			for (u16 vi = 0;vi < scopes[i].vars.size();vi++) {
 				var* v = scopes[i].vars[vi];
 				if (!v->is_variable || v->no_auto_free) continue;
 				if (v->ref_count == v->total_ref_count) free(v);
 			}
+		}
+		*/
+
+		// only free consumed vars in current scope
+		for (u16 vi = 0;vi < scopes[scopes.size() - 1].vars.size();vi++) {
+			var* v = scopes[scopes.size() - 1].vars[vi];
+			if (!v->is_variable || v->no_auto_free) continue;
+			if (v->ref_count == v->total_ref_count) free(v);
 		}
 	}
 
@@ -516,6 +525,15 @@ namespace gjs {
 						case 8: { ld = vmi::ld64; break; }
 					}
 
+					if (ctx.do_store_func_return_ptr) {
+						ctx.add(
+							encode(vmi::addui).operand(vmr::v1).operand(to->return_loc),
+							because
+						);
+						ctx.did_store_func_return_ptr = true;
+						ctx.func_return_ptr_loc = vmr::v1;
+					}
+
 					ctx.add(
 						encode(ld).operand(ret->loc.reg).operand(to->return_loc),
 						because
@@ -526,18 +544,26 @@ namespace gjs {
 						encode(vmi::add).operand(ret->loc.reg).operand(to->return_loc).operand(vmr::zero),
 						because
 					);
+					ctx.did_store_func_return_ptr = true;
+					ctx.func_return_ptr_loc = ret->loc.reg;
 				}
 			} else {
 				// if it's not a pointer, it is either a primitive type or an unsupported host stack return
 				if (ret->loc.reg != to->return_loc) {
 					if (!is_fp(ret->loc.reg)) {
+						vmi assign = vmi::add;
+						if (ret->type->is_unsigned) assign = vmi::addu;
+
 						ctx.add(
-							encode(vmi::add).operand(ret->loc.reg).operand(to->return_loc).operand(vmr::zero),
+							encode(assign).operand(ret->loc.reg).operand(to->return_loc).operand(vmr::zero),
 							because
 						);
 					} else {
+						vmi assign = vmi::fadd;
+						if (ret->type->size == sizeof(f64)) assign = vmi::dadd;
+
 						ctx.add(
-							encode(vmi::fadd).operand(ret->loc.reg).operand(to->return_loc).operand(vmr::zero),
+							encode(assign).operand(ret->loc.reg).operand(to->return_loc).operand(vmr::zero),
 							because
 						);
 					}
@@ -577,15 +603,25 @@ namespace gjs {
 		// stored in the stack, if it's safe to do so
 		if (ctx.cur_func->auto_free_consumed_vars) ctx.cur_func->free_consumed_vars();
 
+		// allocate register for return value if necessary
+		var* ret = nullptr;
+		if (to->return_type->size > 0) {
+			data_type* ret_tp = to->return_type;
+			if (to->return_type->name == "__subtype__") ret_tp = method_of->sub_type;
+			ret = ctx.cur_func->allocate(ctx, ret_tp);
+		}
+
 		// back up register vars to the stack
+		vector<pair<var*, vmr>> restore_pairs;
 		for (u32 s = 0;s < ctx.cur_func->scopes.size();s++) {
 			for (u16 vi = 0;vi < ctx.cur_func->scopes[s].vars.size();vi++) {
 				var* v = ctx.cur_func->scopes[s].vars[vi];
-				if (v->is_reg) v->to_stack(because);
+				if (v->is_reg && v != ret) {
+					restore_pairs.push_back({ v, v->loc.reg });
+					v->to_stack(because);
+				}
 			}
 		}
-
-		// if method of subtype class: pass subtype id as second parameter !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 		// set arguments
 		for (u8 i = 0;i < args.size() && i < to->args.size();i++) {
@@ -625,14 +661,6 @@ namespace gjs {
 			);
 		}
 
-		// allocate register for return value if necessary
-		var* ret = nullptr;
-		if (to->return_type->size > 0) {
-			data_type* ret_tp = to->return_type;
-			if (to->return_type->name == "__subtype__") ret_tp = method_of->sub_type;
-			ret = ctx.cur_func->allocate(ctx, ret_tp);
-		}
-
 		// make the call
 		ctx.add(
 			encode(vmi::jal).operand(to->entry),
@@ -647,7 +675,14 @@ namespace gjs {
 			);
 		}
 
+		// restore register vars
+		for (u8 i = 0;i < restore_pairs.size();i++) {
+			restore_pairs[i].first->move_to(restore_pairs[i].second, because);
+		}
+
 		// store return value if necessary
+		ctx.did_store_func_return_ptr = false;
+		ctx.func_return_ptr_loc = vmr::register_count;
 		if (ret) {
 			data_type* ret_tp = to->return_type;
 			if (to->return_type->name == "__subtype__") ret_tp = method_of->sub_type;
@@ -662,7 +697,7 @@ namespace gjs {
 		);
 
 		for (u8 a = 0;a < args.size();a++) args[a]->no_auto_free = arg_af[a];
-		ctx.cur_func->free_consumed_vars();
+		if (ctx.cur_func->auto_free_consumed_vars) ctx.cur_func->free_consumed_vars();
 
 		return ret;
 	}

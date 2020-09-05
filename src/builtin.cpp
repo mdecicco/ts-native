@@ -104,6 +104,7 @@ namespace gjs {
 		arr.constructor<vm_type*>();
 		arr.method("push", &script_array::push);
 		arr.method("operator []", &script_array::operator[]);
+		arr.prop(std::string("length"), &script_array::length, bind::property_flags::pf_read_only);
 		tp = arr.finalize();
 		tp->requires_subtype = true;
 		tp->is_builtin = true;
@@ -140,11 +141,18 @@ namespace gjs {
 			m_data = new u8[32 * m_type->size];
 			m_capacity = 32;
 		}
+		f32 t = *(f32*)&elem->data;
 		memcpy(m_data + (m_count * m_type->size), &elem->data, m_type->size);
 		m_count++;
 	}
 
 	subtype_t* script_array::operator[](u32 idx) {
-		return (subtype_t*)(m_data + (idx * m_type->size));
+		subtype_t* o = (subtype_t*)(m_data + (idx * m_type->size));
+		f32 t = *(f32*)&o->data;
+		return o;
+	}
+
+	u32 script_array::length() {
+		return m_count;
 	}
 };
