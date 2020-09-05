@@ -856,6 +856,10 @@ namespace gjs {
 		void* ret_addr = nullptr;
 		if (f->signature.return_type->size > 0) {
 			ret_addr = &(m_ctx->state()->registers[(u8)f->signature.return_loc]);
+
+			// make sure there are no left over bits or bytes from the previous value
+			(*(u64*)ret_addr) = 0;
+
 			if (f->signature.returns_on_stack) {
 				u64 return_value_end = u64(ret_addr) + f->signature.return_type->size;
 				u64 stack_end = (u64)state.memory[0] + m_stack_size;

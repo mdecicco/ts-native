@@ -588,7 +588,7 @@ namespace gjs {
 				std::string reg_val = ""; // "<" + state->registers[(integer)r].to_string() + ">"
 
 				if (is_fpr(r)) reg_val = format("<%f>", *(f32*)&state->registers[(integer)r]);
-				else reg_val = format("<%d>", *(i32*)&state->registers[(integer)r]);
+				else reg_val = format("<%lld>", *(i64*)&state->registers[(integer)r]);
 				return "$" + std::string(register_str[(integer)r]) + reg_val;
 			}
 
