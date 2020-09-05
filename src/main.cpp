@@ -133,6 +133,21 @@ void print_code(vm_context& ctx) {
 	}
 }
 
+// todos:
+// - Error codes / centralized error string array?
+// - Fix parse errors
+// - unit tests
+// - const qualifier
+// - format-type variable expressions
+// - function overloading
+// - function signature types
+// - anonymous lambda/arrow functions
+// - compiler clean up
+// - more optimization steps
+// - class inheritance
+// - mirrored host/script types (think vec3: host-call per vector op would be expensive. Allow binding host calls with host-defined vec3 and call from script with script defined vec3)
+// - ...JIT compilation
+
 int main(int arg_count, const char** args) {
 	std::string dir = args[0];
 	dir = dir.substr(0, dir.find_last_of('\\'));
