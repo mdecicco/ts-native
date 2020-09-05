@@ -447,6 +447,7 @@ namespace gjs {
 
 	void init_context(compile_context& ctx) {
 		ctx.do_store_member_info = false;
+		ctx.last_member_or_method.subject = nullptr;
 		ctx.clear_last_member_info();
 		ctx.cur_func = nullptr;
 		data_type* t = nullptr;

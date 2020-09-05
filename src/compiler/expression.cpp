@@ -928,6 +928,7 @@ namespace gjs {
 							if (prop) {
 								var* pval = nullptr;
 								if (ctx.do_store_member_info) {
+									ctx.clear_last_member_info();
 									ctx.last_member_or_method.is_set = true;
 									ctx.last_member_or_method.name = *node->rvalue;
 									ctx.last_member_or_method.subject = nullptr;
@@ -1032,6 +1033,7 @@ namespace gjs {
 									ctx.log->err(format("Expected static method or property of type '%s'", t->name.c_str()), node->rvalue);
 								} else {
 									if (ctx.do_store_member_info) {
+										ctx.clear_last_member_info();
 										ctx.last_member_or_method.is_set = true;
 										ctx.last_member_or_method.name = *node->rvalue;
 										ctx.last_member_or_method.subject = nullptr;
@@ -1048,10 +1050,12 @@ namespace gjs {
 						if (prop) {
 							var* pval = nullptr;
 							if (ctx.do_store_member_info) {
+								ctx.clear_last_member_info();
 								ctx.last_member_or_method.is_set = true;
 								ctx.last_member_or_method.name = *node->rvalue;
 								ctx.last_member_or_method.subject = lvalue;
-								ctx.last_member_or_method.type = lvalue->type;
+								ctx.last_member_or_method.subject->no_auto_free = true;
+								ctx.last_member_or_method.type = prop->type;
 								ctx.last_member_or_method.method = nullptr;
 							}
 
@@ -1142,10 +1146,12 @@ namespace gjs {
 							if (method) {
 								ret = lvalue;
 								if (ctx.do_store_member_info) {
+									ctx.clear_last_member_info();
 									ctx.last_member_or_method.is_set = true;
 									ctx.last_member_or_method.name = *node->rvalue;
 									ctx.last_member_or_method.subject = lvalue;
-									ctx.last_member_or_method.type = lvalue->type;
+									ctx.last_member_or_method.subject->no_auto_free = true;
+									ctx.last_member_or_method.type = method->return_type;
 									ctx.last_member_or_method.method = method;
 								}
 							} else {
@@ -1266,7 +1272,7 @@ namespace gjs {
 			if ((assignsLv || assignsRv) && (node_assigned->op == op::member || node_assigned->op == op::index) && ret) {
 				// store result
 				if (node_assigned->op == op::member) {
-					data_type::property* prop = ctx.last_member_or_method.type->prop(ctx.last_member_or_method.name);
+					data_type::property* prop = ctx.last_member_or_method.subject->type->prop(ctx.last_member_or_method.name);
 					if (prop->getter) {
 						// require setter
 						if (prop->setter) {
@@ -1309,6 +1315,8 @@ namespace gjs {
 						ctx.log->err(node->lvalue ? "Expression lvalue is not modifiable" : "Expression is not modifiable", node);
 					}
 				}
+
+				ctx.clear_last_member_info();
 			}
 
 			ctx.cur_func->auto_free_consumed_vars = auto_free;
