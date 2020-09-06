@@ -13,9 +13,21 @@ namespace gjs {
             ast* root;
             std::stack<ast*> path;
             std::vector<lex::token> tokens;
+            std::vector<std::string> type_names;
             u32 cur_token;
 
-            context();
+            context(vm_context* ctx);
+
+            bool is_typename(const std::string& text) const;
+
+            const lex::token& current() const;
+            void consume();
+            bool at_end() const;
+            bool match(const std::vector<std::string>& any);
+
+            // because apparently sometimes std::string is convertible to lex::token_type...
+            bool match_s(const std::vector<std::string>& any);
+            bool match(const std::vector<lex::token_type>& any);
         };
     };
 };

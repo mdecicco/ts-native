@@ -19,7 +19,7 @@ namespace gjs {
 		m_col = 0;
 		m_idx = 0;
 
-		lines = split(input, "\n\r");
+		lines = get_lines(input, "\n\r");
 	}
 
 	tokenizer::~tokenizer() {

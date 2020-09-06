@@ -15,6 +15,34 @@ namespace gjs {
 			}
 
 			if (isDelim) {
+				if (!lastWasDelim) {
+					out.push_back(cur);
+					cur = "";
+					lastWasDelim = true;
+				}
+				continue;
+			}
+
+			cur += str[i];
+			lastWasDelim = false;
+		}
+
+		if (cur.length() > 0) out.push_back(cur);
+		return out;
+	}
+
+	vector<string> get_lines(const string& str, const string& delimiters) {
+		vector<string> out;
+
+		string cur;
+		bool lastWasDelim = false;
+		for(size_t i = 0;i < str.length();i++) {
+			bool isDelim = false;
+			for(unsigned char d = 0;d < delimiters.length() && !isDelim;d++) {
+				isDelim = str[i] == delimiters[d];
+			}
+
+			if (isDelim) {
 				out.push_back(cur);
 				cur = "";
 				continue;

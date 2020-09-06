@@ -6,6 +6,7 @@
 namespace gjs {
     namespace lex {
         enum class token_type {
+            invalid_token,
             identifier,
             keyword,
             operation,
@@ -33,9 +34,11 @@ namespace gjs {
             source_ref src;
 
             token();
+            token(const token& t);
             token(const std::string& text, token_type type, const source_ref& src);
 
             bool operator == (const std::string& rhs) const;
+            bool operator == (token_type rhs) const;
         };
     };
 };

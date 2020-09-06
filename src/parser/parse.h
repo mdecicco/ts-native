@@ -5,10 +5,15 @@
 
 namespace gjs {
     class vm_context;
+    enum class error_code;
 
     namespace parse {
         struct ast;
         struct context;
+
+        ast* identifier(context& ctx);
+
+        ast* type_identifier(context& ctx);
 
         ast* expression(context& ctx);
 
@@ -34,14 +39,10 @@ namespace gjs {
 
         ast* do_while_loop(context& ctx);
 
-        ast* identifier(context& ctx);
-
-        ast* type_identifier(context& ctx);
-
         ast* block(context& ctx);
 
         ast* single(context& ctx);
 
-        ast* parse(vm_context* env, const std::vector<lex::token>& tokens);
+        ast* parse(vm_context* env, const std::string& file, const std::vector<lex::token>& tokens);
     };
 };

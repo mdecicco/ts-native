@@ -88,7 +88,7 @@ namespace gjs {
 					continue;
 				}
 
-				tok = t.string_constant(false);
+				tok = t.string_constant(false, true);
 				if (tok) {
 					out.push_back({
 						tok.text,

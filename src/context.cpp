@@ -7,6 +7,7 @@
 #include <asmjit/asmjit.h>
 #include <default_steps.h>
 #include <builtin.h>
+#include <errors.h>
 
 namespace gjs {
 	runtime_exception::runtime_exception(vm_context* ctx, const std::string& _text) : text(_text), raised_from_script(true), line(0), col(0) {
@@ -102,6 +103,8 @@ namespace gjs {
 			m_pipeline.log()->err(e.text, e.file, e.lineText, e.line, e.col);
 		} catch (compile_exception& e) {
 			m_pipeline.log()->err(e.text, e.file, e.lineText, e.line, e.col);
+		} catch (error::exception& e) {
+			m_pipeline.log()->err(e.message, e.src.filename, e.src.line_text, e.src.line, e.src.col);
 		} catch (std::exception& e) {
 			m_pipeline.log()->err(e.what(), "[unknown]", "[unknown]", 0, 0);
 		}
