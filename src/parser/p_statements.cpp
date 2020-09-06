@@ -27,11 +27,11 @@ namespace gjs {
             if (!ctx.match({ tt::open_parenth })) throw exc(ec::p_expected_char, ctx.current().src, '(');
             stmt->condition = expression(ctx);
 
-            stmt->body = single(ctx);
+            stmt->body = any(ctx);
 
             if (ctx.match({ "else" })) {
                 ctx.consume();
-                stmt->else_body = single(ctx);
+                stmt->else_body = any(ctx);
             }
 
             ctx.path.pop();

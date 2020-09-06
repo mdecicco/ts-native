@@ -27,7 +27,7 @@ namespace gjs {
             if (!ctx.match({ tt::open_parenth })) throw exc(ec::p_expected_char, ctx.current().src, '(');
             r->condition = expression(ctx);
 
-            r->body = single(ctx);
+            r->body = any(ctx);
 
             ctx.path.pop();
 
@@ -67,7 +67,7 @@ namespace gjs {
                 ctx.consume();
             } else ctx.consume();
 
-            r->body = single(ctx);
+            r->body = any(ctx);
 
             return r;
         }
@@ -84,7 +84,7 @@ namespace gjs {
 
             ctx.path.push(r);
 
-            r->body = single(ctx);
+            r->body = any(ctx);
 
             if (!ctx.match({ "while" })) {
                 throw exc(ec::p_expected_specific_keyword, ctx.current().src, "while");

@@ -137,13 +137,13 @@ void print_code(vm_context& ctx) {
 // x Change parser architecture to tokenize entire source with token types, then parse tokens
 // x Error codes / centralized error string array?
 // x Fix parse errors
+// - compiler clean up
 // - unit tests
 // - const qualifier
 // - format-type variable expressions
 // - function overloading
 // - function signature types
 // - anonymous lambda/arrow functions
-// - compiler clean up
 // - more optimization steps
 // - class inheritance
 // - mirrored host/script types (think vec3: host-call per vector op would be expensive. Allow binding host calls with host-defined vec3 and call from script with script defined vec3)

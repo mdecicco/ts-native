@@ -41,7 +41,7 @@ namespace gjs {
 
         ast* block(context& ctx);
 
-        ast* single(context& ctx);
+        ast* any(context& ctx);
 
         ast* parse(vm_context* env, const std::string& file, const std::vector<lex::token>& tokens);
     };
