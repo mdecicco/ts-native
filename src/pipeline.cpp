@@ -2,6 +2,8 @@
 #include <parse.h>
 #include <compiler/compiler.h>
 #include <context.h>
+#include <lexer/lexer.h>
+#include <parser/parse.h>
 
 namespace gjs {
 	pipeline::pipeline(vm_context* ctx) : m_ctx(ctx) {
@@ -13,6 +15,13 @@ namespace gjs {
 	bool pipeline::compile(const std::string& file, const std::string& code) {
 		m_log.errors.clear();
 		m_log.warnings.clear();
+
+		/*
+		std::vector<lex::token> tokens;
+		lex::tokenize(code, file, tokens);
+
+		ast_node* ast = parse::parse(m_ctx, file, tokens);
+		*/
 
 		ast_node* ast = parse_source(m_ctx, file, code);
 

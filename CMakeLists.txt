@@ -22,6 +22,12 @@ file(GLOB_RECURSE gjs_src
 	"src/compiler/*.h"
 	"src/compiler/*.hpp"
 	"src/compiler/*.cpp"
+	"src/lexer/*.h"
+	"src/lexer/*.hpp"
+	"src/lexer/*.cpp"
+	"src/parser/*.h"
+	"src/parser/*.hpp"
+	"src/parser/*.cpp"
 )
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
