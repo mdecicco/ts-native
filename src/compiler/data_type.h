@@ -6,8 +6,11 @@
 namespace gjs {
 	class vm_type;
 	struct func;
-	struct ast_node;
 	struct compile_context;
+
+	namespace parse {
+		struct ast;
+	};
 
 	struct data_type {
 		struct property {
@@ -40,7 +43,7 @@ namespace gjs {
 		vm_type* type;
 
 		data_type(const std::string& _name, bool _built_in = false);
-		data_type(compile_context& ctx, ast_node* node);
+		data_type(compile_context& ctx, parse::ast* node);
 
 		bool equals(data_type* rhs);
 		func* cast_to_func(data_type* to);

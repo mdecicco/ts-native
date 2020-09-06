@@ -3,6 +3,7 @@
 #include <compiler/variable.h>
 #include <compiler/function.h>
 #include <compiler/data_type.h>
+#include <parser/ast.h>
 #include <vm_function.h>
 #include <vm_type.h>
 #include <compile_log.h>
@@ -21,8 +22,9 @@ using namespace std;
 namespace gjs {
 	using vmr = vm_register;
 	using vmi = vm_instruction;
-	using op = ast_node::operation_type;
-	using nt = ast_node::node_type;
+	using namespace parse;
+	using op = ast::operation_type;
+	using nt = ast::node_type;
 	
 	#define eval_fd(o) out->imm.f_32 = (l->imm.f_32 ##o r->imm.f_64)
 	#define eval_ff(o) out->imm.f_32 = (l->imm.f_32 ##o r->imm.f_32)
@@ -53,7 +55,7 @@ namespace gjs {
 			} else eval_ii(o);										\
 		}
 
-	void evaluate_arithmetic_op_maybe_fp(compile_context& ctx, var* l, var* r, var* out, ast_node* because, op operation) {
+	void evaluate_arithmetic_op_maybe_fp(compile_context& ctx, var* l, var* r, var* out, ast* because, op operation) {
 		if (out->is_reg) ctx.cur_func->registers.free(out->loc.reg);
 		out->is_reg = false;
 		out->is_imm = true;
@@ -86,7 +88,7 @@ namespace gjs {
 		}
 	}
 
-	void evaluate_arithmetic_op(compile_context& ctx, var* l, var* r, var* out, ast_node* because, op operation) {
+	void evaluate_arithmetic_op(compile_context& ctx, var* l, var* r, var* out, ast* because, op operation) {
 		if (out->is_reg) ctx.cur_func->registers.free(out->loc.reg);
 		out->is_reg = false;
 		out->is_imm = true;
@@ -110,7 +112,7 @@ namespace gjs {
 		}
 	}
 
-	void arithmetic_op_maybe_fp(compile_context& ctx, var* l, var* r, var* o, ast_node* because, op operation) {
+	void arithmetic_op_maybe_fp(compile_context& ctx, var* l, var* r, var* o, ast* because, op operation) {
 		if (!o || (!l && !r)) return;
 
 		// vmi::null -> swap lvalue and rvalue and use f_reg/f_imm or reg/imm or u_reg/imm
@@ -242,7 +244,7 @@ namespace gjs {
 		if (rhs != r) ctx.cur_func->free(rhs);
 	}
 
-	void arithmetic_op(compile_context& ctx, var* l, var* r, var* o, ast_node* because, op operation) {
+	void arithmetic_op(compile_context& ctx, var* l, var* r, var* o, ast* because, op operation) {
 		if (!o) return;
 		static vmi possible_arr[][6] = {
 			// reg/imm  , imm/reg   , reg/reg  , u_reg/imm , imm/u_reg  , u_reg/u_reg
@@ -341,7 +343,7 @@ namespace gjs {
 		if (rhs != r) ctx.cur_func->free(rhs);
 	}
 
-	var* compile_complex_operation(compile_context& ctx, var* lv, var* rv, ast_node* node, var* dest) {
+	var* compile_complex_operation(compile_context& ctx, var* lv, var* rv, ast* node, var* dest) {
 		static robin_hood::unordered_map<op, const char*> opStr = {
 			{ op::add, "+" },
 			{ op::sub, "-" },
@@ -408,7 +410,7 @@ namespace gjs {
 		return ret;
 	}
 
-	var* compile_expression(compile_context& ctx, ast_node* node, var* dest) {
+	var* compile_expression(compile_context& ctx, ast* node, var* dest) {
 		if (node->type == nt::identifier) {
 			if (!dest) return ctx.cur_func->get(ctx, node);
 			ctx.cur_func->get(ctx, node)->store_in(dest->to_reg(node), node);
@@ -417,10 +419,10 @@ namespace gjs {
 		else if (node->type == nt::constant) {
 			var* imm = nullptr;
 			switch (node->c_type) {
-				case ast_node::constant_type::integer: { imm = ctx.cur_func->imm(ctx, (integer)node->value.i); break; }
-				case ast_node::constant_type::f32: { imm = ctx.cur_func->imm(ctx, node->value.f_32); break; }
-				case ast_node::constant_type::f64: { imm = ctx.cur_func->imm(ctx, node->value.f_64); break; }
-				case ast_node::constant_type::string: { imm = ctx.cur_func->imm(ctx, node->value.s); break; }
+				case ast::constant_type::integer: { imm = ctx.cur_func->imm(ctx, (integer)node->value.i); break; }
+				case ast::constant_type::f32: { imm = ctx.cur_func->imm(ctx, node->value.f_32); break; }
+				case ast::constant_type::f64: { imm = ctx.cur_func->imm(ctx, node->value.f_64); break; }
+				case ast::constant_type::string: { imm = ctx.cur_func->imm(ctx, node->value.s); break; }
 			}
 			if (dest) {
 				var* v = imm;
@@ -514,10 +516,10 @@ namespace gjs {
 			else if (node->lvalue->type == nt::identifier) lvalue = ctx.cur_func->get(ctx, node->lvalue);
 			else if (node->lvalue->type == nt::constant) {
 				switch (node->lvalue->c_type) {
-					case ast_node::constant_type::integer: { lvalue = ctx.cur_func->imm(ctx, (integer)node->lvalue->value.i); break; }
-					case ast_node::constant_type::f32: { lvalue = ctx.cur_func->imm(ctx, (f32)node->lvalue->value.f_32); break; }
-					case ast_node::constant_type::f64: { lvalue = ctx.cur_func->imm(ctx, (f64)node->lvalue->value.f_64); break; }
-					case ast_node::constant_type::string: { lvalue = ctx.cur_func->imm(ctx, node->lvalue->value.s); break; }
+					case ast::constant_type::integer: { lvalue = ctx.cur_func->imm(ctx, (integer)node->lvalue->value.i); break; }
+					case ast::constant_type::f32: { lvalue = ctx.cur_func->imm(ctx, (f32)node->lvalue->value.f_32); break; }
+					case ast::constant_type::f64: { lvalue = ctx.cur_func->imm(ctx, (f64)node->lvalue->value.f_64); break; }
+					case ast::constant_type::string: { lvalue = ctx.cur_func->imm(ctx, node->lvalue->value.s); break; }
 				}
 			}
 			if (assignsLv) ctx.do_store_member_info = false;
@@ -530,10 +532,10 @@ namespace gjs {
 			}
 			else if (node->rvalue->type == nt::constant) {
 				switch (node->rvalue->c_type) {
-					case ast_node::constant_type::integer: { rvalue = ctx.cur_func->imm(ctx, (integer)node->rvalue->value.i); break; }
-					case ast_node::constant_type::f32: { rvalue = ctx.cur_func->imm(ctx, (f32)node->rvalue->value.f_32); break; }
-					case ast_node::constant_type::f64: { rvalue = ctx.cur_func->imm(ctx, (f64)node->rvalue->value.f_64); break; }
-					case ast_node::constant_type::string: { rvalue = ctx.cur_func->imm(ctx, node->rvalue->value.s); break; }
+					case ast::constant_type::integer: { rvalue = ctx.cur_func->imm(ctx, (integer)node->rvalue->value.i); break; }
+					case ast::constant_type::f32: { rvalue = ctx.cur_func->imm(ctx, (f32)node->rvalue->value.f_32); break; }
+					case ast::constant_type::f64: { rvalue = ctx.cur_func->imm(ctx, (f64)node->rvalue->value.f_64); break; }
+					case ast::constant_type::string: { rvalue = ctx.cur_func->imm(ctx, node->rvalue->value.s); break; }
 				}
 			}
 			if (assignsRv) ctx.do_store_member_info = false;
@@ -558,7 +560,7 @@ namespace gjs {
 							free_arg.push_back(!this_obj->is_variable);
 						}
 
-						ast_node* arg = node->arguments;
+						ast* arg = node->arguments;
 						while (arg) {
 							args.push_back(compile_expression(ctx, arg, nullptr));
 							free_arg.push_back(!args[args.size() - 1]->is_variable);
@@ -574,7 +576,7 @@ namespace gjs {
 				func* t = ctx.function(*node->callee);
 				vector<var*> args;
 				vector<bool> free_arg;
-				ast_node* arg = node->arguments;
+				ast* arg = node->arguments;
 				while (arg) {
 					args.push_back(compile_expression(ctx, arg, nullptr));
 					free_arg.push_back(!args[args.size() - 1]->is_variable);
@@ -1190,7 +1192,7 @@ namespace gjs {
 								}
 							}
 
-							ast_node* arg = node->arguments;
+							ast* arg = node->arguments;
 							while (arg) {
 								args.push_back(compile_expression(ctx, arg, nullptr));
 								free_arg.push_back(!args[args.size() - 1]->is_variable);
@@ -1237,7 +1239,7 @@ namespace gjs {
 								}
 							}
 
-							ast_node* arg = node->arguments;
+							ast* arg = node->arguments;
 							while (arg) {
 								args.push_back(compile_expression(ctx, arg, nullptr));
 								free_arg.push_back(!args[args.size() - 1]->is_variable);
@@ -1268,7 +1270,7 @@ namespace gjs {
 				}
 			}
 
-			ast_node* node_assigned = node->lvalue ? node->lvalue : node->rvalue;
+			ast* node_assigned = node->lvalue ? node->lvalue : node->rvalue;
 			if ((assignsLv || assignsRv) && (node_assigned->op == op::member || node_assigned->op == op::index) && ret) {
 				// store result
 				if (node_assigned->op == op::member) {

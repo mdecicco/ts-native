@@ -5,6 +5,7 @@
 #include <compiler/context.h>
 #include <compiler/expression.h>
 #include <compiler/compiler.h>
+#include <parser/ast.h>
 
 #include <vm_function.h>
 #include <vm_type.h>
@@ -18,8 +19,9 @@
 using namespace std;
 
 namespace gjs {
-	using nt = ast_node::node_type;
-	using op = ast_node::operation_type;
+	using namespace parse;
+	using nt = ast::node_type;
+	using op = ast::operation_type;
 	using vmr = vm_register;
 	using vmi = vm_instruction;
 
@@ -34,15 +36,15 @@ namespace gjs {
 		col = _col;
 	}
 
-	compile_exception::compile_exception(const std::string& text, ast_node* node) :
-		compile_exception(node->start.file, text, node->start.lineText, node->start.line, node->start.col)
+	compile_exception::compile_exception(const std::string& text, ast* node) :
+		compile_exception(node->start.filename, text, node->start.line_text, node->start.line, node->start.col)
 	{
 	}
 
 	compile_exception::~compile_exception() { }
 
 
-	u16 count_references(ast_node* node, const string& identifier, bool ignoreNext) {
+	u16 count_references(ast* node, const string& identifier, bool ignoreNext) {
 		if (!node) return 0;
 
 		u16 refs = 0;
@@ -67,7 +69,7 @@ namespace gjs {
 		return refs;
 	}
 
-	void compile_function(compile_context& ctx, ast_node* node, func* out) {
+	void compile_function(compile_context& ctx, ast* node, func* out) {
 		out->name = *node->identifier;
 		out->return_type = ctx.type(*node->data_type);
 		out->entry = ctx.out->size();
@@ -88,7 +90,7 @@ namespace gjs {
 
 		ctx.add(encode(vmi::null), node);
 
-		ast_node* arg = node->arguments ? node->arguments->body : nullptr;
+		ast* arg = node->arguments ? node->arguments->body : nullptr;
 		while (arg) {
 			var* v = ctx.cur_func->allocate(ctx, arg, true);
 			v->total_ref_count = count_references(node, v->name, true);
@@ -96,7 +98,7 @@ namespace gjs {
 			arg = arg->next;
 		}
 
-		ast_node* n = node->body;
+		ast* n = node->body;
 		while (n) {
 			compile_node(ctx, n);
 			if (out->reached_return) break;
@@ -118,7 +120,7 @@ namespace gjs {
 		ctx.cur_func = nullptr;
 	}
 
-	var* compile_variable_declaration(compile_context& ctx, ast_node* node) {
+	var* compile_variable_declaration(compile_context& ctx, ast* node) {
 		if (node->initializer) {
 			var* v = ctx.cur_func->allocate(ctx, node);
 			v->total_ref_count = count_references(ctx.cur_func->root, v->name);
@@ -174,7 +176,7 @@ namespace gjs {
 		}
 	}
 
-	void compile_delete_statement(compile_context& ctx, ast_node* node) {
+	void compile_delete_statement(compile_context& ctx, ast* node) {
 		var* del = compile_expression(ctx, node->rvalue, nullptr);
 		if (!del) return; // An error was already emitted
 
@@ -197,7 +199,7 @@ namespace gjs {
 		if (!del->is_variable) ctx.cur_func->free(del);
 	}
 
-	void compile_if_statement(compile_context& ctx, ast_node* node) {
+	void compile_if_statement(compile_context& ctx, ast* node) {
 		var* cond = compile_expression(ctx, node->condition, nullptr);
 		address branchAddr = ctx.out->size();
 		ctx.add(
@@ -205,7 +207,7 @@ namespace gjs {
 			node
 		);
 		ctx.cur_func->free(cond);
-		ast_node* n = node->body;
+		ast* n = node->body;
 		ctx.cur_func->push_scope();
 		while (n) {
 			compile_node(ctx, n);
@@ -227,7 +229,7 @@ namespace gjs {
 		ctx.cur_func->pop_scope(ctx, node);
 	}
 
-	void compile_for_loop(compile_context& ctx, ast_node* node) {
+	void compile_for_loop(compile_context& ctx, ast* node) {
 		ctx.cur_func->push_scope();
 		
 		if (node->initializer) {
@@ -249,7 +251,7 @@ namespace gjs {
 			ctx.cur_func->free(cond);
 		}
 
-		ast_node* n = node->body;
+		ast* n = node->body;
 		while (n) {
 			compile_node(ctx, n);
 			n = n->next;
@@ -277,7 +279,7 @@ namespace gjs {
 		ctx.cur_func->pop_scope(ctx, node);
 	}
 
-	void compile_while_loop(compile_context& ctx, ast_node* node) {
+	void compile_while_loop(compile_context& ctx, ast* node) {
 		ctx.cur_func->auto_free_consumed_vars = false;
 		address condAddr = ctx.out->size();
 		var* cond = compile_expression(ctx, node->condition, nullptr);
@@ -287,7 +289,7 @@ namespace gjs {
 			node
 		);
 		ctx.cur_func->free(cond);
-		ast_node* n = node->body;
+		ast* n = node->body;
 		ctx.cur_func->push_scope();
 		while (n) {
 			compile_node(ctx, n);
@@ -315,11 +317,11 @@ namespace gjs {
 		ctx.cur_func->pop_scope(ctx, node);
 	}
 
-	void compile_do_while_loop(compile_context& ctx, ast_node* node) {
+	void compile_do_while_loop(compile_context& ctx, ast* node) {
 		ctx.cur_func->auto_free_consumed_vars = false;
 		address startAddr = ctx.out->size();
 		ctx.cur_func->push_scope();
-		ast_node* n = node->body;
+		ast* n = node->body;
 		while (n) {
 			compile_node(ctx, n);
 			n = n->next;
@@ -341,7 +343,7 @@ namespace gjs {
 		ctx.cur_func->pop_scope(ctx, node);
 	}
 
-	void compile_return_statement(compile_context& ctx, ast_node* node) {
+	void compile_return_statement(compile_context& ctx, ast* node) {
 		address ret_stack_addr = UINT32_MAX;
 		if (node->body) {
 			var* ret = compile_expression(ctx, node->body, nullptr);
@@ -407,7 +409,7 @@ namespace gjs {
 		}
 	}
 
-	void compile_node(compile_context& ctx, ast_node* node) {
+	void compile_node(compile_context& ctx, ast* node) {
 		switch(node->type) {
 			case nt::empty: break;
 			case nt::variable_declaration: { compile_variable_declaration(ctx, node); break; }
@@ -513,7 +515,7 @@ namespace gjs {
 		}
 	}
 
-	void compile_ast(vm_context* vctx, ast_node* tree, instruction_array* out, source_map* map, compile_log* log) {
+	void compile_ast(vm_context* vctx, ast* tree, instruction_array* out, source_map* map, compile_log* log) {
 		if (!tree) {
 			throw compile_exception("No AST to compile", "", "", 0, 0);
 		}
@@ -525,7 +527,7 @@ namespace gjs {
 		ctx.log = log;
 		init_context(ctx);
 
-		ast_node* n = tree->body;
+		ast* n = tree->body;
 		if (!n) throw compile_exception("AST has no body", tree);
 		while (n) {
 			compile_node(ctx, n);

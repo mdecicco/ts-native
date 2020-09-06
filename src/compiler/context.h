@@ -10,9 +10,12 @@ namespace gjs {
 	class vm_context;
 	enum class vm_register;
 	struct func;
-	struct ast_node;
 	struct data_type;
 	struct var;
+
+	namespace parse {
+		struct ast;
+	};
 
 	struct compile_context {
 		vm_context* ctx;
@@ -39,11 +42,11 @@ namespace gjs {
 		bool did_store_func_return_ptr;
 		vm_register func_return_ptr_loc;
 
-		void add(instruction& i, ast_node* because);
+		void add(instruction& i, parse::ast* because);
 
 		data_type* type(const std::string& name);
 
-		data_type* type(ast_node* node);
+		data_type* type(parse::ast* node);
 
 		func* function(const std::string& name);
 	};

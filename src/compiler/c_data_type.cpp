@@ -1,14 +1,16 @@
 #include <compiler/data_type.h>
 #include <compiler/function.h>
 #include <compiler/context.h>
+#include <parser/ast.h>
 #include <compile_log.h>
-#include <parse.h>
+#include <util.h>
 #include <bind.h>
 
 using namespace std;
 
 namespace gjs {
-	using nt = ast_node::node_type;
+	using namespace parse;
+	using nt = ast::node_type;
 
 	data_type::data_type(const std::string& _name, bool _built_in) :
 		name(_name), built_in(_built_in), is_floating_point(false), is_unsigned(false), ctor(nullptr),
@@ -16,7 +18,7 @@ namespace gjs {
 		base_type(nullptr), sub_type(nullptr), type_id(hash(_name))
 	{ }
 
-	data_type::data_type(compile_context& ctx, ast_node* node) {
+	data_type::data_type(compile_context& ctx, ast* node) {
 		type_id = hash(*node->identifier);
 		ctor = nullptr;
 		dtor = nullptr;
@@ -29,7 +31,7 @@ namespace gjs {
 		base_type = nullptr;
 		sub_type = nullptr;
 		name = *node->identifier;
-		ast_node* n = node->body;
+		ast* n = node->body;
 		actual_size = 0;
 		size = sizeof(void*);
 
@@ -105,7 +107,7 @@ namespace gjs {
 						}
 
 						u32 argc = 0;
-						ast_node* a = n->arguments ? n->arguments->body : nullptr;
+						ast* a = n->arguments ? n->arguments->body : nullptr;
 						while (a) { argc++; a = a->next; }
 
 						if (argc != required_argc) {

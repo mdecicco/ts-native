@@ -3,6 +3,7 @@
 #include <compiler/context.h>
 #include <compiler/variable.h>
 #include <compiler/data_type.h>
+#include <parser/ast.h>
 #include <compile_log.h>
 #include <bind.h>
 #include <instruction_array.h>
@@ -19,6 +20,7 @@ using namespace std;
 namespace gjs {
 	using vmr = vm_register;
 	using vmi = vm_instruction;
+	using namespace parse;
 	static u32 anon_var_id = 0;
 
 	func::func() {
@@ -108,7 +110,7 @@ namespace gjs {
 		}
 	}
 
-	var* func::get(compile_context& ctx, ast_node* identifier) {
+	var* func::get(compile_context& ctx, ast* identifier) {
 		string name = *identifier;
 		for (u8 i = 0;i < scopes.size();i++) {
 			for (u16 vi = 0;vi < scopes[i].vars.size();vi++) {
@@ -127,7 +129,7 @@ namespace gjs {
 		scopes.push_back(scope());
 	}
 
-	void func::pop_scope(compile_context& ctx, ast_node* because) {
+	void func::pop_scope(compile_context& ctx, ast* because) {
 		scope& s = scopes.back();
 		vector<var*> vars = s.vars;
 		for (u32 i = 0;i < vars.size();i++) free(vars[i]);
@@ -163,7 +165,7 @@ namespace gjs {
 		return false;
 	}
 
-	void func::free_stack_object(var* obj, ast_node* because) {
+	void func::free_stack_object(var* obj, ast* because) {
 		if (!obj->refers_to_stack_obj) return;
 
 		if (obj->type->dtor) {
@@ -184,7 +186,7 @@ namespace gjs {
 		}
 	}
 
-	void func::generate_return_code(compile_context& ctx, ast_node* because, address returns_stack_addr) {
+	void func::generate_return_code(compile_context& ctx, ast* because, address returns_stack_addr) {
 		for (u8 si = 0;si < scopes.size();si++) {
 			scope& s = scopes[si];
 			for (u16 oi = 0;oi < s.stack_objects.size();oi++) {
@@ -213,7 +215,7 @@ namespace gjs {
 		}
 	}
 
-	var* func::allocate(compile_context& ctx, ast_node* decl, bool is_arg) {
+	var* func::allocate(compile_context& ctx, ast* decl, bool is_arg) {
 		if (auto_free_consumed_vars) free_consumed_vars();
 
 		data_type* type = ctx.type(decl->data_type);
@@ -300,7 +302,7 @@ namespace gjs {
 		return l;
 	}
 
-	var* func::allocate_stack_var(compile_context& ctx, data_type* type, ast_node* because) {
+	var* func::allocate_stack_var(compile_context& ctx, data_type* type, ast* because) {
 		if (auto_free_consumed_vars) free_consumed_vars();
 
 		var* l = new var();
@@ -464,7 +466,7 @@ namespace gjs {
 	}
 
 
-	void get_return_value(compile_context& ctx, func* to, ast_node* because, var* ret, data_type* ret_tp) {
+	void get_return_value(compile_context& ctx, func* to, ast* because, var* ret, data_type* ret_tp) {
 		if (to->returns_on_stack) {
 			address dest_stack_loc = ctx.cur_func->stack.allocate(ret_tp->actual_size);
 			// call memcopy to copy from called function's stack to current stack
@@ -572,7 +574,7 @@ namespace gjs {
 		}
 	}
 
-	var* call(compile_context& ctx, func* to, ast_node* because, const vector<var*>& args, data_type* method_of) {
+	var* call(compile_context& ctx, func* to, ast* because, const vector<var*>& args, data_type* method_of) {
 		if (args.size() != to->args.size()) {
 			u32 ac = to->args.size();
 			u32 pc = args.size();

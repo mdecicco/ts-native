@@ -15,6 +15,7 @@
 namespace gjs {
 	using vmr = vm_register;
 	using vmi = vm_instruction;
+	using namespace parse;
 	
 	var::var() {
 		ctx = nullptr;
@@ -35,7 +36,7 @@ namespace gjs {
 		to->refers_to_stack_addr = refers_to_stack_addr;
 	}
 
-	address var::move_to_stack(ast_node* because, integer offset) {
+	address var::move_to_stack(ast* because, integer offset) {
 		if (!is_reg && !is_imm) return loc.stack_addr;
 		vmi store;
 		switch (type->size) {
@@ -57,7 +58,7 @@ namespace gjs {
 		return addr;
 	}
 
-	address var::move_to_stack(ast_node* because, vmr offset) {
+	address var::move_to_stack(ast* because, vmr offset) {
 		if (!is_reg && !is_imm) return loc.stack_addr;
 		vmi store;
 		switch (type->size) {
@@ -84,7 +85,7 @@ namespace gjs {
 		return addr;
 	}
 
-	vmr var::move_to_register(ast_node* because, integer offset) {
+	vmr var::move_to_register(ast* because, integer offset) {
 		vmr reg;
 		if (type->is_floating_point) reg = ctx->cur_func->registers.allocate_fp();
 		else reg = ctx->cur_func->registers.allocate_gp();
@@ -95,7 +96,7 @@ namespace gjs {
 		return reg;
 	}
 
-	vmr var::move_to_register(ast_node* because, vmr offset) {
+	vmr var::move_to_register(ast* because, vmr offset) {
 		vmr reg;
 		if (type->is_floating_point) reg = ctx->cur_func->registers.allocate_fp();
 		else reg = ctx->cur_func->registers.allocate_gp();
@@ -106,27 +107,27 @@ namespace gjs {
 		return reg;
 	}
 
-	vmr var::to_reg(ast_node* because, integer offset) {
+	vmr var::to_reg(ast* because, integer offset) {
 		if (is_reg) return loc.reg;
 		return move_to_register(because, offset);
 	}
 
-	vmr var::to_reg(ast_node* because, vmr offset) {
+	vmr var::to_reg(ast* because, vmr offset) {
 		if (is_reg) return loc.reg;
 		return move_to_register(because, offset);
 	}
 
-	address var::to_stack(ast_node* because, integer offset) {
+	address var::to_stack(ast* because, integer offset) {
 		if (!is_reg) return loc.stack_addr;
 		return move_to_stack(because, offset);
 	}
 
-	address var::to_stack(ast_node* because, vmr offset) {
+	address var::to_stack(ast* because, vmr offset) {
 		if (!is_reg) return loc.stack_addr;
 		return move_to_stack(because, offset);
 	}
 
-	void var::move_to(vmr reg, ast_node* because, integer stack_offset) {
+	void var::move_to(vmr reg, ast* because, integer stack_offset) {
 		bool found = false;
 		if (is_fp(reg)) {
 			for (u32 i = 0;i < ctx->cur_func->registers.fp.size();i++) {
@@ -204,7 +205,7 @@ namespace gjs {
 		is_imm = false;
 	}
 
-	void var::move_to(vmr reg, ast_node* because, vmr stack_offset) {
+	void var::move_to(vmr reg, ast* because, vmr stack_offset) {
 		bool found = false;
 		if (is_fp(reg)) {
 			for (u32 i = 0;i < ctx->cur_func->registers.fp.size();i++) {
@@ -287,7 +288,7 @@ namespace gjs {
 		is_imm = false;
 	}
 
-	void var::store_in(vmr reg, ast_node* because, integer stack_offset) {
+	void var::store_in(vmr reg, ast* because, integer stack_offset) {
 		if (is_reg) {
 			if (loc.reg == reg) return;
 			if (is_fp(reg) == is_fp(loc.reg)) {
@@ -382,7 +383,7 @@ namespace gjs {
 		}
 	}
 
-	void var::store_in(vmr reg, ast_node* because, vmr stack_offset) {
+	void var::store_in(vmr reg, ast* because, vmr stack_offset) {
 		if (is_reg) {
 			ctx->add(
 				encode(vmi::add).operand(reg).operand(loc.reg).operand(vmr::zero),
@@ -429,7 +430,7 @@ namespace gjs {
 
 
 
-	var* cast(compile_context& ctx, var* from, data_type* to, ast_node* because) {
+	var* cast(compile_context& ctx, var* from, data_type* to, ast* because) {
 		if (from->type->equals(to)) return from;
 		if (from->type->name == "bool" || to->name == "bool") return from;
 
@@ -541,7 +542,7 @@ namespace gjs {
 		return out;
 	}
 
-	var* cast(compile_context& ctx, var* from, var* to, ast_node* because) {
+	var* cast(compile_context& ctx, var* from, var* to, ast* because) {
 		if (!to) return from;
 		return cast(ctx, from, to->type, because);
 	}

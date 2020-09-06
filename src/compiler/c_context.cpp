@@ -2,15 +2,17 @@
 #include <compiler/function.h>
 #include <compiler/data_type.h>
 #include <compiler/variable.h>
-
+#include <parser/ast.h>
 #include <instruction_array.h>
 #include <compile_log.h>
-#include <parse.h>
+#include <util.h>
 #include <source_map.h>
 
 using namespace std;
 
 namespace gjs {
+	using namespace parse;
+
 	void compile_context::clear_last_member_info() {
 		if (last_member_or_method.subject) last_member_or_method.subject->no_auto_free = false;
 		do_store_member_info = false;
@@ -21,7 +23,7 @@ namespace gjs {
 		last_member_or_method.method = nullptr;
 	}
 
-	void compile_context::add(instruction& i, ast_node* because) {
+	void compile_context::add(instruction& i, ast* because) {
 		address addr = out->size();
 		(*out) += i;
 
@@ -52,7 +54,7 @@ namespace gjs {
 		return nullptr;
 	}
 
-	data_type* compile_context::type(ast_node* node) {
+	data_type* compile_context::type(ast* node) {
 		data_type* t = type(*node);
 		if (t && node->data_type) {
 			if (!t->requires_subtype) {
