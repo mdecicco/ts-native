@@ -2,28 +2,29 @@
 #include <string>
 #include <vector>
 #include <types.h>
+#include <source_ref.h>
 
 namespace gjs {
-	struct ast_node;
+	namespace error { enum class ecode; };
+	namespace warning { enum class wcode; };
 
 	struct compile_message {
-		std::string file;
+		bool is_error;
+		union {
+			error::ecode e;
+			warning::wcode w;
+		} code;
 		std::string text;
-		std::string lineText;
-		u32 line;
-		u32 col;
+		source_ref src;
 	};
 
 	class compile_log {
 		public:
-			compile_log() { }
-			~compile_log() { }
+			compile_log();
+			~compile_log();
 
-			void err(const std::string& text, const std::string& file, const std::string& lineText, u32 line, u32 col);
-			void err(const std::string& text, ast_node* node);
-
-			void warn(const std::string& text, const std::string& file, const std::string& lineText, u32 line, u32 col);
-			void warn(const std::string& text, ast_node* node);
+			void err(error::ecode code, source_ref at, ...);
+			void warn(warning::wcode code, source_ref at, ...);
 
 			std::vector<compile_message> errors;
 			std::vector<compile_message> warnings;

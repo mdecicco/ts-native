@@ -8,11 +8,14 @@ namespace gjs {
 	class vm_context;
 	class instruction_array;
 	struct source_map;
-	struct ast_node;
+	namespace parse {
+		struct ast;
+	};
+
 	class pipeline {
 		public:
 			typedef void (*ir_step_func)(vm_context* ctx, instruction_array&, source_map*, u32);
-			typedef void (*ast_step_func)(vm_context* ctx, ast_node*);
+			typedef void (*ast_step_func)(vm_context* ctx, parse::ast*);
 
 			pipeline(vm_context* ctx);
 			~pipeline();

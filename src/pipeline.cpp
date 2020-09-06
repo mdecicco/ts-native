@@ -1,6 +1,5 @@
 #include <pipeline.h>
-#include <parse.h>
-#include <compiler/compiler.h>
+// #include <compiler/compiler.h>
 #include <context.h>
 #include <lexer/lexer.h>
 #include <parser/parse.h>
@@ -16,39 +15,35 @@ namespace gjs {
 		m_log.errors.clear();
 		m_log.warnings.clear();
 
-		/*
 		std::vector<lex::token> tokens;
 		lex::tokenize(code, file, tokens);
 
-		ast_node* ast = parse::parse(m_ctx, file, tokens);
-		*/
-
-		ast_node* ast = parse_source(m_ctx, file, code);
+		parse::ast* tree = parse::parse(m_ctx, file, tokens);
 
 		try {
 			for (u8 i = 0;i < m_ast_steps.size();i++) {
-				m_ast_steps[i](m_ctx, ast);
+				m_ast_steps[i](m_ctx, tree);
 			}
-		} catch (compile_exception& e) {
-			delete ast;
-			throw e;
+		//} catch (compile_exception& e) {
+		//	delete tree;
+		//	throw e;
 		} catch (std::exception& e) {
-			delete ast;
+			delete tree;
 			throw e;
 		}
 
 		u32 new_code_starts_at = m_ctx->code()->size();
 
 		try {
-			compile_ast(m_ctx, ast, m_ctx->code(), m_ctx->map(), &m_log);
-			delete ast;
-		} catch (compile_exception& e) {
-			m_ctx->code()->remove(new_code_starts_at, m_ctx->code()->size());
-			delete ast;
-			throw e;
+		//	compile_ast(m_ctx, tree, m_ctx->code(), m_ctx->map(), &m_log);
+			delete tree;
+		//} catch (compile_exception& e) {
+		//	m_ctx->code()->remove(new_code_starts_at, m_ctx->code()->size());
+		//	delete tree;
+		//	throw e;
 		} catch (std::exception& e) {
 			m_ctx->code()->remove(new_code_starts_at, m_ctx->code()->size());
-			delete ast;
+			delete tree;
 			throw e;
 		}
 
@@ -58,9 +53,9 @@ namespace gjs {
 				for (u8 i = 0;i < m_ir_steps.size();i++) {
 					m_ir_steps[i](m_ctx, *m_ctx->code(), m_ctx->map(), new_code_starts_at);
 				}
-			} catch (compile_exception& e) {
-				m_ctx->code()->remove(new_code_starts_at, m_ctx->code()->size());
-				throw e;
+		//	} catch (compile_exception& e) {
+		//		m_ctx->code()->remove(new_code_starts_at, m_ctx->code()->size());
+		//		throw e;
 			} catch (std::exception& e) {
 				m_ctx->code()->remove(new_code_starts_at, m_ctx->code()->size());
 				throw e;

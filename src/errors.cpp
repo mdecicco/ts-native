@@ -18,8 +18,10 @@ namespace gjs {
 			"Expected identifier, member expression, or index expression",
 			"Expected identifier or member expression",
 			"Expected class property or method",
-			"Unexpected end of file while parsing %s"
+			"Unexpected end of file while parsing %s",
 			"", // end parse errors
+			"", // end compile errors
+			"" // end compile errors
 		};
 
 		const char* format_str(ecode c) {

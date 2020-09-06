@@ -65,37 +65,37 @@ void print_f32(u8 i, f32 f) {
 void print_log(vm_context& ctx) {
 	for (u8 i = 0;i < ctx.compiler()->log()->errors.size();i++) {
 		compile_message& m = ctx.compiler()->log()->errors[i];
-		printf("%s:%d:%d: Error: %s\n", m.file.c_str(), m.line, m.col, m.text.c_str());
+		printf("%s:%d:%d: Error: %s\n", m.src.filename.c_str(), m.src.line, m.src.col, m.text.c_str());
 		std::string ln = "";
 		u32 wscount = 0;
 		bool reachedText = false;
-		for (u32 i = 0;i < m.lineText.length();i++) {
-			if (isspace(m.lineText[i]) && !reachedText) wscount++;
+		for (u32 i = 0;i < m.src.line_text.length();i++) {
+			if (isspace(m.src.line_text[i]) && !reachedText) wscount++;
 			else {
 				reachedText = true;
-				ln += m.lineText[i];
+				ln += m.src.line_text[i];
 			}
 		}
 		printf("%s\n", ln.c_str());
-		for (u32 i = 0;i < m.col - wscount;i++) printf(" ");
+		for (u32 i = 0;i < m.src.col - wscount;i++) printf(" ");
 		printf("^\n");
 	}
 
 	for (u8 i = 0;i < ctx.compiler()->log()->warnings.size();i++) {
 		compile_message& m = ctx.compiler()->log()->warnings[i];
-		printf("%s:%d:%d: Warning: %s\n", m.file.c_str(), m.line, m.col, m.text.c_str());
+		printf("%s:%d:%d: Warning: %s\n", m.src.filename.c_str(), m.src.line, m.src.col, m.text.c_str());
 		std::string ln = "";
 		u32 wscount = 0;
 		bool reachedText = false;
-		for (u32 i = 0;i < m.lineText.length();i++) {
-			if (isspace(m.lineText[i]) && !reachedText) wscount++;
+		for (u32 i = 0;i < m.src.line_text.length();i++) {
+			if (isspace(m.src.line_text[i]) && !reachedText) wscount++;
 			else {
 				reachedText = true;
-				ln += m.lineText[i];
+				ln += m.src.line_text[i];
 			}
 		}
 		printf("%s\n", ln.c_str());
-		for (u32 i = 0;i < m.col - wscount;i++) printf(" ");
+		for (u32 i = 0;i < m.src.col - wscount;i++) printf(" ");
 		printf("^\n");
 	}
 }
@@ -125,9 +125,9 @@ void print_code(vm_context& ctx) {
 		printf("0x%2.2X: %-32s", i, (*ctx.code())[i].to_string().c_str());
 
 		auto src = ctx.map()->get(i);
-		if (src.lineText != last_line) {
-			printf("; %s", src.lineText.c_str());
-			last_line = src.lineText;
+		if (src.line_text != last_line) {
+			printf("; %s", src.line_text.c_str());
+			last_line = src.line_text;
 		}
 		printf("\n");
 	}

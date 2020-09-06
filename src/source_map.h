@@ -2,10 +2,9 @@
 #include <vector>
 #include <string>
 #include <types.h>
+#include <source_ref.h>
 
 namespace gjs {
-	struct ast_node;
-
 	struct source_map {
 		std::vector<std::string> files;
 		std::vector<std::string> lines;
@@ -15,19 +14,13 @@ namespace gjs {
 			u32 line;
 			u32 col;
 		};
-		struct src_info {
-			std::string file;
-			std::string lineText;
-			u32 line;
-			u32 col;
-		};
 
 		// 1:1 map, instruction address : elem
 		std::vector<elem> map;
 
-		void append(ast_node* node);
+		void append(source_ref src);
 		void append(const std::string& file, const std::string& lineText, u32 line, u32 col);
 
-		src_info get(address addr);
+		source_ref get(address addr);
 	};
 };

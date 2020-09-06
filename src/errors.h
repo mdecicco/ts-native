@@ -7,6 +7,7 @@ namespace gjs {
     namespace error {
         enum class ecode {
             no_error = 0,
+            unspecified_error,
             __parse_error_start,
             p_expected_identifier,
             p_unexpected_identifier,
@@ -21,10 +22,12 @@ namespace gjs {
             p_expected_callable,
             p_expected_class_prop_or_meth,
             p_unexpected_eof,
-            __parse_error_end
+            __parse_error_end,
+            __compile_error_start,
+            __compile_error_end
         };
 
-        inline const char* format_str(ecode code);
+        const char* format_str(ecode code);
 
 
 

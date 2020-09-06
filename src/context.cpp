@@ -2,8 +2,7 @@
 #include <vm_function.h>
 #include <vm_type.h>
 #include <bind.h>
-#include <parse.h>
-#include <compiler/compiler.h>
+// #include <compiler/compiler.h>
 #include <asmjit/asmjit.h>
 #include <default_steps.h>
 #include <builtin.h>
@@ -12,9 +11,9 @@
 namespace gjs {
 	runtime_exception::runtime_exception(vm_context* ctx, const std::string& _text) : text(_text), raised_from_script(true), line(0), col(0) {
 		if (ctx->is_executing()) {
-			source_map::src_info info = ctx->map()->get((address)ctx->state()->registers[(integer)vm_register::ip]);
-			file = info.file;
-			lineText = info.lineText;
+			source_ref info = ctx->map()->get((address)ctx->state()->registers[(integer)vm_register::ip]);
+			file = info.filename;
+			lineText = info.line_text;
 			line = info.line;
 			col = info.col;
 		}
@@ -99,14 +98,10 @@ namespace gjs {
 	bool vm_context::add_code(const std::string& filename, const std::string& code) {
 		try {
 			return m_pipeline.compile(filename, code);
-		} catch (parse_exception& e) {
-			m_pipeline.log()->err(e.text, e.file, e.lineText, e.line, e.col);
-		} catch (compile_exception& e) {
-			m_pipeline.log()->err(e.text, e.file, e.lineText, e.line, e.col);
 		} catch (error::exception& e) {
-			m_pipeline.log()->err(e.message, e.src.filename, e.src.line_text, e.src.line, e.src.col);
+			m_pipeline.log()->errors.push_back({ true, e.code, e.message, e.src });
 		} catch (std::exception& e) {
-			m_pipeline.log()->err(e.what(), "[unknown]", "[unknown]", 0, 0);
+			m_pipeline.log()->errors.push_back({ true, error::ecode::unspecified_error, std::string(e.what()), source_ref("[unknown]", "[unknown]", 0, 0) });
 		}
 		return false;
 	}
