@@ -59,5 +59,35 @@ namespace gjs {
 
 			return false;
 		}
+
+		bool context::pattern(const std::vector<std::string>& sequence) {
+			if (cur_token + sequence.size() >= tokens.size()) return false;
+			for (u8 i = 0;i < sequence.size();i++) {
+				if (sequence[i].length() == 0) continue;
+				if (tokens[cur_token + i].text != sequence[i]) return false;
+			}
+
+			return true;
+		}
+
+		bool context::pattern_s(const std::vector<std::string>& sequence) {
+			if (cur_token + sequence.size() >= tokens.size()) return false;
+			for (u8 i = 0;i < sequence.size();i++) {
+				if (sequence[i].length() == 0) continue;
+				if (tokens[cur_token + i].text != sequence[i]) return false;
+			}
+
+			return true;
+		}
+
+		bool context::pattern(const std::vector<lex::token_type>& sequence) {
+			if (cur_token + sequence.size() >= tokens.size()) return false;
+			for (u8 i = 0;i < sequence.size();i++) {
+				if (sequence[i] == lex::token_type::any) continue;
+				if (tokens[cur_token + i].type != sequence[i]) return false;
+			}
+
+			return true;
+		}
 	};
 };

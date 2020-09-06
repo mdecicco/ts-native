@@ -134,9 +134,9 @@ void print_code(vm_context& ctx) {
 }
 
 // todos:
-// - Change parser architecture to tokenize entire source with token types, then parse tokens
-// - Error codes / centralized error string array?
-// - Fix parse errors
+// x Change parser architecture to tokenize entire source with token types, then parse tokens
+// x Error codes / centralized error string array?
+// x Fix parse errors
 // - unit tests
 // - const qualifier
 // - format-type variable expressions

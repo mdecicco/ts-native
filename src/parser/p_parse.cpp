@@ -86,7 +86,7 @@ namespace gjs {
 
 			ast* node = nullptr;
 			do {
-				node = single(ctx);
+				node = any(ctx);
 				if (node) {
 					if (r->body) {
 						ast* n = r->body;
@@ -106,7 +106,7 @@ namespace gjs {
 			return r;
 		}
 
-		ast* single(context& ctx) {
+		ast* any(context& ctx) {
 			if (ctx.match({ tt::semicolon })) {
 				ast* r = new ast();
 				r->type = nt::empty;
@@ -223,7 +223,7 @@ namespace gjs {
 
 			ast* node = nullptr;
 			do {
-				node = single(ctx);
+				node = any(ctx);
 				if (node) {
 					if (ctx.root->body) {
 						ast* n = ctx.root->body;

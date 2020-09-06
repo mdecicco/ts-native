@@ -11,6 +11,7 @@ namespace gjs {
 			"class_declaration",
 			"format_declaration",
 			"variable_initializer",
+			"class_property",
 			"format_property",
 			"function_arguments",
 			"if_statement",

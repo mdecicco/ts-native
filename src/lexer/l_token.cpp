@@ -17,6 +17,14 @@ namespace gjs {
             src = _src;
         }
 
+        token::operator source_ref() const {
+            return src;
+        }
+        
+        token::operator std::string() const {
+            return text;
+        }
+
         bool token::operator == (const std::string& rhs) const {
             return text == rhs;
         }

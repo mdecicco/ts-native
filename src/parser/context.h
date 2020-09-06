@@ -23,11 +23,24 @@ namespace gjs {
             const lex::token& current() const;
             void consume();
             bool at_end() const;
+
+            // current() == any of the provided strings
             bool match(const std::vector<std::string>& any);
 
             // because apparently sometimes std::string is convertible to lex::token_type...
             bool match_s(const std::vector<std::string>& any);
+
+            // current() == any of the provided token types
             bool match(const std::vector<lex::token_type>& any);
+
+            // next sizeof(sequence) tokens match the strings in the sequence
+            bool pattern(const std::vector<std::string>& sequence);
+
+            // because apparently sometimes std::string is convertible to lex::token_type...
+            bool pattern_s(const std::vector<std::string>& any);
+
+            // next sizeof(sequence) tokens match the token types in the sequence
+            bool pattern(const std::vector<lex::token_type>& sequence);
         };
     };
 };

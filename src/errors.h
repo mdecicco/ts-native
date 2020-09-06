@@ -9,14 +9,18 @@ namespace gjs {
             no_error = 0,
             __parse_error_start,
             p_expected_identifier,
+            p_unexpected_identifier,
             p_expected_type_identifier,
             p_expected_char,
             p_unexpected_token,
             p_expected_specific_keyword,
+            p_unexpected_keyword,
             p_expected_operator,
             p_expected_expression,
             p_expected_assignable,
             p_expected_callable,
+            p_expected_class_prop_or_meth,
+            p_unexpected_eof,
             __parse_error_end
         };
 
