@@ -5,10 +5,13 @@
 
 namespace gjs {
 	class vm_function;
-	struct ast_node;
 	struct compile_context;
 	struct var;
 	struct data_type;
+
+	namespace parse {
+		struct ast;
+	};
 
 	struct func {
 		using vmr = vm_register;
@@ -41,7 +44,7 @@ namespace gjs {
 		std::vector<arg_info> args;
 		u64 entry;
 		std::vector<scope> scopes;
-		ast_node* root;
+		parse::ast* root;
 		bool auto_free_consumed_vars;
 		bool reached_return;
 		bool is_thiscall;
@@ -78,28 +81,28 @@ namespace gjs {
 		func();
 		func(compile_context& ctx, vm_function* f);
 
-		var* allocate(compile_context& ctx, ast_node* decl, bool is_arg = false);
+		var* allocate(compile_context& ctx, parse::ast* decl, bool is_arg = false);
 		var* allocate(compile_context& ctx, data_type* type, bool is_arg = false);
 		var* allocate(compile_context& ctx, const std::string& name, data_type* type, bool is_arg = false);
-		var* allocate_stack_var(compile_context& ctx, data_type* type, ast_node* because);
+		var* allocate_stack_var(compile_context& ctx, data_type* type, parse::ast* because);
 		var* imm(compile_context& ctx, integer i);
 		var* imm(compile_context& ctx, f32 f);
 		var* imm(compile_context& ctx, f64 d);
 		var* imm(compile_context& ctx, char* s);
 		var* zero(compile_context& ctx, data_type* type);
 		void free(var* v);
-		void free_stack_object(var* obj, ast_node* because);
+		void free_stack_object(var* obj, parse::ast* because);
 		void free_consumed_vars();
-		var* get(compile_context& ctx, ast_node* identifier);
+		var* get(compile_context& ctx, parse::ast* identifier);
 
 		void push_scope();
-		void pop_scope(compile_context& ctx, ast_node* because);
+		void pop_scope(compile_context& ctx, parse::ast* because);
 
-		void generate_return_code(compile_context& ctx, ast_node* because, address returns_stack_addr = UINT32_MAX);
+		void generate_return_code(compile_context& ctx, parse::ast* because, address returns_stack_addr = UINT32_MAX);
 		bool in_use(vmr reg);
 	};
 
-	void compile_function(compile_context& ctx, ast_node* node, func* out);
-	var* compile_variable_declaration(compile_context& ctx, ast_node* node);
-	var* call(compile_context& ctx, func* to, ast_node* because, const std::vector<var*>& args, data_type* method_of = nullptr);
+	void compile_function(compile_context& ctx, parse::ast* node, func* out);
+	var* compile_variable_declaration(compile_context& ctx, parse::ast* node);
+	var* call(compile_context& ctx, func* to, parse::ast* because, const std::vector<var*>& args, data_type* method_of = nullptr);
 };

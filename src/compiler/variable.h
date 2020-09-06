@@ -6,7 +6,10 @@
 namespace gjs {
 	struct compile_context;
 	struct data_type;
-	struct ast_node;
+
+	namespace parse {
+		struct ast;
+	};
 
 	struct var {
 		using vmr = vm_register;
@@ -40,32 +43,32 @@ namespace gjs {
 
 		void move_stack_reference(var* to);
 
-		address move_to_stack(ast_node* because, integer offset = 0);
+		address move_to_stack(parse::ast* because, integer offset = 0);
 
-		address move_to_stack(ast_node* because, vmr offset);
+		address move_to_stack(parse::ast* because, vmr offset);
 
-		vmr move_to_register(ast_node* because, integer offset = 0);
+		vmr move_to_register(parse::ast* because, integer offset = 0);
 
-		vmr move_to_register(ast_node* because, vmr offset);
+		vmr move_to_register(parse::ast* because, vmr offset);
 
-		vmr to_reg(ast_node* because, integer offset = 0);
+		vmr to_reg(parse::ast* because, integer offset = 0);
 
-		vmr to_reg(ast_node* because, vmr offset);
+		vmr to_reg(parse::ast* because, vmr offset);
 
-		address to_stack(ast_node* because, integer offset = 0);
+		address to_stack(parse::ast* because, integer offset = 0);
 
-		address to_stack(ast_node* because, vmr offset);
+		address to_stack(parse::ast* because, vmr offset);
 
-		void move_to(vmr reg, ast_node* because, integer stack_offset = 0);
+		void move_to(vmr reg, parse::ast* because, integer stack_offset = 0);
 
-		void move_to(vmr reg, ast_node* because, vmr stack_offset);
+		void move_to(vmr reg, parse::ast* because, vmr stack_offset);
 
-		void store_in(vmr reg, ast_node* because, integer stack_offset = 0);
+		void store_in(vmr reg, parse::ast* because, integer stack_offset = 0);
 
-		void store_in(vmr reg, ast_node* because, vmr stack_offset);
+		void store_in(vmr reg, parse::ast* because, vmr stack_offset);
 	};
 
-	var* cast(compile_context& ctx, var* from, data_type* to, ast_node* because);
+	var* cast(compile_context& ctx, var* from, data_type* to, parse::ast* because);
 
-	var* cast(compile_context& ctx, var* from, var* to, ast_node* because);
+	var* cast(compile_context& ctx, var* from, var* to, parse::ast* because);
 };
