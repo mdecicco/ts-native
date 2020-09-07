@@ -35,8 +35,15 @@ namespace gjs {
 			var empty_var(vm_type* type);
 			var dummy_var(vm_type* type, const std::string& name);
 			var dummy_var(vm_type* type);
+			var null_var();
+			var get_var(const std::string& name);
 
+			// use only to retrieve a function to be called (logs errors when not found or ambiguous)
 			vm_function* function(const std::string& name, vm_type* ret, const std::vector<vm_type*>& args);
+
+			// use only when searching for a forward declaration or to determine if an identical function exists (does not log errors)
+			vm_function* find_func(const std::string& name, vm_type* ret, const std::vector<vm_type*>& args);
+
 			vm_type* type(const std::string& name);
 			tac_instruction& add(operation op);
 			void push_node(parse::ast* node);

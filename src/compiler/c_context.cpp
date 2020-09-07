@@ -82,12 +82,22 @@ namespace gjs {
 			return v;
 		}
 
+		var context::null_var() {
+			return var();
+		}
+
+		var context::get_var(const std::string& name) {
+			return var();
+		}
+
 		vm_function* context::function(const std::string& name, vm_type* ret, const std::vector<vm_type*>& args) {
 			std::vector<vm_function*> matches;
 
-			for (u16 f = 0;f < new_functions.size();f++) {
+			std::vector<vm_function*> all = env->all_functions();
+			for (u16 f = 0;f < new_functions.size();f++) all.push_back(new_functions[f]);
+			for (u16 f = 0;f < all.size();f++) {
 				// match name
-				vm_function* func = new_functions[f];
+				vm_function* func = all[f];
 
 				if (func->name != name) continue;
 
@@ -135,6 +145,35 @@ namespace gjs {
 			}
 
 			log()->err(ec::c_no_such_function, rel_node->ref, name.c_str(), arg_tp_str(args).c_str(), ret->name.c_str());
+			return nullptr;
+		}
+
+		vm_function* context::find_func(const std::string& name, vm_type* ret, const std::vector<vm_type*>& args) {
+			std::vector<vm_function*> all = env->all_functions();
+			for (u16 f = 0;f < new_functions.size();f++) all.push_back(new_functions[f]);
+			for (u16 f = 0;f < all.size();f++) {
+				// match name
+				vm_function* func = all[f];
+
+				if (func->name != name) continue;
+
+				// match return type
+				if (!func->signature.return_type->id() != ret->id()) continue;
+
+				// match argument types
+				if (func->signature.arg_types.size() != args.size()) continue;
+
+				// only strict type matches
+				bool match = true;
+				for (u8 i = 0;i < args.size();i++) {
+					if (func->signature.arg_types[i]->id() != args[i]->id()) {
+						match = false;
+						break;
+					}
+				}
+
+				if (match) return func;
+			}
 			return nullptr;
 		}
 

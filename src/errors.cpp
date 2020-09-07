@@ -28,6 +28,8 @@ namespace gjs {
 			"No function '%s' matching argument list '%s' and return type '%s' was found",
 			"Reference to method '%s' of type '%s' is ambiguous with the argument list '%s' and return type '%s'",
 			"Reference to function '%s' is ambiguous with the argument list '%s' and return type '%s'",
+			"Function '%s %s %s' was already declared",
+			"Function '%s %s %s' already has a body",
 			"" // end compile errors
 		};
 

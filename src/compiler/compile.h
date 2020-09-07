@@ -1,4 +1,5 @@
 #pragma once
+#include <compiler/variable.h>
 
 namespace gjs {
 	class vm_context;
@@ -14,7 +15,7 @@ namespace gjs {
 
 		void function_declaration(context& ctx, parse::ast* n);
 
-		void function_call(context& ctx, parse::ast* n);
+		var function_call(context& ctx, parse::ast* n);
 
 		void class_declaration(context& ctx, parse::ast* n);
 
@@ -36,9 +37,11 @@ namespace gjs {
 
 		void if_statement(context& ctx, parse::ast* n);
 
-		void expression(context& ctx, parse::ast* n);
+		var expression(context& ctx, parse::ast* n);
 
 		void any(context& ctx, parse::ast* n);
+
+		void block(context&ctx, parse::ast* n);
 
 		void compile(vm_context* env, parse::ast* input);
 	};

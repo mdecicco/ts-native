@@ -36,6 +36,7 @@ namespace gjs {
 				case nt::export_statement: { export_statement(ctx, n); break; }
 				case nt::return_statement: { return_statement(ctx, n); break; }
 				case nt::delete_statement: { delete_statement(ctx, n); break; }
+                case nt::scoped_block: { block(ctx, n); break; }
 				case nt::object:
 				case nt::call:
 				case nt::expression:
@@ -46,6 +47,14 @@ namespace gjs {
 				default: {
 					throw exc(ec::c_invalid_node, n->ref);
 				}
+			}
+		}
+
+		void block(context& ctx, ast* b) {
+			ast* n = b->body;
+			while (n) {
+				any(ctx, n);
+				n = n->next;
 			}
 		}
 

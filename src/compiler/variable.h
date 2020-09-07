@@ -26,7 +26,8 @@ namespace gjs {
 				inline i64 imm_i() const { return m_imm.i; }
 				inline f32 imm_f() const { return m_imm.f; }
 				inline f64 imm_d() const { return m_imm.d; }
-				u32 reg_id() const { return m_reg_id; }
+				inline u32 reg_id() const { return m_reg_id; }
+				inline bool valid() const { return m_ctx != nullptr; }
 
 				var operator + (const var& rhs) const;
 				var operator - (const var& rhs) const;

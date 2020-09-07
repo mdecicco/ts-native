@@ -61,14 +61,18 @@ namespace gjs {
 			dcmp,
 			eq,
 			neg,
-			call
+			call,
+
+			// if op[0] is true: continue else jump to op[1]
+			branch,
+			jump
 		};
 
 		struct tac_instruction {
 			public:
 				tac_instruction(operation op, const source_ref& src);
 				~tac_instruction();
-
+				
 				tac_instruction& operand(const var& v);
 				tac_instruction& func(vm_function* f);
 				std::string to_string() const;

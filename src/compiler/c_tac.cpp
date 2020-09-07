@@ -60,7 +60,9 @@ namespace gjs {
 			"dcmp",
 			"eq",
 			"neg",
-			"call"
+			"call",
+			"branch",
+			"jump"
 		};
 
 		tac_instruction::tac_instruction(operation _op, const source_ref& _src) : op(_op), src(_src), op_idx(0), callee(nullptr) {
