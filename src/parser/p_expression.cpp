@@ -333,7 +333,7 @@ namespace gjs {
 				op->rvalue = unary(ctx);
 				if (!op->rvalue && (op->op == op::not || op->op == op::negate)) throw exc(ec::p_expected_expression, cur.src);
 				if (!op->rvalue || (op->rvalue->type != nt::identifier && op->rvalue->op != op::member && op->rvalue->op != op::index)) {
-					throw exc(ec::p_expected_assignable, op->rvalue ? op->rvalue->start : ctx.current().src);
+					throw exc(ec::p_expected_assignable, op->rvalue ? op->rvalue->ref : ctx.current().src);
 				}
 
 				set_node_src(op, cur);
@@ -348,7 +348,7 @@ namespace gjs {
 			token cur = ctx.current();
 			if (ctx.match_s({ "++", "--" })) {
 				if (!ret || (ret->type != nt::identifier && ret->op != op::member && ret->op != op::index)) {
-					throw exc(ec::p_expected_assignable, ret ? ret->start : ctx.current().src);
+					throw exc(ec::p_expected_assignable, ret ? ret->ref : ctx.current().src);
 				}
 
 				ctx.consume();
@@ -369,7 +369,7 @@ namespace gjs {
 			token cur = ctx.current();
 			while (ctx.match({ tt::open_parenth })) {
 				if (!ret || (ret->type != nt::identifier && ret->op != op::member)) {
-					throw exc(ec::p_expected_callable, ret ? ret->start : ctx.current().src);
+					throw exc(ec::p_expected_callable, ret ? ret->ref : ctx.current().src);
 				}
 				ctx.consume();
 

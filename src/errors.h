@@ -24,12 +24,17 @@ namespace gjs {
             p_unexpected_eof,
             __parse_error_end,
             __compile_error_start,
+            c_no_code,
+            c_invalid_node,
+            c_no_such_property,
+            c_no_such_method,
+            c_no_such_function,
+            c_ambiguous_method,
+            c_ambiguous_function,
             __compile_error_end
         };
 
         const char* format_str(ecode code);
-
-
 
         class exception : public std::exception {
             public:

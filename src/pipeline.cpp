@@ -1,6 +1,8 @@
 #include <pipeline.h>
-// #include <compiler/compiler.h>
 #include <context.h>
+#include <errors.h>
+
+#include <compiler/compile.h>
 #include <lexer/lexer.h>
 #include <parser/parse.h>
 
@@ -24,9 +26,9 @@ namespace gjs {
 			for (u8 i = 0;i < m_ast_steps.size();i++) {
 				m_ast_steps[i](m_ctx, tree);
 			}
-		//} catch (compile_exception& e) {
-		//	delete tree;
-		//	throw e;
+		} catch (error::exception& e) {
+			delete tree;
+			throw e;
 		} catch (std::exception& e) {
 			delete tree;
 			throw e;
@@ -35,12 +37,12 @@ namespace gjs {
 		u32 new_code_starts_at = m_ctx->code()->size();
 
 		try {
-		//	compile_ast(m_ctx, tree, m_ctx->code(), m_ctx->map(), &m_log);
+			compile::compile(m_ctx, tree);//, m_ctx->code(), m_ctx->map(), &m_log);
 			delete tree;
-		//} catch (compile_exception& e) {
-		//	m_ctx->code()->remove(new_code_starts_at, m_ctx->code()->size());
-		//	delete tree;
-		//	throw e;
+		} catch (error::exception& e) {
+			m_ctx->code()->remove(new_code_starts_at, m_ctx->code()->size());
+			delete tree;
+			throw e;
 		} catch (std::exception& e) {
 			m_ctx->code()->remove(new_code_starts_at, m_ctx->code()->size());
 			delete tree;
@@ -53,9 +55,9 @@ namespace gjs {
 				for (u8 i = 0;i < m_ir_steps.size();i++) {
 					m_ir_steps[i](m_ctx, *m_ctx->code(), m_ctx->map(), new_code_starts_at);
 				}
-		//	} catch (compile_exception& e) {
-		//		m_ctx->code()->remove(new_code_starts_at, m_ctx->code()->size());
-		//		throw e;
+			} catch (error::exception& e) {
+				m_ctx->code()->remove(new_code_starts_at, m_ctx->code()->size());
+				throw e;
 			} catch (std::exception& e) {
 				m_ctx->code()->remove(new_code_starts_at, m_ctx->code()->size());
 				throw e;

@@ -21,6 +21,13 @@ namespace gjs {
 			"Unexpected end of file while parsing %s",
 			"", // end parse errors
 			"", // end compile errors
+			"No source code to compile",
+			"Encountered invalid AST node. This is not a user error",
+			"Type '%s' has no property '%s'",
+			"Type '%s' has no method '%s' that matches the argument list '%s' and return type '%s'",
+			"No function '%s' matching argument list '%s' and return type '%s' was found",
+			"Reference to method '%s' of type '%s' is ambiguous with the argument list '%s' and return type '%s'",
+			"Reference to function '%s' is ambiguous with the argument list '%s' and return type '%s'",
 			"" // end compile errors
 		};
 

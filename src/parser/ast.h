@@ -86,8 +86,6 @@ namespace gjs {
 				eq,
 				not,
 				negate,
-				addr,
-				at,
 				member,
 				index,
 				newObj,
@@ -99,7 +97,7 @@ namespace gjs {
 			void debug_print(u32 tab_level, bool dontIndentFirst = false, bool inArray = false);
 
 			node_type type;
-			source_ref start;
+			source_ref ref;
 			ast* next;
 
 			ast* data_type;

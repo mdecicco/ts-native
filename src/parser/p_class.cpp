@@ -176,7 +176,7 @@ namespace gjs {
 			}
 
 			if (!ctx.match({ tt::close_block })) {
-				throw exc(ec::p_unexpected_eof, c->start, "class body");
+				throw exc(ec::p_unexpected_eof, c->ref, "class body");
 			}
 
 			ctx.path.pop();
@@ -205,7 +205,7 @@ namespace gjs {
 				ast* p = new ast();
 				p->type = nt::format_property;
 				p->data_type = type_identifier(ctx);
-				p->start = p->data_type->start;
+				p->ref = p->data_type->ref;
 
 				if (!ctx.match({ tt::colon })) throw exc(ec::p_expected_char, ctx.current(), ':');
 				ctx.consume();
@@ -223,7 +223,7 @@ namespace gjs {
 			}
 
 			if (!ctx.match({ tt::close_block })) {
-				throw exc(ec::p_unexpected_eof, c->start, "format body");
+				throw exc(ec::p_unexpected_eof, c->ref, "format body");
 			}
 
 			return nullptr;

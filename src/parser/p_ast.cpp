@@ -73,8 +73,6 @@ namespace gjs {
 			"eq",
 			"not",
 			"negate",
-			"addr",
-			"at",
 			"member",
 			"index",
 			"newObj",
@@ -83,7 +81,7 @@ namespace gjs {
 
 		ast::ast() {
 			type = node_type::root;
-			start = { "", "", 0, 0 };
+			ref = { "", "", 0, 0 };
 			next = nullptr;
 			data_type = nullptr;
 			identifier = nullptr;
@@ -138,7 +136,7 @@ namespace gjs {
 			printf("node_type: '%s',\n", type_names[u32(type)]);
 
 			tab(indent);
-			printf("source: { line: %d, col: %d, file: '%s' },\n", start.line + 1, start.col, start.filename.c_str());
+			printf("source: { line: %d, col: %d, file: '%s' },\n", ref.line + 1, ref.col, ref.filename.c_str());
 
 			if (type == node_type::variable_declaration) {
 				tab(indent);
@@ -152,17 +150,12 @@ namespace gjs {
 				printf("operation: '%s',\n", op_names[u32(op)]);
 			}
 
-			switch(c_type) {
+			switch (c_type) {
 				case constant_type::integer: { tab(indent); printf("value: %lld,\n", value.i); break; }
 				case constant_type::f32: { tab(indent); printf("value: %f,\n", value.f_32); break; }
 				case constant_type::f64: { tab(indent); printf("value: %f,\n", value.f_64); break; }
 				case constant_type::string: { tab(indent); printf("value: '%s',\n", value.s); break; }
 				default: break;
-			}
-
-			if (type == node_type::identifier || type == node_type::type_identifier) {
-				tab(indent);
-				printf("value: '%s',\n", value.s);
 			}
 
 			auto child = [tab_level, tab, indent](ast* n, const char* name) {
@@ -220,7 +213,7 @@ namespace gjs {
 		}
 
 		void ast::src(const lex::token& tk) {
-			start = tk.src;
+			ref = tk.src;
 		}
 
 		ast::operator std::string() const { return value.s; }

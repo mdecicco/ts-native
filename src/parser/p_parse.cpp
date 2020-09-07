@@ -57,7 +57,7 @@ namespace gjs {
 			ast* r = new ast();
 			r->type = nt::variable_declaration;
 			r->data_type = type_identifier(ctx);
-			r->start = r->data_type->start;
+			r->ref = r->data_type->ref;
 			r->identifier = identifier(ctx);
 
 			if (ctx.match({ "=" })) {
@@ -218,7 +218,7 @@ namespace gjs {
 
 			ctx.root = new ast();
 			ctx.root->type = nt::root;
-			ctx.root->start.filename = file;
+			ctx.root->ref.filename = file;
 			ctx.path.push(ctx.root);
 
 			ast* node = nullptr;
