@@ -62,25 +62,25 @@ namespace gjs {
 				case ot::greaterEq:		return expression(ctx, n->lvalue) >= expression(ctx, n->rvalue);
 				case ot::notEq:			return expression(ctx, n->lvalue) != expression(ctx, n->rvalue);
 				case ot::isEq:			return expression(ctx, n->lvalue) == expression(ctx, n->rvalue);
+				case ot::addEq:			return expression(ctx, n->lvalue) += expression(ctx, n->rvalue);
+				case ot::subEq:			return expression(ctx, n->lvalue) -= expression(ctx, n->rvalue);
+				case ot::mulEq:			return expression(ctx, n->lvalue) *= expression(ctx, n->rvalue);
+				case ot::divEq:			return expression(ctx, n->lvalue) /= expression(ctx, n->rvalue);
+				case ot::modEq:			return expression(ctx, n->lvalue) %= expression(ctx, n->rvalue);
+				case ot::bandEq:		return expression(ctx, n->lvalue) &= expression(ctx, n->rvalue);
+				case ot::borEq:			return expression(ctx, n->lvalue) |= expression(ctx, n->rvalue);
+				case ot::bxorEq:		return expression(ctx, n->lvalue) ^= expression(ctx, n->rvalue);
+				case ot::shiftLeftEq:	return expression(ctx, n->lvalue) <<= expression(ctx, n->rvalue);
+				case ot::shiftRightEq:	return expression(ctx, n->lvalue) >>= expression(ctx, n->rvalue);
+				case ot::eq:			return expression(ctx, n->lvalue).operator_eq(expression(ctx, n->rvalue));
+				case ot::lorEq:			return expression(ctx, n->lvalue).operator_lorEq(expression(ctx, n->rvalue));
+				case ot::landEq:		return expression(ctx, n->lvalue).operator_landEq(expression(ctx, n->rvalue));
 				case ot::not:			return !expression(ctx, n->rvalue);
 				case ot::negate:		return -expression(ctx, n->rvalue);
-				case ot::addEq:			{ ret = expression(ctx, n->lvalue) += expression(ctx, n->rvalue); break; }
-				case ot::subEq:			{ ret = expression(ctx, n->lvalue) -= expression(ctx, n->rvalue); break; }
-				case ot::mulEq:			{ ret = expression(ctx, n->lvalue) *= expression(ctx, n->rvalue); break; }
-				case ot::divEq:			{ ret = expression(ctx, n->lvalue) /= expression(ctx, n->rvalue); break; }
-				case ot::modEq:			{ ret = expression(ctx, n->lvalue) %= expression(ctx, n->rvalue); break; }
-				case ot::bandEq:		{ ret = expression(ctx, n->lvalue) &= expression(ctx, n->rvalue); break; }
-				case ot::borEq:			{ ret = expression(ctx, n->lvalue) |= expression(ctx, n->rvalue); break; }
-				case ot::bxorEq:		{ ret = expression(ctx, n->lvalue) ^= expression(ctx, n->rvalue); break; }
-				case ot::shiftLeftEq:	{ ret = expression(ctx, n->lvalue) <<= expression(ctx, n->rvalue); break; }
-				case ot::shiftRightEq:	{ ret = expression(ctx, n->lvalue) >>= expression(ctx, n->rvalue); break; }
-				case ot::preInc:		{ ret = ++expression(ctx, n->rvalue); break; }
-				case ot::preDec:		{ ret = --expression(ctx, n->rvalue); break; }
-				case ot::postInc:		{ ret = expression(ctx, n->lvalue)++; break; }
-				case ot::postDec:		{ ret = expression(ctx, n->lvalue)--; break; }
-				case ot::landEq:		{ ret = expression(ctx, n->lvalue).operator_landEq(expression(ctx, n->rvalue)); break; }
-				case ot::lorEq:			{ ret = expression(ctx, n->lvalue).operator_lorEq(expression(ctx, n->rvalue)); break; }
-				case ot::eq:			{ ret = expression(ctx, n->lvalue).operator_eq(expression(ctx, n->rvalue)); break; }
+				case ot::preInc:		return ++expression(ctx, n->rvalue);
+				case ot::preDec:		return --expression(ctx, n->rvalue);
+				case ot::postInc:		return expression(ctx, n->lvalue)++;
+				case ot::postDec:		return expression(ctx, n->lvalue)--;
 				case ot::member: {
 					break;
 				}
