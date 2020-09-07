@@ -9,7 +9,7 @@ namespace gjs {
     using ec = error::ecode;
     using token = lex::token;
 
-	namespace parse {
+    namespace parse {
         using nt = ast::node_type;
 
         ast* if_statement(context& ctx) {
@@ -70,5 +70,5 @@ namespace gjs {
             stmt->rvalue = expression(ctx);
             return stmt;
         }
-	};
+    };
 };

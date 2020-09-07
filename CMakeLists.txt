@@ -2,13 +2,13 @@ cmake_minimum_required(VERSION 3.10)
 project(gjs)
 
 set(
-	include_dirs
-	${CMAKE_CURRENT_SOURCE_DIR}/src
-	${CMAKE_CURRENT_SOURCE_DIR}/deps/asmjit/src
+    include_dirs
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/deps/asmjit/src
 )
 set(
-	library_dirs
-	${CMAKE_CURRENT_SOURCE_DIR}/deps/asmjit/Deps
+    library_dirs
+    ${CMAKE_CURRENT_SOURCE_DIR}/deps/asmjit/Deps
 )
 include_directories(${include_dirs})
 link_directories(${library_dirs})
@@ -16,18 +16,18 @@ link_directories(${library_dirs})
 add_subdirectory("./deps")
 
 file(GLOB_RECURSE gjs_src
-	"src/*.h"
-	"src/*.hpp"
-	"src/*.cpp"
-	"src/compiler/*.h"
-	"src/compiler/*.hpp"
-	"src/compiler/*.cpp"
-	"src/lexer/*.h"
-	"src/lexer/*.hpp"
-	"src/lexer/*.cpp"
-	"src/parser/*.h"
-	"src/parser/*.hpp"
-	"src/parser/*.cpp"
+    "src/*.h"
+    "src/*.hpp"
+    "src/*.cpp"
+    "src/compiler/*.h"
+    "src/compiler/*.hpp"
+    "src/compiler/*.cpp"
+    "src/lexer/*.h"
+    "src/lexer/*.hpp"
+    "src/lexer/*.cpp"
+    "src/parser/*.h"
+    "src/parser/*.hpp"
+    "src/parser/*.cpp"
 )
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)

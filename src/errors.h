@@ -33,6 +33,8 @@ namespace gjs {
             c_ambiguous_function,
             c_function_already_declared,
             c_function_already_defined,
+            c_class_property_not_static,
+            c_no_such_type,
             __compile_error_end
         };
 
