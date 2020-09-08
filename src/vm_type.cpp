@@ -50,7 +50,6 @@ namespace gjs {
         t->m_wrapped = wrapped;
         t->requires_subtype = wrapped->requires_subtype;
         t->size = wrapped->size;
-        t->constructor = wrapped->ctor ? new vm_function(this, t, wrapped->ctor, true) : nullptr;
         t->destructor = wrapped->dtor ? new vm_function(this, t, wrapped->dtor, false, true) : nullptr;
 
         for (auto i = wrapped->properties.begin();i != wrapped->properties.end();++i) {
@@ -64,8 +63,13 @@ namespace gjs {
             });
         }
 
-        for (auto i = wrapped->methods.begin();i != wrapped->methods.end();++i) {
-            t->methods.push_back(new vm_function(this, t, i->getSecond()));
+        for (u32 i = 0;i < wrapped->methods.size();i++) {
+            bind::wrapped_function* f = wrapped->methods[i];
+            if (f->name.find_first_of("::construct") != std::string::npos) {
+                t->methods.push_back(new vm_function(this, t, f, true));
+                continue;
+            }
+            t->methods.push_back(new vm_function(this, t, f));
         }
 
         return t;
@@ -81,7 +85,6 @@ namespace gjs {
 
 
     vm_type::vm_type() {
-        constructor = nullptr;
         destructor = nullptr;
         size = 0;
         is_primitive = false;

@@ -16,6 +16,11 @@ namespace gjs {
 
     namespace compile {
         bool has_valid_conversion(vm_type* from, vm_type* to) {
+            if (from->id() == to->id()) return true;
+            if (from->base_type && from->base_type->id() == to->id()) return true;
+
+            // the rest
+
             return false;
         }
 
@@ -192,7 +197,7 @@ namespace gjs {
                 if (!func) continue;
 
                 // match return type
-                if (ret && !has_valid_conversion(func->signature.return_type, ret)) continue;
+                if (ret && !has_valid_conversion(ret, func->signature.return_type)) continue;
                 bool ret_tp_strict = ret ? func->signature.return_type->id() == ret->id() : false;
 
                 // match argument types

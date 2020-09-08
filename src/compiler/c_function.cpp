@@ -68,6 +68,9 @@ namespace gjs {
                     f->arg(arg_types[i]);
                     f->signature.arg_locs.push_back((vm_register)(arg_types[i]->is_floating_point ? fp++ : gp++));
                 }
+
+                f->signature.return_type = ret;
+                ctx.new_functions.push_back(f);
             }
             
             f->access.entry = ctx.code.size();

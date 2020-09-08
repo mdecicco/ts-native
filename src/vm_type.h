@@ -66,7 +66,6 @@ namespace gjs {
             vm_type* base_type;
             vm_type* sub_type;
             std::vector<property> properties;
-            vm_function* constructor;
             vm_function* destructor;
             std::vector<vm_function*> methods;
 
@@ -81,10 +80,6 @@ namespace gjs {
     };
 
     struct subtype_t {
-        template<typename T>
-        T get() {
-        }
-
         void* data;
     };
 };

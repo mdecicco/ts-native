@@ -64,7 +64,7 @@ namespace gjs {
             };
 
             wrapped_class(asmjit::JitRuntime& _rt, const std::string& _name, const std::string& _internal_name, size_t _size) :
-                rt(_rt), name(_name), internal_name(_internal_name), size(_size), ctor(nullptr), dtor(nullptr), requires_subtype(false)
+                rt(_rt), name(_name), internal_name(_internal_name), size(_size), dtor(nullptr), requires_subtype(false)
             {
             }
 
@@ -74,8 +74,7 @@ namespace gjs {
             std::string name;
             std::string internal_name;
             bool requires_subtype;
-            wrapped_function* ctor;
-            robin_hood::unordered_map<std::string, wrapped_function*> methods;
+            std::vector<wrapped_function*> methods;
             robin_hood::unordered_map<std::string, property*> properties;
             wrapped_function* dtor;
             size_t size;
@@ -390,13 +389,13 @@ namespace gjs {
         }
 
         template <typename Cls, typename... Args>
-        wrapped_function* wrap_constructor(type_manager* tpm, asmjit::JitRuntime& rt) {
-            return wrap(tpm, rt, format("%s::construct", typeid(remove_all<Cls>::type).name()), construct_object<Cls, Args...>);
+        wrapped_function* wrap_constructor(type_manager* tpm, asmjit::JitRuntime& rt, const std::string& name) {
+            return wrap(tpm, rt, name + "::construct", construct_object<Cls, Args...>);
         }
 
         template <typename Cls>
-        wrapped_function* wrap_destructor(type_manager* tpm, asmjit::JitRuntime& rt) {
-            return wrap(tpm, rt, format("%s::destruct", typeid(remove_all<Cls>::type).name()), destruct_object<Cls>);
+        wrapped_function* wrap_destructor(type_manager* tpm, asmjit::JitRuntime& rt, const std::string& name) {
+            return wrap(tpm, rt, name + "::destruct", destruct_object<Cls>);
         }
 
         enum property_flags {
@@ -406,13 +405,6 @@ namespace gjs {
             pf_pointer          = 0b00000100,
             pf_static           = 0b00001000
         };
-
-
-        // todo:
-        //   - Change constructor/destructor to be stored the
-        //     same way as regular methods
-        //   - Change the way methods are stored so that they
-        //     can be overloaded
 
         template <typename Cls>
         struct wrap_class : wrapped_class {
@@ -424,28 +416,28 @@ namespace gjs {
             template <typename... Args, std::enable_if_t<sizeof...(Args) != 0, int> = 0>
             wrap_class& constructor() {
                 requires_subtype = std::is_same_v<std::tuple_element_t<0, std::tuple<Args...>>, vm_type*>;
-                ctor = wrap_constructor<Cls, Args...>(types, rt);
-                if (!dtor) dtor = wrap_destructor<Cls>(types, rt);
+                methods.push_back(wrap_constructor<Cls, Args...>(types, rt, name));
+                if (!dtor) dtor = wrap_destructor<Cls>(types, rt, name);
                 return *this;
             }
 
             template <typename... Args, std::enable_if_t<sizeof...(Args) == 0, int> = 0>
             wrap_class& constructor() {
-                ctor = wrap_constructor<Cls, Args...>(types, rt);
-                if (!dtor) dtor = wrap_destructor<Cls>(types, rt);
+                methods.push_back(wrap_constructor<Cls, Args...>(types, rt, name));
+                if (!dtor) dtor = wrap_destructor<Cls>(types, rt, name);
                 return *this;
             }
 
             template <typename Ret, typename... Args>
             wrap_class& method(const std::string& _name, Ret(Cls::*func)(Args...)) {
-                methods[_name] = wrap(types, rt, name + "::" + _name, func);
+                methods.push_back(wrap(types, rt, name + "::" + _name, func));
                 return *this;
             }
 
             template <typename Ret, typename... Args>
             wrap_class& method(const std::string& _name, Ret(*func)(Args...)) {
-                methods[_name] = wrap(types, rt, name + "::" + _name, func);
-                methods[_name]->is_static_method = true;
+                methods.push_back(wrap(types, rt, name + "::" + _name, func));
+                methods[methods.size() - 1]->is_static_method = true;
                 return *this;
             }
 

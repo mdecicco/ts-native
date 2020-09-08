@@ -28,10 +28,16 @@ namespace gjs {
                     ctx.push_node(n->data_type);
                     ctx.add(operation::stack_alloc).operand(v).operand(ctx.imm(v.size()));
 
-                    if (v.has_unambiguous_method("constructor", v.type(), {})) {
+                    std::vector<vm_type*> arg_types = { ctx.type("data") }; // this obj
+                    vm_type* ret_tp = tp;
+                    if (tp->base_type && tp->is_host) {
+                        ret_tp = tp->base_type;
+                        arg_types.push_back(ctx.type("data")); // subtype id
+                    }
+
+                    if (v.has_unambiguous_method("construct", ret_tp, arg_types)) {
                         // Default constructor
                         std::vector<var> args = { v };
-                        std::vector<vm_type*> arg_types = { v.type() };
                         if (v.type()->sub_type) {
                             // second parameter should be type id. This should
                             // only happen for host calls, script subtype calls
@@ -40,7 +46,7 @@ namespace gjs {
                             args.push_back(ctx.imm((u64)v.type()->sub_type->id()));
                         }
 
-                        vm_function* f = v.method("construct", v.type(), arg_types);
+                        vm_function* f = v.method("construct", ret_tp, arg_types);
                         if (f) call(ctx, f, args);
                     } else {
                         // No construction

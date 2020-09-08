@@ -198,7 +198,6 @@ namespace gjs {
                         ct = new_types->add(ctn, ctn);
                         if (t->is_host) {
                             // just copy the details
-                            ct->constructor = t->constructor;
                             ct->destructor = t->destructor;
                             ct->methods = t->methods;
                             ct->properties = t->properties;
