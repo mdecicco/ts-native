@@ -1,5 +1,7 @@
 #pragma once
-#include <vm.h>
+#include <vm/vm.h>
+#include <backends/vm.h>
+
 #include <bind.h>
 #include <source_map.h>
 #include <util.h>
@@ -84,6 +86,7 @@ namespace gjs {
             source_map m_map;
             vm_allocator* m_alloc;
             pipeline m_pipeline;
+            vm_backend m_backend;
             bool m_is_executing;
             bool m_log_instructions;
     };

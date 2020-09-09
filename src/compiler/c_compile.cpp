@@ -2,8 +2,8 @@
 #include <compiler/context.h>
 #include <compiler/function.h>
 #include <parser/ast.h>
-#include <context.h>
-#include <vm_type.h>
+#include <vm/context.h>
+#include <vm/vm_type.h>
 #include <errors.h>
 
 namespace gjs {

@@ -1,5 +1,5 @@
-#include <vm_function.h>
-#include <vm_type.h>
+#include <vm/vm_function.h>
+#include <vm/vm_type.h>
 #include <util.h>
 #include <bind.h>
 

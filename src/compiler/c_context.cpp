@@ -1,9 +1,9 @@
 #include <compiler/context.h>
 #include <compiler/function.h>
 #include <parser/ast.h>
-#include <context.h>
-#include <vm_type.h>
-#include <vm_function.h>
+#include <vm/context.h>
+#include <vm/vm_type.h>
+#include <vm/vm_function.h>
 #include <errors.h>
 #include <warnings.h>
 
@@ -259,7 +259,7 @@ namespace gjs {
         }
 
         tac_instruction& context::add(operation op) {
-            code->push_back(new tac_instruction(op, node()->ref));
+            code.push_back(new tac_instruction(op, node()->ref));
             return *code[code.size() - 1];
         }
 

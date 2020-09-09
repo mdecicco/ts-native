@@ -1,6 +1,6 @@
 #pragma once
-#include <instruction.h>
-#include <instruction_encoder.h>
+#include <vm/instruction.h>
+#include <vm/instruction_encoder.h>
 
 namespace gjs {
     class vm_allocator;

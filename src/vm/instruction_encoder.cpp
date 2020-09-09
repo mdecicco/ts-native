@@ -1,7 +1,7 @@
-#include <instruction.h>
-#include <instruction_encoder.h>
+#include <vm/instruction.h>
+#include <vm/instruction_encoder.h>
 #include <register.h>
-#include <context.h>
+#include <vm/context.h>
 #include <util.h>
 
 namespace gjs {

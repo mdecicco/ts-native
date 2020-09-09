@@ -4,8 +4,8 @@
 #include <parser/ast.h>
 #include <compile_log.h>
 #include <errors.h>
-#include <vm_function.h>
-#include <vm_type.h>
+#include <vm/vm_function.h>
+#include <vm/vm_type.h>
 #include <register.h>
 
 namespace gjs {

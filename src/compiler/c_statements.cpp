@@ -2,8 +2,8 @@
 #include <compiler/compile.h>
 #include <compiler/function.h>
 #include <parser/ast.h>
-#include <vm_type.h>
-#include <vm_function.h>
+#include <vm/vm_type.h>
+#include <vm/vm_function.h>
 #include <compile_log.h>
 #include <errors.h>
 

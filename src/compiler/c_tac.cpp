@@ -1,5 +1,5 @@
 #include <compiler/tac.h>
-#include <vm_function.h>
+#include <vm/vm_function.h>
 
 namespace gjs {
     namespace compile {

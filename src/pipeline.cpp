@@ -1,5 +1,5 @@
 #include <pipeline.h>
-#include <context.h>
+#include <vm/context.h>
 #include <errors.h>
 
 #include <compiler/compile.h>
@@ -13,7 +13,7 @@ namespace gjs {
     pipeline::~pipeline() {
     }
 
-    bool pipeline::compile(const std::string& file, const std::string& code) {
+    bool pipeline::compile(const std::string& file, const std::string& code, backend* generator) {
         m_log.errors.clear();
         m_log.warnings.clear();
 
@@ -34,35 +34,34 @@ namespace gjs {
             throw e;
         }
 
-        u32 new_code_starts_at = m_ctx->code()->size();
-
+        ir_code ir;
         try {
-            compile::compile(m_ctx, tree);//, m_ctx->code(), m_ctx->map(), &m_log);
+            compile::compile(m_ctx, tree, ir);
             delete tree;
         } catch (error::exception& e) {
-            m_ctx->code()->remove(new_code_starts_at, m_ctx->code()->size());
             delete tree;
             throw e;
         } catch (std::exception& e) {
-            m_ctx->code()->remove(new_code_starts_at, m_ctx->code()->size());
             delete tree;
             throw e;
         }
 
-        if (m_log.errors.size() > 0) m_ctx->code()->remove(new_code_starts_at, m_ctx->code()->size());
+        if (m_log.errors.size() > 0) {
+        }
         else {
             try {
                 for (u8 i = 0;i < m_ir_steps.size();i++) {
-                    m_ir_steps[i](m_ctx, *m_ctx->code(), m_ctx->map(), new_code_starts_at);
+                    m_ir_steps[i](m_ctx, ir);
                 }
             } catch (error::exception& e) {
-                m_ctx->code()->remove(new_code_starts_at, m_ctx->code()->size());
                 throw e;
             } catch (std::exception& e) {
-                m_ctx->code()->remove(new_code_starts_at, m_ctx->code()->size());
                 throw e;
             }
+
+            generator->generate(ir);
         }
+
 
         return m_log.errors.size() == 0;
     }

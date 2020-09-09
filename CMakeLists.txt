@@ -28,6 +28,12 @@ file(GLOB_RECURSE gjs_src
     "src/parser/*.h"
     "src/parser/*.hpp"
     "src/parser/*.cpp"
+    "src/vm/*.h"
+    "src/vm/*.hpp"
+    "src/vm/*.cpp"
+    "src/backends/*.h"
+    "src/backends/*.hpp"
+    "src/backends/*.cpp"
 )
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)

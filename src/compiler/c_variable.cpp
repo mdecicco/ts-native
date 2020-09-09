@@ -5,9 +5,9 @@
 #include <parser/ast.h>
 #include <errors.h>
 #include <warnings.h>
-#include <context.h>
-#include <vm_type.h>
-#include <vm_function.h>
+#include <vm/context.h>
+#include <vm/vm_type.h>
+#include <vm/vm_function.h>
 #include <robin_hood.h>
 
 namespace gjs {

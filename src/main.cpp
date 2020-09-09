@@ -1,7 +1,7 @@
-#include <allocator.h>
-#include <vm_function.h>
-#include <context.h>
-#include <vm_type.h>
+#include <vm/allocator.h>
+#include <vm/vm_function.h>
+#include <vm/context.h>
+#include <vm/vm_type.h>
 #include <stdio.h>
 
 using namespace gjs;

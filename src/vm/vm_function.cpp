@@ -1,9 +1,9 @@
-#include <vm_function.h>
-#include <vm_type.h>
+#include <vm/vm_function.h>
+#include <vm/vm_type.h>
 #include <bind.h>
 #include <util.h>
 #include <register.h>
-#include <context.h>
+#include <vm/context.h>
 
 namespace gjs {
     vm_function::vm_function(vm_context* ctx, const std::string _name, address addr) {

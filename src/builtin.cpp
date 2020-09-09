@@ -1,8 +1,8 @@
-#include <vm_function.h>
-#include <vm_type.h>
+#include <vm/vm_function.h>
+#include <vm/vm_type.h>
 #include <builtin.h>
-#include <vm_type.h>
-#include <context.h>
+#include <vm/vm_type.h>
+#include <vm/context.h>
 #include <bind.h>
 
 namespace gjs {

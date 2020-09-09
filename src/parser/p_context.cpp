@@ -1,6 +1,6 @@
 #include <parser/context.h>
-#include <context.h>
-#include <vm_type.h>
+#include <vm/context.h>
+#include <vm/vm_type.h>
 
 namespace gjs {
     namespace parse {

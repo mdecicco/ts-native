@@ -1,7 +1,7 @@
 #pragma once
 #include <types.h>
-#include <vm_state.h>
-#include <instruction_array.h>
+#include <vm/vm_state.h>
+#include <vm/instruction_array.h>
 
 namespace gjs {
     class vm_allocator;

@@ -1,4 +1,4 @@
-#include <instruction.h>
+#include <vm/instruction.h>
 
 namespace gjs {
     const char* instruction_str[(i32)vm_instruction::instruction_count] = {

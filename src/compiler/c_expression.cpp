@@ -6,7 +6,7 @@
 #include <warnings.h>
 #include <compile_log.h>
 #include <bind.h>
-#include <vm_type.h>
+#include <vm/vm_type.h>
 
 namespace gjs {
     using namespace parse;

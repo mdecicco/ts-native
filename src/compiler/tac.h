@@ -1,5 +1,5 @@
 #pragma once
-#include <instruction.h>
+#include <vm/instruction.h>
 #include <compiler/variable.h>
 
 namespace gjs {

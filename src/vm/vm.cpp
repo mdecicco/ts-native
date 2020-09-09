@@ -1,10 +1,10 @@
-#include <vm.h>
-#include <allocator.h>
+#include <vm/vm.h>
+#include <vm/allocator.h>
 #include <stdarg.h>
 #include <string.h>
-#include <context.h>
-#include <vm_function.h>
-#include <vm_type.h>
+#include <vm/context.h>
+#include <vm/vm_function.h>
+#include <vm/vm_type.h>
 
 #include <asmjit/asmjit.h>
 using namespace asmjit;
