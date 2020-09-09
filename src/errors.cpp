@@ -33,6 +33,15 @@ namespace gjs {
             "Function '%s %s %s' already has a body",
             "Property '%s' of type '%s' is non-static. References to this property must be relative to a specific object",
             "'%s' does not name a type",
+            "Type '%s' can not be constructed without parameters",
+            "Identifier '%s' is undefined",
+            "Cannot delete variable '%s' which was not constructed with 'new'",
+            "Cannot delete object which was not constructed with 'new'",
+            "Cannot delete variable '%s' which is not an object",
+            "Cannot delete object which is not an object",
+            "'return' statement is invalid in the global scope",
+            "Cannot return a value from a function with no return type",
+            "Compilation finished with errors",
             "" // end compile errors
         };
 

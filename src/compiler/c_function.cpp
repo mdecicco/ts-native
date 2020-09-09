@@ -71,12 +71,14 @@ namespace gjs {
 
                 f->signature.return_type = ret;
                 ctx.new_functions.push_back(f);
+                ctx.push_block(f);
             }
             
             f->access.entry = ctx.code.size();
 
             block(ctx, n->body);
 
+            ctx.pop_block();
             ctx.pop_node();
         }
 
@@ -110,14 +112,15 @@ namespace gjs {
                     var obj = expression(ctx, n->callee->lvalue);
 
                     std::vector<var> args = { obj };
-                    std::vector<vm_type*> arg_types = { obj.type() };
+                    std::vector<vm_type*> arg_types = { };
+
                     if (obj.type()->sub_type && obj.type()->is_host) {
-                        // second parameter should be type id. This should
-                        // only happen for host calls, script subtype calls
-                        // should be compiled as if all occurrences of 'subtype'
-                        // are the subtype used by the related instantiation
-                        args.push_back(ctx.imm((u64)obj.type()->sub_type->id()));
-                        arg_types.push_back(ctx.type("subtype"));
+                        // Host subtype classes will expect 'this' to be
+                        // the base type, not including the subtype
+                        arg_types.push_back(obj.type()->base_type);
+                    } else {
+                        // 'this'
+                        arg_types.push_back(obj.type());
                     }
 
                     ast* a = n->arguments;
@@ -128,7 +131,7 @@ namespace gjs {
                         a = a->next;
                     }
                     vm_function* func = obj.method(*n->callee->rvalue, nullptr, arg_types);
-                    if (func)  return call(ctx, func, args);
+                    if (func) return call(ctx, func, args);
                 }
             } else if (n->callee->type == nt::identifier) {
                 std::vector<var> args;
@@ -162,7 +165,41 @@ namespace gjs {
         }
 
         var call(context& ctx, vm_function* func, const std::vector<var>& args) {
-            return ctx.dummy_var(func->signature.return_type);
+            if (func->signature.return_type->name == "subtype") {
+                if (func->is_method_of) {
+                    vm_type* this_tp = args[0].type();
+                    var result = ctx.empty_var(this_tp->sub_type);
+                    for (u8 i = 0;i < args.size();i++) {
+                        ctx.add(operation::param).operand(args[i].convert(func->signature.arg_types[i]));
+                    }
+                    ctx.add(operation::call).operand(result).func(func);
+
+                    if (func->signature.returns_pointer) {
+                        var ret = ctx.empty_var(this_tp->sub_type);
+                        ret.set_mem_ptr(result);
+                        ctx.add(operation::load).operand(ret).operand(result);
+                        return ret;
+                    }
+                    return result;
+                } else {
+                    // subtype functions (global functions) are not supported yet
+                    return ctx.error_var();
+                }
+            } else {
+                var result = ctx.empty_var(func->signature.return_type);
+                for (u8 i = 0;i < args.size();i++) {
+                    ctx.add(operation::param).operand(args[i].convert(func->signature.arg_types[i]));
+                }
+                ctx.add(operation::call).operand(result).func(func);
+
+                if (func->signature.returns_pointer) {
+                    var ret = ctx.empty_var(func->signature.return_type);
+                    ret.set_mem_ptr(result);
+                    ctx.add(operation::load).operand(ret).operand(result);
+                    return ret;
+                }
+                return result;
+            }
         }
 
     };

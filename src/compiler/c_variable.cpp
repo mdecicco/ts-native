@@ -1,6 +1,7 @@
 #include <compiler/variable.h>
 #include <compiler/context.h>
 #include <compiler/function.h>
+#include <compiler/compile.h>
 #include <parser/ast.h>
 #include <errors.h>
 #include <warnings.h>
@@ -18,10 +19,42 @@ namespace gjs {
         bool has_valid_conversion(vm_type* from, vm_type* to) {
             if (from->id() == to->id()) return true;
             if (from->base_type && from->base_type->id() == to->id()) return true;
+            if (!from->is_primitive && to->name == "data") return true;
+            if (from->name == "data" && !to->is_primitive) return true;
 
-            // the rest
+            if (!from->is_primitive) {
+                for (u16 m = 0;m < from->methods.size();m++) {
+                    std::vector<std::string> mparts = split(split(from->methods[m]->name, ":")[1], " \t\n\r");
+                    if (mparts.size() != 2) continue;
+                    bool matched = true;
+                    if (mparts[0] == "operator" && mparts[1] == to->name) {
+                        // cast function exists
+                        return true;
+                    }
+                }
 
-            return false;
+                return false;
+            }
+
+            if (!to->is_primitive) {
+                for (u16 m = 0;m < to->methods.size();m++) {
+                    std::vector<std::string> mparts = split(split(to->methods[m]->name, ":")[1], " \t\n\r");
+                    if (mparts.size() != 1) continue;
+                    if (mparts[0] != "constructor") continue;
+                    vm_function* ctor = to->methods[m];
+                    if (ctor->signature.arg_types.size() != 2) continue;
+                    vm_type* copyFromTp = ctor->signature.arg_types[1];
+                    if (copyFromTp->id() == from->id()) return true;
+                    if (copyFromTp->name == "subtype" && has_valid_conversion(from, copyFromTp->sub_type)) return true;
+                }
+
+                return false;
+            }
+
+            if (from->name == "void" || to->name == "void") return false;
+
+            // conversion between primitive types is always possible
+            return true;
         }
 
 
@@ -32,9 +65,12 @@ namespace gjs {
             m_reg_id = -1;
             m_imm.u = u;
             m_type = ctx->type("u64");
+            m_is_stack_obj = false;
             m_mem_ptr.valid = false;
-            m_mem_ptr.reg = 0;
+            m_mem_ptr.reg = -1;
             m_flags = bind::pf_none;
+            m_setter.this_obj = nullptr;
+            m_setter.func = nullptr;
         }
 
         var::var(context* ctx, i64 i) {
@@ -45,8 +81,11 @@ namespace gjs {
             m_reg_id = -1;
             m_imm.i = i;
             m_type = ctx->type("i64");
+            m_is_stack_obj = false;
             m_mem_ptr.valid = false;
-            m_mem_ptr.reg = 0;
+            m_mem_ptr.reg = -1;
+            m_setter.this_obj = nullptr;
+            m_setter.func = nullptr;
         }
 
         var::var(context* ctx, f32 f) {
@@ -57,8 +96,11 @@ namespace gjs {
             m_reg_id = -1;
             m_imm.f = f;
             m_type = ctx->type("f32");
+            m_is_stack_obj = false;
             m_mem_ptr.valid = false;
-            m_mem_ptr.reg = 0;
+            m_mem_ptr.reg = -1;
+            m_setter.this_obj = nullptr;
+            m_setter.func = nullptr;
         }
 
         var::var(context* ctx, f64 d) {
@@ -69,8 +111,11 @@ namespace gjs {
             m_reg_id = -1;
             m_imm.d = d;
             m_type = ctx->type("f64");
+            m_is_stack_obj = false;
             m_mem_ptr.valid = false;
-            m_mem_ptr.reg = 0;
+            m_mem_ptr.reg = -1;
+            m_setter.this_obj = nullptr;
+            m_setter.func = nullptr;
         }
 
         var::var(context* ctx, const std::string& s) {
@@ -80,8 +125,12 @@ namespace gjs {
             m_flags = bind::pf_none;
             m_reg_id = -1;
             m_type = ctx->type("string");
+            m_imm.u = 0;
+            m_is_stack_obj = false;
             m_mem_ptr.valid = false;
-            m_mem_ptr.reg = 0;
+            m_mem_ptr.reg = -1;
+            m_setter.this_obj = nullptr;
+            m_setter.func = nullptr;
         }
 
         var::var(context* ctx, u32 reg_id, vm_type* type) {
@@ -91,8 +140,12 @@ namespace gjs {
             m_flags = bind::pf_none;
             m_reg_id = reg_id;
             m_type = type;
+            m_imm.u = 0;
+            m_is_stack_obj = false;
             m_mem_ptr.valid = false;
-            m_mem_ptr.reg = 0;
+            m_mem_ptr.reg = -1;
+            m_setter.this_obj = nullptr;
+            m_setter.func = nullptr;
         }
 
         var::var() {
@@ -102,8 +155,11 @@ namespace gjs {
             m_reg_id = -1;
             m_type = nullptr;
             m_imm.u = 0;
+            m_is_stack_obj = false;
             m_mem_ptr.valid = false;
             m_mem_ptr.reg = 0;
+            m_setter.this_obj = nullptr;
+            m_setter.func = nullptr;
         }
 
         var::var(const var& v) {
@@ -115,9 +171,15 @@ namespace gjs {
             m_imm = v.m_imm;
             m_type = v.m_type;
             m_mem_ptr = v.m_mem_ptr;
+            m_name = v.m_name;
+            m_is_stack_obj = v.m_is_stack_obj;
+            m_setter.func = v.m_setter.func;
+            m_setter.this_obj = v.m_setter.this_obj;
         }
 
         var::~var() {
+            m_setter.this_obj = nullptr;
+            m_setter.func = nullptr;
         }
 
 
@@ -139,16 +201,32 @@ namespace gjs {
             for (u16 i = 0;i < m_type->properties.size();i++) {
                 auto& p = m_type->properties[i];
                 if (p.name == prop) {
-                    var ptr = m_ctx->empty_var(m_ctx->type("u64"));
-                    if (p.flags & bind::pf_static) {
-                        m_ctx->add(operation::eq).operand(ptr).operand(m_ctx->imm(p.offset));
+                    if (p.getter) {
+                        var v = call(*m_ctx, p.getter, { *this });
+                        if (p.setter) {
+                            v.m_setter.this_obj.reset(new var(*this));
+                            v.m_setter.func = p.setter;
+                        }
+                        v.m_flags = p.flags;
+                        return v;
                     } else {
-                        m_ctx->add(operation::uadd).operand(ptr).operand(*this).operand(m_ctx->imm(p.offset));
+                        var ptr = m_ctx->empty_var(m_ctx->type("u64"));
+                        if (p.flags & bind::pf_static) {
+                            m_ctx->add(operation::eq).operand(ptr).operand(m_ctx->imm(p.offset));
+                        } else {
+                            m_ctx->add(operation::uadd).operand(ptr).operand(*this).operand(m_ctx->imm(p.offset));
+                        }
+                        var ret = m_ctx->empty_var(p.type);
+                        ret.set_mem_ptr(ptr);
+                        m_ctx->add(operation::load).operand(ret).operand(ptr);
+
+                        if (p.setter) {
+                            ret.m_setter.this_obj.reset(new var(*this));
+                            ret.m_setter.func = p.setter;
+                        }
+                        ret.m_flags = p.flags;
+                        return ret;
                     }
-                    var ret = m_ctx->empty_var(p.type);
-                    ret.set_mem_ptr(ptr);
-                    m_ctx->add(operation::load).operand(ret).operand(ptr);
-                    return ret;
                 }
             }
 
@@ -172,6 +250,28 @@ namespace gjs {
 
             throw exc(ec::c_no_such_property, m_ctx->node()->ref, m_type->name.c_str(), prop.c_str());
             return var();
+        }
+
+        bool var::has_any_method(const std::string& _name) const {
+            for (u16 m = 0;m < m_type->methods.size();m++) {
+                // match name
+                vm_function* func = nullptr;
+                if (_name.find_first_of(' ') != std::string::npos) {
+                    // probably an operator
+                    std::vector<std::string> mparts = split(split(m_type->methods[m]->name, ":")[1], " \t\n\r");
+                    std::vector<std::string> sparts = split(_name, " \t\n\r");
+                    if (mparts.size() != sparts.size()) continue;
+                    bool matched = true;
+                    for (u32 i = 0;matched && i < mparts.size();i++) {
+                        matched = mparts[i] == sparts[i];
+                    }
+                    if (matched) return true;
+                }
+                std::string& bt_name = m_type->base_type ? m_type->base_type->name : m_type->name;
+                if (m_type->methods[m]->name == bt_name + "::" + _name) return true;
+            }
+
+            return false;
         }
 
         bool var::has_unambiguous_method(const std::string& _name, vm_type* ret, const std::vector<vm_type*>& args) const {
@@ -206,9 +306,16 @@ namespace gjs {
                 // prefer strict type matches
                 bool match = true;
                 for (u8 i = 0;i < args.size();i++) {
-                    if (func->signature.arg_types[i]->id() != args[i]->id()) {
-                        match = false;
-                        break;
+                    if (func->signature.arg_types[i]->name == "subtype") {
+                        if (m_type->sub_type->id() != args[i]->id()) {
+                            match = false;
+                            break;
+                        }
+                    } else {
+                        if (func->signature.arg_types[i]->id() != args[i]->id()) {
+                            match = false;
+                            break;
+                        }
                     }
                 }
 
@@ -218,7 +325,9 @@ namespace gjs {
                     // check if the arguments are at least convertible
                     match = true;
                     for (u8 i = 0;i < args.size();i++) {
-                        if (!has_valid_conversion(args[i], func->signature.arg_types[i])) {
+                        vm_type* at = func->signature.arg_types[i];
+                        if (at->name == "subtype") at = m_type->sub_type;
+                        if (!has_valid_conversion(args[i], at)) {
                             match = false;
                             break;
                         }
@@ -267,9 +376,16 @@ namespace gjs {
                 // prefer strict type matches
                 bool match = true;
                 for (u8 i = 0;i < args.size();i++) {
-                    if (func->signature.arg_types[i]->id() != args[i]->id()) {
-                        match = false;
-                        break;
+                    if (func->signature.arg_types[i]->name == "subtype") {
+                        if (m_type->sub_type->id() != args[i]->id()) {
+                            match = false;
+                            break;
+                        }
+                    } else {
+                        if (func->signature.arg_types[i]->id() != args[i]->id()) {
+                            match = false;
+                            break;
+                        }
                     }
                 }
 
@@ -279,7 +395,9 @@ namespace gjs {
                     // check if the arguments are at least convertible
                     match = true;
                     for (u8 i = 0;i < args.size();i++) {
-                        if (!has_valid_conversion(args[i], func->signature.arg_types[i])) {
+                        vm_type* at = func->signature.arg_types[i];
+                        if (at->name == "subtype") at = m_type->sub_type;
+                        if (!has_valid_conversion(args[i], at)) {
                             match = false;
                             break;
                         }
@@ -292,7 +410,7 @@ namespace gjs {
             }
 
             if (matches.size() > 1) {
-                m_ctx->log()->err(ec::c_ambiguous_method, m_ctx->node()->ref, _name.c_str(), m_type->name.c_str(), arg_tp_str(args).c_str(), ret->name.c_str());
+                m_ctx->log()->err(ec::c_ambiguous_method, m_ctx->node()->ref, _name.c_str(), m_type->name.c_str(), arg_tp_str(args).c_str(), !ret ? "<any>" : ret->name.c_str());
                 return nullptr;
             }
 
@@ -300,7 +418,7 @@ namespace gjs {
                 return matches[0];
             }
 
-            m_ctx->log()->err(ec::c_no_such_method, m_ctx->node()->ref, m_type->name.c_str(), _name.c_str(), arg_tp_str(args).c_str(), ret->name.c_str());
+            m_ctx->log()->err(ec::c_no_such_method, m_ctx->node()->ref, m_type->name.c_str(), _name.c_str(), arg_tp_str(args).c_str(), !ret ? "<any>" : ret->name.c_str());
             return nullptr;
         }
 
@@ -309,16 +427,37 @@ namespace gjs {
         }
 
         var var::convert(vm_type* tp) const {
-            return var();
+            return *this;
         }
 
         std::string var::to_string() const {
-            return "";
+            if (m_is_imm) {
+                if (m_type->is_floating_point) {
+                    if (m_type->size == sizeof(f64)) {
+                        return format("%f", m_imm.d);
+                    } else {
+                        return format("%f", m_imm.f);
+                    }
+                } else {
+                    if (m_type->is_unsigned) {
+                        return format("%llu", m_imm.u);
+                    } else {
+                        return format("%lld", m_imm.i);
+                    }
+                }
+            }
+
+            if (m_name.length() > 0) return format("$%d (%s)", m_reg_id, m_name.c_str());
+            return format("$%d", m_reg_id);
         }
 
         void var::set_mem_ptr(const var& v) {
             m_mem_ptr.valid = v.valid();
             m_mem_ptr.reg = v.m_reg_id;
+        }
+
+        vm_type* var::call_this_tp() const {
+            return m_type->base_type && m_type->is_host ? m_type->base_type : m_type;
         }
 
 
@@ -440,7 +579,7 @@ namespace gjs {
                 return ret;
             }
             else {
-                vm_function* f = a.method(std::string("operator ") + ot_str[(u8)_op], a.type(), { b.type() });
+                vm_function* f = a.method(std::string("operator ") + ot_str[(u8)_op], a.type(), { a.call_this_tp(), b.type() });
                 if (f) {
                     return call(*ctx, f, { a, b.convert(f->signature.arg_types[0]) });
                 }
@@ -570,29 +709,61 @@ namespace gjs {
         }
 
         var var::operator ++ () const {
-            var result = do_bin_op(m_ctx, *this, m_ctx->imm(i64(1)), ot::add);
-            operator_eq(result);
-            return result;
+            if (m_type->is_primitive) {
+                var result = do_bin_op(m_ctx, *this, m_ctx->imm(i64(1)), ot::add);
+                operator_eq(result);
+                return result;
+            }
+
+            vm_function* f = method("operator ++", m_type, { call_this_tp() });
+            if (f) return call(*m_ctx, f, { *this });
         }
 
         var var::operator -- () const {
-            var result = do_bin_op(m_ctx, *this, m_ctx->imm(i64(1)), ot::sub);
-            operator_eq(result);
-            return result;
+            if (m_type->is_primitive) {
+                var result = do_bin_op(m_ctx, *this, m_ctx->imm(i64(1)), ot::sub);
+                operator_eq(result);
+                return result;
+            }
+
+            vm_function* f = method("operator --", m_type, { call_this_tp() });
+            if (f) return call(*m_ctx, f, { *this });
         }
 
         var var::operator ++ (int) const {
-            var clone = m_ctx->clone_var(*this);
-            var result = do_bin_op(m_ctx, *this, m_ctx->imm(i64(1)), ot::add);
-            operator_eq(result);
-            return result;
+            if (m_type->is_primitive) {
+                var clone = m_ctx->empty_var(m_type);
+                clone.operator_eq(*this);
+                var result = do_bin_op(m_ctx, *this, m_ctx->imm(i64(1)), ot::add);
+                operator_eq(result);
+                return result;
+            }
+
+            var clone = m_ctx->empty_var(m_type);
+            // todo: specific error when type is not copy constructible 
+            construct_on_stack(*m_ctx, clone, { *this });
+            clone.raise_stack_flag();
+            vm_function* f = method("operator ++", m_type, { call_this_tp() });
+            if (f) call(*m_ctx, f, { *this });
+            return clone;
         }
 
         var var::operator -- (int) const {
-            var clone = m_ctx->clone_var(*this);
-            var result = do_bin_op(m_ctx, *this, m_ctx->imm(i64(1)), ot::sub);
-            operator_eq(result);
-            return result;
+            if (m_type->is_primitive) {
+                var clone = m_ctx->empty_var(m_type);
+                clone.operator_eq(*this);
+                var result = do_bin_op(m_ctx, *this, m_ctx->imm(i64(1)), ot::sub);
+                operator_eq(result);
+                return result;
+            }
+
+            var clone = m_ctx->empty_var(m_type);
+            // todo: specific error when type is not copy constructible 
+            construct_on_stack(*m_ctx, clone, { *this });
+            clone.raise_stack_flag();
+            vm_function* f = method("operator --", m_type, { call_this_tp() });
+            if (f) call(*m_ctx, f, { *this });
+            return clone;
         }
 
         var var::operator < (const var& rhs) const {
@@ -620,26 +791,43 @@ namespace gjs {
         }
 
         var var::operator ! () const {
-            return do_bin_op(m_ctx, *this, m_ctx->imm(i64(0)), ot::isEq);
+            if (m_type->is_primitive) {
+                return do_bin_op(m_ctx, *this, m_ctx->imm(i64(0)), ot::isEq);
+            }
+
+            vm_function* f = method("operator !", m_type, { call_this_tp() });
+            if (f) return call(*m_ctx, f, { *this });
         }
 
         var var::operator - () const {
-            m_ctx->add(operation::neg).operand(*this);
-            return m_ctx->clone_var(*this);
+            if (m_type->is_primitive) {
+                var v = m_ctx->empty_var(m_type);
+                m_ctx->add(operation::neg).operand(v).operand(*this);
+                return v;
+            }
+
+            vm_function* f = method("operator -", m_type, { call_this_tp() });
+            if (f) return call(*m_ctx, f, { *this });
         }
 
         var var::operator_eq (const var& rhs) const {
-            m_ctx->add(operation::eq).operand(*this).operand(rhs.convert(m_type));
-            if (m_mem_ptr.valid) {
-                m_ctx->add(operation::store).operand(*this).operand(var(m_ctx, m_mem_ptr.reg, m_type));
+            if (m_setter.func) {
+                var real_value = call(*m_ctx, m_setter.func, { *m_setter.this_obj, rhs });
+                m_ctx->add(operation::eq).operand(*this).operand(real_value);
+            } else {
+                m_ctx->add(operation::eq).operand(*this).operand(rhs.convert(m_type));
+                if (m_mem_ptr.valid) {
+                    m_ctx->add(operation::store).operand(*this).operand(var(m_ctx, m_mem_ptr.reg, m_type));
+                }
             }
-            return m_ctx->clone_var(*this);
+
+            return *this;
         }
 
         var var::operator [] (const var& rhs) const {
-            vm_function* f = method("operator []", nullptr, { rhs.type() });
+            vm_function* f = method("operator []", nullptr, { call_this_tp(), rhs.type() });
             if (f) {
-                return call(*m_ctx, f, { *this, rhs.convert(f->signature.arg_types[0]) });
+                return call(*m_ctx, f, { *this, rhs });
             }
 
             return m_ctx->error_var();

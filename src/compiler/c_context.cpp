@@ -13,11 +13,12 @@ namespace gjs {
     using wc = warning::wcode;
 
     namespace compile {
-        context::context() {
+        context::context(std::vector<tac_instruction*>& out) : code(out) {
             next_reg_id = 0;
             env = nullptr;
             input = nullptr;
             new_types = nullptr;
+            push_block();
         }
 
         var context::imm(u64 u) {
@@ -40,13 +41,10 @@ namespace gjs {
             return var(this, s);
         }
 
-        var context::clone_var(var v) {
-            return var();
-        }
-
         var context::empty_var(vm_type* type, const std::string& name) {
             var v = var(this, next_reg_id++, type);
             v.m_name = name;
+            func_stack[func_stack.size() - 1]->named_vars.push_back(v);
             return v;
         }
 
@@ -60,6 +58,7 @@ namespace gjs {
             v.m_instantiation = node()->ref;
             v.m_name = name;
             v.m_type = type;
+            func_stack[func_stack.size() - 1]->named_vars.push_back(v);
             return v;
         }
 
@@ -80,7 +79,14 @@ namespace gjs {
         }
 
         var context::get_var(const std::string& name) {
-            return var();
+            for (u8 i = func_stack.size() - 1;i > 0;i--) {
+                for (u16 v = 0;v < func_stack[i]->named_vars.size();v++) {
+                    if (func_stack[i]->named_vars[v].name() == name) return func_stack[i]->named_vars[v];
+                }
+            }
+
+            log()->err(ec::c_undefined_identifier, node()->ref, name.c_str());
+            return error_var();
         }
 
         vm_function* context::function(const std::string& name, vm_type* ret, const std::vector<vm_type*>& args) {
@@ -129,7 +135,7 @@ namespace gjs {
             }
 
             if (matches.size() > 1) {
-                log()->err(ec::c_ambiguous_function, node()->ref, name.c_str(), name.c_str(), arg_tp_str(args).c_str(), ret->name.c_str());
+                log()->err(ec::c_ambiguous_function, node()->ref, name.c_str(), name.c_str(), arg_tp_str(args).c_str(), !ret ? "<any>" : ret->name.c_str());
                 return nullptr;
             }
 
@@ -137,7 +143,7 @@ namespace gjs {
                 return matches[0];
             }
 
-            log()->err(ec::c_no_such_function, node()->ref, name.c_str(), arg_tp_str(args).c_str(), ret->name.c_str());
+            log()->err(ec::c_no_such_function, node()->ref, name.c_str(), arg_tp_str(args).c_str(), !ret ? "<any>" : ret->name.c_str());
             return nullptr;
         }
 
@@ -182,6 +188,7 @@ namespace gjs {
 
             return t;
         }
+
         vm_type* context::type(parse::ast* type_identifier) {
             vm_type* t = type(*type_identifier);
             if (!t) return nullptr;
@@ -252,16 +259,26 @@ namespace gjs {
         }
 
         tac_instruction& context::add(operation op) {
-            code.push_back(tac_instruction(op, node()->ref));
-            return code[code.size() - 1];
+            code->push_back(new tac_instruction(op, node()->ref));
+            return *code[code.size() - 1];
         }
-        
+
         void context::push_node(parse::ast* node) {
             node_stack.push_back(node);
         }
 
         void context::pop_node() {
             node_stack.pop_back();
+        }
+
+        void context::push_block(vm_function* f) {
+            func_stack.push_back(new block_context);
+            func_stack[func_stack.size() - 1]->func = f;
+        }
+
+        void context::pop_block() {
+            if (func_stack[func_stack.size() - 1]) delete func_stack[func_stack.size() - 1];
+            func_stack.pop_back();
         }
 
         parse::ast* context::node() {

@@ -390,12 +390,12 @@ namespace gjs {
 
         template <typename Cls, typename... Args>
         wrapped_function* wrap_constructor(type_manager* tpm, asmjit::JitRuntime& rt, const std::string& name) {
-            return wrap(tpm, rt, name + "::construct", construct_object<Cls, Args...>);
+            return wrap(tpm, rt, name + "::constructor", construct_object<Cls, Args...>);
         }
 
         template <typename Cls>
         wrapped_function* wrap_destructor(type_manager* tpm, asmjit::JitRuntime& rt, const std::string& name) {
-            return wrap(tpm, rt, name + "::destruct", destruct_object<Cls>);
+            return wrap(tpm, rt, name + "::destructor", destruct_object<Cls>);
         }
 
         enum property_flags {

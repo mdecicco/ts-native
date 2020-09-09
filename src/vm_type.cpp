@@ -65,7 +65,7 @@ namespace gjs {
 
         for (u32 i = 0;i < wrapped->methods.size();i++) {
             bind::wrapped_function* f = wrapped->methods[i];
-            if (f->name.find_first_of("::construct") != std::string::npos) {
+            if (f->name.find("::constructor") != std::string::npos) {
                 t->methods.push_back(new vm_function(this, t, f, true));
                 continue;
             }

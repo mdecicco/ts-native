@@ -17,17 +17,24 @@ namespace gjs {
             parse::ast* input;
             type_manager* new_types;
             std::vector<vm_function*> new_functions;
-            std::vector<tac_instruction> code;
+            std::vector<tac_instruction*>& code;
             u32 next_reg_id;
             std::vector<parse::ast*> node_stack;
 
-            context();
+            struct block_context {
+                vm_function* func;
+                std::vector<var> named_vars;
+            };
+
+            // stack is used in case I figure out a way to have arrow functions declared inside of functions
+            std::vector<block_context*> func_stack;
+
+            context(std::vector<tac_instruction*>& out);
             var imm(u64 u);
             var imm(i64 i);
             var imm(f32 f);
             var imm(f64 d);
             var imm(const std::string& s);
-            var clone_var(var v);
             var empty_var(vm_type* type, const std::string& name);
             var empty_var(vm_type* type);
             var dummy_var(vm_type* type, const std::string& name);
@@ -54,6 +61,8 @@ namespace gjs {
             tac_instruction& add(operation op);
             void push_node(parse::ast* node);
             void pop_node();
+            void push_block(vm_function* f = nullptr);
+            void pop_block();
             parse::ast* node();
             compile_log* log();
         };

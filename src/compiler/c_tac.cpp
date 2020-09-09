@@ -63,6 +63,8 @@ namespace gjs {
             "eq",
             "neg",
             "call",
+            "param",
+            "ret",
             "branch",
             "jump"
         };
@@ -86,7 +88,7 @@ namespace gjs {
 
         std::string tac_instruction::to_string() const {
             std::string out = op_str[(u8)op];
-            if (callee) return out + " " + callee->name;
+            if (callee) return out + " " + callee->name + " -> " + operands[0].to_string();
             for (u8 i = 0;i < op_idx;i++) out += " " + operands[i].to_string();
             return out;
         }

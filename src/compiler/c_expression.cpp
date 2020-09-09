@@ -117,102 +117,39 @@ namespace gjs {
                     ctx.push_node(n);
                     vm_type* tp = ctx.type(n->data_type);
                     var obj = ctx.empty_var(tp);
-                    obj.operator_eq(call(ctx, ctx.function("alloc", ctx.type("data"), { ctx.type("u32") }), { ctx.imm((u64)tp->size) }));
-                    ctx.pop_node();
 
-                    ctx.push_node(n->data_type);
-                    if (n->arguments) {
-                        std::vector<var> args = { obj };
-                        std::vector<vm_type*> arg_types = { obj.type() };
-                        if (obj.type()->sub_type) {
-                            // second parameter should be type id. This should
-                            // only happen for host calls, script subtype calls
-                            // should be compiled as if all occurrences of 'subtype'
-                            // are the subtype used by the related instantiation
-                            args.push_back(ctx.imm((u64)obj.type()->sub_type->id()));
-                            arg_types.push_back(ctx.type("subtype"));
-                        }
+                    std::vector<var> args;
 
-                        ast* a = n->arguments;
-                        while (a) {
-                            var arg = expression(ctx, a);
-                            args.push_back(arg);
-                            arg_types.push_back(arg.type());
-                            a = a->next;
-                        }
-
-                        vm_function* f = obj.method("construct", obj.type(), arg_types);
-                        if (f) call(ctx, f, args);
-                    } else {
-                        if (obj.has_unambiguous_method("constructor", obj.type(), {})) {
-                            // Default constructor
-                            std::vector<var> args = { obj };
-                            std::vector<vm_type*> arg_types = { obj.type() };
-                            if (obj.type()->sub_type) {
-                                // second parameter should be type id. This should
-                                // only happen for host calls, script subtype calls
-                                // should be compiled as if all occurrences of 'subtype'
-                                // are the subtype used by the related instantiation
-                                args.push_back(ctx.imm((u64)obj.type()->sub_type->id()));
-                            }
-
-                            vm_function* f = obj.method("construct", obj.type(), arg_types);
-                            if (f) call(ctx, f, args);
-                        } else {
-                            // No construction
-                        }
+                    ast* a = n->arguments;
+                    while (a) {
+                        var arg = expression(ctx, a);
+                        args.push_back(arg);
+                        a = a->next;
                     }
 
+                    construct_in_memory(ctx, obj, args);
                     ctx.pop_node();
+                    return obj;
                     break;
                 }
                 case ot::stackObj: {
                     ctx.push_node(n->data_type);
                     var obj = ctx.empty_var(ctx.type(n->data_type));
-                    ctx.add(operation::stack_alloc).operand(obj).operand(ctx.imm(obj.size()));
+                    std::vector<var> args;
 
-                    if (n->arguments) {
-                        std::vector<var> args = { obj };
-                        std::vector<vm_type*> arg_types = { obj.type() };
-                        if (obj.type()->sub_type && obj.type()->is_host) {
-                            // second parameter should be type id. This should
-                            // only happen for host calls, script subtype calls
-                            // should be compiled as if all occurrences of 'subtype'
-                            // are the subtype used by the related instantiation
-                            args.push_back(ctx.imm((u64)obj.type()->sub_type->id()));
-                        }
-
-                        ast* a = n->arguments;
-                        while (a) {
-                            var arg = expression(ctx, a);
-                            args.push_back(arg);
-                            arg_types.push_back(arg.type());
-                            a = a->next;
-                        }
-
-                        vm_function* f = obj.method("construct", obj.type(), arg_types);
-                        if (f) call(ctx, f, args);
-                    } else {
-                        if (obj.has_unambiguous_method("constructor", obj.type(), {})) {
-                            // Default constructor
-                            std::vector<var> args = { obj };
-                            std::vector<vm_type*> arg_types = { obj.type() };
-                            if (obj.type()->sub_type && obj.type()->is_host) {
-                                // second parameter should be type id. This should
-                                // only happen for host calls, script subtype calls
-                                // should be compiled as if all occurrences of 'subtype'
-                                // are the subtype used by the related instantiation
-                                args.push_back(ctx.imm((u64)obj.type()->sub_type->id()));
-                            }
-
-                            vm_function* f = obj.method("construct", obj.type(), arg_types);
-                            if (f) call(ctx, f, args);
-                        } else {
-                            // No construction
-                        }
+                    ast* a = n->arguments;
+                    while (a) {
+                        var arg = expression(ctx, a);
+                        args.push_back(arg);
+                        a = a->next;
                     }
 
+                    construct_on_stack(ctx, obj, args);
+
                     ctx.pop_node();
+
+                    obj.raise_stack_flag();
+                    return obj;
                     break;
                 }
             }

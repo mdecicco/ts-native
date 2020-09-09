@@ -11,6 +11,10 @@ namespace gjs {
     namespace compile {
         struct context;
 
+        void construct_on_stack(context& ctx, const var& obj, const std::vector<var>& args);
+
+        void construct_in_memory(context& ctx, const var& obj, const std::vector<var>& args);
+
         void variable_declaration(context& ctx, parse::ast* n);
 
         void function_declaration(context& ctx, parse::ast* n);
@@ -43,6 +47,6 @@ namespace gjs {
 
         void block(context&ctx, parse::ast* n);
 
-        void compile(vm_context* env, parse::ast* input);
+        void compile(vm_context* env, parse::ast* input, std::vector<tac_instruction*>& out);
     };
 };

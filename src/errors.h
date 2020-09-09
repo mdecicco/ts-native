@@ -35,6 +35,15 @@ namespace gjs {
             c_function_already_defined,
             c_class_property_not_static,
             c_no_such_type,
+            c_no_default_constructor,
+            c_undefined_identifier,
+            c_no_stack_delete_named_var,
+            c_no_stack_delete,
+            c_no_primitive_delete_named_var,
+            c_no_primitive_delete,
+            c_no_global_return,
+            c_no_void_return_val,
+            c_compile_finished_with_errors,
             __compile_error_end
         };
 

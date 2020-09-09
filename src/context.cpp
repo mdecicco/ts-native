@@ -2,9 +2,7 @@
 #include <vm_function.h>
 #include <vm_type.h>
 #include <bind.h>
-// #include <compiler/compiler.h>
 #include <asmjit/asmjit.h>
-#include <default_steps.h>
 #include <builtin.h>
 #include <errors.h>
 
@@ -39,7 +37,7 @@ namespace gjs {
 
         init_context(this);
 
-        m_pipeline.add_ir_step(ir_remove_trailing_stack_loads);
+        // m_pipeline.add_ir_step(ir_remove_trailing_stack_loads);
     }
 
     vm_context::~vm_context() {

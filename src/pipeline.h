@@ -6,15 +6,32 @@
 
 namespace gjs {
     class vm_context;
-    class instruction_array;
-    struct source_map;
     namespace parse {
         struct ast;
     };
 
+    namespace compile {
+        struct tac_instruction;
+    };
+
+    typedef std::vector<compile::tac_instruction*> ir_code;
+
+    class backend {
+        public:
+            backend() { }
+            virtual ~backend() { }
+
+            /*
+             * Takes the final IR code and generates instructions for some target
+             * architecture. What it does with that code is out of the scope of
+             * the pipeline.
+             */
+            virtual void generate(const ir_code& ir) = 0;
+    };
+
     class pipeline {
         public:
-            typedef void (*ir_step_func)(vm_context* ctx, instruction_array&, source_map*, u32);
+            typedef void (*ir_step_func)(vm_context* ctx, ir_code&);
             typedef void (*ast_step_func)(vm_context* ctx, parse::ast*);
 
             pipeline(vm_context* ctx);
@@ -24,28 +41,24 @@ namespace gjs {
              * 0. Clears logs from previous compilation
              * 1. Parses the source code and generates an abstract syntax tree
              * 2. Executes all of the AST steps on the generated tree (in the order they were added)
-             * 3. Generates the source map and intermediate representation (VM code/instruction_array) code from the AST
+             * 3. Generates IR code from the AST
              * 4. Executes all of the IR steps on the generated IR code (in the order they were added)
+             * 5. Feeds the resulting IR code after all the IR steps into the provided backend code generator
              *
              * This function may throw the following exceptions:
              *    - parse_exception
              *    - compile_exception
              *    - any exceptions thrown by the ir steps or ast steps
              */
-            bool compile(const std::string& file, const std::string& code);
+            bool compile(const std::string& file, const std::string& code, backend* generator);
 
             /*
-             * Takes IR code holder and source map as parameters, and modifies them in some way. Typically
-             * would do some kind of optimization.
-             *
-             * Any added/removed instructions must also result in the addition or removal of the related
-             * source map data
+             * Takes IR code as a parameter, and modifies it in some way.
              */
             void add_ir_step(ir_step_func step);
 
             /*
-             * Takes the root of the AST as a parameter, and modifies it in some way. Typically would do
-             * some kind of optimization or validation
+             * Takes the root of the AST as a parameter, and modifies it in some way.
              */
             void add_ast_step(ast_step_func step);
 

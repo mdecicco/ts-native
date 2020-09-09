@@ -1,6 +1,7 @@
 #pragma once
 #include <string>
 #include <vector>
+#include <memory>
 #include <source_ref.h>
 
 namespace gjs {
@@ -32,6 +33,24 @@ namespace gjs {
                 inline u32 reg_id() const { return m_reg_id; }
                 inline bool valid() const { return m_ctx != nullptr; }
                 inline bool flag(bind::property_flags f) const { return m_flags & f; }
+                inline void raise_stack_flag() { m_is_stack_obj = true; }
+                inline bool is_stack_obj() const { return m_is_stack_obj; }
+
+                u64 size() const;
+                bool has_prop(const std::string& name) const;
+                var prop(const std::string& name) const;
+                var prop_ptr(const std::string& name) const;
+                bool has_any_method(const std::string& name) const;
+                bool has_unambiguous_method(const std::string& name, vm_type* ret, const std::vector<vm_type*>& args) const;
+                vm_function* method(const std::string& name, vm_type* ret, const std::vector<vm_type*>& args) const;
+                bool convertible_to(vm_type* tp) const;
+                var convert(vm_type* tp) const;
+                void set_mem_ptr(const var& v);
+
+                // type used for first argument when calling methods
+                vm_type* call_this_tp() const;
+
+                std::string to_string() const;
 
                 var operator + (const var& rhs) const;
                 var operator - (const var& rhs) const;
@@ -72,18 +91,6 @@ namespace gjs {
                 var operator [] (const var& rhs) const;
                 var operator_eq (const var& v) const;
 
-                u64 size() const;
-                bool has_prop(const std::string& name) const;
-                var prop(const std::string& name) const;
-                var prop_ptr(const std::string& name) const;
-                bool has_unambiguous_method(const std::string& name, vm_type* ret, const std::vector<vm_type*>& args) const;
-                vm_function* method(const std::string& name, vm_type* ret, const std::vector<vm_type*>& args) const;
-                bool convertible_to(vm_type* tp) const;
-                var convert(vm_type* tp) const;
-                void set_mem_ptr(const var& v);
-
-                std::string to_string() const;
-
             protected:
                 friend struct tac_instruction;
                 friend struct context;
@@ -105,10 +112,20 @@ namespace gjs {
                 bool m_is_imm;
                 u32 m_reg_id;
 
+                // If the object was allocated in the stack
+                // (used to log compiler errors if script uses 'delete' on a stack object)
+                bool m_is_stack_obj;
+
                 struct {
                     bool valid;
                     u32 reg;
                 } m_mem_ptr;
+
+                // this is set when this var is a reference to an object property that has a setter
+                struct {
+                    std::shared_ptr<var> this_obj; // dynamically allocated copy of the original var
+                    vm_function* func;
+                } m_setter;
 
                 union {
                     u64 u;

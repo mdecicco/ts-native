@@ -822,7 +822,7 @@ namespace gjs {
                 continue;
             }
 
-            if (tp->name == "__subtype__") {
+            if (tp->name == "subtype") {
                 // get subtype from $v2
                 tp = m_ctx->types()->get(*(u32*)&m_ctx->state()->registers[(u8)vmr::v2]);
                 if (!tp) {

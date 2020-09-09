@@ -33,8 +33,8 @@ namespace gjs {
                 atp = mgr->get("void*"); // some object or primitive pointer
             } else if (tp && i == 1 && tp->requires_subtype && is_ctor) {
                 atp = mgr->get("void*"); // vm_type*
-            } else if (tp && i == 0 && tp->requires_subtype && !is_ctor && !is_dtor) {
-                atp = mgr->get("void*"); // vm_type*
+            } else if (tp && i == 0) {
+                atp = tp; // vm_type*
             } else atp = mgr->get(wrapped->arg_types[i].name());
 
             if (!atp) {

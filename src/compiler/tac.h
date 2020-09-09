@@ -64,6 +64,8 @@ namespace gjs {
             eq,
             neg,
             call,
+            param,
+            ret,
 
             // if op[0] is true: continue else jump to op[1]
             branch,
