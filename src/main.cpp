@@ -137,11 +137,16 @@ void print_code(vm_context& ctx) {
 // x Change parser architecture to tokenize entire source with token types, then parse tokens
 // x Error codes / centralized error string array?
 // x Fix parse errors
+// x function overloading
 // . compiler clean up
+// . implement vm_backend
+// - figure out discrepancy between vm_context and the need for a more general context since JITted code
+//   will not be run in a vm. vm_function, vm_type should be either renamed or possibly reimplemented to
+//   be more general as well.
+// - Investigate the usage of dyncall for calling host functions from VM or jitted code (to increase portability)
 // - unit tests
 // - const qualifier
 // - format-type variable expressions
-// - function overloading
 // - function signature types
 // - anonymous lambda/arrow functions
 // - more optimization steps
