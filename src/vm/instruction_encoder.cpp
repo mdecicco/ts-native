@@ -1,8 +1,8 @@
 #include <vm/instruction.h>
 #include <vm/instruction_encoder.h>
-#include <register.h>
-#include <vm/context.h>
-#include <util.h>
+#include <backends/vm.h>
+#include <vm/register.h>
+#include <util/util.h>
 
 namespace gjs {
     using vmi = vm_instruction;
@@ -563,7 +563,7 @@ namespace gjs {
         return *this;
     }
 
-    std::string instruction::to_string(vm_context* ctx) const {
+    std::string instruction::to_string(vm_backend* ctx) const {
         vm_state* state = ctx ? ctx->state() : nullptr;
 
         std::string out;

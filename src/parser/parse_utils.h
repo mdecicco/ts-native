@@ -1,6 +1,6 @@
 #pragma once
-#include <types.h>
-#include <util.h>
+#include <common/types.h>
+#include <util/util.h>
 #include <string>
 #include <stack>
 #include <vector>

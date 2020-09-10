@@ -1,4 +1,4 @@
-#include <register.h>
+#include <vm/register.h>
 
 namespace gjs {
     extern const char* register_str[(i32)vm_register::register_count] = {

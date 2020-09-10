@@ -1,12 +1,12 @@
 #include <vm/vm_function.h>
 #include <vm/vm_type.h>
-#include <bind.h>
-#include <util.h>
-#include <register.h>
+#include <bind/bind.h>
+#include <util/util.h>
+#include <vm/register.h>
 #include <vm/context.h>
 
 namespace gjs {
-    vm_function::vm_function(vm_context* ctx, const std::string _name, address addr) {
+    vm_function::vm_function(script_context* ctx, const std::string _name, address addr) {
         m_ctx = ctx;
         name = _name;
         access.entry = addr;
@@ -24,7 +24,6 @@ namespace gjs {
         signature.return_loc = vm_register::v0;
         signature.returns_pointer = wrapped->ret_is_ptr;
         name = wrapped->name;
-        signature.text = wrapped->sig;
         signature.is_subtype_obj_ctor = tp && tp->requires_subtype && is_ctor;
         is_static = false;
         for (u8 i = 0;i < wrapped->arg_types.size();i++) {

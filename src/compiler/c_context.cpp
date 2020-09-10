@@ -4,8 +4,8 @@
 #include <vm/context.h>
 #include <vm/vm_type.h>
 #include <vm/vm_function.h>
-#include <errors.h>
-#include <warnings.h>
+#include <common/errors.h>
+#include <common/warnings.h>
 
 namespace gjs {
     using exc = error::exception;

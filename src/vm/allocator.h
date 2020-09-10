@@ -1,5 +1,5 @@
 #pragma once
-#include <types.h>
+#include <common/types.h>
 
 namespace gjs {
     class vm_allocator {

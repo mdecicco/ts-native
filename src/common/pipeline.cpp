@@ -1,13 +1,14 @@
-#include <pipeline.h>
+#include <common/pipeline.h>
+#include <backends/backend.h>
 #include <vm/context.h>
-#include <errors.h>
+#include <common/errors.h>
 
 #include <compiler/compile.h>
 #include <lexer/lexer.h>
 #include <parser/parse.h>
 
 namespace gjs {
-    pipeline::pipeline(vm_context* ctx) : m_ctx(ctx) {
+    pipeline::pipeline(script_context* ctx) : m_ctx(ctx) {
     }
 
     pipeline::~pipeline() {

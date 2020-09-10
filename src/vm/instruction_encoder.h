@@ -1,5 +1,5 @@
 #pragma once
-#include <types.h>
+#include <common/types.h>
 #include <string>
 
 namespace gjs {
@@ -28,7 +28,7 @@ namespace gjs {
     static const u32 op_mask   = 0b11111111111111111111111111000000;
     static const u32 flag_mask = 0b11111111111111111111111111110000;
 
-    class vm_context;
+    class vm_backend;
     class instruction {
         public:
             enum flags {
@@ -55,7 +55,7 @@ namespace gjs {
             FORCE_INLINE f64            imm_f() const { return *(f64*)&m_imm; }
             FORCE_INLINE bool       imm_is_flt() const { return ((m_code | flag_mask) ^ flag_mask) & op_3_is_float; }
 
-            std::string to_string(vm_context* ctx = nullptr) const;
+            std::string to_string(vm_backend* ctx = nullptr) const;
         protected:
             u32 m_code;
             u64 m_imm;

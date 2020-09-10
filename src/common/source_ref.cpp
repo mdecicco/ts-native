@@ -1,4 +1,4 @@
-#include <source_ref.h>
+#include <common/source_ref.h>
 
 namespace gjs {
     source_ref::source_ref() : line(0), col(0) { }

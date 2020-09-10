@@ -3,20 +3,20 @@
 #include <vector>
 
 namespace gjs {
-    class vm_context;
+    class script_context;
 
     namespace parse {
         struct ast;
 
         struct context {
-            vm_context* env;
+            script_context* env;
             ast* root;
             std::stack<ast*> path;
             std::vector<lex::token> tokens;
             std::vector<std::string> type_names;
             u32 cur_token;
 
-            context(vm_context* ctx);
+            context(script_context* ctx);
 
             bool is_typename(const std::string& text) const;
 

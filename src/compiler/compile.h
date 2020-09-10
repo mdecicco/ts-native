@@ -2,7 +2,7 @@
 #include <compiler/variable.h>
 
 namespace gjs {
-    class vm_context;
+    class script_context;
 
     namespace parse {
         struct ast;
@@ -47,6 +47,6 @@ namespace gjs {
 
         void block(context&ctx, parse::ast* n);
 
-        void compile(vm_context* env, parse::ast* input, std::vector<tac_instruction*>& out);
+        void compile(script_context* env, parse::ast* input, std::vector<tac_instruction*>& out);
     };
 };

@@ -1,6 +1,6 @@
 #include <lexer/token.h>
 #include <lexer/lexer.h>
-#include <parse_utils.h>
+#include <parser/parse_utils.h>
 
 namespace gjs {
     namespace lex {

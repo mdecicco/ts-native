@@ -1,19 +1,19 @@
 #include <vm/vm_function.h>
 #include <vm/vm_type.h>
-#include <builtin.h>
+#include <bind/builtin.h>
 #include <vm/vm_type.h>
 #include <vm/context.h>
-#include <bind.h>
+#include <bind/bind.h>
 
 namespace gjs {
     // todo: thread_id:ctx map
-    static vm_context* ctx = nullptr;
+    static script_context* ctx = nullptr;
 
-    void set_builtin_context(vm_context* _ctx) {
+    void set_builtin_context(script_context* _ctx) {
         ctx = _ctx;
     }
 
-    void init_context(vm_context* ctx) {
+    void init_context(script_context* ctx) {
         vm_type* tp = nullptr;
 
         tp = nullptr;

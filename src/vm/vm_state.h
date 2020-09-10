@@ -1,5 +1,5 @@
 #pragma once
-#include <register.h>
+#include <vm/register.h>
 
 namespace gjs {
     class vm_memory {

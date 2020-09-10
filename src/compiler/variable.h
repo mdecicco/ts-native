@@ -2,7 +2,7 @@
 #include <string>
 #include <vector>
 #include <memory>
-#include <source_ref.h>
+#include <common/source_ref.h>
 
 namespace gjs {
     class vm_type;

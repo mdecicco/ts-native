@@ -1,7 +1,7 @@
 #pragma once
 #include <vector>
 #include <string>
-#include <types.h>
+#include <common/types.h>
 
 namespace gjs {
     std::vector<std::string> split(const std::string& str, const std::string& delimiters);

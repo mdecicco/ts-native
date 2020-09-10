@@ -3,6 +3,7 @@
 #include <vm/context.h>
 #include <vm/vm_type.h>
 #include <compiler/tac.h>
+#include <backends/vm.h>
 #include <stdio.h>
 
 using namespace gjs;
@@ -63,7 +64,7 @@ void print_f32(u8 i, f32 f) {
     printf("%d: %f\n", i, f);
 }
 
-void print_log(vm_context& ctx) {
+void print_log(script_context& ctx) {
     for (u8 i = 0;i < ctx.compiler()->log()->errors.size();i++) {
         compile_message& m = ctx.compiler()->log()->errors[i];
         printf("%s:%d:%d: Error: %s\n", m.src.filename.c_str(), m.src.line, m.src.col, m.text.c_str());
@@ -101,10 +102,10 @@ void print_log(vm_context& ctx) {
     }
 }
 
-void print_code(vm_context& ctx) {
+void print_code(vm_backend& ctx) {
     std::string last_line = "";
     for (u32 i = 0;i < ctx.code()->size();i++) {
-        vm_function* f = ctx.function(i);
+        vm_function* f = ctx.context()->function(i);
         if (f) {
             printf("\n[%s %s(", f->signature.return_type->name.c_str(), f->name.c_str());
             for(u8 a = 0;a < f->signature.arg_types.size();a++) {
@@ -134,44 +135,13 @@ void print_code(vm_context& ctx) {
     }
 }
 
-void debug_ir_step(vm_context* ctx, ir_code& code) {
+void debug_ir_step(script_context* ctx, ir_code& code) {
     for (u32 i = 0;i < code.size();i++) {
         printf("%3.3d: %s\n", i, code[i]->to_string().c_str());
     }
 }
 
-// todos:
-// [Make the compilation pipeline cleaner, easier to extend, less likely to have bugs]
-// x Change parser architecture to tokenize entire source with token types, then parse tokens
-// x Error codes / centralized error string array?
-// x Fix parse errors
-// x function overloading
-// . compiler clean up
-//
-// [decoupling parsing, compilation from the VM to allow for other target architectures]
-// . implement vm_backend
-// x figure out discrepancy between vm_context and the need for a more general context since JITted code
-//   will not be run in a vm. vm_function, vm_type should be either renamed or possibly reimplemented to
-//   be more general as well.
-// - Move all vm-specific stuff from vm_context to vm_backend
-// - Rename vm_context to gjs_context or something like that
-// - Move vm_function::call implementation to vm_backend, remove template arguments
-// - Add pure virtual function call method to backend base class which is called by a more user friendly
-//   template function (like what vm_function::call is now)
-// - Rename vm_type, vm_function to gjs_type, gjs_function or somethings like those
-//
-// [language features, portability, performance and quality of life improvements]
-// - Investigate the usage of dyncall for calling host functions from VM or jitted code (to increase portability)
-// - unit tests
-// - const qualifier
-// - format-type variable expressions
-// - function signature types
-// - anonymous lambda/arrow functions
-// - more optimization steps
-// - class inheritance
-// - mirrored host/script types (think vec3: host-call per vector op would be expensive. Allow binding host calls with host-defined vec3 and call from script with script defined vec3)
-// - ...JIT compilation
-
+// https://www.notion.so/3ccc9d8dba114bf8acfbbe238cb729e3?v=1a0dff3b20ba4f678bc7f5866665c4df
 int main(int arg_count, const char** args) {
     std::string dir = args[0];
     dir = dir.substr(0, dir.find_last_of('\\'));
@@ -190,7 +160,8 @@ int main(int arg_count, const char** args) {
     }
 
     vm_allocator* alloc = new basic_malloc_allocator();
-    vm_context ctx(alloc, 4096, 4096);
+    vm_backend gen(alloc, 4096, 4096);
+    script_context ctx(&gen);
     ctx.compiler()->add_ir_step(debug_ir_step);
 
     try {
@@ -215,18 +186,17 @@ int main(int arg_count, const char** args) {
         printf("%s\n", e.text.c_str());
     }
 
-    vm_type* tp = ctx.types()->get<foo>();
     if (!ctx.add_code("test.gjs", src)) {
         print_log(ctx);
         return 1;
     }
+
     print_log(ctx);
-    //print_code(ctx);
+    print_code(gen);
 
     printf("-------------result-------------\n");
-    //ctx.log_instructions(true);
-    ctx.function("it");
+    gen.log_instructions(true);
     vm_function* func = ctx.function("it");
-    if (func) func->call<void*>(nullptr);
+    if (func) ctx.call<void>(func, nullptr);
     return 0;
 }

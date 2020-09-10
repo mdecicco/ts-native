@@ -2,11 +2,11 @@
 #include <compiler/compile.h>
 #include <compiler/function.h>
 #include <parser/ast.h>
-#include <compile_log.h>
-#include <errors.h>
+#include <common/compile_log.h>
+#include <common/errors.h>
 #include <vm/vm_function.h>
 #include <vm/vm_type.h>
-#include <register.h>
+#include <vm/register.h>
 
 namespace gjs {
     using namespace parse;

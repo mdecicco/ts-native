@@ -1,13 +1,13 @@
 #pragma once
-#include <types.h>
+#include <common/types.h>
 
 namespace gjs {
-    class vm_context;
+    class script_context;
     class vm_type;
     struct subtype_t;
 
-    void set_builtin_context(vm_context* ctx);
-    void init_context(vm_context* ctx);
+    void set_builtin_context(script_context* ctx);
+    void init_context(script_context* ctx);
     
     void* script_allocate(u64 size);
     void script_free(void* ptr);

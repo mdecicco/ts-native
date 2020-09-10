@@ -1,8 +1,8 @@
 #pragma once
 #include <string>
 #include <vector>
-#include <types.h>
-#include <source_ref.h>
+#include <common/types.h>
+#include <common/source_ref.h>
 
 namespace gjs {
     namespace error { enum class ecode; };

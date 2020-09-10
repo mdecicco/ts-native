@@ -1,10 +1,10 @@
 #include <vm/vm_function.h>
 #include <vm/vm_type.h>
-#include <util.h>
-#include <bind.h>
+#include <util/util.h>
+#include <bind/bind.h>
 
 namespace gjs {
-    type_manager::type_manager(vm_context* ctx) : m_ctx(ctx) {
+    type_manager::type_manager(script_context* ctx) : m_ctx(ctx) {
     }
 
     type_manager::~type_manager() {

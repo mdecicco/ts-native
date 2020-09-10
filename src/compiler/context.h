@@ -3,7 +3,7 @@
 #include <compiler/tac.h>
 
 namespace gjs {
-    class vm_context;
+    class script_context;
     class type_manager;
     class compile_log;
 
@@ -13,7 +13,7 @@ namespace gjs {
 
     namespace compile {
         struct context {
-            vm_context* env;
+            script_context* env;
             parse::ast* input;
             type_manager* new_types;
             std::vector<vm_function*> new_functions;

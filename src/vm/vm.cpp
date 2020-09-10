@@ -5,6 +5,7 @@
 #include <vm/context.h>
 #include <vm/vm_function.h>
 #include <vm/vm_type.h>
+#include <backends/vm.h>
 
 #include <asmjit/asmjit.h>
 using namespace asmjit;
@@ -50,15 +51,13 @@ namespace gjs {
 
     #define STACK_PADDING_SIZE 8
 
-    vm::vm(vm_context* ctx, vm_allocator* allocator, u32 stack_size, u32 mem_size) : m_ctx(ctx), alloc(allocator), state(mem_size), m_stack_size(stack_size) {
+    vm::vm(vm_backend* ctx, vm_allocator* allocator, u32 stack_size, u32 mem_size) : m_ctx(ctx), alloc(allocator), state(mem_size), m_stack_size(stack_size) {
     }
 
     vm::~vm() {
     }
 
     void vm::execute(const instruction_array& code, address entry) {
-        jit(code);
-        
         GR64(vmr::ip) = entry;
         GR64(vmr::ra) = 0;
         GR64(vmr::sp) = (u64)state.memory[0];
@@ -91,7 +90,7 @@ namespace gjs {
                 case vmi::ld8: {
                     u64 offset = GR64(integer(_O2)) + _O3ui64;
                     if (offset >= stack_padding_start && offset <= stack_padding_end) {
-                        throw runtime_exception(m_ctx, "Stack overflow detected");
+                        throw vm_exception(m_ctx, "Stack overflow detected");
                     }
                     u8* ptr = (u8*)offset;
                     GR64(_O1) = *(u8*)ptr;
@@ -101,7 +100,7 @@ namespace gjs {
                 case vmi::ld16: {
                     u64 offset = GR64(integer(_O2)) + _O3ui64;
                     if (offset >= stack_padding_start && offset <= stack_padding_end) {
-                        throw runtime_exception(m_ctx, "Stack overflow detected");
+                        throw vm_exception(m_ctx, "Stack overflow detected");
                     }
                     u16* ptr = (u16*)offset;
                     GR64(_O1) = *(u16*)ptr;
@@ -111,7 +110,7 @@ namespace gjs {
                 case vmi::ld32: {
                     u64 offset = GR64(integer(_O2)) + _O3ui64;
                     if (offset >= stack_padding_start && offset <= stack_padding_end) {
-                        throw runtime_exception(m_ctx, "Stack overflow detected");
+                        throw vm_exception(m_ctx, "Stack overflow detected");
                     }
                     u32* ptr = (u32*)offset;
                     GR64(_O1) = *(u32*)ptr;
@@ -121,7 +120,7 @@ namespace gjs {
                 case vmi::ld64: {
                     u64 offset = GR64(integer(_O2)) + _O3ui64;
                     if (offset >= stack_padding_start && offset <= stack_padding_end) {
-                        throw runtime_exception(m_ctx, "Stack overflow detected");
+                        throw vm_exception(m_ctx, "Stack overflow detected");
                     }
                     u64* ptr = (u64*)offset;
                     GR64(_O1) = *(u64*)ptr;
@@ -131,7 +130,7 @@ namespace gjs {
                 case vmi::st8: {
                     u64 offset = GR64(integer(_O2)) + _O3ui64;
                     if (offset >= stack_padding_start && offset <= stack_padding_end) {
-                        throw runtime_exception(m_ctx, "Stack overflow detected");
+                        throw vm_exception(m_ctx, "Stack overflow detected");
                     }
                     u8* ptr = (u8*)offset;
                     *ptr = GR8(_O1);
@@ -141,7 +140,7 @@ namespace gjs {
                 case vmi::st16: {
                     u64 offset = GR64(integer(_O2)) + _O3ui64;
                     if (offset >= stack_padding_start && offset <= stack_padding_end) {
-                        throw runtime_exception(m_ctx, "Stack overflow detected");
+                        throw vm_exception(m_ctx, "Stack overflow detected");
                     }
                     u16* ptr = (u16*)offset;
                     *ptr = GR16(_O1);
@@ -151,7 +150,7 @@ namespace gjs {
                 case vmi::st32: {
                     u64 offset = GR64(integer(_O2)) + _O3ui64;
                     if (offset >= stack_padding_start && offset <= stack_padding_end) {
-                        throw runtime_exception(m_ctx, "Stack overflow detected");
+                        throw vm_exception(m_ctx, "Stack overflow detected");
                     }
                     u32* ptr = (u32*)offset;
                     *ptr = GR32(_O1);
@@ -161,7 +160,7 @@ namespace gjs {
                 case vmi::st64: {
                     u64 offset = GR64(integer(_O2)) + _O3ui64;
                     if (offset >= stack_padding_start && offset <= stack_padding_end) {
-                        throw runtime_exception(m_ctx, "Stack overflow detected");
+                        throw vm_exception(m_ctx, "Stack overflow detected");
                     }
                     u64* ptr = (u64*)offset;
                     *ptr = GR64(_O1);
@@ -786,11 +785,11 @@ namespace gjs {
                     break;
                 }
                 case vmi::instruction_count: {
-                    throw runtime_exception(m_ctx, "Invalid Instruction");
+                    throw vm_exception(m_ctx, "Invalid Instruction");
                     break;
                 }
                 default: {
-                    throw runtime_exception(m_ctx, "Invalid Instruction");
+                    throw vm_exception(m_ctx, "Invalid Instruction");
                     // deinitialize?
                     break;
                 }
@@ -800,13 +799,11 @@ namespace gjs {
         }
     }
 
-    void vm::jit(const instruction_array& code) {
-    }
-
     void vm::call_external(u64 addr) {
-        vm_function* f = m_ctx->function(addr);
+        /*
+        vm_function* f = m_ctx->context()->function(addr);
         if (!f) {
-            throw runtime_exception(m_ctx, format("Function at 0x%lX not found", addr));
+            throw vm_exception(m_ctx, format("Function at 0x%lX not found", addr));
         }
 
         std::vector<void*> args;
@@ -817,16 +814,16 @@ namespace gjs {
 
             if (f->signature.is_subtype_obj_ctor && a == 1) {
                 // arg refers to a type id
-                vm_type* tp = m_ctx->types()->get(*(u32*)reg);
+                vm_type* tp = m_ctx->context()->types()->get(*(u32*)reg);
                 args.push_back(tp);
                 continue;
             }
 
             if (tp->name == "subtype") {
                 // get subtype from $v2
-                tp = m_ctx->types()->get(*(u32*)&m_ctx->state()->registers[(u8)vmr::v2]);
+                tp = m_ctx->context()->types()->get(*(u32*)&m_ctx->state()->registers[(u8)vmr::v2]);
                 if (!tp) {
-                    throw runtime_exception(m_ctx, format(
+                    throw vm_exception(m_ctx, format(
                         "Function '%s' is a method of a sub-type class but no type ID was provided. This is not a user error",
                         f->name.c_str()
                     ));
@@ -845,7 +842,7 @@ namespace gjs {
                 if (is_ptr) {
                     args.push_back(reinterpret_cast<void*>(*reg));
                 } else {
-                    throw runtime_exception(m_ctx, format(
+                    throw vm_exception(m_ctx, format(
                         "Function '%s' accepts type '%s' as a pass-by-value parameter. This is unsupported, please change it to a pointer or reference type to make it work",
                         f->name.c_str(), tp->name.c_str()
                     ));
@@ -864,11 +861,12 @@ namespace gjs {
                 u64 return_value_end = u64(ret_addr) + f->signature.return_type->size;
                 u64 stack_end = (u64)state.memory[0] + m_stack_size;
                 if (return_value_end >= stack_end) {
-                    throw runtime_exception(m_ctx, "Stack overflow detected");
+                    throw vm_exception(m_ctx, "Stack overflow detected");
                 }
             }
         }
 
         f->access.wrapped->call(ret_addr, args.data());
+        */
     }
 };

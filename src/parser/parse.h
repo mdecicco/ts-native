@@ -1,10 +1,10 @@
-#include <types.h>
+#include <common/types.h>
 #include <lexer/token.h>
 #include <vector>
 #include <stack>
 
 namespace gjs {
-    class vm_context;
+    class script_context;
     enum class error_code;
 
     namespace parse {
@@ -43,6 +43,6 @@ namespace gjs {
 
         ast* any(context& ctx);
 
-        ast* parse(vm_context* env, const std::string& file, const std::vector<lex::token>& tokens);
+        ast* parse(script_context* env, const std::string& file, const std::vector<lex::token>& tokens);
     };
 };

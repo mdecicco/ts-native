@@ -1,5 +1,5 @@
 #pragma once
-#include <types.h>
+#include <common/types.h>
 
 namespace gjs {
     // number of bits needed to store register id: 6

@@ -4,8 +4,8 @@
 #include <parser/ast.h>
 #include <vm/vm_type.h>
 #include <vm/vm_function.h>
-#include <compile_log.h>
-#include <errors.h>
+#include <common/compile_log.h>
+#include <common/errors.h>
 
 namespace gjs {
     using ec = error::ecode;

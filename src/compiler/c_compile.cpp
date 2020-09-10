@@ -4,7 +4,7 @@
 #include <parser/ast.h>
 #include <vm/context.h>
 #include <vm/vm_type.h>
-#include <errors.h>
+#include <common/errors.h>
 
 namespace gjs {
     using exc = error::exception;
@@ -168,7 +168,7 @@ namespace gjs {
             ctx.pop_block();
         }
 
-        void compile(vm_context* env, ast* input, std::vector<tac_instruction*>& out) {
+        void compile(script_context* env, ast* input, std::vector<tac_instruction*>& out) {
             if (!input || !input->body) {
                 throw exc(ec::c_no_code, input ? input->ref : source_ref("[unknown]", "", 0, 0));
             }

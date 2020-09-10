@@ -1,6 +1,6 @@
 #pragma once
-#include <types.h>
-#include <source_ref.h>
+#include <common/types.h>
+#include <common/source_ref.h>
 #include <string>
 
 namespace gjs {

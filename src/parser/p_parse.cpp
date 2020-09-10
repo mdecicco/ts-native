@@ -1,7 +1,7 @@
 #include <parser/parse.h>
 #include <parser/context.h>
 #include <parser/ast.h>
-#include <errors.h>
+#include <common/errors.h>
 
 namespace gjs {
     using tt = lex::token_type;
@@ -212,7 +212,7 @@ namespace gjs {
             return r;
         }
 
-        ast* parse(vm_context* env, const std::string& file, const std::vector<lex::token>& tokens) {
+        ast* parse(script_context* env, const std::string& file, const std::vector<lex::token>& tokens) {
             context ctx(env);
             ctx.tokens = tokens;
 

@@ -1,22 +1,22 @@
 #pragma once
-#include <template_utils.hpp>
-#include <types.h>
+#include <util/template_utils.hpp>
+#include <common/types.h>
 
 #include <string>
 #include <vector>
-#include <robin_hood.h>
+#include <util/robin_hood.h>
 
 namespace gjs {
     namespace bind {
         struct wrapped_class;
     };
 
-    class vm_context;
+    class script_context;
     class vm_type;
 
     class type_manager {
         public:
-            type_manager(vm_context* ctx);
+            type_manager(script_context* ctx);
             ~type_manager();
 
             vm_type* get(const std::string& internal_name);
@@ -36,7 +36,7 @@ namespace gjs {
 
         protected:
             friend class vm_function;
-            vm_context* m_ctx;
+            script_context* m_ctx;
             robin_hood::unordered_map<std::string, vm_type*> m_types;
             robin_hood::unordered_map<u32, vm_type*> m_types_by_id;
     };

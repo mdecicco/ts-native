@@ -2,10 +2,10 @@
 #include <compiler/compile.h>
 #include <compiler/function.h>
 #include <parser/ast.h>
-#include <errors.h>
-#include <warnings.h>
-#include <compile_log.h>
-#include <bind.h>
+#include <common/errors.h>
+#include <common/warnings.h>
+#include <common/compile_log.h>
+#include <bind/bind.h>
 #include <vm/vm_type.h>
 
 namespace gjs {

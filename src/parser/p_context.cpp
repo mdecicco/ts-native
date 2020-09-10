@@ -4,7 +4,7 @@
 
 namespace gjs {
     namespace parse {
-        context::context(vm_context* ctx) : env(ctx), cur_token(0), root(nullptr) {
+        context::context(script_context* ctx) : env(ctx), cur_token(0), root(nullptr) {
             std::vector<vm_type*> types = ctx->all_types();
             for (u16 t = 0;t < types.size();t++) {
                 type_names.push_back(types[t]->name);

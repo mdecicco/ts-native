@@ -34,6 +34,15 @@ file(GLOB_RECURSE gjs_src
     "src/backends/*.h"
     "src/backends/*.hpp"
     "src/backends/*.cpp"
+    "src/util/*.h"
+    "src/util/*.hpp"
+    "src/util/*.cpp"
+    "src/bind/*.h"
+    "src/bind/*.hpp"
+    "src/bind/*.cpp"
+    "src/common/*.h"
+    "src/common/*.hpp"
+    "src/common/*.cpp"
 )
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)

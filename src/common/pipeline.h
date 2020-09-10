@@ -1,40 +1,25 @@
 #pragma once
 #include <vector>
 #include <string>
-#include <types.h>
-#include <compile_log.h>
+#include <common/types.h>
+#include <common/compile_log.h>
 
 namespace gjs {
-    class vm_context;
-    namespace parse {
-        struct ast;
-    };
+    class script_context;
+    class vm_function;
+    class backend;
 
-    namespace compile {
-        struct tac_instruction;
-    };
-
+    namespace parse { struct ast; };
+    namespace compile { struct tac_instruction; };
     typedef std::vector<compile::tac_instruction*> ir_code;
 
-    class backend {
-        public:
-            backend() { }
-            virtual ~backend() { }
-
-            /*
-             * Takes the final IR code and generates instructions for some target
-             * architecture. What it does with that code is out of the scope of
-             * the pipeline.
-             */
-            virtual void generate(const ir_code& ir) = 0;
-    };
 
     class pipeline {
         public:
-            typedef void (*ir_step_func)(vm_context* ctx, ir_code&);
-            typedef void (*ast_step_func)(vm_context* ctx, parse::ast*);
+            typedef void (*ir_step_func)(script_context* ctx, ir_code&);
+            typedef void (*ast_step_func)(script_context* ctx, parse::ast*);
 
-            pipeline(vm_context* ctx);
+            pipeline(script_context* ctx);
             ~pipeline();
 
             /*
@@ -65,7 +50,7 @@ namespace gjs {
             inline compile_log* log() { return &m_log; }
 
         protected:
-            vm_context* m_ctx;
+            script_context* m_ctx;
             std::vector<ir_step_func> m_ir_steps;
             std::vector<ast_step_func> m_ast_steps;
             compile_log m_log;
