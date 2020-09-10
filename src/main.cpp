@@ -2,6 +2,7 @@
 #include <vm/vm_function.h>
 #include <vm/context.h>
 #include <vm/vm_type.h>
+#include <compiler/tac.h>
 #include <stdio.h>
 
 using namespace gjs;
@@ -133,16 +134,33 @@ void print_code(vm_context& ctx) {
     }
 }
 
+void debug_ir_step(vm_context* ctx, ir_code& code) {
+    for (u32 i = 0;i < code.size();i++) {
+        printf("%3.3d: %s\n", i, code[i]->to_string().c_str());
+    }
+}
+
 // todos:
+// [Make the compilation pipeline cleaner, easier to extend, less likely to have bugs]
 // x Change parser architecture to tokenize entire source with token types, then parse tokens
 // x Error codes / centralized error string array?
 // x Fix parse errors
 // x function overloading
 // . compiler clean up
+//
+// [decoupling parsing, compilation from the VM to allow for other target architectures]
 // . implement vm_backend
-// - figure out discrepancy between vm_context and the need for a more general context since JITted code
+// x figure out discrepancy between vm_context and the need for a more general context since JITted code
 //   will not be run in a vm. vm_function, vm_type should be either renamed or possibly reimplemented to
 //   be more general as well.
+// - Move all vm-specific stuff from vm_context to vm_backend
+// - Rename vm_context to gjs_context or something like that
+// - Move vm_function::call implementation to vm_backend, remove template arguments
+// - Add pure virtual function call method to backend base class which is called by a more user friendly
+//   template function (like what vm_function::call is now)
+// - Rename vm_type, vm_function to gjs_type, gjs_function or somethings like those
+//
+// [language features, portability, performance and quality of life improvements]
 // - Investigate the usage of dyncall for calling host functions from VM or jitted code (to increase portability)
 // - unit tests
 // - const qualifier
@@ -173,6 +191,7 @@ int main(int arg_count, const char** args) {
 
     vm_allocator* alloc = new basic_malloc_allocator();
     vm_context ctx(alloc, 4096, 4096);
+    ctx.compiler()->add_ir_step(debug_ir_step);
 
     try {
         auto f = ctx.bind<foo>("foo");
