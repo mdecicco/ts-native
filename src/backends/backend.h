@@ -36,7 +36,7 @@ namespace gjs {
              *
              * References are essentially pointers, so those are valid.
              */
-            virtual void call(vm_function* func, void* ret, void** args) = 0;
+            virtual void call(script_function* func, void* ret, void** args) = 0;
 
             script_context* m_ctx;
     };

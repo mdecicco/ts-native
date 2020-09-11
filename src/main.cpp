@@ -1,7 +1,7 @@
 #include <vm/allocator.h>
-#include <vm/vm_function.h>
-#include <vm/context.h>
-#include <vm/vm_type.h>
+#include <common/script_function.h>
+#include <common/context.h>
+#include <common/script_type.h>
 #include <compiler/tac.h>
 #include <backends/vm.h>
 #include <stdio.h>
@@ -105,7 +105,7 @@ void print_log(script_context& ctx) {
 void print_code(vm_backend& ctx) {
     std::string last_line = "";
     for (u32 i = 0;i < ctx.code()->size();i++) {
-        vm_function* f = ctx.context()->function(i);
+        script_function* f = ctx.context()->function(i);
         if (f) {
             printf("\n[%s %s(", f->signature.return_type->name.c_str(), f->name.c_str());
             for(u8 a = 0;a < f->signature.arg_types.size();a++) {
@@ -196,7 +196,7 @@ int main(int arg_count, const char** args) {
 
     printf("-------------result-------------\n");
     gen.log_instructions(true);
-    vm_function* func = ctx.function("it");
+    script_function* func = ctx.function("it");
     if (func) ctx.call<void>(func, nullptr);
     return 0;
 }

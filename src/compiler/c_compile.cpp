@@ -2,8 +2,8 @@
 #include <compiler/context.h>
 #include <compiler/function.h>
 #include <parser/ast.h>
-#include <vm/context.h>
-#include <vm/vm_type.h>
+#include <common/context.h>
+#include <common/script_type.h>
 #include <common/errors.h>
 
 namespace gjs {
@@ -16,8 +16,8 @@ namespace gjs {
         void construct_on_stack(context& ctx, const var& obj, const std::vector<var>& args) {
             ctx.add(operation::stack_alloc).operand(obj).operand(ctx.imm(obj.size()));
 
-            std::vector<vm_type*> arg_types = { ctx.type("data") }; // this obj
-            vm_type* ret_tp = obj.type();
+            std::vector<script_type*> arg_types = { ctx.type("data") }; // this obj
+            script_type* ret_tp = obj.type();
             if (obj.type()->base_type && obj.type()->is_host) {
                 ret_tp = obj.type()->base_type;
                 arg_types.push_back(ctx.type("data")); // subtype id
@@ -38,12 +38,12 @@ namespace gjs {
                     c_args.push_back(args[a]);
                 }
 
-                vm_function* f = obj.method("constructor", ret_tp, arg_types);
+                script_function* f = obj.method("constructor", ret_tp, arg_types);
                 if (f) call(ctx, f, c_args);
             } else {
                 if (obj.has_unambiguous_method("constructor", ret_tp, arg_types)) {
                     // Default constructor
-                    vm_function* f = obj.method("constructor", ret_tp, arg_types);
+                    script_function* f = obj.method("constructor", ret_tp, arg_types);
                     if (f) call(ctx, f, c_args);
                 } else {
                     if (obj.has_any_method("constructor")) {
@@ -64,8 +64,8 @@ namespace gjs {
                 )
             );
 
-            std::vector<vm_type*> arg_types = { ctx.type("data") }; // this obj
-            vm_type* ret_tp = obj.type();
+            std::vector<script_type*> arg_types = { ctx.type("data") }; // this obj
+            script_type* ret_tp = obj.type();
             if (obj.type()->base_type && obj.type()->is_host) {
                 ret_tp = obj.type()->base_type;
                 arg_types.push_back(ctx.type("data")); // subtype id
@@ -86,12 +86,12 @@ namespace gjs {
                     c_args.push_back(args[a]);
                 }
 
-                vm_function* f = obj.method("constructor", ret_tp, arg_types);
+                script_function* f = obj.method("constructor", ret_tp, arg_types);
                 if (f) call(ctx, f, c_args);
             } else {
                 if (obj.has_unambiguous_method("constructor", ret_tp, arg_types)) {
                     // Default constructor
-                    vm_function* f = obj.method("constructor", ret_tp, arg_types);
+                    script_function* f = obj.method("constructor", ret_tp, arg_types);
                     if (f) call(ctx, f, c_args);
                 } else {
                     if (obj.has_any_method("constructor")) {
@@ -105,7 +105,7 @@ namespace gjs {
 
         void variable_declaration(context& ctx, parse::ast* n) {
             ctx.push_node(n->data_type);
-            vm_type* tp = ctx.type(n->data_type);
+            script_type* tp = ctx.type(n->data_type);
             ctx.pop_node();
             ctx.push_node(n->identifier);
             var v = ctx.empty_var(tp, *n->identifier);

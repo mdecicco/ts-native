@@ -5,8 +5,8 @@
 #include <common/source_ref.h>
 
 namespace gjs {
-    class vm_type;
-    class vm_function;
+    class script_type;
+    class script_function;
 
     namespace bind {
         enum property_flags;
@@ -15,7 +15,7 @@ namespace gjs {
     namespace compile {
         struct context;
 
-        bool has_valid_conversion(vm_type* from, vm_type* to);
+        bool has_valid_conversion(script_type* from, script_type* to);
 
         class var {
             public:
@@ -25,7 +25,7 @@ namespace gjs {
                 inline std::string name() const { return m_name; }
                 inline source_ref instantiation() const { return m_instantiation; }
                 inline bool is_imm() const { return m_is_imm; }
-                inline vm_type* type() const { return m_type; }
+                inline script_type* type() const { return m_type; }
                 inline u64 imm_u() const { return m_imm.u; }
                 inline i64 imm_i() const { return m_imm.i; }
                 inline f32 imm_f() const { return m_imm.f; }
@@ -41,14 +41,14 @@ namespace gjs {
                 var prop(const std::string& name) const;
                 var prop_ptr(const std::string& name) const;
                 bool has_any_method(const std::string& name) const;
-                bool has_unambiguous_method(const std::string& name, vm_type* ret, const std::vector<vm_type*>& args) const;
-                vm_function* method(const std::string& name, vm_type* ret, const std::vector<vm_type*>& args) const;
-                bool convertible_to(vm_type* tp) const;
-                var convert(vm_type* tp) const;
+                bool has_unambiguous_method(const std::string& name, script_type* ret, const std::vector<script_type*>& args) const;
+                script_function* method(const std::string& name, script_type* ret, const std::vector<script_type*>& args) const;
+                bool convertible_to(script_type* tp) const;
+                var convert(script_type* tp) const;
                 void set_mem_ptr(const var& v);
 
                 // type used for first argument when calling methods
-                vm_type* call_this_tp() const;
+                script_type* call_this_tp() const;
 
                 std::string to_string() const;
 
@@ -101,12 +101,12 @@ namespace gjs {
                 var(context* ctx, f32 f);
                 var(context* ctx, f64 d);
                 var(context* ctx, const std::string& s);
-                var(context* ctx, u32 reg_id, vm_type* type);
+                var(context* ctx, u32 reg_id, script_type* type);
 
                 context* m_ctx;
                 std::string m_name;
                 source_ref m_instantiation;
-                vm_type* m_type;
+                script_type* m_type;
                 u8 m_flags;
 
                 bool m_is_imm;
@@ -124,7 +124,7 @@ namespace gjs {
                 // this is set when this var is a reference to an object property that has a setter
                 struct {
                     std::shared_ptr<var> this_obj; // dynamically allocated copy of the original var
-                    vm_function* func;
+                    script_function* func;
                 } m_setter;
 
                 union {

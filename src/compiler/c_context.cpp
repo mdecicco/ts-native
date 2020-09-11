@@ -1,9 +1,9 @@
 #include <compiler/context.h>
 #include <compiler/function.h>
 #include <parser/ast.h>
-#include <vm/context.h>
-#include <vm/vm_type.h>
-#include <vm/vm_function.h>
+#include <common/context.h>
+#include <common/script_type.h>
+#include <common/script_function.h>
 #include <common/errors.h>
 #include <common/warnings.h>
 
@@ -41,18 +41,18 @@ namespace gjs {
             return var(this, s);
         }
 
-        var context::empty_var(vm_type* type, const std::string& name) {
+        var context::empty_var(script_type* type, const std::string& name) {
             var v = var(this, next_reg_id++, type);
             v.m_name = name;
             func_stack[func_stack.size() - 1]->named_vars.push_back(v);
             return v;
         }
 
-        var context::empty_var(vm_type* type) {
+        var context::empty_var(script_type* type) {
             return var(this, next_reg_id++, type);
         }
 
-        var context::dummy_var(vm_type* type, const std::string& name) {
+        var context::dummy_var(script_type* type, const std::string& name) {
             var v = var();
             v.m_ctx = this;
             v.m_instantiation = node()->ref;
@@ -62,7 +62,7 @@ namespace gjs {
             return v;
         }
 
-        var context::dummy_var(vm_type* type) {
+        var context::dummy_var(script_type* type) {
             var v = var();
             v.m_ctx = this;
             v.m_instantiation = node()->ref;
@@ -89,14 +89,14 @@ namespace gjs {
             return error_var();
         }
 
-        vm_function* context::function(const std::string& name, vm_type* ret, const std::vector<vm_type*>& args) {
-            std::vector<vm_function*> matches;
+        script_function* context::function(const std::string& name, script_type* ret, const std::vector<script_type*>& args) {
+            std::vector<script_function*> matches;
 
-            std::vector<vm_function*> all = env->all_functions();
+            std::vector<script_function*> all = env->all_functions();
             for (u16 f = 0;f < new_functions.size();f++) all.push_back(new_functions[f]);
             for (u16 f = 0;f < all.size();f++) {
                 // match name
-                vm_function* func = all[f];
+                script_function* func = all[f];
 
                 if (func->name != name) continue;
 
@@ -147,12 +147,12 @@ namespace gjs {
             return nullptr;
         }
 
-        vm_function* context::find_func(const std::string& name, vm_type* ret, const std::vector<vm_type*>& args) {
-            std::vector<vm_function*> all = env->all_functions();
+        script_function* context::find_func(const std::string& name, script_type* ret, const std::vector<script_type*>& args) {
+            std::vector<script_function*> all = env->all_functions();
             for (u16 f = 0;f < new_functions.size();f++) all.push_back(new_functions[f]);
             for (u16 f = 0;f < all.size();f++) {
                 // match name
-                vm_function* func = all[f];
+                script_function* func = all[f];
 
                 if (func->name != name) continue;
 
@@ -176,8 +176,8 @@ namespace gjs {
             return nullptr;
         }
 
-        vm_type* context::type(const std::string& name) {
-            vm_type* t = env->types()->get(hash(name));
+        script_type* context::type(const std::string& name) {
+            script_type* t = env->types()->get(hash(name));
             if (t) return t;
             t = new_types->get(name);
 
@@ -189,17 +189,17 @@ namespace gjs {
             return t;
         }
 
-        vm_type* context::type(parse::ast* type_identifier) {
-            vm_type* t = type(*type_identifier);
+        script_type* context::type(parse::ast* type_identifier) {
+            script_type* t = type(*type_identifier);
             if (!t) return nullptr;
 
             if (type_identifier->data_type) {
                 if (!t->requires_subtype) {
                     // t is not a subtype class (error)
                 } else {
-                    vm_type* st = type(type_identifier->data_type);
+                    script_type* st = type(type_identifier->data_type);
                     std::string ctn = t->name + "<" + st->name + ">";
-                    vm_type* ct = env->types()->get(hash(ctn));
+                    script_type* ct = env->types()->get(hash(ctn));
                     if (!ct) ct = new_types->get(ctn);
                     if (!ct) {
                         ct = new_types->add(ctn, ctn);
@@ -233,7 +233,7 @@ namespace gjs {
             return t;
         }
 
-        vm_type* context::class_tp() {
+        script_type* context::class_tp() {
             for (u32 i = node_stack.size() - 1;i > 0;i--) {
                 if (node_stack[i]->type == parse::ast::node_type::class_declaration) {
                     return type(node_stack[i]->identifier);
@@ -242,11 +242,11 @@ namespace gjs {
             return nullptr;
         }
 
-        vm_function* context::current_function() {
+        script_function* context::current_function() {
             for (u32 i = node_stack.size() - 1;i > 0;i--) {
                 if (node_stack[i]->type == parse::ast::node_type::function_declaration) {
-                    vm_type* ret = type(node_stack[i]->data_type);
-                    std::vector<vm_type*> args;
+                    script_type* ret = type(node_stack[i]->data_type);
+                    std::vector<script_type*> args;
                     parse::ast* n = node_stack[i]->arguments->body;
                     while (n) {
                         args.push_back(type(n->data_type));
@@ -271,7 +271,7 @@ namespace gjs {
             node_stack.pop_back();
         }
 
-        void context::push_block(vm_function* f) {
+        void context::push_block(script_function* f) {
             func_stack.push_back(new block_context);
             func_stack[func_stack.size() - 1]->func = f;
         }

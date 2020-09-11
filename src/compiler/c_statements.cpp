@@ -2,8 +2,8 @@
 #include <compiler/compile.h>
 #include <compiler/function.h>
 #include <parser/ast.h>
-#include <vm/vm_type.h>
-#include <vm/vm_function.h>
+#include <common/script_type.h>
+#include <common/script_function.h>
 #include <common/compile_log.h>
 #include <common/errors.h>
 
@@ -17,7 +17,7 @@ namespace gjs {
         }
 
         void return_statement(context& ctx, parse::ast* n) {
-            vm_function* f = ctx.current_function();
+            script_function* f = ctx.current_function();
             if (!f) {
                 ctx.log()->err(ec::c_no_global_return, n->ref);
                 return;
@@ -59,7 +59,7 @@ namespace gjs {
                 call(ctx, obj.type()->destructor, { obj });
             }
 
-            vm_function* free = ctx.function("free", ctx.type("void"), { ctx.type("data") });
+            script_function* free = ctx.function("free", ctx.type("void"), { ctx.type("data") });
             call(ctx, free, { obj });
 
             ctx.pop_node();

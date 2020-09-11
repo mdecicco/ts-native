@@ -5,9 +5,9 @@
 #include <parser/ast.h>
 #include <common/errors.h>
 #include <common/warnings.h>
-#include <vm/context.h>
-#include <vm/vm_type.h>
-#include <vm/vm_function.h>
+#include <common/context.h>
+#include <common/script_type.h>
+#include <common/script_function.h>
 #include <util/robin_hood.h>
 
 namespace gjs {
@@ -16,7 +16,7 @@ namespace gjs {
     using wc = warning::wcode;
 
     namespace compile {
-        bool has_valid_conversion(vm_type* from, vm_type* to) {
+        bool has_valid_conversion(script_type* from, script_type* to) {
             if (from->id() == to->id()) return true;
             if (from->base_type && from->base_type->id() == to->id()) return true;
             if (!from->is_primitive && to->name == "data") return true;
@@ -41,9 +41,9 @@ namespace gjs {
                     std::vector<std::string> mparts = split(split(to->methods[m]->name, ":")[1], " \t\n\r");
                     if (mparts.size() != 1) continue;
                     if (mparts[0] != "constructor") continue;
-                    vm_function* ctor = to->methods[m];
+                    script_function* ctor = to->methods[m];
                     if (ctor->signature.arg_types.size() != 2) continue;
-                    vm_type* copyFromTp = ctor->signature.arg_types[1];
+                    script_type* copyFromTp = ctor->signature.arg_types[1];
                     if (copyFromTp->id() == from->id()) return true;
                     if (copyFromTp->name == "subtype" && has_valid_conversion(from, copyFromTp->sub_type)) return true;
                 }
@@ -133,7 +133,7 @@ namespace gjs {
             m_setter.func = nullptr;
         }
 
-        var::var(context* ctx, u32 reg_id, vm_type* type) {
+        var::var(context* ctx, u32 reg_id, script_type* type) {
             m_ctx = ctx;
             m_is_imm = false;
             m_instantiation = ctx->node()->ref;
@@ -255,7 +255,7 @@ namespace gjs {
         bool var::has_any_method(const std::string& _name) const {
             for (u16 m = 0;m < m_type->methods.size();m++) {
                 // match name
-                vm_function* func = nullptr;
+                script_function* func = nullptr;
                 if (_name.find_first_of(' ') != std::string::npos) {
                     // probably an operator
                     std::vector<std::string> mparts = split(split(m_type->methods[m]->name, ":")[1], " \t\n\r");
@@ -274,12 +274,12 @@ namespace gjs {
             return false;
         }
 
-        bool var::has_unambiguous_method(const std::string& _name, vm_type* ret, const std::vector<vm_type*>& args) const {
-            std::vector<vm_function*> matches;
+        bool var::has_unambiguous_method(const std::string& _name, script_type* ret, const std::vector<script_type*>& args) const {
+            std::vector<script_function*> matches;
 
             for (u16 m = 0;m < m_type->methods.size();m++) {
                 // match name
-                vm_function* func = nullptr;
+                script_function* func = nullptr;
                 if (_name.find_first_of(' ') != std::string::npos) {
                     // probably an operator
                     std::vector<std::string> mparts = split(split(m_type->methods[m]->name, ":")[1], " \t\n\r");
@@ -325,7 +325,7 @@ namespace gjs {
                     // check if the arguments are at least convertible
                     match = true;
                     for (u8 i = 0;i < args.size();i++) {
-                        vm_type* at = func->signature.arg_types[i];
+                        script_type* at = func->signature.arg_types[i];
                         if (at->name == "subtype") at = m_type->sub_type;
                         if (!has_valid_conversion(args[i], at)) {
                             match = false;
@@ -344,12 +344,12 @@ namespace gjs {
             return false;
         }
 
-        vm_function* var::method(const std::string& _name, vm_type* ret, const std::vector<vm_type*>& args) const {
-            std::vector<vm_function*> matches;
+        script_function* var::method(const std::string& _name, script_type* ret, const std::vector<script_type*>& args) const {
+            std::vector<script_function*> matches;
 
             for (u16 m = 0;m < m_type->methods.size();m++) {
                 // match name
-                vm_function* func = nullptr;
+                script_function* func = nullptr;
                 if (_name.find_first_of(' ') != std::string::npos) {
                     // probably an operator
                     std::vector<std::string> mparts = split(split(m_type->methods[m]->name, ":")[1], " \t\n\r");
@@ -395,7 +395,7 @@ namespace gjs {
                     // check if the arguments are at least convertible
                     match = true;
                     for (u8 i = 0;i < args.size();i++) {
-                        vm_type* at = func->signature.arg_types[i];
+                        script_type* at = func->signature.arg_types[i];
                         if (at->name == "subtype") at = m_type->sub_type;
                         if (!has_valid_conversion(args[i], at)) {
                             match = false;
@@ -422,11 +422,11 @@ namespace gjs {
             return nullptr;
         }
 
-        bool var::convertible_to(vm_type* tp) const {
+        bool var::convertible_to(script_type* tp) const {
             return has_valid_conversion(m_type, tp);
         }
 
-        var var::convert(vm_type* tp) const {
+        var var::convert(script_type* tp) const {
             return *this;
         }
 
@@ -456,7 +456,7 @@ namespace gjs {
             m_mem_ptr.reg = v.m_reg_id;
         }
 
-        vm_type* var::call_this_tp() const {
+        script_type* var::call_this_tp() const {
             return m_type->base_type && m_type->is_host ? m_type->base_type : m_type;
         }
 
@@ -509,7 +509,7 @@ namespace gjs {
             "invalid"
         };
 
-        operation get_op(ot op, vm_type* tp) {
+        operation get_op(ot op, script_type* tp) {
             using o = operation;
             if (!tp->is_primitive) return o::null;
 
@@ -579,7 +579,7 @@ namespace gjs {
                 return ret;
             }
             else {
-                vm_function* f = a.method(std::string("operator ") + ot_str[(u8)_op], a.type(), { a.call_this_tp(), b.type() });
+                script_function* f = a.method(std::string("operator ") + ot_str[(u8)_op], a.type(), { a.call_this_tp(), b.type() });
                 if (f) {
                     return call(*ctx, f, { a, b.convert(f->signature.arg_types[0]) });
                 }
@@ -715,7 +715,7 @@ namespace gjs {
                 return result;
             }
 
-            vm_function* f = method("operator ++", m_type, { call_this_tp() });
+            script_function* f = method("operator ++", m_type, { call_this_tp() });
             if (f) return call(*m_ctx, f, { *this });
         }
 
@@ -726,7 +726,7 @@ namespace gjs {
                 return result;
             }
 
-            vm_function* f = method("operator --", m_type, { call_this_tp() });
+            script_function* f = method("operator --", m_type, { call_this_tp() });
             if (f) return call(*m_ctx, f, { *this });
         }
 
@@ -743,7 +743,7 @@ namespace gjs {
             // todo: specific error when type is not copy constructible 
             construct_on_stack(*m_ctx, clone, { *this });
             clone.raise_stack_flag();
-            vm_function* f = method("operator ++", m_type, { call_this_tp() });
+            script_function* f = method("operator ++", m_type, { call_this_tp() });
             if (f) call(*m_ctx, f, { *this });
             return clone;
         }
@@ -761,7 +761,7 @@ namespace gjs {
             // todo: specific error when type is not copy constructible 
             construct_on_stack(*m_ctx, clone, { *this });
             clone.raise_stack_flag();
-            vm_function* f = method("operator --", m_type, { call_this_tp() });
+            script_function* f = method("operator --", m_type, { call_this_tp() });
             if (f) call(*m_ctx, f, { *this });
             return clone;
         }
@@ -795,7 +795,7 @@ namespace gjs {
                 return do_bin_op(m_ctx, *this, m_ctx->imm(i64(0)), ot::isEq);
             }
 
-            vm_function* f = method("operator !", m_type, { call_this_tp() });
+            script_function* f = method("operator !", m_type, { call_this_tp() });
             if (f) return call(*m_ctx, f, { *this });
         }
 
@@ -806,7 +806,7 @@ namespace gjs {
                 return v;
             }
 
-            vm_function* f = method("operator -", m_type, { call_this_tp() });
+            script_function* f = method("operator -", m_type, { call_this_tp() });
             if (f) return call(*m_ctx, f, { *this });
         }
 
@@ -825,7 +825,7 @@ namespace gjs {
         }
 
         var var::operator [] (const var& rhs) const {
-            vm_function* f = method("operator []", nullptr, { call_this_tp(), rhs.type() });
+            script_function* f = method("operator []", nullptr, { call_this_tp(), rhs.type() });
             if (f) {
                 return call(*m_ctx, f, { *this, rhs });
             }

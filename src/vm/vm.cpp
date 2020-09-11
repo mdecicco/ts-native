@@ -2,9 +2,9 @@
 #include <vm/allocator.h>
 #include <stdarg.h>
 #include <string.h>
-#include <vm/context.h>
-#include <vm/vm_function.h>
-#include <vm/vm_type.h>
+#include <common/context.h>
+#include <common/script_function.h>
+#include <common/script_type.h>
 #include <backends/vm.h>
 
 #include <asmjit/asmjit.h>
@@ -801,20 +801,20 @@ namespace gjs {
 
     void vm::call_external(u64 addr) {
         /*
-        vm_function* f = m_ctx->context()->function(addr);
+        script_function* f = m_ctx->context()->function(addr);
         if (!f) {
             throw vm_exception(m_ctx, format("Function at 0x%lX not found", addr));
         }
 
         std::vector<void*> args;
         for (u8 a = 0;a < f->signature.arg_locs.size();a++) {
-            vm_type* tp = f->signature.arg_types[a];
+            script_type* tp = f->signature.arg_types[a];
             u64* reg = &(m_ctx->state()->registers[(u8)f->signature.arg_locs[a]]);
             bool is_ptr = f->access.wrapped->arg_is_ptr[a];
 
             if (f->signature.is_subtype_obj_ctor && a == 1) {
                 // arg refers to a type id
-                vm_type* tp = m_ctx->context()->types()->get(*(u32*)reg);
+                script_type* tp = m_ctx->context()->types()->get(*(u32*)reg);
                 args.push_back(tp);
                 continue;
             }

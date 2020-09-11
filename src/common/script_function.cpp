@@ -1,12 +1,12 @@
-#include <vm/vm_function.h>
-#include <vm/vm_type.h>
+#include <common/script_function.h>
+#include <common/script_type.h>
+#include <common/context.h>
+#include <vm/register.h>
 #include <bind/bind.h>
 #include <util/util.h>
-#include <vm/register.h>
-#include <vm/context.h>
 
 namespace gjs {
-    vm_function::vm_function(script_context* ctx, const std::string _name, address addr) {
+    script_function::script_function(script_context* ctx, const std::string _name, address addr) {
         m_ctx = ctx;
         name = _name;
         access.entry = addr;
@@ -17,7 +17,7 @@ namespace gjs {
         is_static = false;
     }
 
-    vm_function::vm_function(type_manager* mgr, vm_type* tp, bind::wrapped_function* wrapped, bool is_ctor, bool is_dtor) {
+    script_function::script_function(type_manager* mgr, script_type* tp, bind::wrapped_function* wrapped, bool is_ctor, bool is_dtor) {
         is_method_of = tp;
         m_ctx = mgr->m_ctx;
         signature.returns_on_stack = false;
@@ -27,13 +27,13 @@ namespace gjs {
         signature.is_subtype_obj_ctor = tp && tp->requires_subtype && is_ctor;
         is_static = false;
         for (u8 i = 0;i < wrapped->arg_types.size();i++) {
-            vm_type* atp = nullptr;
+            script_type* atp = nullptr;
             if (std::string(wrapped->arg_types[i].name()) == "void" && wrapped->ret_is_ptr) {
                 atp = mgr->get("void*"); // some object or primitive pointer
             } else if (tp && i == 1 && tp->requires_subtype && is_ctor) {
-                atp = mgr->get("void*"); // vm_type*
+                atp = mgr->get("void*"); // script_type*
             } else if (tp && i == 0) {
-                atp = tp; // vm_type*
+                atp = tp; // script_type*
             } else atp = mgr->get(wrapped->arg_types[i].name());
 
             if (!atp) {
@@ -67,7 +67,7 @@ namespace gjs {
         mgr->m_ctx->add(this);
     }
 
-    void vm_function::arg(vm_type* type) {
+    void script_function::arg(script_type* type) {
         if (is_host) throw bind_exception("Cannot specify arguments for host functions");
         if (!type) throw bind_exception("No type specified for argument");
         signature.arg_types.push_back(type);

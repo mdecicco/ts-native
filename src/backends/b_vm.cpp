@@ -43,7 +43,7 @@ namespace gjs {
     void vm_backend::generate(const ir_code& ir) {
     }
 
-    void vm_backend::call(vm_function* func, void* ret, void** args) {
+    void vm_backend::call(script_function* func, void* ret, void** args) {
         /*
         if (sizeof...(args) != signature.arg_locs.size()) {
             throw vm_exception(format(

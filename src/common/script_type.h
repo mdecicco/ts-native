@@ -12,37 +12,37 @@ namespace gjs {
     };
 
     class script_context;
-    class vm_type;
+    class script_type;
 
     class type_manager {
         public:
             type_manager(script_context* ctx);
             ~type_manager();
 
-            vm_type* get(const std::string& internal_name);
+            script_type* get(const std::string& internal_name);
 
-            vm_type* get(u32 id);
+            script_type* get(u32 id);
 
             template <typename T>
-            vm_type* get() {
+            script_type* get() {
                 return get(base_type_name<T>());
             }
 
-            vm_type* add(const std::string& name, const std::string& internal_name);
+            script_type* add(const std::string& name, const std::string& internal_name);
 
-            vm_type* finalize_class(bind::wrapped_class* wrapped);
+            script_type* finalize_class(bind::wrapped_class* wrapped);
 
-            std::vector<vm_type*> all();
+            std::vector<script_type*> all();
 
         protected:
-            friend class vm_function;
+            friend class script_function;
             script_context* m_ctx;
-            robin_hood::unordered_map<std::string, vm_type*> m_types;
-            robin_hood::unordered_map<u32, vm_type*> m_types_by_id;
+            robin_hood::unordered_map<std::string, script_type*> m_types;
+            robin_hood::unordered_map<u32, script_type*> m_types_by_id;
     };
 
-    class vm_function;
-    class vm_type {
+    class script_function;
+    class script_type {
         public:
             std::string name;
             std::string internal_name;
@@ -57,17 +57,17 @@ namespace gjs {
             struct property {
                 u8 flags;
                 std::string name;
-                vm_type* type;
+                script_type* type;
                 u64 offset;
-                vm_function* getter;
-                vm_function* setter;
+                script_function* getter;
+                script_function* setter;
             };
 
-            vm_type* base_type;
-            vm_type* sub_type;
+            script_type* base_type;
+            script_type* sub_type;
             std::vector<property> properties;
-            vm_function* destructor;
-            std::vector<vm_function*> methods;
+            script_function* destructor;
+            std::vector<script_function*> methods;
 
             inline u32 id() const { return m_id; }
 
@@ -75,8 +75,8 @@ namespace gjs {
             friend class type_manager;
             bind::wrapped_class* m_wrapped;
             u32 m_id;
-            vm_type();
-            ~vm_type();
+            script_type();
+            ~script_type();
     };
 
     struct subtype_t {

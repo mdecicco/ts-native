@@ -28,7 +28,7 @@ namespace gjs {
             virtual void generate(const ir_code& ir);
 
         protected:
-            virtual void call(vm_function* func, void* ret, void** args);
+            virtual void call(script_function* func, void* ret, void** args);
 
             vm_allocator* m_alloc;
             gjs::vm m_vm;

@@ -6,7 +6,7 @@
 #include <common/warnings.h>
 #include <common/compile_log.h>
 #include <bind/bind.h>
-#include <vm/vm_type.h>
+#include <common/script_type.h>
 
 namespace gjs {
     using namespace parse;
@@ -92,7 +92,7 @@ namespace gjs {
                     // is an identifier that references a class method
                     if (n->lvalue->type == nt::type_identifier) {
                         ctx.push_node(n->lvalue);
-                        vm_type* tp = ctx.type(n->lvalue);
+                        script_type* tp = ctx.type(n->lvalue);
                         ctx.pop_node();
                         std::string pname = *n->rvalue;
                         ctx.push_node(n->rvalue);
@@ -115,7 +115,7 @@ namespace gjs {
                 }
                 case ot::newObj: {
                     ctx.push_node(n);
-                    vm_type* tp = ctx.type(n->data_type);
+                    script_type* tp = ctx.type(n->data_type);
                     var obj = ctx.empty_var(tp);
 
                     std::vector<var> args;

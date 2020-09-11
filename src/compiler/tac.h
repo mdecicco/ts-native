@@ -78,13 +78,13 @@ namespace gjs {
                 ~tac_instruction();
                 
                 tac_instruction& operand(const var& v);
-                tac_instruction& func(vm_function* f);
+                tac_instruction& func(script_function* f);
                 std::string to_string() const;
 
             protected:
                 operation op;
                 var operands[3];
-                vm_function* callee;
+                script_function* callee;
                 source_ref src;
                 u8 op_idx;
         };

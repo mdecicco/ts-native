@@ -1,6 +1,6 @@
-#include <vm/context.h>
-#include <vm/vm_function.h>
-#include <vm/vm_type.h>
+#include <common/context.h>
+#include <common/script_function.h>
+#include <common/script_type.h>
 #include <backends/backend.h>
 
 #include <bind/bind.h>
@@ -19,7 +19,7 @@ namespace gjs {
     script_context::~script_context() {
     }
 
-    void script_context::add(vm_function* func) {
+    void script_context::add(script_function* func) {
         u64 addr = 0;
         if (func->is_host) addr = func->access.wrapped->address;
         else addr = func->access.entry;
@@ -33,7 +33,7 @@ namespace gjs {
         if (m_funcs.count(func->name) == 0) {
             m_funcs[func->name] = { func };
         } else {
-            std::vector<vm_function*>& funcs = m_funcs[func->name];
+            std::vector<script_function*>& funcs = m_funcs[func->name];
             for (u8 i = 0;i < funcs.size();i++) {
                 bool matches = funcs[i]->signature.return_type->id() == func->signature.return_type->id();
                 if (!matches) continue;
@@ -54,27 +54,27 @@ namespace gjs {
         }
     }
 
-    vm_function* script_context::function(const std::string& name) {
+    script_function* script_context::function(const std::string& name) {
         auto it = m_funcs.find(name);
         if (it == m_funcs.end()) return nullptr;
         return it->getSecond()[0];
     }
 
-    vm_function* script_context::function(u64 address) {
+    script_function* script_context::function(u64 address) {
         auto it = m_funcs_by_addr.find(address);
         if (it == m_funcs_by_addr.end()) return nullptr;
         return it->getSecond();
     }
 
-    std::vector<vm_function*> script_context::all_functions() {
-        std::vector<vm_function*> out;
+    std::vector<script_function*> script_context::all_functions() {
+        std::vector<script_function*> out;
         for (auto i = m_funcs.begin();i != m_funcs.end();++i) {
             out.insert(out.begin(), i->getSecond().begin(), i->getSecond().end());
         }
         return out;
     }
 
-    std::vector<vm_type*> script_context::all_types() {
+    std::vector<script_type*> script_context::all_types() {
         return m_types->all();
     }
 

@@ -6,29 +6,29 @@
 namespace gjs {
     class script_context;
     class type_manager;
-    class vm_type;
+    class script_type;
     enum class vm_register;
 
     namespace bind {
         struct wrapped_function;
     };
 
-    class vm_function {
+    class script_function {
         public:
-            vm_function(script_context* ctx, const std::string name, address addr);
-            vm_function(type_manager* mgr, vm_type* tp, bind::wrapped_function* wrapped, bool is_ctor = false, bool is_dtor = false);
+            script_function(script_context* ctx, const std::string name, address addr);
+            script_function(type_manager* mgr, script_type* tp, bind::wrapped_function* wrapped, bool is_ctor = false, bool is_dtor = false);
 
-            void arg(vm_type* type);
+            void arg(script_type* type);
 
             std::string name;
             bool is_host;
             bool is_static;
-            vm_type* is_method_of;
+            script_type* is_method_of;
 
             struct {
-                vm_type* return_type;
+                script_type* return_type;
                 vm_register return_loc;
-                std::vector<vm_type*> arg_types;
+                std::vector<script_type*> arg_types;
                 std::vector<vm_register> arg_locs;
                 bool returns_on_stack;
                 bool is_thiscall;

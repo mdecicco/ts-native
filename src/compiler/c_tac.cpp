@@ -1,5 +1,5 @@
 #include <compiler/tac.h>
-#include <vm/vm_function.h>
+#include <common/script_function.h>
 
 namespace gjs {
     namespace compile {
@@ -81,7 +81,7 @@ namespace gjs {
             return *this;
         }
         
-        tac_instruction& tac_instruction::func(vm_function* f) {
+        tac_instruction& tac_instruction::func(script_function* f) {
             callee = f;
             return *this;
         }

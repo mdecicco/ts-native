@@ -17,7 +17,7 @@ namespace gjs {
             vm_state state;
 
         protected:
-            friend class vm_function;
+            friend class script_function;
             void call_external(u64 addr);
             vm_backend* m_ctx;
             u32 m_stack_size;

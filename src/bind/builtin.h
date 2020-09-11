@@ -3,7 +3,7 @@
 
 namespace gjs {
     class script_context;
-    class vm_type;
+    class script_type;
     struct subtype_t;
 
     void set_builtin_context(script_context* ctx);
@@ -15,7 +15,7 @@ namespace gjs {
 
     class script_array {
         public:
-            script_array(vm_type* type);
+            script_array(script_type* type);
             ~script_array();
 
             void push(subtype_t* elem);
@@ -27,6 +27,6 @@ namespace gjs {
             u32 m_count;
             u32 m_capacity;
             u8* m_data;
-            vm_type* m_type;
+            script_type* m_type;
     };
 };

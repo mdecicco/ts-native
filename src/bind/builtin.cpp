@@ -1,8 +1,8 @@
-#include <vm/vm_function.h>
-#include <vm/vm_type.h>
+#include <common/script_function.h>
+#include <common/script_type.h>
 #include <bind/builtin.h>
-#include <vm/vm_type.h>
-#include <vm/context.h>
+#include <common/script_type.h>
+#include <common/context.h>
 #include <bind/bind.h>
 
 namespace gjs {
@@ -14,7 +14,7 @@ namespace gjs {
     }
 
     void init_context(script_context* ctx) {
-        vm_type* tp = nullptr;
+        script_type* tp = nullptr;
 
         tp = nullptr;
         tp = ctx->types()->add("i64", typeid(i64).name());
@@ -120,7 +120,7 @@ namespace gjs {
         ctx->bind<subtype_t>("subtype").finalize();
 
         auto arr = ctx->bind<script_array>("array");
-        arr.constructor<vm_type*>();
+        arr.constructor<script_type*>();
         arr.method("push", &script_array::push);
         arr.method("operator []", &script_array::operator[]);
         arr.prop(std::string("length"), &script_array::length, bind::property_flags::pf_read_only);
@@ -149,7 +149,7 @@ namespace gjs {
     }
 
 
-    script_array::script_array(vm_type* type) : m_size(0), m_count(0), m_capacity(0), m_type(type) {
+    script_array::script_array(script_type* type) : m_size(0), m_count(0), m_capacity(0), m_type(type) {
     }
 
     script_array::~script_array() {

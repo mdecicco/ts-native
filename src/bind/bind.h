@@ -12,8 +12,8 @@
 
 namespace gjs {
     class vm_backend;
-    class vm_function;
-    class vm_type;
+    class script_function;
+    class script_type;
     class type_manager;
 
     class bind_exception : public std::exception {
@@ -191,13 +191,13 @@ namespace gjs {
         template <typename Cls>
         struct wrap_class : wrapped_class {
             wrap_class(type_manager* tpm, const std::string& name) : wrapped_class(name, typeid(remove_all<Cls>::type).name(), sizeof(remove_all<Cls>::type)), types(tpm) {
-                vm_type* tp = tpm->add(name, typeid(remove_all<Cls>::type).name());
+                script_type* tp = tpm->add(name, typeid(remove_all<Cls>::type).name());
                 tp->is_host = true;
             }
 
             template <typename... Args, std::enable_if_t<sizeof...(Args) != 0, int> = 0>
             wrap_class& constructor() {
-                requires_subtype = std::is_same_v<std::tuple_element_t<0, std::tuple<Args...>>, vm_type*>;
+                requires_subtype = std::is_same_v<std::tuple_element_t<0, std::tuple<Args...>>, script_type*>;
                 methods.push_back(wrap_constructor<Cls, Args...>(types, name));
                 if (!dtor) dtor = wrap_destructor<Cls>(types, name);
                 return *this;
@@ -293,7 +293,7 @@ namespace gjs {
                 return *this;
             }
 
-            vm_type* finalize() {
+            script_type* finalize() {
                 return types->finalize_class(this);
             }
 

@@ -6,7 +6,7 @@
 
 namespace gjs {
     class script_context;
-    class vm_function;
+    class script_function;
     class backend;
 
     namespace parse { struct ast; };

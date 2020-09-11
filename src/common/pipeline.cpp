@@ -1,6 +1,6 @@
 #include <common/pipeline.h>
 #include <backends/backend.h>
-#include <vm/context.h>
+#include <common/context.h>
 #include <common/errors.h>
 
 #include <compiler/compile.h>

@@ -9,7 +9,7 @@
 
 namespace gjs {
     class type_manager;
-    class vm_function;
+    class script_function;
     class script_context {
         public:
             script_context(backend* generator);
@@ -24,26 +24,26 @@ namespace gjs {
             template <typename Ret, typename... Args>
             void bind(Ret(*func)(Args...), const std::string& name) {
                 bind::wrapped_function* w = bind::wrap(m_types, name, func);
-                new vm_function(m_types, nullptr, w);
+                new script_function(m_types, nullptr, w);
             }
 
             /*
              * If a function is not overloaded, this function will return it by name only
              */
-            vm_function* function(const std::string& name);
+            script_function* function(const std::string& name);
 
             /*
              * If a function is overloaded, this function must be used
              */
             template <typename Ret, typename...Args>
-            vm_function* function(const std::string& name);
+            script_function* function(const std::string& name);
 
-            vm_function* function(u64 address);
+            script_function* function(u64 address);
 
-            void add(vm_function* func);
+            void add(script_function* func);
 
-            std::vector<vm_function*>   all_functions();
-            std::vector<vm_type*>       all_types();
+            std::vector<script_function*>   all_functions();
+            std::vector<script_type*>       all_types();
             inline type_manager*        types     () { return m_types; }
             inline pipeline*            compiler  () { return &m_pipeline; }
             inline backend*             generator () { return m_backend; }
@@ -54,11 +54,11 @@ namespace gjs {
             * Call function
             */
             template <typename Ret, typename... Args>
-            void call(vm_function* func, Ret* result, Args... args);
+            void call(script_function* func, Ret* result, Args... args);
 
         protected:
-            robin_hood::unordered_map<u64, vm_function*> m_funcs_by_addr;
-            robin_hood::unordered_map<std::string, std::vector<vm_function*>> m_funcs;
+            robin_hood::unordered_map<u64, script_function*> m_funcs_by_addr;
+            robin_hood::unordered_map<std::string, std::vector<script_function*>> m_funcs;
 
             type_manager* m_types;
             pipeline m_pipeline;
@@ -66,21 +66,21 @@ namespace gjs {
     };
 
     template <typename Ret, typename...Args>
-    vm_function* script_context::function(const std::string& name) {
+    script_function* script_context::function(const std::string& name) {
         if (m_funcs.count(func->name) == 0) return nullptr;
 
-        vm_type* ret = m_types->get<Ret>();
+        script_type* ret = m_types->get<Ret>();
         if (!ret) return nullptr;
 
         constexpr u8 ac = std::tuple_size<std::tuple<Args...>>::value;
         if constexpr (ac > 0) {
-            vm_type* arg_types[ac] = { m_types->get<Args>()... };
+            script_type* arg_types[ac] = { m_types->get<Args>()... };
 
             for (u8 i = 0;i < ac;i++) {
                 if (!arg_types[i]) return nullptr;
             }
 
-            std::vector<vm_function*>& funcs = m_funcs[func->name];
+            std::vector<script_function*>& funcs = m_funcs[func->name];
             for (u8 i = 0;i < funcs.size();i++) {
                 bool matches = funcs[i]->signature.return_type->id() == ret->id();
                 if (!matches) continue;
@@ -95,7 +95,7 @@ namespace gjs {
                 if (matches) return funcs[i];
             }
         } else {
-            std::vector<vm_function*>& funcs = m_funcs[func->name];
+            std::vector<script_function*>& funcs = m_funcs[func->name];
             for (u8 i = 0;i < funcs.size();i++) {
                 if (funcs[i]->signature.arg_types.size() != 0) continue;
                 if (funcs[i]->signature.return_type->id() == ret->id()) return funcs[i];
@@ -105,9 +105,9 @@ namespace gjs {
     }
 
     template <typename Ret, typename... Args>
-    void script_context::call(vm_function* func, Ret* result, Args... args) {
+    void script_context::call(script_function* func, Ret* result, Args... args) {
         // validate signature
-        vm_type* ret = m_types->get<Ret>();
+        script_type* ret = m_types->get<Ret>();
         if (!ret) {
             // exception
             return;
@@ -116,7 +116,7 @@ namespace gjs {
         constexpr u8 ac = std::tuple_size<std::tuple<Args...>>::value;
         bool valid_call = true;
         if constexpr (ac > 0) {
-            vm_type* arg_types[ac] = { m_types->get<Args>()... };
+            script_type* arg_types[ac] = { m_types->get<Args>()... };
 
             for (u8 i = 0;i < ac;i++) {
                 if (!arg_types[i]) {
