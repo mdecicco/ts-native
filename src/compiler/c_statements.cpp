@@ -67,6 +67,7 @@ namespace gjs {
 
         void if_statement(context& ctx, parse::ast* n) {
             ctx.push_node(n);
+            ctx.ensure_code_ref();
             tac_instruction& branch = ctx.add(operation::branch).operand(expression(ctx, n->condition));
 
             ctx.push_block();
@@ -74,14 +75,15 @@ namespace gjs {
             ctx.pop_block();
 
             if (n->else_body) {
+                ctx.ensure_code_ref();
                 tac_instruction& jmp = ctx.add(operation::jump); // jump past else block if the condition evaluates to true, after executing the truth condition
-                branch.operand(ctx.imm((u64)ctx.code.size())); // jump to here from branch if the condition evaluates to false
+                branch.operand(ctx.imm((u64)ctx.code_sz())); // jump to here from branch if the condition evaluates to false
                 ctx.push_block();
                 any(ctx, n->else_body);
                 ctx.pop_block();
-                jmp.operand(ctx.imm((u64)ctx.code.size()));
+                jmp.operand(ctx.imm((u64)ctx.code_sz()));
             } else {
-                branch.operand(ctx.imm((u64)ctx.code.size()));
+                branch.operand(ctx.imm((u64)ctx.code_sz()));
             }
             ctx.pop_node();
         }

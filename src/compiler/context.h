@@ -1,6 +1,7 @@
 #pragma once
 #include <compiler/variable.h>
 #include <compiler/tac.h>
+#include <common/pipeline.h>
 
 namespace gjs {
     class script_context;
@@ -17,19 +18,21 @@ namespace gjs {
             parse::ast* input;
             type_manager* new_types;
             std::vector<script_function*> new_functions;
-            std::vector<tac_instruction*>& code;
+            compilation_output& out;
             u32 next_reg_id;
             std::vector<parse::ast*> node_stack;
 
             struct block_context {
                 script_function* func;
                 std::vector<var> named_vars;
+                u32 start;
+                u32 end;
             };
 
             // stack is used in case I figure out a way to have arrow functions declared inside of functions
             std::vector<block_context*> func_stack;
 
-            context(std::vector<tac_instruction*>& out);
+            context(compilation_output& out);
             var imm(u64 u);
             var imm(i64 i);
             var imm(f32 f);
@@ -59,6 +62,8 @@ namespace gjs {
             script_function* current_function();
 
             tac_instruction& add(operation op);
+            void ensure_code_ref();
+            u64 code_sz() const;
             void push_node(parse::ast* node);
             void pop_node();
             void push_block(script_function* f = nullptr);

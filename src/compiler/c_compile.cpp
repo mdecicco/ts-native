@@ -124,9 +124,11 @@ namespace gjs {
         }
 
         void class_declaration(context& ctx, parse::ast* n) {
+            // ctx.out.types.push_back(...);
         }
 
         void format_declaration(context& ctx, parse::ast* n) {
+            // ctx.out.types.push_back(...);
         }
 
         void any(context& ctx, ast* n) {
@@ -168,7 +170,7 @@ namespace gjs {
             ctx.pop_block();
         }
 
-        void compile(script_context* env, ast* input, std::vector<tac_instruction*>& out) {
+        void compile(script_context* env, ast* input, compilation_output& out) {
             if (!input || !input->body) {
                 throw exc(ec::c_no_code, input ? input->ref : source_ref("[unknown]", "", 0, 0));
             }

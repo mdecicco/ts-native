@@ -13,7 +13,7 @@ namespace gjs {
     using wc = warning::wcode;
 
     namespace compile {
-        context::context(std::vector<tac_instruction*>& out) : code(out) {
+        context::context(compilation_output& _out) : out(_out) {
             next_reg_id = 0;
             env = nullptr;
             input = nullptr;
@@ -213,6 +213,7 @@ namespace gjs {
                             ct->is_host = true;
                             ct->is_builtin = t->is_builtin;
                             ct->size = t->size;
+                            out.types.push_back(ct);
                         } else {
                             // recompile the type with all occurrences of "subtype"
                             // as a data type changed to refer to the actual subtype
@@ -259,8 +260,19 @@ namespace gjs {
         }
 
         tac_instruction& context::add(operation op) {
-            code.push_back(new tac_instruction(op, node()->ref));
-            return *code[code.size() - 1];
+            out.code.push_back(tac_instruction(op, node()->ref));
+            return out.code.back();
+        }
+
+        void context::ensure_code_ref() {
+            if (out.code.size() >= out.code.capacity() - 32) {
+                // prevent vector resizing before some instruction is fully defined
+                out.code.reserve(out.code.capacity() + 32);
+            }
+        }
+
+        u64 context::code_sz() const {
+            return out.code.size();
         }
 
         void context::push_node(parse::ast* node) {
@@ -274,10 +286,22 @@ namespace gjs {
         void context::push_block(script_function* f) {
             func_stack.push_back(new block_context);
             func_stack[func_stack.size() - 1]->func = f;
+
+            if (f) out.funcs.push_back({ f, code_sz(), 0 });
         }
 
         void context::pop_block() {
-            if (func_stack[func_stack.size() - 1]) delete func_stack[func_stack.size() - 1];
+            if (func_stack.back()) {
+                script_function* f = func_stack.back()->func;
+                if (f) {
+                    for (u16 i = 0;i < out.funcs.size();i++) {
+                        if (out.funcs[i].func == f) {
+                            out.funcs[i].end = code_sz() - 1;
+                        }
+                    }
+                }
+                delete func_stack.back();
+            }
             func_stack.pop_back();
         }
 

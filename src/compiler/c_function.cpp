@@ -74,7 +74,7 @@ namespace gjs {
                 ctx.push_block(f);
             }
             
-            f->access.entry = ctx.code.size();
+            f->access.entry = ctx.code_sz();
 
             block(ctx, n->body);
 

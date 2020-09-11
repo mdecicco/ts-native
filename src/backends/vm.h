@@ -25,7 +25,9 @@ namespace gjs {
 
             void execute(address entry);
 
-            virtual void generate(const ir_code& ir);
+            virtual void generate(const compilation_output& in);
+            virtual u16 gp_count() const;
+            virtual u16 fp_count() const;
 
         protected:
             virtual void call(script_function* func, void* ret, void** args);

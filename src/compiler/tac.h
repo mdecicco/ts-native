@@ -74,6 +74,7 @@ namespace gjs {
 
         struct tac_instruction {
             public:
+                tac_instruction();
                 tac_instruction(operation op, const source_ref& src);
                 ~tac_instruction();
                 
@@ -81,11 +82,12 @@ namespace gjs {
                 tac_instruction& func(script_function* f);
                 std::string to_string() const;
 
-            protected:
                 operation op;
                 var operands[3];
                 script_function* callee;
                 source_ref src;
+
+            protected:
                 u8 op_idx;
         };
     };

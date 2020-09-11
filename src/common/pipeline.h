@@ -3,6 +3,7 @@
 #include <string>
 #include <common/types.h>
 #include <common/compile_log.h>
+#include <compiler/tac.h>
 
 namespace gjs {
     class script_context;
@@ -10,13 +11,25 @@ namespace gjs {
     class backend;
 
     namespace parse { struct ast; };
-    namespace compile { struct tac_instruction; };
-    typedef std::vector<compile::tac_instruction*> ir_code;
+
+    struct compilation_output {
+        struct func_def {
+            script_function* func;
+            u64 begin;
+            u64 end;
+        };
+        typedef std::vector<func_def> func_defs;
+        typedef std::vector<compile::tac_instruction> ir_code;
+
+        func_defs funcs;
+        std::vector<script_type*> types;
+        ir_code code;
+    };
 
 
     class pipeline {
         public:
-            typedef void (*ir_step_func)(script_context* ctx, ir_code&);
+            typedef void (*ir_step_func)(script_context* ctx, compilation_output&);
             typedef void (*ast_step_func)(script_context* ctx, parse::ast*);
 
             pipeline(script_context* ctx);

@@ -2,6 +2,7 @@
 #include <backends/backend.h>
 #include <common/context.h>
 #include <common/errors.h>
+#include <backends/register_allocator.h>
 
 #include <compiler/compile.h>
 #include <lexer/lexer.h>
@@ -35,9 +36,9 @@ namespace gjs {
             throw e;
         }
 
-        ir_code ir;
+        compilation_output out;
         try {
-            compile::compile(m_ctx, tree, ir);
+            compile::compile(m_ctx, tree, out);
             delete tree;
         } catch (error::exception& e) {
             delete tree;
@@ -52,15 +53,19 @@ namespace gjs {
         else {
             try {
                 for (u8 i = 0;i < m_ir_steps.size();i++) {
-                    m_ir_steps[i](m_ctx, ir);
+                    m_ir_steps[i](m_ctx, out);
                 }
+
+                register_allocator ro(out, generator->gp_count(), generator->fp_count());
+                ro.process();
+
             } catch (error::exception& e) {
                 throw e;
             } catch (std::exception& e) {
                 throw e;
             }
 
-            generator->generate(ir);
+            generator->generate(out);
         }
 
 

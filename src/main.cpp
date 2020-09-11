@@ -135,9 +135,9 @@ void print_code(vm_backend& ctx) {
     }
 }
 
-void debug_ir_step(script_context* ctx, ir_code& code) {
-    for (u32 i = 0;i < code.size();i++) {
-        printf("%3.3d: %s\n", i, code[i]->to_string().c_str());
+void debug_ir_step(script_context* ctx, compilation_output& in) {
+    for (u32 i = 0;i < in.code.size();i++) {
+        printf("%3.3d: %s\n", i, in.code[i].to_string().c_str());
     }
 }
 

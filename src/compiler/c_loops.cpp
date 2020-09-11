@@ -12,7 +12,7 @@ namespace gjs {
             }
 
             tac_instruction* b = nullptr;
-            u64 cond_addr = ctx.code.size();
+            u64 cond_addr = ctx.code_sz();
             if (n->condition) {
                 var cond = expression(ctx, n->condition);
                 b = &ctx.add(operation::branch).operand(cond);
@@ -28,7 +28,7 @@ namespace gjs {
 
             ctx.add(operation::jump).operand(ctx.imm(cond_addr));
 
-            if (b) b->operand(ctx.imm((u64)ctx.code.size()));
+            if (b) b->operand(ctx.imm((u64)ctx.code_sz()));
 
             if (n->initializer) ctx.pop_block();
             ctx.pop_node();
@@ -37,8 +37,9 @@ namespace gjs {
         void while_loop(context& ctx, parse::ast* n) {
             ctx.push_node(n);
             
-            u64 cond_addr = ctx.code.size();
+            u64 cond_addr = ctx.code_sz();
             var cond = expression(ctx, n->condition);
+            ctx.ensure_code_ref();
             tac_instruction& b = ctx.add(operation::branch).operand(cond);
 
             ctx.push_block();
@@ -46,7 +47,7 @@ namespace gjs {
             ctx.pop_block();
 
             ctx.add(operation::jump).operand(ctx.imm(cond_addr));
-            b.operand(ctx.imm((u64)ctx.code.size()));
+            b.operand(ctx.imm((u64)ctx.code_sz()));
 
             ctx.pop_node();
         }
@@ -54,18 +55,19 @@ namespace gjs {
         void do_while_loop(context& ctx, parse::ast* n) {
             ctx.push_node(n);
 
-            u64 start_addr = ctx.code.size();
+            u64 start_addr = ctx.code_sz();
 
             ctx.push_block();
             any(ctx, n->body);
             ctx.pop_block();
 
             var cond = expression(ctx, n->condition);
+            ctx.ensure_code_ref();
             tac_instruction& b = ctx.add(operation::branch).operand(cond);
 
             ctx.add(operation::jump).operand(ctx.imm(start_addr));
 
-            b.operand(ctx.imm((u64)ctx.code.size()));
+            b.operand(ctx.imm((u64)ctx.code_sz()));
 
             ctx.pop_node();
         }

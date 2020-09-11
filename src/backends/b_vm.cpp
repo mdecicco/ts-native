@@ -1,4 +1,6 @@
 #include <backends/vm.h>
+#include <compiler/tac.h>
+#include <backends/register_allocator.h>
 
 namespace gjs {
     vm_exception::vm_exception(vm_backend* ctx, const std::string& _text) :
@@ -40,7 +42,212 @@ namespace gjs {
         m_is_executing = false;
     }
 
-    void vm_backend::generate(const ir_code& ir) {
+    void vm_backend::generate(const compilation_output& in) {
+        using op = compile::operation;
+        using vmi = vm_instruction;
+        using vmr = vm_register;
+
+        for (u32 i = 0;i < in.code.size();i++) {
+            switch(in.code[i].op) {
+                case op::null: {
+                    break;
+                }
+                case op::load: {
+                    break;
+                }
+                case op::store: {
+                    break;
+                }
+                case op::stack_alloc: {
+                    break;
+                }
+                case op::stack_free: {
+                    break;
+                }
+                case op::iadd: {
+                    break;
+                }
+                case op::isub: {
+                    break;
+                }
+                case op::imul: {
+                    break;
+                }
+                case op::idiv: {
+                    break;
+                }
+                case op::imod: {
+                    break;
+                }
+                case op::uadd: {
+                    break;
+                }
+                case op::usub: {
+                    break;
+                }
+                case op::umul: {
+                    break;
+                }
+                case op::udiv: {
+                    break;
+                }
+                case op::umod: {
+                    break;
+                }
+                case op::fadd: {
+                    break;
+                }
+                case op::fsub: {
+                    break;
+                }
+                case op::fmul: {
+                    break;
+                }
+                case op::fdiv: {
+                    break;
+                }
+                case op::fmod: {
+                    break;
+                }
+                case op::dadd: {
+                    break;
+                }
+                case op::dsub: {
+                    break;
+                }
+                case op::dmul: {
+                    break;
+                }
+                case op::ddiv: {
+                    break;
+                }
+                case op::dmod: {
+                    break;
+                }
+                case op::sl: {
+                    break;
+                }
+                case op::sr: {
+                    break;
+                }
+                case op::land: {
+                    break;
+                }
+                case op::lor: {
+                    break;
+                }
+                case op::band: {
+                    break;
+                }
+                case op::bor: {
+                    break;
+                }
+                case op::bxor: {
+                    break;
+                }
+                case op::ilt: {
+                    break;
+                }
+                case op::igt: {
+                    break;
+                }
+                case op::ilte: {
+                    break;
+                }
+                case op::igte: {
+                    break;
+                }
+                case op::incmp: {
+                    break;
+                }
+                case op::icmp: {
+                    break;
+                }
+                case op::ult: {
+                    break;
+                }
+                case op::ugt: {
+                    break;
+                }
+                case op::ulte: {
+                    break;
+                }
+                case op::ugte: {
+                    break;
+                }
+                case op::uncmp: {
+                    break;
+                }
+                case op::ucmp: {
+                    break;
+                }
+                case op::flt: {
+                    break;
+                }
+                case op::fgt: {
+                    break;
+                }
+                case op::flte: {
+                    break;
+                }
+                case op::fgte: {
+                    break;
+                }
+                case op::fncmp: {
+                    break;
+                }
+                case op::fcmp: {
+                    break;
+                }
+                case op::dlt: {
+                    break;
+                }
+                case op::dgt: {
+                    break;
+                }
+                case op::dlte: {
+                    break;
+                }
+                case op::dgte: {
+                    break;
+                }
+                case op::dncmp: {
+                    break;
+                }
+                case op::dcmp: {
+                    break;
+                }
+                case op::eq: {
+                    break;
+                }
+                case op::neg: {
+                    break;
+                }
+                case op::call: {
+                    break;
+                }
+                case op::param: {
+                    break;
+                }
+                case op::ret: {
+                    break;
+                }
+                case op::branch: {
+                    break;
+                }
+                case op::jump: {
+                    break;
+                }
+            }
+        }
+    }
+    
+    u16 vm_backend::gp_count() const {
+        return 8;
+    }
+
+    u16 vm_backend::fp_count() const {
+        return 16;
     }
 
     void vm_backend::call(script_function* func, void* ret, void** args) {

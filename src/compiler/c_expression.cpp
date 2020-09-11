@@ -201,9 +201,9 @@ namespace gjs {
                     var result = ctx.empty_var(tmp.type());
                     ctx.add(operation::eq).operand(result).operand(tmp);
                     auto& j = ctx.add(operation::jump);
-                    b.operand(ctx.imm(ctx.code.size()));
+                    b.operand(ctx.imm(ctx.code_sz()));
                     ctx.add(operation::eq).operand(result).operand(expression(ctx, n->rvalue).convert(tmp.type()));
-                    j.operand(ctx.imm(ctx.code.size()));
+                    j.operand(ctx.imm(ctx.code_sz()));
                     
                     ctx.pop_node();
                     return result;

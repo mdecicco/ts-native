@@ -3,6 +3,7 @@
 
 namespace gjs {
     class script_context;
+    struct compilation_output;
 
     namespace parse {
         struct ast;
@@ -47,6 +48,6 @@ namespace gjs {
 
         void block(context&ctx, parse::ast* n);
 
-        void compile(script_context* env, parse::ast* input, std::vector<tac_instruction*>& out);
+        void compile(script_context* env, parse::ast* input, compilation_output& out);
     };
 };

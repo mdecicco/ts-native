@@ -14,7 +14,13 @@ namespace gjs {
             * architecture. What it does with that code is out of the scope of
             * the pipeline.
             */
-            virtual void generate(const ir_code& ir) = 0;
+            virtual void generate(const compilation_output& in) = 0;
+
+            // number of GP registers (see register_allocator file for details)
+            virtual u16 gp_count() const = 0;
+
+            // number of FP registers (see register_allocaor file for details)
+            virtual u16 fp_count() const = 0;
 
         protected:
             friend class script_context;
