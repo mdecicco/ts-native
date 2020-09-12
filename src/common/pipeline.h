@@ -24,6 +24,11 @@ namespace gjs {
         func_defs funcs;
         std::vector<script_type*> types;
         ir_code code;
+
+        // will adjust any branch/jump instructions that would be affected
+        // by address changes
+        void insert(u64 address, const compile::tac_instruction& i);
+        void erase(u64 address);
     };
 
 

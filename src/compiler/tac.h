@@ -5,11 +5,12 @@
 namespace gjs {
     namespace compile {
         enum class operation {
-            null,
+            null = 0,
             load,
             store,
             stack_alloc,
             stack_free,
+            spill,
             iadd,
             isub,
             imul,
@@ -75,6 +76,7 @@ namespace gjs {
         struct tac_instruction {
             public:
                 tac_instruction();
+                tac_instruction(const tac_instruction& rhs);
                 tac_instruction(operation op, const source_ref& src);
                 ~tac_instruction();
                 

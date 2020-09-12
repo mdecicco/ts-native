@@ -65,6 +65,7 @@ namespace gjs {
             m_reg_id = -1;
             m_imm.u = u;
             m_type = ctx->type("u64");
+            m_stack_loc = -1;
             m_is_stack_obj = false;
             m_mem_ptr.valid = false;
             m_mem_ptr.reg = -1;
@@ -81,6 +82,7 @@ namespace gjs {
             m_reg_id = -1;
             m_imm.i = i;
             m_type = ctx->type("i64");
+            m_stack_loc = -1;
             m_is_stack_obj = false;
             m_mem_ptr.valid = false;
             m_mem_ptr.reg = -1;
@@ -96,6 +98,7 @@ namespace gjs {
             m_reg_id = -1;
             m_imm.f = f;
             m_type = ctx->type("f32");
+            m_stack_loc = -1;
             m_is_stack_obj = false;
             m_mem_ptr.valid = false;
             m_mem_ptr.reg = -1;
@@ -111,6 +114,7 @@ namespace gjs {
             m_reg_id = -1;
             m_imm.d = d;
             m_type = ctx->type("f64");
+            m_stack_loc = -1;
             m_is_stack_obj = false;
             m_mem_ptr.valid = false;
             m_mem_ptr.reg = -1;
@@ -125,6 +129,7 @@ namespace gjs {
             m_flags = bind::pf_none;
             m_reg_id = -1;
             m_type = ctx->type("string");
+            m_stack_loc = -1;
             m_imm.u = 0;
             m_is_stack_obj = false;
             m_mem_ptr.valid = false;
@@ -140,6 +145,7 @@ namespace gjs {
             m_flags = bind::pf_none;
             m_reg_id = reg_id;
             m_type = type;
+            m_stack_loc = -1;
             m_imm.u = 0;
             m_is_stack_obj = false;
             m_mem_ptr.valid = false;
@@ -154,6 +160,7 @@ namespace gjs {
             m_flags = bind::pf_none;
             m_reg_id = -1;
             m_type = nullptr;
+            m_stack_loc = -1;
             m_imm.u = 0;
             m_is_stack_obj = false;
             m_mem_ptr.valid = false;
@@ -170,6 +177,7 @@ namespace gjs {
             m_reg_id = v.m_reg_id;
             m_imm = v.m_imm;
             m_type = v.m_type;
+            m_stack_loc = v.m_stack_loc;
             m_mem_ptr = v.m_mem_ptr;
             m_name = v.m_name;
             m_is_stack_obj = v.m_is_stack_obj;
@@ -431,6 +439,10 @@ namespace gjs {
         }
 
         std::string var::to_string() const {
+            if (is_spilled()) {
+                if (m_name.length() > 0) return format("[$sp + %u] (%s)", m_stack_loc, m_name.c_str());
+                else return format("[$sp + %u]", m_stack_loc);
+            }
             if (m_is_imm) {
                 if (m_type->is_floating_point) {
                     if (m_type->size == sizeof(f64)) {
@@ -447,8 +459,13 @@ namespace gjs {
                 }
             }
 
-            if (m_name.length() > 0) return format("$%d (%s)", m_reg_id, m_name.c_str());
-            return format("$%d", m_reg_id);
+            if (m_name.length() > 0) {
+                if (m_type->is_floating_point) return format("$FP%d (%s)", m_reg_id, m_name.c_str());
+                return format("$GP%d (%s)", m_reg_id, m_name.c_str());
+            }
+
+            if (m_type->is_floating_point) return format("$FP%d", m_reg_id);
+            return format("$GP%d", m_reg_id);
         }
 
         void var::set_mem_ptr(const var& v) {
@@ -817,7 +834,7 @@ namespace gjs {
             } else {
                 m_ctx->add(operation::eq).operand(*this).operand(rhs.convert(m_type));
                 if (m_mem_ptr.valid) {
-                    m_ctx->add(operation::store).operand(*this).operand(var(m_ctx, m_mem_ptr.reg, m_type));
+                    m_ctx->add(operation::store).operand(var(m_ctx, m_mem_ptr.reg, m_type)).operand(*this);
                 }
             }
 

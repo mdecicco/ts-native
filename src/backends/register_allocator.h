@@ -16,10 +16,11 @@ namespace gjs {
      * - This will insert IR code to load values from the stack
      *   that were stored as a result of this process (when needed)
      * - The resulting code will use virtual registers 0 to gpN
-     *   to represent GP registers, and virtual registers gpN to
-     *   (gpN + fpN) for floating point registers. Backend code
-     *   generators will need to map these virtual register IDs
-     *   to native registers accordingly.
+     *   to for GP registers, and virtual registers 0 to fpN for
+     *   floating point registers. Backend code generators will
+     *   need to map these virtual register IDs to physical registers
+     *   using the operand types to determine whether a virtual
+     *   reister is GP or FP.
      */
     class register_allocator {
         public:
@@ -31,19 +32,23 @@ namespace gjs {
         protected:
             struct reg_lifetime {
                 u32 reg_id;
+                u32 new_id;
+                u32 stack_loc;
                 u32 begin;
                 u32 end;
 
                 bool is_concurrent(const reg_lifetime& o) const;
             };
+
             void process_func(u16 fidx);
             void calc_reg_lifetimes(u64 from, u64 to);
-            bool requires_spill(const std::vector<reg_lifetime>& regs, u16 k);
+            void reassign_registers(std::vector<reg_lifetime>& regs, u16 k, u64 from, u64 to);
 
             u16 m_gpc;
             u16 m_fpc;
             compilation_output& m_in;
             std::vector<reg_lifetime> m_gpLf;
             std::vector<reg_lifetime> m_fpLf;
+            u16 m_nextStackIdx;
     };
 };

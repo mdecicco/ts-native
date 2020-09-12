@@ -7,6 +7,8 @@
 namespace gjs {
     class script_type;
     class script_function;
+    class register_allocator;
+    struct compilation_output;
 
     namespace bind {
         enum property_flags;
@@ -35,6 +37,11 @@ namespace gjs {
                 inline bool flag(bind::property_flags f) const { return m_flags & f; }
                 inline void raise_stack_flag() { m_is_stack_obj = true; }
                 inline bool is_stack_obj() const { return m_is_stack_obj; }
+
+                // used by code generation phase when generating load instructions
+                // for 'spilled' variables
+                inline bool is_spilled() const { return m_stack_loc != u32(-1); }
+                inline u32 stack_off() const { return m_stack_loc; }
 
                 u64 size() const;
                 bool has_prop(const std::string& name) const;
@@ -94,6 +101,8 @@ namespace gjs {
             protected:
                 friend struct tac_instruction;
                 friend struct context;
+                friend class register_allocator;
+                friend struct compilation_output;
 
                 var();
                 var(context* ctx, u64 u);
@@ -111,6 +120,9 @@ namespace gjs {
 
                 bool m_is_imm;
                 u32 m_reg_id;
+                
+                // Used in the register allocation phase when no registers are available
+                u32 m_stack_loc;
 
                 // If the object was allocated in the stack
                 // (used to log compiler errors if script uses 'delete' on a stack object)

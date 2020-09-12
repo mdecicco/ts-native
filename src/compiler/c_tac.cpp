@@ -1,5 +1,6 @@
 #include <compiler/tac.h>
 #include <common/script_function.h>
+#include <common/script_type.h>
 
 namespace gjs {
     namespace compile {
@@ -9,6 +10,7 @@ namespace gjs {
             "store",
             "stack_alloc",
             "stack_free",
+            "spill",
             "add",
             "sub",
             "mul",
@@ -72,6 +74,16 @@ namespace gjs {
         tac_instruction::tac_instruction() : op(operation::null), op_idx(0), callee(nullptr) {
         }
 
+        tac_instruction::tac_instruction(const tac_instruction& rhs) {
+            op = rhs.op;
+            operands[0] = rhs.operands[0];
+            operands[1] = rhs.operands[1];
+            operands[2] = rhs.operands[2];
+            callee = rhs.callee;
+            src = rhs.src;
+            op_idx = rhs.op_idx;
+        }
+
         tac_instruction::tac_instruction(operation _op, const source_ref& _src) : op(_op), src(_src), op_idx(0), callee(nullptr) {
         }
 
@@ -91,7 +103,10 @@ namespace gjs {
 
         std::string tac_instruction::to_string() const {
             std::string out = op_str[(u8)op];
-            if (callee) return out + " " + callee->name + " -> " + operands[0].to_string();
+            if (callee) {
+                if (callee->signature.return_type->size > 0) return out + " " + callee->name + " -> " + operands[0].to_string();
+                else return out + " " + callee->name;
+            }
             for (u8 i = 0;i < op_idx;i++) out += " " + operands[i].to_string();
             return out;
         }

@@ -144,7 +144,7 @@ namespace gjs {
                     a = a->next;
                 }
                 script_function* func = ctx.function(*n->callee, nullptr, arg_types);
-                if (func)  return call(ctx, func, args);
+                if (func) return call(ctx, func, args);
             }
 
             ctx.push_node(n->callee);

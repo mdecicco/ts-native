@@ -9,6 +9,29 @@
 #include <parser/parse.h>
 
 namespace gjs {
+    void compilation_output::insert(u64 addr, const compile::tac_instruction& i) {
+        code.insert(code.begin() + addr, i);
+        for (u32 i = 0;i < code.size();i++) {
+            if (code[i].op == compile::operation::branch) {
+                if (code[i].operands[1].imm_u() >= addr) code[i].operands[1].m_imm.u++;
+            } else if (code[i].op == compile::operation::jump) {
+                if (code[i].operands[0].imm_u() >= addr) code[i].operands[0].m_imm.u++;
+            }
+        }
+    }
+
+    void compilation_output::erase(u64 addr) {
+        code.erase(code.begin() + addr);
+        for (u32 i = 0;i < code.size();i++) {
+            if (code[i].op == compile::operation::branch) {
+                if (code[i].operands[1].imm_u() > addr) code[i].operands[1].m_imm.u--;
+            } else if (code[i].op == compile::operation::jump) {
+                if (code[i].operands[0].imm_u() > addr) code[i].operands[0].m_imm.u--;
+            }
+        }
+    }
+
+
     pipeline::pipeline(script_context* ctx) : m_ctx(ctx) {
     }
 
