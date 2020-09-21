@@ -6,6 +6,12 @@
 namespace gjs {
     using namespace compile;
 
+    bool register_allocator::reg_lifetime::is_concurrent(const register_allocator::reg_lifetime& o) const {
+        return (begin >= o.begin && begin <= o.end) || (o.begin >= begin && o.begin <= end);
+    }
+
+
+
     register_allocator::register_allocator(compilation_output& in, u16 gpN, u16 fpN) : m_gpc(gpN), m_fpc(fpN), m_in(in) {
     }
 
@@ -16,8 +22,17 @@ namespace gjs {
         for (u16 i = 0;i < m_in.funcs.size();i++) process_func(i);
     }
 
-    bool register_allocator::reg_lifetime::is_concurrent(const register_allocator::reg_lifetime& o) const {
-        return (begin >= o.begin && begin <= o.end) || (o.begin >= begin && o.begin <= end);
+    std::vector<register_allocator::reg_lifetime> register_allocator::get_live(u64 at) {
+        std::vector<register_allocator::reg_lifetime> out;
+
+        for (u16 i = 0;i < m_gpLf.size();i++) {
+            if (m_gpLf[i].begin <= at && m_gpLf[i].end >= at) out.push_back(m_gpLf[i]);
+        }
+        for (u16 i = 0;i < m_fpLf.size();i++) {
+            if (m_fpLf[i].begin <= at && m_fpLf[i].end >= at) out.push_back(m_fpLf[i]);
+        }
+
+        return out;
     }
 
     void register_allocator::process_func(u16 fidx) {
@@ -33,8 +48,8 @@ namespace gjs {
 
         std::vector<tac_instruction> old = m_in.code;
 
-        reassign_registers(m_gpLf, m_gpc, fd.begin, fd.end);
-        reassign_registers(m_fpLf, m_fpc, fd.begin, fd.end);
+        reassign_registers(m_gpLf, m_gpc, fd.begin, fd.end, fidx);
+        reassign_registers(m_fpLf, m_fpc, fd.begin, fd.end, fidx);
 
         printf("Post-allocation\n");
         calc_reg_lifetimes(fd.begin, fd.end);
@@ -52,73 +67,6 @@ namespace gjs {
     }
 
     void register_allocator::calc_reg_lifetimes(u64 from, u64 to) {
-        static bool is_assignment[] = {
-            false,   // null
-            true,    // load
-            false,   // store
-            true,    // stack_alloc
-            false,   // stack_free
-            false,   // spill
-            true,    // iadd
-            true,    // isub
-            true,    // imul
-            true,    // idiv
-            true,    // imod
-            true,    // uadd
-            true,    // usub
-            true,    // umul
-            true,    // udiv
-            true,    // umod
-            true,    // fadd
-            true,    // fsub
-            true,    // fmul
-            true,    // fdiv
-            true,    // fmod
-            true,    // dadd
-            true,    // dsub
-            true,    // dmul
-            true,    // ddiv
-            true,    // dmod
-            true,    // sl
-            true,    // sr
-            true,    // land
-            true,    // lor
-            true,    // band
-            true,    // bor
-            true,    // bxor
-            true,    // ilt
-            true,    // igt
-            true,    // ilte
-            true,    // igte
-            true,    // incmp
-            true,    // icmp
-            true,    // ult
-            true,    // ugt
-            true,    // ulte
-            true,    // ugte
-            true,    // uncmp
-            true,    // ucmp
-            true,    // flt
-            true,    // fgt
-            true,    // flte
-            true,    // fgte
-            true,    // fncmp
-            true,    // fcmp
-            true,    // dlt
-            true,    // dgt
-            true,    // dlte
-            true,    // dgte
-            true,    // dncmp
-            true,    // dcmp
-            true,    // eq
-            true,    // neg
-            true,    // call
-            false,   // param
-            false,   // ret
-            false,   // branch
-            false    // jump
-        };
-
         m_gpLf.clear();
         m_fpLf.clear();
         m_nextStackIdx = 0;
@@ -127,8 +75,8 @@ namespace gjs {
         //      update the affected live ranges to end at the jump
 
         for (u64 i = from;i <= to;i++) {
-            if (!is_assignment[(u16)m_in.code[i].op]) continue;
-            reg_lifetime l = { m_in.code[i].operands[0].m_reg_id, -1, -1, i, i };
+            if (!is_assignment(m_in.code[i].op) || !m_in.code[i].operands[0].valid() || m_in.code[i].operands[0].is_spilled()) continue;
+            reg_lifetime l = { m_in.code[i].operands[0].m_reg_id, -1, -1, i, i, m_in.code[i].operands[0].type()->is_floating_point };
             for (u64 i1 = i + 1;i1 <= to;i1++) {
                 u8 o = 0;
                 for (;o < 3;o++) {
@@ -136,16 +84,16 @@ namespace gjs {
                 }
 
                 if (o == 3) continue;
-                if (o > 0 || !is_assignment[(u16)m_in.code[i1].op]) l.end = i1;
-                else if (o == 0 && is_assignment[(u16)m_in.code[i1].op]) break;
+                if (o > 0 || !is_assignment(m_in.code[i1].op)) l.end = i1;
+                else if (o == 0 && is_assignment(m_in.code[i1].op)) break;
             }
 
-            if (m_in.code[l.begin].operands[0].type()->is_floating_point) m_fpLf.push_back(l);
+            if (l.is_fp) m_fpLf.push_back(l);
             else m_gpLf.push_back(l);
         }
     }
     
-    void register_allocator::reassign_registers(std::vector<reg_lifetime>& regs, u16 k, u64 from, u64 to) {
+    void register_allocator::reassign_registers(std::vector<reg_lifetime>& regs, u16 k, u64 from, u64 to, u16 fidx) {
         using ti = tac_instruction;
         std::sort(regs.begin(), regs.end(), [](const reg_lifetime& a, const reg_lifetime& b) {
             return a.begin < b.begin;
@@ -173,9 +121,8 @@ namespace gjs {
                 reg_lifetime* spill = active.back();
                 if (spill->end > regs[l].end) {
                     regs[l].new_id = spill->new_id;
-                    spill->stack_loc = stack_off;
                     script_type* tp = m_in.code[spill->begin].operands[0].type();
-                    stack_off += tp->is_primitive ? tp->size : sizeof(void*);
+                    spill->stack_loc = m_in.funcs[fidx].stack.alloc(tp->is_primitive ? tp->size : sizeof(void*));
                     active.pop_back();
                     active.push_back(&regs[l]);
                     std::sort(active.begin(), active.end(), [](reg_lifetime* a, reg_lifetime* b) {
@@ -183,9 +130,8 @@ namespace gjs {
                     });
                 }
                 else {
-                    regs[l].stack_loc = stack_off;
                     script_type* tp = m_in.code[regs[l].begin].operands[0].type();
-                    stack_off += tp->is_primitive ? tp->size : sizeof(void*);
+                    regs[l].stack_loc = m_in.funcs[fidx].stack.alloc(tp->is_primitive ? tp->size : sizeof(void*));
                 }
             } else {
                 regs[l].new_id = free_regs.back();

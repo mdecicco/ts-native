@@ -57,6 +57,7 @@ namespace gjs {
 
             std::string to_string(vm_backend* ctx = nullptr) const;
         protected:
+            friend class vm_backend;
             u32 m_code;
             u64 m_imm;
     };

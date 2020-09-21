@@ -162,7 +162,12 @@ namespace gjs {
 
         var expression(context& ctx, ast* n) {
             switch (n->type) {
-                case nt::call: return function_call(ctx, n);
+                case nt::call: {
+                    ctx.push_node(n);
+                    var ret = function_call(ctx, n);
+                    ctx.pop_node();
+                    return ret;
+                }
                 case nt::identifier: {
                     ctx.push_node(n);
                     var v = ctx.get_var(*n);
@@ -208,7 +213,12 @@ namespace gjs {
                     ctx.pop_node();
                     return result;
                 }
-                case nt::operation: return operation(ctx, n);
+                case nt::operation: {
+                    ctx.push_node(n);
+                    var result = operation(ctx, n);
+                    ctx.pop_node();
+                    return result;
+                }
                 default: {
                 }
             }

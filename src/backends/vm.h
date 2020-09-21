@@ -25,12 +25,13 @@ namespace gjs {
 
             void execute(address entry);
 
-            virtual void generate(const compilation_output& in);
+            virtual void generate(compilation_output& in);
             virtual u16 gp_count() const;
             virtual u16 fp_count() const;
 
         protected:
             virtual void call(script_function* func, void* ret, void** args);
+            void gen_function(compilation_output& in, u16 fidx);
 
             vm_allocator* m_alloc;
             gjs::vm m_vm;

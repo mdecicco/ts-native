@@ -14,7 +14,7 @@ namespace gjs {
             * architecture. What it does with that code is out of the scope of
             * the pipeline.
             */
-            virtual void generate(const compilation_output& in) = 0;
+            virtual void generate(compilation_output& in) = 0;
 
             // number of GP registers (see register_allocator file for details)
             virtual u16 gp_count() const = 0;

@@ -168,7 +168,7 @@ namespace gjs {
             if (func->signature.return_type->name == "subtype") {
                 if (func->is_method_of) {
                     script_type* this_tp = args[0].type();
-                    var result = ctx.empty_var(this_tp->sub_type);
+                    var result = func->signature.returns_pointer ? ctx.empty_var(ctx.type("data")) : ctx.empty_var(this_tp->sub_type);
                     for (u8 i = 0;i < args.size();i++) {
                         ctx.add(operation::param).operand(args[i].convert(func->signature.arg_types[i]));
                     }
@@ -185,8 +185,15 @@ namespace gjs {
                     // subtype functions (global functions) are not supported yet
                     return ctx.error_var();
                 }
+            } else if (func->signature.return_type->size == 0) {
+                for (u8 i = 0;i < args.size();i++) {
+                    ctx.add(operation::param).operand(args[i].convert(func->signature.arg_types[i]));
+                }
+                ctx.add(operation::call).func(func);
+
+                return ctx.empty_var(func->signature.return_type);
             } else {
-                var result = ctx.empty_var(func->signature.return_type);
+                var result = func->signature.returns_pointer ? ctx.empty_var(ctx.type("data")) : ctx.empty_var(func->signature.return_type);
                 for (u8 i = 0;i < args.size();i++) {
                     ctx.add(operation::param).operand(args[i].convert(func->signature.arg_types[i]));
                 }
@@ -195,7 +202,8 @@ namespace gjs {
                 if (func->signature.returns_pointer) {
                     var ret = ctx.empty_var(func->signature.return_type);
                     ret.set_mem_ptr(result);
-                    ctx.add(operation::load).operand(ret).operand(result);
+                    if (func->signature.return_type->is_primitive) ctx.add(operation::load).operand(ret).operand(result);
+                    else ctx.add(operation::eq).operand(ret).operand(result);
                     return ret;
                 }
                 return result;

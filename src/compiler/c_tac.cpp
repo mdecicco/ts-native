@@ -71,6 +71,77 @@ namespace gjs {
             "jump"
         };
 
+        bool is_assignment(operation op) {
+            static bool s_is_assignment[] = {
+                false,   // null
+                true,    // load
+                false,   // store
+                true,    // stack_alloc
+                false,   // stack_free
+                false,   // spill
+                true,    // iadd
+                true,    // isub
+                true,    // imul
+                true,    // idiv
+                true,    // imod
+                true,    // uadd
+                true,    // usub
+                true,    // umul
+                true,    // udiv
+                true,    // umod
+                true,    // fadd
+                true,    // fsub
+                true,    // fmul
+                true,    // fdiv
+                true,    // fmod
+                true,    // dadd
+                true,    // dsub
+                true,    // dmul
+                true,    // ddiv
+                true,    // dmod
+                true,    // sl
+                true,    // sr
+                true,    // land
+                true,    // lor
+                true,    // band
+                true,    // bor
+                true,    // bxor
+                true,    // ilt
+                true,    // igt
+                true,    // ilte
+                true,    // igte
+                true,    // incmp
+                true,    // icmp
+                true,    // ult
+                true,    // ugt
+                true,    // ulte
+                true,    // ugte
+                true,    // uncmp
+                true,    // ucmp
+                true,    // flt
+                true,    // fgt
+                true,    // flte
+                true,    // fgte
+                true,    // fncmp
+                true,    // fcmp
+                true,    // dlt
+                true,    // dgt
+                true,    // dlte
+                true,    // dgte
+                true,    // dncmp
+                true,    // dcmp
+                true,    // eq
+                true,    // neg
+                true,    // call
+                false,   // param
+                false,   // ret
+                false,   // branch
+                false    // jump
+            };
+
+            return s_is_assignment[u32(op)];
+        }
+
         tac_instruction::tac_instruction() : op(operation::null), op_idx(0), callee(nullptr) {
         }
 

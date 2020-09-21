@@ -3,6 +3,7 @@
 #include <backends/vm.h>
 #include <vm/register.h>
 #include <util/util.h>
+#include <assert.h>
 
 namespace gjs {
     using vmi = vm_instruction;
@@ -387,38 +388,17 @@ namespace gjs {
 
     instruction& instruction::operand(vm_register reg) {
         vmi instr = decode_instr;
-        if (check_instr_type_0(instr)) {
-            // instruction takes no operands
-            // exception
-            return *this;
-        }
 
-        if (check_instr_type_1(instr)) {
-            // instruction takes a 32 bit integer as the only operand
-            // exception
-            return *this;
-        }
-
-        if (check_flag(op_3_assigned)) {
-            // operand 3 already set, no instructions take a 4th operand
-            // exception
-            return *this;
-        }
+        assert(!check_instr_type_0(instr)); // instruction takes no operands
+        assert(!check_instr_type_1(instr)); // instruction takes a 32 bit integer as the only operand
+        assert(!check_flag(op_3_assigned)); // operand 3 already set, no instructions take a 4th operand
+        
 
         // maybe set operand 3
         if (check_flag(op_2_assigned)) {
             // operand 2 already set
-            if (!third_operand_is_register(instr)) {
-                // instruction does not need third operand or third operand can not be a register
-                // exception
-                return *this;
-            }
-
-            if ((third_operand_must_be_fpr(instr) && !(is_fpr(reg) || reg == vmr::zero)) || (!third_operand_must_be_fpr(instr) && is_fpr(reg))) {
-                // invalid operand
-                // exception
-                return *this;
-            }
+            assert(third_operand_is_register(instr)); // instruction does not need third operand or third operand can not be a register
+            assert(!((third_operand_must_be_fpr(instr) && !(is_fpr(reg) || reg == vmr::zero)) || (!third_operand_must_be_fpr(instr) && is_fpr(reg)))); // invalid operand
 
             set_flag(op_3_assigned);
             m_code |= u32(reg) << op_3_shift;
@@ -428,17 +408,8 @@ namespace gjs {
         // maybe set operand 2
         if (check_flag(op_1_assigned)) {
             // operand 1 already set
-            if (!second_operand_is_register(instr)) {
-                // instruction does not need second operand or second operand can not be a register
-                // exception
-                return *this;
-            }
-
-            if ((second_operand_must_be_fpr(instr) && !(is_fpr(reg) || reg == vmr::zero)) || (!second_operand_must_be_fpr(instr) && is_fpr(reg))) {
-                // invalid operand
-                // exception
-                return *this;
-            }
+            assert(second_operand_is_register(instr)); // instruction does not need second operand or second operand can not be a register
+            assert(!((second_operand_must_be_fpr(instr) && !(is_fpr(reg) || reg == vmr::zero)) || (!second_operand_must_be_fpr(instr) && is_fpr(reg)))); // invalid operand
 
             set_flag(op_2_assigned);
             m_code |= u32(reg) << op_2_shift;
@@ -446,17 +417,8 @@ namespace gjs {
         }
 
         // operand 1
-        if (!first_operand_is_register(instr)) {
-            // instruction does not need an operand or first operand can not be a register
-            // exception
-            return *this;
-        }
-
-        if (first_operand_must_be_fpr(instr) != is_fpr(reg) && !(first_operand_can_be_fpr(instr) && is_fpr(reg))) {
-            // insnstruction requires operand 1 to be floating point register
-            // exception
-            return *this;
-        }
+        assert(first_operand_is_register(instr)); // instruction does not need an operand or first operand can not be a register
+        assert(!(first_operand_must_be_fpr(instr) != is_fpr(reg) && !(first_operand_can_be_fpr(instr) && is_fpr(reg)))); // insnstruction requires operand 1 to be floating point register
 
         set_flag(op_1_assigned);
         m_code |= u32(reg) << op_1_shift;
@@ -469,32 +431,14 @@ namespace gjs {
 
     instruction& instruction::operand(u64 immediate) {
         vmi instr = decode_instr;
-        if (check_instr_type_0(instr)) {
-            // instruction takes no operands
-            // exception
-            return *this;
-        }
 
-        if (check_flag(op_3_assigned)) {
-            // operand 3 already set
-            // exception
-            return *this;
-        }
+        assert(!check_instr_type_0(instr)); // instruction takes no operands
+        assert(!check_flag(op_3_assigned)); // operand 3 already set, no instructions take a 4th operand
 
         if (check_flag(op_2_assigned)) {
             // operand 2 already set
-            if (!third_operand_is_immediate(instr)) {
-                // instruction does not take third operand or third operand is not immediate
-                // exception
-                return *this;
-            }
-
-            if (third_operand_must_be_fpi(instr)) {
-                // instruction requires that the third operand be floating point
-                // exception
-                return *this;
-            }
-
+            assert(third_operand_is_immediate(instr)); // instruction does not take third operand or third operand is not immediate
+            assert(!third_operand_must_be_fpi(instr)); // instruction requires that the third operand be floating point
             set_flag(op_3_assigned);
             m_imm = immediate;
             return *this;
@@ -502,24 +446,14 @@ namespace gjs {
 
         if (check_flag(op_1_assigned)) {
             // operand 1 already set
-            if (!second_operand_is_immediate(instr)) {
-                // instruction does not take second operand or second operand is not immediate
-                // exception
-                return *this;
-            }
-
+            assert(second_operand_is_immediate(instr)); // instruction does not take second operand or second operand is not immediate
             set_flag(op_2_assigned);
             m_imm = immediate;
             return *this;
         }
 
         // operand 1
-        if (!first_operand_is_immediate(instr)) {
-            // instruction does not take an operand or first operand is not immediate
-            // exception
-            return *this;
-        }
-        
+        assert(first_operand_is_immediate(instr)); // instruction does not take an operand or first operand is not immediate
         set_flag(op_1_assigned);
         m_imm = immediate;
         return *this;
@@ -527,39 +461,20 @@ namespace gjs {
 
     instruction& instruction::operand(f64 immediate) {
         vmi instr = decode_instr;
-        if (check_instr_type_0(instr)) {
-            // instruction takes no operands
-            // exception
-            return *this;
-        }
 
-        if (check_flag(op_3_assigned)) {
-            // operand 3 already set
-            // exception
-            return *this;
-        }
+        assert(!check_instr_type_0(instr)); // instruction takes no operands
+        assert(!check_flag(op_3_assigned)); // operand 3 already set, no instructions take a 4th operand
 
         if (check_flag(op_2_assigned)) {
             // operand 2 already set
-            if (!third_operand_is_immediate(instr)) {
-                // instruction does not take third operand or third operand is not immediate
-                // exception
-                return *this;
-            }
-
-            if (!third_operand_can_be_float(instr)) {
-                // instruction does not take third operand that can be a float
-                // exception
-                return *this;
-            }
-
+            assert(third_operand_is_immediate(instr)); // instruction does not take third operand or third operand is not immediate
+            assert(third_operand_can_be_float(instr)); // instruction does not take third operand that can be a float
             set_flag(op_3_is_float);
             m_imm = *(u64*)&immediate;
             return *this;
         }
 
-        // only third operand can possibly be a float
-        // exception
+        assert(false); // only third operand can possibly be a float
         return *this;
     }
 

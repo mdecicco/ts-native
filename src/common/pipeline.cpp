@@ -9,6 +9,9 @@
 #include <parser/parse.h>
 
 namespace gjs {
+    compilation_output::compilation_output(u16 gpN, u16 fpN) : regs(*this, gpN, fpN) {
+    }
+
     void compilation_output::insert(u64 addr, const compile::tac_instruction& i) {
         code.insert(code.begin() + addr, i);
         for (u32 i = 0;i < code.size();i++) {
@@ -59,7 +62,8 @@ namespace gjs {
             throw e;
         }
 
-        compilation_output out;
+        compilation_output out(generator->gp_count(), generator->fp_count());
+
         try {
             compile::compile(m_ctx, tree, out);
             delete tree;
@@ -79,8 +83,7 @@ namespace gjs {
                     m_ir_steps[i](m_ctx, out);
                 }
 
-                register_allocator ro(out, generator->gp_count(), generator->fp_count());
-                ro.process();
+                out.regs.process();
 
             } catch (error::exception& e) {
                 throw e;

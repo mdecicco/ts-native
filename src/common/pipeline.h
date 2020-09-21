@@ -4,6 +4,8 @@
 #include <common/types.h>
 #include <common/compile_log.h>
 #include <compiler/tac.h>
+#include <backends/stack.h>
+#include <backends/register_allocator.h>
 
 namespace gjs {
     class script_context;
@@ -15,6 +17,7 @@ namespace gjs {
     struct compilation_output {
         struct func_def {
             script_function* func;
+            func_stack stack;
             u64 begin;
             u64 end;
         };
@@ -24,6 +27,9 @@ namespace gjs {
         func_defs funcs;
         std::vector<script_type*> types;
         ir_code code;
+        register_allocator regs;
+
+        compilation_output(u16 gpN, u16 fpN);
 
         // will adjust any branch/jump instructions that would be affected
         // by address changes

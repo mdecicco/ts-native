@@ -287,7 +287,7 @@ namespace gjs {
             func_stack.push_back(new block_context);
             func_stack[func_stack.size() - 1]->func = f;
 
-            if (f) out.funcs.push_back({ f, code_sz(), 0 });
+            if (f) out.funcs.push_back({ f, gjs::func_stack(), code_sz(), 0 });
         }
 
         void context::pop_block() {

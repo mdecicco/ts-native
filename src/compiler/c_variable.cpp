@@ -834,7 +834,7 @@ namespace gjs {
             } else {
                 m_ctx->add(operation::eq).operand(*this).operand(rhs.convert(m_type));
                 if (m_mem_ptr.valid) {
-                    m_ctx->add(operation::store).operand(var(m_ctx, m_mem_ptr.reg, m_type)).operand(*this);
+                    m_ctx->add(operation::store).operand(var(m_ctx, m_mem_ptr.reg, m_ctx->type("data"))).operand(*this);
                 }
             }
 

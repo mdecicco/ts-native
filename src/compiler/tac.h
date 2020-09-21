@@ -6,8 +6,8 @@ namespace gjs {
     namespace compile {
         enum class operation {
             null = 0,
-            load,
-            store,
+            load, // load dest src
+            store, // store dest src
             stack_alloc,
             stack_free,
             spill,
@@ -72,6 +72,8 @@ namespace gjs {
             branch,
             jump
         };
+
+        bool is_assignment(operation op);
 
         struct tac_instruction {
             public:

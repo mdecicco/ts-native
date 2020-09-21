@@ -24,25 +24,29 @@ namespace gjs {
      */
     class register_allocator {
         public:
-            register_allocator(compilation_output& in, u16 gpN, u16 fpN);
-            ~register_allocator();
-
-            void process();
-
-        protected:
             struct reg_lifetime {
                 u32 reg_id;
                 u32 new_id;
                 u32 stack_loc;
                 u32 begin;
                 u32 end;
+                bool is_fp;
 
                 bool is_concurrent(const reg_lifetime& o) const;
+                inline bool is_stack() const { return stack_loc != u32(-1); }
             };
 
+            register_allocator(compilation_output& in, u16 gpN, u16 fpN);
+            ~register_allocator();
+
+            void process();
+
+            std::vector<reg_lifetime> get_live(u64 at);
+
+        protected:
             void process_func(u16 fidx);
             void calc_reg_lifetimes(u64 from, u64 to);
-            void reassign_registers(std::vector<reg_lifetime>& regs, u16 k, u64 from, u64 to);
+            void reassign_registers(std::vector<reg_lifetime>& regs, u16 k, u64 from, u64 to, u16 fidx);
 
             u16 m_gpc;
             u16 m_fpc;
