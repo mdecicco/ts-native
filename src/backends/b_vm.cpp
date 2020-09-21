@@ -738,7 +738,7 @@ namespace gjs {
     }
     
     u16 vm_backend::gp_count() const {
-        return 3;
+        return 8;
     }
 
     u16 vm_backend::fp_count() const {
