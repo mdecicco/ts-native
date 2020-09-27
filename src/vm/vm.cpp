@@ -800,7 +800,6 @@ namespace gjs {
     }
 
     void vm::call_external(u64 addr) {
-        /*
         script_function* f = m_ctx->context()->function(addr);
         if (!f) {
             throw vm_exception(m_ctx, format("Function at 0x%lX not found", addr));
@@ -820,8 +819,8 @@ namespace gjs {
             }
 
             if (tp->name == "subtype") {
-                // get subtype from $v2
-                tp = m_ctx->context()->types()->get(*(u32*)&m_ctx->state()->registers[(u8)vmr::v2]);
+                // get subtype from $v3
+                tp = m_ctx->context()->types()->get(*(u32*)&m_ctx->state()->registers[(u8)vmr::v3]);
                 if (!tp) {
                     throw vm_exception(m_ctx, format(
                         "Function '%s' is a method of a sub-type class but no type ID was provided. This is not a user error",
@@ -867,6 +866,5 @@ namespace gjs {
         }
 
         f->access.wrapped->call(ret_addr, args.data());
-        */
     }
 };

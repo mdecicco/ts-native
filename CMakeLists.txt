@@ -5,10 +5,11 @@ set(
     include_dirs
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/deps/asmjit/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/deps/dyncall/include
 )
 set(
     library_dirs
-    ${CMAKE_CURRENT_SOURCE_DIR}/deps/asmjit/Deps
+    ${CMAKE_CURRENT_SOURCE_DIR}/deps/dyncall/lib
 )
 include_directories(${include_dirs})
 link_directories(${library_dirs})
@@ -71,7 +72,7 @@ ENDMACRO(SOURCE_GROUP_BY_FOLDER)
 
 SOURCE_GROUP_BY_FOLDER(gjs)
 
-target_link_libraries(gjs asmjit)
+target_link_libraries(gjs asmjit dyncall_s)
 
 set_target_properties(gjs PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY_DEBUG   ${CMAKE_CURRENT_SOURCE_DIR}/bin 

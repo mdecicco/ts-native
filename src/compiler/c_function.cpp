@@ -209,6 +209,5 @@ namespace gjs {
                 return result;
             }
         }
-
     };
 };

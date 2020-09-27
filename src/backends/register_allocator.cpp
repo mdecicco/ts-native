@@ -71,11 +71,40 @@ namespace gjs {
         m_fpLf.clear();
         m_nextStackIdx = 0;
 
-        //todo: if a backward jump goes into the live range of any register,
-        //      update the affected live ranges to end at the jump
-
         for (u64 i = from;i <= to;i++) {
+            // If a backwards jump goes into a live range,
+            // then that live range must be extended to fit
+            // the jump (if it doesn't already)
+            if (m_in.code[i].op == operation::jump) {
+                u64 jaddr = m_in.code[i].operands[0].imm_u();
+                if (jaddr > i) continue;
+                for (u32 r = 0;r < m_gpLf.size();r++) {
+                    if (m_gpLf[r].begin <= jaddr && m_gpLf[r].end >= jaddr && m_gpLf[r].end < i) {
+                        m_gpLf[r].end = i;
+                    }
+                }
+                for (u32 r = 0;r < m_fpLf.size();r++) {
+                    if (m_fpLf[r].begin <= jaddr && m_fpLf[r].end >= jaddr && m_fpLf[r].end < i) {
+                        m_fpLf[r].end = i;
+                    }
+                }
+            } else if (m_in.code[i].op == operation::branch) {
+                u64 jaddr = m_in.code[i].operands[1].imm_u();
+                if (jaddr > i) continue;
+                for (u32 r = 0;r < m_gpLf.size();r++) {
+                    if (m_gpLf[r].begin <= jaddr && m_gpLf[r].end >= jaddr && m_gpLf[r].end < i) {
+                        m_gpLf[r].end = i;
+                    }
+                }
+                for (u32 r = 0;r < m_fpLf.size();r++) {
+                    if (m_fpLf[r].begin <= jaddr && m_fpLf[r].end >= jaddr && m_fpLf[r].end < i) {
+                        m_fpLf[r].end = i;
+                    }
+                }
+            }
+
             if (!is_assignment(m_in.code[i].op) || !m_in.code[i].operands[0].valid() || m_in.code[i].operands[0].is_spilled()) continue;
+
             reg_lifetime l = { m_in.code[i].operands[0].m_reg_id, -1, -1, i, i, m_in.code[i].operands[0].type()->is_floating_point };
             for (u64 i1 = i + 1;i1 <= to;i1++) {
                 u8 o = 0;

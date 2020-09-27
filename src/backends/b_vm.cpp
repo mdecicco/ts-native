@@ -501,6 +501,14 @@ namespace gjs {
                     break;
                 }
                 case op::call: {
+                    // If it's a method of a subtype class, pass the subtype ID through $v3
+                    if (i.callee->is_method_of && i.callee->is_method_of->requires_subtype) {
+                        // get subtype from the this obj parameter
+                        script_type* st = params[0].type()->sub_type;
+                        m_instructions += encode(vmi::addui).operand(vmr::v3).operand(vmr::zero).operand((u64)st->id());
+                        m_map.append(i.src);
+                    }
+
                     // Backup registers that were populated before this call
                     // and will be used after this call
                     struct bk { vmr reg; u64 addr; u64 sz; };
@@ -700,8 +708,20 @@ namespace gjs {
                 }
                 case op::branch: {
                     // todo: Why did I add the b* branch instructions if only bneqz is used
-                    m_instructions += encode(vmi::bneqz).operand(r1).operand(o2.imm_u());
-                    m_map.append(i.src);
+                    if (is_fpr(r1)) {
+                        if (t1->size == sizeof(f64)) {
+                            m_instructions += encode(vmi::dncmp).operand(vmr::v1).operand(r1).operand(vmr::zero);
+                            m_map.append(i.src);
+                        } else {
+                            m_instructions += encode(vmi::fncmp).operand(vmr::v1).operand(r1).operand(vmr::zero);
+                            m_map.append(i.src);
+                        }
+                        m_instructions += encode(vmi::bneqz).operand(vmr::v1).operand(o2.imm_u());
+                        m_map.append(i.src);
+                    } else {
+                        m_instructions += encode(vmi::bneqz).operand(r1).operand(o2.imm_u());
+                        m_map.append(i.src);
+                    }
                     break;
                 }
                 case op::jump: {
@@ -748,24 +768,23 @@ namespace gjs {
     }
 
     void vm_backend::call(script_function* func, void* ret, void** args) {
-        /*
-        if (sizeof...(args) != signature.arg_locs.size()) {
-            throw vm_exception(format(
-                "Function '%s' takes %d arguments, %d %s provided",
-                name.c_str(),
-                signature.arg_locs.size(),
-                sizeof...(args),
-                (sizeof...(args)) == 1 ? "was" : "were"
-            ));
+        if (func->is_host) {
+            func->access.wrapped->call(ret, args);
+            return;
         }
 
-        if (signature.arg_locs.size() > 0) bind::set_arguments(m_ctx, this, 0, args...);
-        if (is_host) m_ctx->vm()->call_external(access.wrapped->address);
-        else m_ctx->vm()->execute(*m_ctx->code(), access.entry);
+        for (u8 a = 0;a < func->signature.arg_locs.size();a++) {
+            script_type* tp = func->signature.arg_types[a];
+            vm_register loc = func->signature.arg_locs[a];
+            u64* dest = &m_vm.state.registers[u8(loc)];
 
-        if (signature.return_type->size != 0) {
-            nd::from_reg(m_ctx, result, &m_ctx->state()->registers[(u8)signature.return_loc]);
+            if (tp->is_primitive) {
+                *dest = (u64)args[a];
+            } else {
+                *dest = (u64)args[a];
+            }
         }
-        */
+
+        m_vm.execute(m_instructions, func->access.entry);
     }
 };

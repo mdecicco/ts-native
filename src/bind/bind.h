@@ -3,6 +3,7 @@
 #include <bind/builtin.h>
 #include <util/template_utils.hpp>
 #include <util/robin_hood.h>
+#include <dyncall.h>
 
 #include <vector>
 #include <typeindex>
@@ -39,6 +40,8 @@ namespace gjs {
 
             bool ret_is_ptr;
             u64 address;
+
+            virtual void call(void* ret, void** args) = 0;
         };
 
         struct wrapped_class {
@@ -105,10 +108,32 @@ namespace gjs {
                 ret_is_ptr = std::is_reference_v<Ret> || std::is_pointer_v<Ret>;
                 arg_is_ptr = { (std::is_reference_v<Args> || std::is_pointer_v<Args>)... };
                 address = u64(reinterpret_cast<void*>(f));
+
+                bool sbv_args[] = { std::is_class_v<Args>... };
+                bool bt_args[] = { (!std::is_same_v<Args, script_type*> && tpm->get<Args>() == nullptr)... };
+                // script_type* is allowed because host subclass types will be constructed with it, but
+                // it should not be bound as a type
+
+                for (u8 a = 0;a < arg_count::value;a++) {
+                    if (sbv_args[a]) {
+                        throw bind_exception(format(
+                            "Argument %d of function '%s' is a struct or class that is passed by value. "
+                            "This is unsupported. Please use reference or pointer types for structs/classes"
+                        , a, name.c_str()));
+                    }
+
+                    if (bt_args[a]) {
+                        throw bind_exception(format(
+                            "Argument %d of function '%s' is of type '%s' that has not been bound yet"
+                        , a, name.c_str(), arg_types[a].name()));
+                    }
+                }
+
             }
 
+            virtual void call(void* ret, void** args);
+
             func_type original_func;
-            void (*func)(void*, void**);
         };
 
         template <typename Ret, typename Cls, typename... Args>
@@ -139,8 +164,9 @@ namespace gjs {
                     address = *(u64*)reinterpret_cast<void*>(&f);
                 }
 
+                virtual void call(void* ret, void** args);
+
                 func_type original_func;
-                void (*func)(void*, void**);
         };
 
         /*
@@ -299,6 +325,137 @@ namespace gjs {
 
             type_manager* types;
         };
+        
+
+        #define pa_func(tp) template <typename T> inline void pass_arg(DCCallVM* call, std::enable_if_t<std::is_same_v<T, tp>, void*> p)
+        #define pa_func_simp(tp, func) pa_func(tp) { func(call, *(tp*)&p); }
+        
+        pa_func_simp(f32, dcArgFloat)
+        pa_func_simp(f64, dcArgDouble)
+        pa_func_simp(u8, dcArgChar)
+        pa_func_simp(i8, dcArgChar)
+        pa_func_simp(u16, dcArgShort)
+        pa_func_simp(i16, dcArgShort)
+        pa_func_simp(u32, dcArgLong)
+        pa_func_simp(i32, dcArgInt)
+        pa_func_simp(u64, dcArgLongLong)
+        pa_func_simp(i64, dcArgLongLong)
+
+        #undef pa_func
+        #undef pa_func_simp
+        
+        template <typename T>
+        inline void pass_arg(DCCallVM* call, std::enable_if_t<std::is_pointer_v<T> || std::is_reference_v<T>, void*> p) {
+            dcArgPointer(call, p);
+        }
+
+        template <typename T>
+        inline void pass_arg(DCCallVM* call, std::enable_if_t<std::is_class_v<T>, void*> p) {
+            // This only exists to prevent confusing compiler errors.
+            // A bind_exception will be thrown when binding any function
+            // that has a struct or class passed by value
+        }
+
+        template <typename T, typename... Rest>
+        void _pass_arg_wrapper(u16 i, DCCallVM* call, void** params) {
+            pass_arg<T>(call, params[i]);
+            if constexpr (std::tuple_size_v<std::tuple<Rest...>> > 0) {
+                _pass_arg_wrapper<Rest...>(i + 1, call, params);
+            }
+        }
+
+        
+        template <typename T>
+        void do_call(DCCallVM* call, std::enable_if_t<!std::is_pointer_v<T>, T>* ret, void* func);
+
+        template <typename T>
+        inline void do_call(DCCallVM* call, std::enable_if_t<std::is_pointer_v<T>, T>* ret, void* func) {
+            *ret = (T)dcCallPointer(call, func);
+        }
+
+        #define dc_func_simp(tp, cfunc) template <> void do_call<tp>(DCCallVM* call, tp* ret, void* func);
+        dc_func_simp(f32, dcCallFloat);
+        dc_func_simp(f64, dcCallDouble);
+        dc_func_simp(u8, dcCallChar);
+        dc_func_simp(i8, dcCallChar);
+        dc_func_simp(u16, dcCallShort);
+        dc_func_simp(i16, dcCallShort);
+        dc_func_simp(u32, dcCallInt);
+        dc_func_simp(i32, dcCallInt);
+        dc_func_simp(u64, dcCallLongLong);
+        dc_func_simp(i64, dcCallLongLong);
+        #undef dc_func_simp
+        
+        template <> void do_call<void>(DCCallVM* call, void* ret, void* func);
+
+        template <typename Ret, typename... Args>
+        void srv_wrapper(Ret* out, Ret (*f)(Args...), Args... args) {
+            *out = f(args...);
+        }
+
+        /*
+         * Call helpers for VM
+         */
+        template <typename Ret, typename... Args>
+        void global_function<Ret, Args...>::call(void* ret, void** args) {
+            size_t total_arg_sz = 0;
+            using I = std::size_t[];
+            (void)(I{ 0u, total_arg_sz += sizeof(Args)... });
+            DCCallVM* call = dcNewCallVM(total_arg_sz);
+            dcMode(call, DC_CALL_C_DEFAULT);
+            dcReset(call);
+
+            constexpr int argc = std::tuple_size_v<std::tuple<Args...>>;
+
+            if constexpr (argc > 0) {
+                if constexpr (std::is_class_v<Ret>) {
+                    void* _args[argc + 2] = { ret, original_func };
+                    for (u8 a = 0;a < argc;a++) _args[a + 2] = args[a];
+                    _pass_arg_wrapper<Ret*, void*, Args...>(0, call, _args);
+                } else _pass_arg_wrapper<Args...>(0, call, args);
+            }
+            if constexpr (std::is_pointer_v<Ret> || std::is_reference_v<Ret>) {
+                do_call<Ret>(call, (Ret*)ret, original_func);
+            } else if constexpr (std::is_class_v<Ret>) {
+                do_call<void>(call, nullptr, srv_wrapper<Ret, Args...>);
+            } else {
+                do_call<Ret>(call, (Ret*)ret, original_func);
+            }
+            dcFree(call);
+        }
+        
+        template <typename Ret, typename Cls, typename... Args>
+        void class_method<Ret, Cls, Args...>::call(void* ret, void** args) {
+            size_t total_arg_sz = 0;
+            using I = std::size_t[];
+            (void)(I{ 0u, total_arg_sz += sizeof(Args)... });
+            DCCallVM* call = dcNewCallVM(total_arg_sz);
+            dcMode(call, DC_CALL_C_DEFAULT);
+            dcReset(call);
+
+            constexpr int argc = std::tuple_size_v<std::tuple<Args...>>;
+
+            if constexpr (std::is_class_v<Ret>) {
+                void* _args[argc + 4] = { ret, original_func, (void*)address };
+                for (u8 a = 0;a < argc + 1;a++) _args[a + 3] = args[a];
+                // return value, original_func, method pointer, this obj
+                _pass_arg_wrapper<Ret*, void*, void*, void*, Args...>(0, call, _args);
+            } else {
+                void* _args[argc + 2] = { (void*)address };
+                for (u8 a = 0;a < argc + 1;a++) _args[a + 1] = args[a];
+                // method pointer, this obj
+                _pass_arg_wrapper<void*, void*, Args...>(0, call, _args);
+            }
+
+            if constexpr (std::is_pointer_v<Ret> || std::is_reference_v<Ret>) {
+                do_call<Ret>(call, (Ret*)ret, original_func);
+            } else if constexpr (std::is_class_v<Ret>) {
+                do_call<void>(call, nullptr, srv_wrapper<Ret, Args...>);
+            } else {
+                do_call<Ret>(call, (Ret*)ret, original_func);
+            }
+            dcFree(call);
+        }
     };
 };
 #undef fimm
