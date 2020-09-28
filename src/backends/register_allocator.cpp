@@ -37,33 +37,39 @@ namespace gjs {
 
     void register_allocator::process_func(u16 fidx) {
         compilation_output::func_def& fd = m_in.funcs[fidx];
-        printf("Pre-allocation\n");
+        // printf("Pre-allocation\n");
         calc_reg_lifetimes(fd.begin, fd.end);
+        /*
         for (u16 i = 0;i < m_gpLf.size();i++) {
             printf("$R%d: %d -> %d\n", m_gpLf[i].reg_id, m_gpLf[i].begin, m_gpLf[i].end);
         }
         for (u16 i = 0;i < m_fpLf.size();i++) {
             printf("$F%d: %d -> %d\n", m_fpLf[i].reg_id, m_fpLf[i].begin, m_fpLf[i].end);
         }
+        */
 
-        std::vector<tac_instruction> old = m_in.code;
+        // std::vector<tac_instruction> old = m_in.code;
 
         reassign_registers(m_gpLf, m_gpc, fd.begin, fd.end, fidx);
         reassign_registers(m_fpLf, m_fpc, fd.begin, fd.end, fidx);
 
-        printf("Post-allocation\n");
+        // printf("Post-allocation\n");
         calc_reg_lifetimes(fd.begin, fd.end);
+        /*
         for (u16 i = 0;i < m_gpLf.size();i++) {
             printf("$R%d: %d -> %d\n", m_gpLf[i].reg_id, m_gpLf[i].begin, m_gpLf[i].end);
         }
         for (u16 i = 0;i < m_fpLf.size();i++) {
             printf("$F%d: %d -> %d\n", m_fpLf[i].reg_id, m_fpLf[i].begin, m_fpLf[i].end);
         }
+        */
 
-        printf("New code\n");
+        //printf("New code\n");
+        /*
         for (u32 i = fd.begin;i <= fd.end;i++) {
             printf("%3.3d: %-35s %s\n", i, m_in.code[i].to_string().c_str(), old[i].to_string().c_str());
         }
+        */
     }
 
     void register_allocator::calc_reg_lifetimes(u64 from, u64 to) {

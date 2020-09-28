@@ -124,11 +124,7 @@ void print_code(vm_backend& ctx) {
             }
             printf("]\n");
         }
-        auto instr = (*ctx.code())[i];
-        printf("0x%2.2X: %-32s", i, instr.to_string().c_str());
-        if (instr.to_string() == "Invalid Instruction") {
-            break;
-        }
+        printf("0x%2.2X: %-32s", i, (*ctx.code())[i].to_string().c_str());
         auto src = ctx.map()->get(i);
         if (src.line_text != last_line) {
             printf("; %s", src.line_text.c_str());
@@ -168,7 +164,7 @@ int main(int arg_count, const char** args) {
     vm_allocator* alloc = new basic_malloc_allocator();
     vm_backend gen(alloc, 4096, 4096);
     script_context ctx(&gen);
-    ctx.compiler()->add_ir_step(debug_ir_step);
+    //ctx.compiler()->add_ir_step(debug_ir_step);
 
     try {
         auto f = ctx.bind<foo>("foo");
