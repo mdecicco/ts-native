@@ -1,0 +1,26 @@
+#pragma once
+#include <common/types.h>
+#include <vm/vm_state.h>
+#include <vm/instruction_array.h>
+
+namespace gjs {
+    class vm_allocator;
+    class vm_backend;
+    class vm {
+        public:
+            vm(vm_backend* ctx, vm_allocator* alloc, u32 stack_size, u32 mem_size);
+            ~vm();
+
+            void execute(const instruction_array& code, address entry);
+
+            vm_allocator* alloc;
+            vm_state state;
+
+        protected:
+            friend class script_function;
+            void call_external(u64 addr);
+            vm_backend* m_ctx;
+            u32 m_stack_size;
+    };
+};
+

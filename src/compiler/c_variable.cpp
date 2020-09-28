@@ -1,548 +1,906 @@
 #include <compiler/variable.h>
 #include <compiler/context.h>
-#include <compiler/data_type.h>
 #include <compiler/function.h>
-#include <compiler/compiler.h>
-#include <compile_log.h>
-#include <util.h>
-#include <instruction_encoder.h>
-#include <instruction.h>
-#include <register.h>
-
-#define is_fp(r) (r >= vmr::f0 && r <= vmr::f15)
-#define is_arg(r) (r >= vmr::a0 && r <= vmr::a7)
+#include <compiler/compile.h>
+#include <parser/ast.h>
+#include <common/errors.h>
+#include <common/warnings.h>
+#include <common/context.h>
+#include <common/script_type.h>
+#include <common/script_function.h>
+#include <util/robin_hood.h>
 
 namespace gjs {
-	using vmr = vm_register;
-	using vmi = vm_instruction;
-	
-	var::var() {
-		ctx = nullptr;
-		is_variable = false;
-		no_auto_free = false;
-		is_reg = false;
-		is_imm = false;
-		is_const = false;
-		refers_to_stack_obj = false;
-		type = nullptr;
-		count = 1;
-		total_ref_count = 0;
-		ref_count = 0;
-	}
+    using exc = error::exception;
+    using ec = error::ecode;
+    using wc = warning::wcode;
 
-	void var::move_stack_reference(var* to) {
-		to->refers_to_stack_obj = refers_to_stack_obj;
-		to->refers_to_stack_addr = refers_to_stack_addr;
-	}
+    namespace compile {
+        bool has_valid_conversion(context& ctx, script_type* from, script_type* to) {
+            if (from->id() == to->id()) return true;
+            if (from->base_type && from->base_type->id() == to->id()) return true;
+            if (!from->is_primitive && to->name == "data") return true;
+            if (from->name == "data" && !to->is_primitive) return true;
 
-	address var::move_to_stack(ast_node* because, integer offset) {
-		if (!is_reg && !is_imm) return loc.stack_addr;
-		vmi store;
-		switch (type->size) {
-			case 1: { store = vmi::st8; break; }
-			case 2: { store = vmi::st16; break; }
-			case 4: { store = vmi::st32; break; }
-			case 8: { store = vmi::st64; break; }
-		}
-		address addr = ctx->cur_func->stack.allocate(type->size);
-		ctx->add(
-			encode(store).operand(loc.reg).operand(vmr::sp).operand(uinteger(addr) + offset),
-			because
-		);
+            if (from->name == "void" || to->name == "void") return false;
 
-		ctx->cur_func->registers.free(loc.reg);
-		is_reg = false;
-		loc.stack_addr = addr;
+            if (!from->is_primitive) {
+                var fd = ctx.dummy_var(from);
+                if (to->is_primitive) {
+                    // last chance to find a conversion
+                    return fd.has_unambiguous_method("<cast>", to, { from });
+                } else if (fd.has_unambiguous_method("<cast>", to, { from })) return true;
+            }
 
-		return addr;
-	}
+            if (!to->is_primitive) {
+                var td = ctx.dummy_var(to);
+                return td.has_unambiguous_method("constructor", to, { ctx.type("data"), from });
+            }
+            
+            // conversion between non-void primitive types is always possible
+            return true;
+        }
 
-	address var::move_to_stack(ast_node* because, vmr offset) {
-		if (!is_reg && !is_imm) return loc.stack_addr;
-		vmi store;
-		switch (type->size) {
-		case 1: { store = vmi::st8; break; }
-		case 2: { store = vmi::st16; break; }
-		case 4: { store = vmi::st32; break; }
-		case 8: { store = vmi::st64; break; }
-		}
-		address addr = ctx->cur_func->stack.allocate(type->size);
-		ctx->add(
-			encode(vmi::addui).operand(vmr::v0).operand(offset).operand(addr),
-			because
-		);
 
-		ctx->add(
-			encode(store).operand(loc.reg).operand(vmr::v0),
-			because
-		);
+        var::var(context* ctx, u64 u) {
+            m_ctx = ctx;
+            m_is_imm = true;
+            m_instantiation = ctx->node()->ref;
+            m_reg_id = -1;
+            m_imm.u = u;
+            m_type = ctx->type("u64");
+            m_stack_loc = -1;
+            m_is_stack_obj = false;
+            m_mem_ptr.valid = false;
+            m_mem_ptr.reg = -1;
+            m_flags = bind::pf_none;
+            m_setter.this_obj = nullptr;
+            m_setter.func = nullptr;
+        }
 
-		ctx->cur_func->registers.free(loc.reg);
-		is_reg = false;
-		loc.stack_addr = addr;
+        var::var(context* ctx, i64 i) {
+            m_ctx = ctx;
+            m_is_imm = true;
+            m_instantiation = ctx->node()->ref;
+            m_flags = bind::pf_none;
+            m_reg_id = -1;
+            m_imm.i = i;
+            m_type = ctx->type("i64");
+            m_stack_loc = -1;
+            m_is_stack_obj = false;
+            m_mem_ptr.valid = false;
+            m_mem_ptr.reg = -1;
+            m_setter.this_obj = nullptr;
+            m_setter.func = nullptr;
+        }
 
-		return addr;
-	}
+        var::var(context* ctx, f32 f) {
+            m_ctx = ctx;
+            m_is_imm = true;
+            m_instantiation = ctx->node()->ref;
+            m_flags = bind::pf_none;
+            m_reg_id = -1;
+            m_imm.f = f;
+            m_type = ctx->type("f32");
+            m_stack_loc = -1;
+            m_is_stack_obj = false;
+            m_mem_ptr.valid = false;
+            m_mem_ptr.reg = -1;
+            m_setter.this_obj = nullptr;
+            m_setter.func = nullptr;
+        }
 
-	vmr var::move_to_register(ast_node* because, integer offset) {
-		vmr reg;
-		if (type->is_floating_point) reg = ctx->cur_func->registers.allocate_fp();
-		else reg = ctx->cur_func->registers.allocate_gp();
-		ctx->cur_func->registers.free(reg);
+        var::var(context* ctx, f64 d) {
+            m_ctx = ctx;
+            m_is_imm = true;
+            m_instantiation = ctx->node()->ref;
+            m_flags = bind::pf_none;
+            m_reg_id = -1;
+            m_imm.d = d;
+            m_type = ctx->type("f64");
+            m_stack_loc = -1;
+            m_is_stack_obj = false;
+            m_mem_ptr.valid = false;
+            m_mem_ptr.reg = -1;
+            m_setter.this_obj = nullptr;
+            m_setter.func = nullptr;
+        }
 
-		move_to(reg, because, offset);
+        var::var(context* ctx, const std::string& s) {
+            m_ctx = ctx;
+            m_is_imm = true;
+            m_instantiation = ctx->node()->ref;
+            m_flags = bind::pf_none;
+            m_reg_id = -1;
+            m_type = ctx->type("string");
+            m_stack_loc = -1;
+            m_imm.u = 0;
+            m_is_stack_obj = false;
+            m_mem_ptr.valid = false;
+            m_mem_ptr.reg = -1;
+            m_setter.this_obj = nullptr;
+            m_setter.func = nullptr;
+        }
 
-		return reg;
-	}
+        var::var(context* ctx, u32 reg_id, script_type* type) {
+            m_ctx = ctx;
+            m_is_imm = false;
+            m_instantiation = ctx->node()->ref;
+            m_flags = bind::pf_none;
+            m_reg_id = reg_id;
+            m_type = type;
+            m_stack_loc = -1;
+            m_imm.u = 0;
+            m_is_stack_obj = false;
+            m_mem_ptr.valid = false;
+            m_mem_ptr.reg = -1;
+            m_setter.this_obj = nullptr;
+            m_setter.func = nullptr;
+        }
 
-	vmr var::move_to_register(ast_node* because, vmr offset) {
-		vmr reg;
-		if (type->is_floating_point) reg = ctx->cur_func->registers.allocate_fp();
-		else reg = ctx->cur_func->registers.allocate_gp();
-		ctx->cur_func->registers.free(reg);
+        var::var() {
+            m_ctx = nullptr;
+            m_is_imm = false;
+            m_flags = bind::pf_none;
+            m_reg_id = -1;
+            m_type = nullptr;
+            m_stack_loc = -1;
+            m_imm.u = 0;
+            m_is_stack_obj = false;
+            m_mem_ptr.valid = false;
+            m_mem_ptr.reg = 0;
+            m_setter.this_obj = nullptr;
+            m_setter.func = nullptr;
+        }
 
-		move_to(reg, because, offset);
+        var::var(const var& v) {
+            m_ctx = v.m_ctx;
+            m_is_imm = v.m_is_imm;
+            m_instantiation = v.m_instantiation;
+            m_flags = v.m_flags;
+            m_reg_id = v.m_reg_id;
+            m_imm = v.m_imm;
+            m_type = v.m_type;
+            m_stack_loc = v.m_stack_loc;
+            m_mem_ptr = v.m_mem_ptr;
+            m_name = v.m_name;
+            m_is_stack_obj = v.m_is_stack_obj;
+            m_setter.func = v.m_setter.func;
+            m_setter.this_obj = v.m_setter.this_obj;
+        }
 
-		return reg;
-	}
-
-	vmr var::to_reg(ast_node* because, integer offset) {
-		if (is_reg) return loc.reg;
-		return move_to_register(because, offset);
-	}
-
-	vmr var::to_reg(ast_node* because, vmr offset) {
-		if (is_reg) return loc.reg;
-		return move_to_register(because, offset);
-	}
-
-	address var::to_stack(ast_node* because, integer offset) {
-		if (!is_reg) return loc.stack_addr;
-		return move_to_stack(because, offset);
-	}
-
-	address var::to_stack(ast_node* because, vmr offset) {
-		if (!is_reg) return loc.stack_addr;
-		return move_to_stack(because, offset);
-	}
-
-	void var::move_to(vmr reg, ast_node* because, integer stack_offset) {
-		bool found = false;
-		if (is_fp(reg)) {
-			for (u32 i = 0;i < ctx->cur_func->registers.fp.size();i++) {
-				if (ctx->cur_func->registers.fp[i] == reg) {
-					found = true;
-					ctx->cur_func->registers.fp.erase(ctx->cur_func->registers.fp.begin() + i);
-					break;
-				}
-			}
-		} else if (is_arg(reg)) {
-			for (u32 i = 0;i < ctx->cur_func->registers.a.size();i++) {
-				if (ctx->cur_func->registers.a[i] == reg) {
-					found = true;
-					ctx->cur_func->registers.a.erase(ctx->cur_func->registers.a.begin() + i);
-					break;
-				}
-			}
-		} else {
-			for (u32 i = 0;i < ctx->cur_func->registers.gp.size();i++) {
-				if (ctx->cur_func->registers.gp[i] == reg) {
-					found = true;
-					ctx->cur_func->registers.gp.erase(ctx->cur_func->registers.gp.begin() + i);
-					break;
-				}
-			}
-		}
-
-		if (!found) {
-			throw compile_exception("Register not available for var to be moved to", because);
-		}
-
-		ctx->cur_func->registers.used.push_back(reg);
-		if (is_reg) {
-			ctx->add(
-				encode(vmi::add).operand(reg).operand(loc.reg).operand(vmr::zero),
-				because
-			);
-			ctx->cur_func->registers.free(loc.reg);
-		} else if (is_imm) {
-			if (!type->is_floating_point) {
-				ctx->add(
-					encode(vmi::addi).operand(reg).operand(vmr::zero).operand(imm.i),
-					because
-				);
-			} else {
-				if (type->size == sizeof(f64)) {
-					ctx->add(
-						encode(vmi::daddi).operand(reg).operand(vmr::zero).operand(imm.f_64),
-						because
-					);
-				} else {
-					ctx->add(
-						encode(vmi::faddi).operand(reg).operand(vmr::zero).operand(imm.f_32),
-						because
-					);
-				}
-			}
-		} else {
-			vmi load;
-			switch (type->size) {
-				case 1: { load = vmi::ld8; break; }
-				case 2: { load = vmi::ld16; break; }
-				case 4: { load = vmi::ld32; break; }
-				case 8: { load = vmi::ld64; break; }
-			}
-			ctx->add(
-				encode(load).operand(reg).operand(vmr::sp).operand(loc.stack_addr + stack_offset),
-				because
-			);
-			ctx->cur_func->stack.free(loc.stack_addr);
-		}
-
-		loc.reg = reg;
-		is_reg = true;
-		is_imm = false;
-	}
-
-	void var::move_to(vmr reg, ast_node* because, vmr stack_offset) {
-		bool found = false;
-		if (is_fp(reg)) {
-			for (u32 i = 0;i < ctx->cur_func->registers.fp.size();i++) {
-				if (ctx->cur_func->registers.fp[i] == reg) {
-					found = true;
-					ctx->cur_func->registers.fp.erase(ctx->cur_func->registers.fp.begin() + i);
-					break;
-				}
-			}
-		} else if (is_arg(reg)) {
-			for (u32 i = 0;i < ctx->cur_func->registers.a.size();i++) {
-				if (ctx->cur_func->registers.a[i] == reg) {
-					found = true;
-					ctx->cur_func->registers.a.erase(ctx->cur_func->registers.a.begin() + i);
-					break;
-				}
-			}
-		} else {
-			for (u32 i = 0;i < ctx->cur_func->registers.gp.size();i++) {
-				if (ctx->cur_func->registers.gp[i] == reg) {
-					found = true;
-					ctx->cur_func->registers.gp.erase(ctx->cur_func->registers.gp.begin() + i);
-					break;
-				}
-			}
-		}
-
-		if (!found) {
-			throw compile_exception("Register not available for var to be moved to", because);
-		}
-
-		ctx->cur_func->registers.used.push_back(reg);
-		if (is_reg) {
-			ctx->add(
-				encode(vmi::add).operand(reg).operand(loc.reg).operand(vmr::zero),
-				because
-			);
-			ctx->cur_func->registers.free(loc.reg);
-		} else if (is_imm) {
-			if (!type->is_floating_point) {
-				ctx->add(
-					encode(vmi::addi).operand(reg).operand(vmr::zero).operand(imm.i),
-					because
-				);
-			} else {
-				if (type->size == sizeof(f64)) {
-					ctx->add(
-						encode(vmi::daddi).operand(reg).operand(vmr::zero).operand(imm.f_64),
-						because
-					);
-				} else {
-					ctx->add(
-						encode(vmi::faddi).operand(reg).operand(vmr::zero).operand(imm.f_32),
-						because
-					);
-				}
-			}
-		} else {
-			vmi load;
-			switch (type->size) {
-			case 1: { load = vmi::ld8; break; }
-			case 2: { load = vmi::ld16; break; }
-			case 4: { load = vmi::ld32; break; }
-			case 8: { load = vmi::ld64; break; }
-			}
-			ctx->add(
-				encode(vmi::addu).operand(vmr::v0).operand(vmr::sp).operand(stack_offset),
-				because
-			);
-
-			ctx->add(
-				encode(load).operand(reg).operand(vmr::v0).operand(loc.stack_addr),
-				because
-			);
-			ctx->cur_func->stack.free(loc.stack_addr);
-		}
-
-		loc.reg = reg;
-		is_reg = true;
-		is_imm = false;
-	}
-
-	void var::store_in(vmr reg, ast_node* because, integer stack_offset) {
-		if (is_reg) {
-			if (loc.reg == reg) return;
-			if (is_fp(reg) == is_fp(loc.reg)) {
-				if (is_fp(reg)) {
-					ctx->add(
-						encode(vmi::fadd).operand(reg).operand(loc.reg).operand(vmr::zero),
-						because
-					);
-				} else {
-					ctx->add(
-						encode(vmi::add).operand(reg).operand(loc.reg).operand(vmr::zero),
-						because
-					);
-				}
-			} else {
-				if (is_fp(loc.reg)) {
-					ctx->add(
-						encode(vmi::mffp).operand(loc.reg).operand(reg),
-						because
-					);
-				} else {
-					ctx->add(
-						encode(vmi::mtfp).operand(loc.reg).operand(reg),
-						because
-					);
-				}
-			}
-		} else if (is_imm) {
-			if (!type->is_floating_point) {
-				if (type->is_unsigned) {
-					ctx->add(
-						encode(vmi::addui).operand(reg).operand(vmr::zero).operand(imm.i),
-						because
-					);
-				} else {
-					ctx->add(
-						encode(vmi::addi).operand(reg).operand(vmr::zero).operand(imm.i),
-						because
-					);
-				}
-			} else {
-				if (type->size == sizeof(f64)) {
-					if (!is_fp(reg)) {
-						vmr tmp = ctx->cur_func->registers.allocate_fp();
-						ctx->add(
-							encode(vmi::daddi).operand(tmp).operand(vmr::zero).operand(imm.f_64),
-							because
-						);
-						ctx->add(
-							encode(vmi::mffp).operand(tmp).operand(reg),
-							because
-						);
-						ctx->cur_func->registers.free(tmp);
-					} else {
-						ctx->add(
-							encode(vmi::daddi).operand(reg).operand(vmr::zero).operand(imm.f_64),
-							because
-						);
-					}
-				} else {
-					if (!is_fp(reg)) {
-						vmr tmp = ctx->cur_func->registers.allocate_fp();
-						ctx->add(
-							encode(vmi::faddi).operand(tmp).operand(vmr::zero).operand(imm.f_32),
-							because
-						);
-						ctx->add(
-							encode(vmi::mffp).operand(tmp).operand(reg),
-							because
-						);
-						ctx->cur_func->registers.free(tmp);
-					} else {
-						ctx->add(
-							encode(vmi::faddi).operand(reg).operand(vmr::zero).operand(imm.f_32),
-							because
-						);
-					}
-				}
-			}
-		} else {
-			vmi load;
-			switch (type->size) {
-				case 1: { load = vmi::ld8; break; }
-				case 2: { load = vmi::ld16; break; }
-				case 4: { load = vmi::ld32; break; }
-				case 8: { load = vmi::ld64; break; }
-			}
-			ctx->add(
-				encode(load).operand(reg).operand(vmr::sp).operand(loc.stack_addr + stack_offset),
-				because
-			);
-		}
-	}
-
-	void var::store_in(vmr reg, ast_node* because, vmr stack_offset) {
-		if (is_reg) {
-			ctx->add(
-				encode(vmi::add).operand(reg).operand(loc.reg).operand(vmr::zero),
-				because
-			);
-		} else if (is_imm) {
-			if (!type->is_floating_point) {
-				ctx->add(
-					encode(vmi::addi).operand(reg).operand(vmr::zero).operand(imm.i),
-					because
-				);
-			} else {
-				if (type->size == sizeof(f64)) {
-					ctx->add(
-						encode(vmi::daddi).operand(reg).operand(vmr::zero).operand(imm.f_64),
-						because
-					);
-				} else {
-					ctx->add(
-						encode(vmi::faddi).operand(reg).operand(vmr::zero).operand(imm.f_32),
-						because
-					);
-				}
-			}
-		} else {
-			vmi load;
-			switch (type->size) {
-				case 1: { load = vmi::ld8; break; }
-				case 2: { load = vmi::ld16; break; }
-				case 4: { load = vmi::ld32; break; }
-				case 8: { load = vmi::ld64; break; }
-			}
-			ctx->add(
-				encode(vmi::add).operand(vmr::v0).operand(vmr::sp).operand(stack_offset),
-				because
-			);
-
-			ctx->add(
-				encode(load).operand(reg).operand(vmr::v0).operand(loc.stack_addr),
-				because
-			);
-		}
-	}
+        var::~var() {
+            m_setter.this_obj = nullptr;
+            m_setter.func = nullptr;
+        }
 
 
 
-	var* cast(compile_context& ctx, var* from, data_type* to, ast_node* because) {
-		if (from->type->equals(to)) return from;
-		if (from->type->name == "bool" || to->name == "bool") return from;
 
-		// a pointer is a pointer no matter what it points to
-		if (!from->type->is_primitive && to->name == "data") return from;
-		if (from->type->name == "data" && !to->is_primitive) return from;
+        u64 var::size() const {
+            return m_type->size;
+        }
 
-		if (!from->type->built_in || (from->type->name == "string" || to->name == "string")) {
-			func* cast_func = from->type->cast_to_func(to);
-			if (!cast_func) {
-				ctx.log->err(format("No conversion from '%s' to '%s' found", from->type->name.c_str(), to->name.c_str()), because);
-				return from;
-			}
+        bool var::has_prop(const std::string& prop) const {
+            for (u16 i = 0;i < m_type->properties.size();i++) {
+                if (m_type->properties[i].name == prop) return true;
+            }
 
-			return call(ctx, cast_func, because, { from });
-		}
+            return false;
+        }
 
-		// todo: once overloading is supported, look for constructor that accepts from->type as the only parameter
-		if (!to->built_in) {
-			ctx.log->err(format("Cannot convert from '%s' to '%s'", from->type->name.c_str(), to->name.c_str()), because);
-			return from;
-		}
+        var var::prop(const std::string& prop) const {
+            for (u16 i = 0;i < m_type->properties.size();i++) {
+                auto& p = m_type->properties[i];
+                if (p.name == prop) {
+                    if (p.getter) {
+                        var v = call(*m_ctx, p.getter, { *this });
+                        if (p.setter) {
+                            v.m_setter.this_obj.reset(new var(*this));
+                            v.m_setter.func = p.setter;
+                        }
+                        v.m_flags = p.flags;
+                        return v;
+                    } else {
+                        var ptr = m_ctx->empty_var(m_ctx->type("u64"));
+                        if (p.flags & bind::pf_static) {
+                            m_ctx->add(operation::eq).operand(ptr).operand(m_ctx->imm(p.offset));
+                        } else {
+                            m_ctx->add(operation::uadd).operand(ptr).operand(*this).operand(m_ctx->imm(p.offset));
+                        }
+                        var ret = m_ctx->empty_var(p.type);
+                        ret.set_mem_ptr(ptr);
+                        m_ctx->add(operation::load).operand(ret).operand(ptr);
 
-		if (from->type->name == "void") {
-			ctx.log->err(format("Cannot convert from 'void' to '%s'", to->name.c_str()), because);
-			return from;
-		}
-		if (to->name == "void") {
-			ctx.log->err(format("Cannot convert from '%s' to 'void'", to->name.c_str()), because);
-			return from;
-		}
+                        if (p.setter) {
+                            ret.m_setter.this_obj.reset(new var(*this));
+                            ret.m_setter.func = p.setter;
+                        }
+                        ret.m_flags = p.flags;
+                        return ret;
+                    }
+                }
+            }
 
-		var* out = ctx.cur_func->allocate(ctx, to);
-		from->store_in(out->to_reg(because), because);
+            throw exc(ec::c_no_such_property, m_ctx->node()->ref, m_type->name.c_str(), prop.c_str());
+            return m_ctx->error_var();
+        }
 
-		// signed -> signed or unsigned -> unsigned can be handled implicitly
-		if (from->type->is_unsigned == to->is_unsigned && !from->type->is_floating_point && !to->is_floating_point) return out;
+        var var::prop_ptr(const std::string& prop) const {
+            for (u16 i = 0;i < m_type->properties.size();i++) {
+                auto& p = m_type->properties[i];
+                if (p.name == prop) {
+                    if (p.flags & bind::pf_static) {
+                        return m_ctx->imm(p.offset);
+                    } else {
+                        var ret = m_ctx->empty_var(m_ctx->type("u64"));
+                        m_ctx->add(operation::uadd).operand(ret).operand(*this).operand(m_ctx->imm(p.offset));
+                        return ret;
+                    }
+                }
+            }
 
-		vmi instr;
+            throw exc(ec::c_no_such_property, m_ctx->node()->ref, m_type->name.c_str(), prop.c_str());
+            return var();
+        }
 
-		// only types remaining are integral
-		if (from->type->is_floating_point) {
-			if (from->type->size == sizeof(f64)) {
-				// convert from f64
-				if (to->is_floating_point) {
-					// to f32
-					instr = vmi::cvt_df;
-				} else {
-					if (to->is_unsigned) {
-						// to u64, u32, u16, u8
-						instr = vmi::cvt_du;
-					} else {
-						// to i64, i32, i16, i8
-						instr = vmi::cvt_di;
-					}
-				}
-			} else {
-				// convert from f32
-				if (to->is_floating_point) {
-					// to f64
-					instr = vmi::cvt_fd;
-				} else {
-					if (to->is_unsigned) {
-						// to u64, u32, u16, u8
-						instr = vmi::cvt_fu;
-					} else {
-						// to i64, i32, i16, i8
-						instr = vmi::cvt_fi;
-					}
-				}
-			}
-		} else {
-			if (from->type->is_unsigned) {
-				// convert from u64, u32, u16, u8
-				if (to->is_floating_point) {
-					if (to->size == sizeof(f64)) {
-						// to f64
-						instr = vmi::cvt_ud;
-					} else {
-						// to f32
-						instr = vmi::cvt_uf;
-					}
-				} else {
-					// to i64, i32, i16, i8
-					instr = vmi::cvt_ui;
-				}
-			} else {
-				// convert from i64, i32, i16, i8
-				if (to->is_floating_point) {
-					if (to->size == sizeof(f64)) {
-						// to f64
-						instr = vmi::cvt_id;
-					} else {
-						// to f32
-						instr = vmi::cvt_if;
-					}
-				} else {
-					// to u64, u32, u16, u8
-					instr = vmi::cvt_iu;
-				}
-			}
-		}
+        bool var::has_any_method(const std::string& _name) const {
+            for (u16 m = 0;m < m_type->methods.size();m++) {
+                // match name
+                script_function* func = nullptr;
+                if (_name.find_first_of(' ') != std::string::npos) {
+                    // probably an operator
+                    std::vector<std::string> mparts = split(split(m_type->methods[m]->name, ":")[1], " \t\n\r");
+                    std::vector<std::string> sparts = split(_name, " \t\n\r");
+                    if (mparts.size() != sparts.size()) continue;
+                    bool matched = true;
+                    for (u32 i = 0;matched && i < mparts.size();i++) {
+                        matched = mparts[i] == sparts[i];
+                    }
+                    if (matched) return true;
+                }
+                std::string& bt_name = m_type->base_type ? m_type->base_type->name : m_type->name;
+                if (m_type->methods[m]->name == bt_name + "::" + _name) return true;
+            }
 
-		ctx.add(
-			encode(instr).operand(out->to_reg(because)),
-			because
-		);
+            return false;
+        }
 
-		return out;
-	}
+        bool var::has_unambiguous_method(const std::string& _name, script_type* ret, const std::vector<script_type*>& args) const {
+            std::vector<script_function*> matches;
 
-	var* cast(compile_context& ctx, var* from, var* to, ast_node* because) {
-		if (!to) return from;
-		return cast(ctx, from, to->type, because);
-	}
+            for (u16 m = 0;m < m_type->methods.size();m++) {
+                // match name
+                script_function* func = nullptr;
+                if (_name == "<cast>") {
+                    script_function* mt = m_type->methods[m];
+                    auto mparts = split(split(mt->name,":")[1], " \t\n\r");
+                    if (mparts.size() == 2 && mparts[0] == "operator" && mparts[1] == mt->signature.return_type->name && mt->signature.arg_types.size() == 0) {
+                        if (mt->signature.return_type->id() == ret->id()) {
+                            return mt;
+                        } else if (has_valid_conversion(*m_ctx, mt->signature.return_type, ret)) {
+                            matches.push_back(mt);
+                            continue;
+                        }
+                    }
+                } else if (_name.find_first_of(' ') != std::string::npos) {
+                    // probably an operator
+                    std::vector<std::string> mparts = split(split(m_type->methods[m]->name, ":")[1], " \t\n\r");
+                    std::vector<std::string> sparts = split(_name, " \t\n\r");
+                    if (mparts.size() != sparts.size()) continue;
+                    bool matched = true;
+                    for (u32 i = 0;matched && i < mparts.size();i++) {
+                        matched = mparts[i] == sparts[i];
+                    }
+                    if (matched) func = m_type->methods[m];
+                }
+                std::string& bt_name = m_type->base_type ? m_type->base_type->name : m_type->name;
+                if (m_type->methods[m]->name == bt_name + "::" + _name) func = m_type->methods[m];
+
+                if (!func) continue;
+
+                // match return type
+                if (ret && !has_valid_conversion(*m_ctx, ret, func->signature.return_type)) continue;
+                bool ret_tp_strict = ret ? func->signature.return_type->id() == ret->id() : false;
+
+                // match argument types
+                if (func->signature.arg_types.size() != args.size()) continue;
+
+                // prefer strict type matches
+                bool match = true;
+                for (u8 i = 0;i < args.size();i++) {
+                    if (func->signature.arg_types[i]->name == "subtype") {
+                        if (m_type->sub_type->id() != args[i]->id()) {
+                            match = false;
+                            break;
+                        }
+                    } else {
+                        if (func->signature.arg_types[i]->id() != args[i]->id()) {
+                            match = false;
+                            break;
+                        }
+                    }
+                }
+
+                if (match && ret_tp_strict) return true;
+
+                if (!match) {
+                    // check if the arguments are at least convertible
+                    match = true;
+                    for (u8 i = 0;i < args.size();i++) {
+                        script_type* at = func->signature.arg_types[i];
+                        if (at->name == "subtype") at = m_type->sub_type;
+                        if (!has_valid_conversion(*m_ctx, args[i], at)) {
+                            match = false;
+                            break;
+                        }
+                    }
+
+                    if (!match) continue;
+                }
+
+                matches.push_back(func);
+            }
+
+            if (matches.size() > 1) return false;
+            if (matches.size() == 1) return true;
+            return false;
+        }
+
+        script_function* var::method(const std::string& _name, script_type* ret, const std::vector<script_type*>& args) const {
+            std::vector<script_function*> matches;
+
+            for (u16 m = 0;m < m_type->methods.size();m++) {
+                // match name
+                script_function* func = nullptr;
+                if (_name == "<cast>") {
+                    script_function* mt = m_type->methods[m];
+                    auto mparts = split(split(mt->name,":")[1], " \t\n\r");
+                    if (mparts.size() == 2 && mparts[0] == "operator" && mparts[1] == mt->signature.return_type->name && mt->signature.arg_types.size() == 0) {
+                        if (mt->signature.return_type->id() == ret->id()) {
+                            return mt;
+                        } else if (has_valid_conversion(*m_ctx, mt->signature.return_type, ret)) {
+                            matches.push_back(mt);
+                            continue;
+                        }
+                    }
+                } else if (_name.find_first_of(' ') != std::string::npos) {
+                    // probably an operator
+                    std::vector<std::string> mparts = split(split(m_type->methods[m]->name, ":")[1], " \t\n\r");
+                    std::vector<std::string> sparts = split(_name, " \t\n\r");
+                    if (mparts.size() != sparts.size()) continue;
+                    bool matched = true;
+                    for (u32 i = 0;matched && i < mparts.size();i++) {
+                        matched = mparts[i] == sparts[i];
+                    }
+                    if (matched) func = m_type->methods[m];
+                }
+
+                std::string& bt_name = m_type->base_type ? m_type->base_type->name : m_type->name;
+                if (m_type->methods[m]->name == bt_name + "::" + _name) func = m_type->methods[m];
+
+                if (!func) continue;
+
+                // match return type
+                if (ret && !has_valid_conversion(*m_ctx, func->signature.return_type, ret)) continue;
+                bool ret_tp_strict = ret ? func->signature.return_type->id() == ret->id() : false;
+
+                // match argument types
+                if (func->signature.arg_types.size() != args.size()) continue;
+
+                // prefer strict type matches
+                bool match = true;
+                for (u8 i = 0;i < args.size();i++) {
+                    if (func->signature.arg_types[i]->name == "subtype") {
+                        if (m_type->sub_type->id() != args[i]->id()) {
+                            match = false;
+                            break;
+                        }
+                    } else {
+                        if (func->signature.arg_types[i]->id() != args[i]->id()) {
+                            match = false;
+                            break;
+                        }
+                    }
+                }
+
+                if (match && ret_tp_strict) return func;
+
+                if (!match) {
+                    // check if the arguments are at least convertible
+                    match = true;
+                    for (u8 i = 0;i < args.size();i++) {
+                        script_type* at = func->signature.arg_types[i];
+                        if (at->name == "subtype") at = m_type->sub_type;
+                        if (!has_valid_conversion(*m_ctx, args[i], at)) {
+                            match = false;
+                            break;
+                        }
+                    }
+
+                    if (!match) continue;
+                }
+
+                matches.push_back(func);
+            }
+
+            if (matches.size() > 1) {
+                m_ctx->log()->err(ec::c_ambiguous_method, m_ctx->node()->ref, _name.c_str(), m_type->name.c_str(), arg_tp_str(args).c_str(), !ret ? "<any>" : ret->name.c_str());
+                return nullptr;
+            }
+
+            if (matches.size() == 1) {
+                return matches[0];
+            }
+
+            m_ctx->log()->err(ec::c_no_such_method, m_ctx->node()->ref, m_type->name.c_str(), _name.c_str(), arg_tp_str(args).c_str(), !ret ? "<any>" : ret->name.c_str());
+            return nullptr;
+        }
+
+        bool var::convertible_to(script_type* tp) const {
+            return has_valid_conversion(*m_ctx, m_type, tp);
+        }
+
+        var var::convert(script_type* to) const {
+            script_type* from = m_type;
+
+            if (from->id() == to->id()) return *this;
+            if (from->base_type && from->base_type->id() == to->id()) return *this;
+            if (!from->is_primitive && to->name == "data") return *this;
+            if (from->name == "data" && !to->is_primitive) return *this;
+
+            if (from->name == "void" || to->name == "void") {
+                m_ctx->log()->err(ec::c_no_valid_conversion, m_ctx->node()->ref, from->name.c_str(), to->name.c_str());
+                return m_ctx->error_var();
+            }
+
+            if (!from->is_primitive) {
+                if (to->is_primitive) {
+                    // last chance to find a conversion
+                    script_function* cast = method("<cast>", to, { m_type });
+                    if (cast) return call(*m_ctx, cast, { *this });
+
+                    m_ctx->log()->err(ec::c_no_valid_conversion, m_ctx->node()->ref, from->name.c_str(), to->name.c_str());
+                    return m_ctx->error_var();
+                } else if (has_unambiguous_method("<cast>", to, { m_type })) {
+                    script_function* cast = method("<cast>", to, { m_type });
+                    return call(*m_ctx, cast, { *this });
+                }
+            }
+
+            if (!to->is_primitive) {
+                var tv = m_ctx->dummy_var(to);
+                script_function* ctor = tv.method("constructor", to, { m_ctx->type("data"), from });
+                if (ctor) {
+                    var ret = m_ctx->empty_var(to);
+                    construct_on_stack(*m_ctx, ret, { *this });
+                    ret.raise_stack_flag();
+                    return ret;
+                }
+                
+                m_ctx->log()->err(ec::c_no_valid_conversion, m_ctx->node()->ref, from->name.c_str(), to->name.c_str());
+                return m_ctx->error_var();
+            }
+            
+            // conversion between non-void primitive types is always possible
+            var v = m_ctx->empty_var(to);
+            m_ctx->add(operation::eq).operand(v).operand(*this);
+            m_ctx->add(operation::cvt).operand(v).operand(m_ctx->imm((u64)from->id())).operand(m_ctx->imm((u64)to->id()));
+            return v;
+        }
+
+        std::string var::to_string() const {
+            if (is_spilled()) {
+                if (m_name.length() > 0) return format("[$sp + %u] (%s)", m_stack_loc, m_name.c_str());
+                else return format("[$sp + %u]", m_stack_loc);
+            }
+            if (m_is_imm) {
+                if (m_type->is_floating_point) {
+                    if (m_type->size == sizeof(f64)) {
+                        return format("%f", m_imm.d);
+                    } else {
+                        return format("%f", m_imm.f);
+                    }
+                } else {
+                    if (m_type->is_unsigned) {
+                        return format("%llu", m_imm.u);
+                    } else {
+                        return format("%lld", m_imm.i);
+                    }
+                }
+            }
+
+            if (m_name.length() > 0) {
+                if (m_type->is_floating_point) return format("$FP%d (%s)", m_reg_id, m_name.c_str());
+                return format("$GP%d (%s)", m_reg_id, m_name.c_str());
+            }
+
+            if (m_type->is_floating_point) return format("$FP%d", m_reg_id);
+            return format("$GP%d", m_reg_id);
+        }
+
+        void var::set_mem_ptr(const var& v) {
+            m_mem_ptr.valid = v.valid();
+            m_mem_ptr.reg = v.m_reg_id;
+        }
+
+        script_type* var::call_this_tp() const {
+            return m_type->base_type && m_type->is_host ? m_type->base_type : m_type;
+        }
+
+
+
+        using ot = parse::ast::operation_type;
+
+        static const char* ot_str[] = {
+            "invlaid",
+            "+",
+            "-",
+            "*",
+            "/",
+            "%",
+            "<<",
+            ">>",
+            "&&",
+            "||",
+            "&",
+            "|",
+            "^",
+            "+=",
+            "-=",
+            "*=",
+            "/=",
+            "%=",
+            "<<=",
+            ">>=",
+            "&&=",
+            "||=",
+            "&=",
+            "|=",
+            "^=",
+            "++",
+            "--",
+            "++",
+            "--",
+            "<",
+            ">",
+            "<=",
+            ">=",
+            "!=",
+            "==",
+            "=",
+            "!",
+            "-"
+            "invlaid",
+            "[]",
+            "invalid",
+            "invalid"
+        };
+
+        operation get_op(ot op, script_type* tp) {
+            using o = operation;
+            if (!tp->is_primitive) return o::null;
+
+            static o possible_arr[][4] = {
+                { o::iadd , o::uadd , o::dadd , o::fadd  },
+                { o::isub , o::usub , o::dsub , o::fsub  },
+                { o::imul , o::umul , o::dmul , o::fmul  },
+                { o::idiv , o::udiv , o::ddiv , o::fdiv  },
+                { o::imod , o::umod , o::dmod , o::fmod  },
+                { o::ilt  , o::ult  , o::dlt  , o::flt   },
+                { o::igt  , o::ugt  , o::dgt  , o::fgt   },
+                { o::ilte , o::ulte , o::dlte , o::flte  },
+                { o::igte , o::ugte , o::dgte , o::fgte  },
+                { o::incmp, o::uncmp, o::dncmp, o::fncmp },
+                { o::icmp , o::ucmp , o::dcmp , o::fcmp  },
+                { o::sl   , o::sl   , o::null , o::null  },
+                { o::sr   , o::sr   , o::null , o::null  },
+                { o::land , o::land , o::null , o::null  },
+                { o::lor  , o::lor  , o::null , o::null  },
+                { o::band , o::band , o::null , o::null  },
+                { o::bor  , o::bor  , o::null , o::null  },
+                { o::bxor , o::bxor , o::null , o::null  }
+            };
+            static robin_hood::unordered_map<ot, u8> possible_map = {
+                { ot::add       , 0  },
+                { ot::sub       , 1  },
+                { ot::mul       , 2  },
+                { ot::div       , 3  },
+                { ot::mod       , 4  },
+                { ot::less      , 5  },
+                { ot::greater   , 6  },
+                { ot::lessEq    , 7  },
+                { ot::greaterEq , 8  },
+                { ot::notEq     , 9  },
+                { ot::isEq      , 10 },
+                { ot::shiftLeft , 11 },
+                { ot::shiftRight, 12 },
+                { ot::land      , 13 },
+                { ot::lor       , 14 },
+                { ot::band      , 15 },
+                { ot::bor       , 16 },
+                { ot::bxor      , 17 }
+            };
+
+            if (!tp->is_floating_point) {
+                if (!tp->is_unsigned) {
+                    return possible_arr[possible_map[op]][0];
+                } else {
+                    return possible_arr[possible_map[op]][1];
+                }
+            } else {
+                if (tp->size == sizeof(f64)) {
+                    return possible_arr[possible_map[op]][2];
+                } else {
+                    return possible_arr[possible_map[op]][3];
+                }
+            }
+
+            return o::null;
+        }
+
+        var do_bin_op(context* ctx, const var& a, const var& b, ot _op) {
+            operation op = get_op(_op, a.type());
+            if ((u8)op) {
+                var ret = ctx->empty_var(a.type());
+                var v = b.convert(a.type());
+                ctx->add(op).operand(ret).operand(a).operand(v);
+                return ret;
+            }
+            else {
+                script_function* f = a.method(std::string("operator ") + ot_str[(u8)_op], a.type(), { a.call_this_tp(), b.type() });
+                if (f) {
+                    return call(*ctx, f, { a, b.convert(f->signature.arg_types[0]) });
+                }
+            }
+
+            return ctx->dummy_var(a.type());
+        }
+
+        var var::operator + (const var& rhs) const {
+            return do_bin_op(m_ctx, *this, rhs, ot::add);
+        }
+
+        var var::operator - (const var& rhs) const {
+            return do_bin_op(m_ctx, *this, rhs, ot::sub);
+        }
+
+        var var::operator * (const var& rhs) const {
+            return do_bin_op(m_ctx, *this, rhs, ot::mul);
+        }
+
+        var var::operator / (const var& rhs) const {
+            return do_bin_op(m_ctx, *this, rhs, ot::div);
+        }
+
+        var var::operator % (const var& rhs) const {
+            return do_bin_op(m_ctx, *this, rhs, ot::mod);
+        }
+
+        var var::operator << (const var& rhs) const {
+            return do_bin_op(m_ctx, *this, rhs, ot::shiftLeft);
+        }
+
+        var var::operator >> (const var& rhs) const {
+            return do_bin_op(m_ctx, *this, rhs, ot::shiftRight);
+        }
+
+        var var::operator && (const var& rhs) const {
+            return do_bin_op(m_ctx, *this, rhs, ot::land);
+        }
+
+        var var::operator || (const var& rhs) const {
+            return do_bin_op(m_ctx, *this, rhs, ot::lor);
+        }
+
+        var var::operator & (const var& rhs) const {
+            return do_bin_op(m_ctx, *this, rhs, ot::band);
+        }
+
+        var var::operator | (const var& rhs) const {
+            return do_bin_op(m_ctx, *this, rhs, ot::bor);
+        }
+
+        var var::operator ^ (const var& rhs) const {
+            return do_bin_op(m_ctx, *this, rhs, ot::bxor);
+        }
+
+        var var::operator += (const var& rhs) const {
+            var result = do_bin_op(m_ctx, *this, rhs, ot::addEq);
+            operator_eq(result);
+            return result;
+        }
+
+        var var::operator -= (const var& rhs) const {
+            var result = do_bin_op(m_ctx, *this, rhs, ot::subEq);
+            operator_eq(result);
+            return result;
+        }
+
+        var var::operator *= (const var& rhs) const {
+            var result = do_bin_op(m_ctx, *this, rhs, ot::mulEq);
+            operator_eq(result);
+            return result;
+        }
+
+        var var::operator /= (const var& rhs) const {
+            var result = do_bin_op(m_ctx, *this, rhs, ot::divEq);
+            operator_eq(result);
+            return result;
+        }
+
+        var var::operator %= (const var& rhs) const {
+            var result = do_bin_op(m_ctx, *this, rhs, ot::modEq);
+            operator_eq(result);
+            return result;
+        }
+
+        var var::operator <<= (const var& rhs) const {
+            var result = do_bin_op(m_ctx, *this, rhs, ot::shiftLeftEq);
+            operator_eq(result);
+            return result;
+        }
+
+        var var::operator >>= (const var& rhs) const {
+            var result = do_bin_op(m_ctx, *this, rhs, ot::shiftRightEq);
+            operator_eq(result);
+            return result;
+        }
+
+        var var::operator_landEq (const var& rhs) const {
+            var result = do_bin_op(m_ctx, *this, rhs, ot::landEq);
+            operator_eq(result);
+            return result;
+        }
+
+        var var::operator_lorEq (const var& rhs) const {
+            var result = do_bin_op(m_ctx, *this, rhs, ot::lorEq);
+            operator_eq(result);
+            return result;
+        }
+
+        var var::operator &= (const var& rhs) const {
+            var result = do_bin_op(m_ctx, *this, rhs, ot::bandEq);
+            operator_eq(result);
+            return result;
+        }
+
+        var var::operator |= (const var& rhs) const {
+            var result = do_bin_op(m_ctx, *this, rhs, ot::borEq);
+            operator_eq(result);
+            return result;
+        }
+
+        var var::operator ^= (const var& rhs) const {
+            var result = do_bin_op(m_ctx, *this, rhs, ot::bxorEq);
+            operator_eq(result);
+            return result;
+        }
+
+        var var::operator ++ () const {
+            if (m_type->is_primitive) {
+                var result = do_bin_op(m_ctx, *this, m_ctx->imm(i64(1)), ot::add);
+                operator_eq(result);
+                return result;
+            }
+
+            script_function* f = method("operator ++", m_type, { call_this_tp() });
+            if (f) return call(*m_ctx, f, { *this });
+        }
+
+        var var::operator -- () const {
+            if (m_type->is_primitive) {
+                var result = do_bin_op(m_ctx, *this, m_ctx->imm(i64(1)), ot::sub);
+                operator_eq(result);
+                return result;
+            }
+
+            script_function* f = method("operator --", m_type, { call_this_tp() });
+            if (f) return call(*m_ctx, f, { *this });
+        }
+
+        var var::operator ++ (int) const {
+            if (m_type->is_primitive) {
+                var clone = m_ctx->empty_var(m_type);
+                clone.operator_eq(*this);
+                var result = do_bin_op(m_ctx, *this, m_ctx->imm(i64(1)), ot::add);
+                operator_eq(result);
+                return result;
+            }
+
+            var clone = m_ctx->empty_var(m_type);
+            // todo: specific error when type is not copy constructible 
+            construct_on_stack(*m_ctx, clone, { *this });
+            clone.raise_stack_flag();
+            script_function* f = method("operator ++", m_type, { call_this_tp() });
+            if (f) call(*m_ctx, f, { *this });
+            return clone;
+        }
+
+        var var::operator -- (int) const {
+            if (m_type->is_primitive) {
+                var clone = m_ctx->empty_var(m_type);
+                clone.operator_eq(*this);
+                var result = do_bin_op(m_ctx, *this, m_ctx->imm(i64(1)), ot::sub);
+                operator_eq(result);
+                return result;
+            }
+
+            var clone = m_ctx->empty_var(m_type);
+            // todo: specific error when type is not copy constructible 
+            construct_on_stack(*m_ctx, clone, { *this });
+            clone.raise_stack_flag();
+            script_function* f = method("operator --", m_type, { call_this_tp() });
+            if (f) call(*m_ctx, f, { *this });
+            return clone;
+        }
+
+        var var::operator < (const var& rhs) const {
+            return do_bin_op(m_ctx, *this, rhs, ot::less);
+        }
+
+        var var::operator > (const var& rhs) const {
+            return do_bin_op(m_ctx, *this, rhs, ot::greater);
+        }
+
+        var var::operator <= (const var& rhs) const {
+            return do_bin_op(m_ctx, *this, rhs, ot::lessEq);
+        }
+
+        var var::operator >= (const var& rhs) const {
+            return do_bin_op(m_ctx, *this, rhs, ot::greaterEq);
+        }
+
+        var var::operator != (const var& rhs) const {
+            return do_bin_op(m_ctx, *this, rhs, ot::notEq);
+        }
+
+        var var::operator == (const var& rhs) const {
+            return do_bin_op(m_ctx, *this, rhs, ot::isEq);
+        }
+
+        var var::operator ! () const {
+            if (m_type->is_primitive) {
+                return do_bin_op(m_ctx, *this, m_ctx->imm(i64(0)), ot::isEq);
+            }
+
+            script_function* f = method("operator !", m_type, { call_this_tp() });
+            if (f) return call(*m_ctx, f, { *this });
+        }
+
+        var var::operator - () const {
+            if (m_type->is_primitive) {
+                var v = m_ctx->empty_var(m_type);
+                m_ctx->add(operation::neg).operand(v).operand(*this);
+                return v;
+            }
+
+            script_function* f = method("operator -", m_type, { call_this_tp() });
+            if (f) return call(*m_ctx, f, { *this });
+        }
+
+        var var::operator_eq (const var& rhs) const {
+            if (m_setter.func) {
+                var real_value = call(*m_ctx, m_setter.func, { *m_setter.this_obj, rhs });
+                m_ctx->add(operation::eq).operand(*this).operand(real_value);
+            } else {
+                var v = rhs.convert(m_type);
+                m_ctx->add(operation::eq).operand(*this).operand(v);
+                if (m_mem_ptr.valid) {
+                    m_ctx->add(operation::store).operand(var(m_ctx, m_mem_ptr.reg, m_ctx->type("data"))).operand(*this);
+                }
+            }
+
+            return *this;
+        }
+
+        var var::operator [] (const var& rhs) const {
+            script_function* f = method("operator []", nullptr, { call_this_tp(), rhs.type() });
+            if (f) {
+                return call(*m_ctx, f, { *this, rhs });
+            }
+
+            return m_ctx->error_var();
+        }
+    };
 };

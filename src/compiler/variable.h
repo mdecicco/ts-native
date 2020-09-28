@@ -1,71 +1,150 @@
 #pragma once
-#include <types.h>
 #include <string>
-#include <register.h>
+#include <vector>
+#include <memory>
+#include <common/source_ref.h>
 
 namespace gjs {
-	struct compile_context;
-	struct data_type;
-	struct ast_node;
+    class script_type;
+    class script_function;
+    class register_allocator;
+    struct compilation_output;
 
-	struct var {
-		using vmr = vm_register;
+    namespace bind {
+        enum property_flags;
+    };
 
-		var();
+    namespace compile {
+        struct context;
 
-		compile_context* ctx;
-		std::string name;
-		bool is_variable;
-		bool no_auto_free;
-		bool is_reg;
-		bool is_imm;
-		bool is_const;
-		bool refers_to_stack_obj;
-		uinteger refers_to_stack_addr;
-		data_type* type;
-		u32 count;
-		u16 ref_count;
-		u16 total_ref_count;
+        bool has_valid_conversion(context& ctx, script_type* from, script_type* to);
 
-		union {
-			vmr reg;
-			address stack_addr;
-		} loc;
+        class var {
+            public:
+                var(const var& v);
+                ~var();
 
-		union {
-			integer i;
-			f32 f_32;
-			f64 f_64;
-		} imm;
+                inline std::string name() const { return m_name; }
+                inline source_ref instantiation() const { return m_instantiation; }
+                inline bool is_imm() const { return m_is_imm; }
+                inline script_type* type() const { return m_type; }
+                inline u64 imm_u() const { return m_imm.u; }
+                inline i64 imm_i() const { return m_imm.i; }
+                inline f32 imm_f() const { return m_imm.f; }
+                inline f64 imm_d() const { return m_imm.d; }
+                inline u32 reg_id() const { return m_reg_id; }
+                inline bool valid() const { return m_ctx != nullptr; }
+                inline bool flag(bind::property_flags f) const { return m_flags & f; }
+                inline void raise_stack_flag() { m_is_stack_obj = true; }
+                inline bool is_stack_obj() const { return m_is_stack_obj; }
 
-		void move_stack_reference(var* to);
+                // used by code generation phase when generating load instructions
+                // for 'spilled' variables
+                inline bool is_spilled() const { return m_stack_loc != u32(-1); }
+                inline u32 stack_off() const { return m_stack_loc; }
 
-		address move_to_stack(ast_node* because, integer offset = 0);
+                u64 size() const;
+                bool has_prop(const std::string& name) const;
+                var prop(const std::string& name) const;
+                var prop_ptr(const std::string& name) const;
+                bool has_any_method(const std::string& name) const;
+                bool has_unambiguous_method(const std::string& name, script_type* ret, const std::vector<script_type*>& args) const;
+                script_function* method(const std::string& name, script_type* ret, const std::vector<script_type*>& args) const;
+                bool convertible_to(script_type* tp) const;
+                var convert(script_type* tp) const;
+                void set_mem_ptr(const var& v);
 
-		address move_to_stack(ast_node* because, vmr offset);
+                // type used for first argument when calling methods
+                script_type* call_this_tp() const;
 
-		vmr move_to_register(ast_node* because, integer offset = 0);
+                std::string to_string() const;
 
-		vmr move_to_register(ast_node* because, vmr offset);
+                var operator + (const var& rhs) const;
+                var operator - (const var& rhs) const;
+                var operator * (const var& rhs) const;
+                var operator / (const var& rhs) const;
+                var operator % (const var& rhs) const;
+                var operator << (const var& rhs) const;
+                var operator >> (const var& rhs) const;
+                var operator && (const var& rhs) const;
+                var operator || (const var& rhs) const;
+                var operator & (const var& rhs) const;
+                var operator | (const var& rhs) const;
+                var operator ^ (const var& rhs) const;
+                var operator += (const var& rhs) const;
+                var operator -= (const var& rhs) const;
+                var operator *= (const var& rhs) const;
+                var operator /= (const var& rhs) const;
+                var operator %= (const var& rhs) const;
+                var operator <<= (const var& rhs) const;
+                var operator >>= (const var& rhs) const;
+                var operator_landEq (const var& rhs) const; // &&=
+                var operator_lorEq (const var& rhs) const; // ||=
+                var operator &= (const var& rhs) const;
+                var operator |= (const var& rhs) const;
+                var operator ^= (const var& rhs) const;
+                var operator ++ () const; // prefix
+                var operator -- () const; // prefix
+                var operator ++ (int) const; // postfix
+                var operator -- (int) const; // postfix
+                var operator < (const var& rhs) const;
+                var operator > (const var& rhs) const;
+                var operator <= (const var& rhs) const;
+                var operator >= (const var& rhs) const;
+                var operator != (const var& rhs) const;
+                var operator == (const var& rhs) const;
+                var operator ! () const;
+                var operator - () const;
+                var operator [] (const var& rhs) const;
+                var operator_eq (const var& v) const;
 
-		vmr to_reg(ast_node* because, integer offset = 0);
+            protected:
+                friend struct tac_instruction;
+                friend struct context;
+                friend class register_allocator;
+                friend struct compilation_output;
 
-		vmr to_reg(ast_node* because, vmr offset);
+                var();
+                var(context* ctx, u64 u);
+                var(context* ctx, i64 i);
+                var(context* ctx, f32 f);
+                var(context* ctx, f64 d);
+                var(context* ctx, const std::string& s);
+                var(context* ctx, u32 reg_id, script_type* type);
 
-		address to_stack(ast_node* because, integer offset = 0);
+                context* m_ctx;
+                std::string m_name;
+                source_ref m_instantiation;
+                script_type* m_type;
+                u8 m_flags;
 
-		address to_stack(ast_node* because, vmr offset);
+                bool m_is_imm;
+                u32 m_reg_id;
+                
+                // Used in the register allocation phase when no registers are available
+                u32 m_stack_loc;
 
-		void move_to(vmr reg, ast_node* because, integer stack_offset = 0);
+                // If the object was allocated in the stack
+                // (used to log compiler errors if script uses 'delete' on a stack object)
+                bool m_is_stack_obj;
 
-		void move_to(vmr reg, ast_node* because, vmr stack_offset);
+                struct {
+                    bool valid;
+                    u32 reg;
+                } m_mem_ptr;
 
-		void store_in(vmr reg, ast_node* because, integer stack_offset = 0);
+                // this is set when this var is a reference to an object property that has a setter
+                struct {
+                    std::shared_ptr<var> this_obj; // dynamically allocated copy of the original var
+                    script_function* func;
+                } m_setter;
 
-		void store_in(vmr reg, ast_node* because, vmr stack_offset);
-	};
-
-	var* cast(compile_context& ctx, var* from, data_type* to, ast_node* because);
-
-	var* cast(compile_context& ctx, var* from, var* to, ast_node* because);
+                union {
+                    u64 u;
+                    i64 i;
+                    f32 f;
+                    f64 d;
+                } m_imm;
+        };
+    };
 };
