@@ -487,8 +487,8 @@ namespace gjs {
 
         if (check_instr_type_0(i)) return instruction_str[(u8)i];
 
-        auto reg_str = [state, i](vmr r, i32 offset = 0, bool is_mem = false) {
-            if (!state) return "$" + std::string(register_str[(integer)r]);
+        auto reg_str = [state, i, ctx](vmr r, i32 offset = 0, bool is_mem = false) {
+            if (!state || !ctx || !ctx->is_executing()) return "$" + std::string(register_str[(integer)r]);
             else {
                 /*
                 vm_memory* mem = nullptr;

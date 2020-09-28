@@ -124,11 +124,24 @@ void print_code(vm_backend& ctx) {
             }
             printf("]\n");
         }
-        printf("0x%2.2X: %-32s", i, (*ctx.code())[i].to_string().c_str());
+
+        instruction ins = (*ctx.code())[i];
+        printf("0x%3.3X: %-32s", i, ins.to_string(&ctx).c_str());
         auto src = ctx.map()->get(i);
         if (src.line_text != last_line) {
             printf("; %s", src.line_text.c_str());
             last_line = src.line_text;
+        } else if (ins.instr() == vm_instruction::jal) {
+            std::string str;
+            script_function* f = ctx.context()->function(ins.imm_u());
+            str += f->signature.return_type->name + " " + f->name + "(";
+            for (u8 a = 0;a < f->signature.arg_types.size();a++) {
+                if ((a > 0 && !f->is_method_of) || (f->is_method_of && a > 1)) str += ", ";
+                if (a == 0 && f->is_method_of) continue; // skip implicit 'this' parameter
+                str += f->signature.arg_types[a]->name;
+            }
+            str += ")";
+            printf("; <- %s", str.c_str());
         }
         printf("\n");
     }
