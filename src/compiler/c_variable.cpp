@@ -16,44 +16,28 @@ namespace gjs {
     using wc = warning::wcode;
 
     namespace compile {
-        bool has_valid_conversion(script_type* from, script_type* to) {
+        bool has_valid_conversion(context& ctx, script_type* from, script_type* to) {
             if (from->id() == to->id()) return true;
             if (from->base_type && from->base_type->id() == to->id()) return true;
             if (!from->is_primitive && to->name == "data") return true;
             if (from->name == "data" && !to->is_primitive) return true;
 
-            if (!from->is_primitive) {
-                for (u16 m = 0;m < from->methods.size();m++) {
-                    std::vector<std::string> mparts = split(split(from->methods[m]->name, ":")[1], " \t\n\r");
-                    if (mparts.size() != 2) continue;
-                    bool matched = true;
-                    if (mparts[0] == "operator" && mparts[1] == to->name) {
-                        // cast function exists
-                        return true;
-                    }
-                }
+            if (from->name == "void" || to->name == "void") return false;
 
-                return false;
+            if (!from->is_primitive) {
+                var fd = ctx.dummy_var(from);
+                if (to->is_primitive) {
+                    // last chance to find a conversion
+                    return fd.has_unambiguous_method("<cast>", to, { from });
+                } else if (fd.has_unambiguous_method("<cast>", to, { from })) return true;
             }
 
             if (!to->is_primitive) {
-                for (u16 m = 0;m < to->methods.size();m++) {
-                    std::vector<std::string> mparts = split(split(to->methods[m]->name, ":")[1], " \t\n\r");
-                    if (mparts.size() != 1) continue;
-                    if (mparts[0] != "constructor") continue;
-                    script_function* ctor = to->methods[m];
-                    if (ctor->signature.arg_types.size() != 2) continue;
-                    script_type* copyFromTp = ctor->signature.arg_types[1];
-                    if (copyFromTp->id() == from->id()) return true;
-                    if (copyFromTp->name == "subtype" && has_valid_conversion(from, copyFromTp->sub_type)) return true;
-                }
-
-                return false;
+                var td = ctx.dummy_var(to);
+                return td.has_unambiguous_method("constructor", to, { ctx.type("data"), from });
             }
-
-            if (from->name == "void" || to->name == "void") return false;
-
-            // conversion between primitive types is always possible
+            
+            // conversion between non-void primitive types is always possible
             return true;
         }
 
@@ -288,7 +272,18 @@ namespace gjs {
             for (u16 m = 0;m < m_type->methods.size();m++) {
                 // match name
                 script_function* func = nullptr;
-                if (_name.find_first_of(' ') != std::string::npos) {
+                if (_name == "<cast>") {
+                    script_function* mt = m_type->methods[m];
+                    auto mparts = split(split(mt->name,":")[1], " \t\n\r");
+                    if (mparts.size() == 2 && mparts[0] == "operator" && mparts[1] == mt->signature.return_type->name && mt->signature.arg_types.size() == 0) {
+                        if (mt->signature.return_type->id() == ret->id()) {
+                            return mt;
+                        } else if (has_valid_conversion(*m_ctx, mt->signature.return_type, ret)) {
+                            matches.push_back(mt);
+                            continue;
+                        }
+                    }
+                } else if (_name.find_first_of(' ') != std::string::npos) {
                     // probably an operator
                     std::vector<std::string> mparts = split(split(m_type->methods[m]->name, ":")[1], " \t\n\r");
                     std::vector<std::string> sparts = split(_name, " \t\n\r");
@@ -305,7 +300,7 @@ namespace gjs {
                 if (!func) continue;
 
                 // match return type
-                if (ret && !has_valid_conversion(ret, func->signature.return_type)) continue;
+                if (ret && !has_valid_conversion(*m_ctx, ret, func->signature.return_type)) continue;
                 bool ret_tp_strict = ret ? func->signature.return_type->id() == ret->id() : false;
 
                 // match argument types
@@ -335,7 +330,7 @@ namespace gjs {
                     for (u8 i = 0;i < args.size();i++) {
                         script_type* at = func->signature.arg_types[i];
                         if (at->name == "subtype") at = m_type->sub_type;
-                        if (!has_valid_conversion(args[i], at)) {
+                        if (!has_valid_conversion(*m_ctx, args[i], at)) {
                             match = false;
                             break;
                         }
@@ -358,7 +353,18 @@ namespace gjs {
             for (u16 m = 0;m < m_type->methods.size();m++) {
                 // match name
                 script_function* func = nullptr;
-                if (_name.find_first_of(' ') != std::string::npos) {
+                if (_name == "<cast>") {
+                    script_function* mt = m_type->methods[m];
+                    auto mparts = split(split(mt->name,":")[1], " \t\n\r");
+                    if (mparts.size() == 2 && mparts[0] == "operator" && mparts[1] == mt->signature.return_type->name && mt->signature.arg_types.size() == 0) {
+                        if (mt->signature.return_type->id() == ret->id()) {
+                            return mt;
+                        } else if (has_valid_conversion(*m_ctx, mt->signature.return_type, ret)) {
+                            matches.push_back(mt);
+                            continue;
+                        }
+                    }
+                } else if (_name.find_first_of(' ') != std::string::npos) {
                     // probably an operator
                     std::vector<std::string> mparts = split(split(m_type->methods[m]->name, ":")[1], " \t\n\r");
                     std::vector<std::string> sparts = split(_name, " \t\n\r");
@@ -369,13 +375,14 @@ namespace gjs {
                     }
                     if (matched) func = m_type->methods[m];
                 }
+
                 std::string& bt_name = m_type->base_type ? m_type->base_type->name : m_type->name;
                 if (m_type->methods[m]->name == bt_name + "::" + _name) func = m_type->methods[m];
 
                 if (!func) continue;
 
                 // match return type
-                if (ret && !has_valid_conversion(func->signature.return_type, ret)) continue;
+                if (ret && !has_valid_conversion(*m_ctx, func->signature.return_type, ret)) continue;
                 bool ret_tp_strict = ret ? func->signature.return_type->id() == ret->id() : false;
 
                 // match argument types
@@ -405,7 +412,7 @@ namespace gjs {
                     for (u8 i = 0;i < args.size();i++) {
                         script_type* at = func->signature.arg_types[i];
                         if (at->name == "subtype") at = m_type->sub_type;
-                        if (!has_valid_conversion(args[i], at)) {
+                        if (!has_valid_conversion(*m_ctx, args[i], at)) {
                             match = false;
                             break;
                         }
@@ -431,11 +438,55 @@ namespace gjs {
         }
 
         bool var::convertible_to(script_type* tp) const {
-            return has_valid_conversion(m_type, tp);
+            return has_valid_conversion(*m_ctx, m_type, tp);
         }
 
-        var var::convert(script_type* tp) const {
-            return *this;
+        var var::convert(script_type* to) const {
+            script_type* from = m_type;
+
+            if (from->id() == to->id()) return *this;
+            if (from->base_type && from->base_type->id() == to->id()) return *this;
+            if (!from->is_primitive && to->name == "data") return *this;
+            if (from->name == "data" && !to->is_primitive) return *this;
+
+            if (from->name == "void" || to->name == "void") {
+                m_ctx->log()->err(ec::c_no_valid_conversion, m_ctx->node()->ref, from->name.c_str(), to->name.c_str());
+                return m_ctx->error_var();
+            }
+
+            if (!from->is_primitive) {
+                if (to->is_primitive) {
+                    // last chance to find a conversion
+                    script_function* cast = method("<cast>", to, { m_type });
+                    if (cast) return call(*m_ctx, cast, { *this });
+
+                    m_ctx->log()->err(ec::c_no_valid_conversion, m_ctx->node()->ref, from->name.c_str(), to->name.c_str());
+                    return m_ctx->error_var();
+                } else if (has_unambiguous_method("<cast>", to, { m_type })) {
+                    script_function* cast = method("<cast>", to, { m_type });
+                    return call(*m_ctx, cast, { *this });
+                }
+            }
+
+            if (!to->is_primitive) {
+                var tv = m_ctx->dummy_var(to);
+                script_function* ctor = tv.method("constructor", to, { m_ctx->type("data"), from });
+                if (ctor) {
+                    var ret = m_ctx->empty_var(to);
+                    construct_on_stack(*m_ctx, ret, { *this });
+                    ret.raise_stack_flag();
+                    return ret;
+                }
+                
+                m_ctx->log()->err(ec::c_no_valid_conversion, m_ctx->node()->ref, from->name.c_str(), to->name.c_str());
+                return m_ctx->error_var();
+            }
+            
+            // conversion between non-void primitive types is always possible
+            var v = m_ctx->empty_var(to);
+            m_ctx->add(operation::eq).operand(v).operand(*this);
+            m_ctx->add(operation::cvt).operand(v).operand(m_ctx->imm((u64)from->id())).operand(m_ctx->imm((u64)to->id()));
+            return v;
         }
 
         std::string var::to_string() const {
@@ -592,7 +643,8 @@ namespace gjs {
             operation op = get_op(_op, a.type());
             if ((u8)op) {
                 var ret = ctx->empty_var(a.type());
-                ctx->add(op).operand(ret).operand(a).operand(b.convert(a.type()));
+                var v = b.convert(a.type());
+                ctx->add(op).operand(ret).operand(a).operand(v);
                 return ret;
             }
             else {
@@ -832,7 +884,8 @@ namespace gjs {
                 var real_value = call(*m_ctx, m_setter.func, { *m_setter.this_obj, rhs });
                 m_ctx->add(operation::eq).operand(*this).operand(real_value);
             } else {
-                m_ctx->add(operation::eq).operand(*this).operand(rhs.convert(m_type));
+                var v = rhs.convert(m_type);
+                m_ctx->add(operation::eq).operand(*this).operand(v);
                 if (m_mem_ptr.valid) {
                     m_ctx->add(operation::store).operand(var(m_ctx, m_mem_ptr.reg, m_ctx->type("data"))).operand(*this);
                 }

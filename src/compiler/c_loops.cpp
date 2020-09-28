@@ -15,6 +15,7 @@ namespace gjs {
             u64 cond_addr = ctx.code_sz();
             if (n->condition) {
                 var cond = expression(ctx, n->condition);
+                ctx.ensure_code_ref();
                 b = &ctx.add(operation::branch).operand(cond);
             }
 

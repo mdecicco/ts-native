@@ -101,7 +101,7 @@ namespace gjs {
                 if (func->name != name) continue;
 
                 // match return type
-                if (ret && !has_valid_conversion(func->signature.return_type, ret)) continue;
+                if (ret && !has_valid_conversion(*this, func->signature.return_type, ret)) continue;
                 bool ret_tp_strict = ret ? func->signature.return_type->id() == ret->id() : false;
 
                 // match argument types
@@ -122,7 +122,7 @@ namespace gjs {
                     // check if the arguments are at least convertible
                     match = true;
                     for (u8 i = 0;i < args.size();i++) {
-                        if (!has_valid_conversion(args[i], func->signature.arg_types[i])) {
+                        if (!has_valid_conversion(*this, args[i], func->signature.arg_types[i])) {
                             match = false;
                             break;
                         }

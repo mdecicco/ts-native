@@ -41,6 +41,7 @@ namespace gjs {
             "Cannot delete object which is not an object",
             "'return' statement is invalid in the global scope",
             "Cannot return a value from a function with no return type",
+            "No valid conversion from type '%s' to '%s' was found",
             "Compilation finished with errors",
             "" // end compile errors
         };

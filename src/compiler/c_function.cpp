@@ -165,13 +165,23 @@ namespace gjs {
         }
 
         var call(context& ctx, script_function* func, const std::vector<var>& args) {
+            for (u8 i = 0;i < args.size();i++) {
+                if (i == 1 && func->is_method_of && func->is_method_of->requires_subtype && func->name.find("constructor") != std::string::npos) {
+                    // don't try to convert type id (u64) to subtype (data)
+                    ctx.add(operation::param).operand(args[i]);
+                } else if (func->signature.arg_types[i]->name == "subtype") {
+                    var v = args[i].convert(args[0].type()->sub_type);
+                    ctx.add(operation::param).operand(v);
+                } else {
+                    var v = args[i].convert(func->signature.arg_types[i]);
+                    ctx.add(operation::param).operand(v);
+                }
+            }
+            
             if (func->signature.return_type->name == "subtype") {
                 if (func->is_method_of) {
                     script_type* this_tp = args[0].type();
                     var result = func->signature.returns_pointer ? ctx.empty_var(ctx.type("data")) : ctx.empty_var(this_tp->sub_type);
-                    for (u8 i = 0;i < args.size();i++) {
-                        ctx.add(operation::param).operand(args[i].convert(func->signature.arg_types[i]));
-                    }
                     ctx.add(operation::call).operand(result).func(func);
 
                     if (func->signature.returns_pointer) {
@@ -186,17 +196,10 @@ namespace gjs {
                     return ctx.error_var();
                 }
             } else if (func->signature.return_type->size == 0) {
-                for (u8 i = 0;i < args.size();i++) {
-                    ctx.add(operation::param).operand(args[i].convert(func->signature.arg_types[i]));
-                }
                 ctx.add(operation::call).func(func);
-
                 return ctx.empty_var(func->signature.return_type);
             } else {
                 var result = func->signature.returns_pointer ? ctx.empty_var(ctx.type("data")) : ctx.empty_var(func->signature.return_type);
-                for (u8 i = 0;i < args.size();i++) {
-                    ctx.add(operation::param).operand(args[i].convert(func->signature.arg_types[i]));
-                }
                 ctx.add(operation::call).operand(result).func(func);
 
                 if (func->signature.returns_pointer) {

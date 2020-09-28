@@ -67,6 +67,7 @@ namespace gjs {
             "call",
             "param",
             "ret",
+            "cvt",
             "branch",
             "jump"
         };
@@ -135,6 +136,7 @@ namespace gjs {
                 true,    // call
                 false,   // param
                 false,   // ret
+                false,   // cvt
                 false,   // branch
                 false    // jump
             };

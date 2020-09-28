@@ -124,8 +124,11 @@ void print_code(vm_backend& ctx) {
             }
             printf("]\n");
         }
-        printf("0x%2.2X: %-32s", i, (*ctx.code())[i].to_string().c_str());
-
+        auto instr = (*ctx.code())[i];
+        printf("0x%2.2X: %-32s", i, instr.to_string().c_str());
+        if (instr.to_string() == "Invalid Instruction") {
+            break;
+        }
         auto src = ctx.map()->get(i);
         if (src.line_text != last_line) {
             printf("; %s", src.line_text.c_str());

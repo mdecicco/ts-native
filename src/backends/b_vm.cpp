@@ -466,13 +466,41 @@ namespace gjs {
                     break;
                 }
                 case op::eq: {
-                    vmi rr, ri, ir;
+                    vmi rr, ri;
+                    if (t1->is_floating_point != t2->is_floating_point) {
+                        if (o2.is_imm()) {
+                            if (t1->is_floating_point) {
+                                if (t1->size == sizeof(f64)) {
+                                    if (t2->is_unsigned) m_instructions += encode(vmi::daddi).operand(r1).operand(vmr::zero).operand((f64)o2.imm_u());
+                                    else m_instructions += encode(vmi::daddi).operand(r1).operand(vmr::zero).operand((f64)o2.imm_i());
+                                } else {
+                                    if (t2->is_unsigned) m_instructions += encode(vmi::faddi).operand(r1).operand(vmr::zero).operand((f32)o2.imm_u());
+                                    else m_instructions += encode(vmi::faddi).operand(r1).operand(vmr::zero).operand((f32)o2.imm_i());
+                                }
+                            } else {
+                                if (t1->is_unsigned) {
+                                    if (t2->size == sizeof(f64)) m_instructions += encode(vmi::addui).operand(r1).operand(vmr::zero).operand((u64)o2.imm_d());
+                                    else m_instructions += encode(vmi::addui).operand(r1).operand(vmr::zero).operand((u64)o2.imm_f());
+                                } else {
+                                    if (t2->size == sizeof(f64)) m_instructions += encode(vmi::addi).operand(r1).operand(vmr::zero).operand((i64)o2.imm_d());
+                                    else m_instructions += encode(vmi::addi).operand(r1).operand(vmr::zero).operand((i64)o2.imm_f());
+                                }
+                            }
+                        } else {
+                            if (t1->is_floating_point) m_instructions += encode(vmi::mtfp).operand(r2).operand(r1);
+                            else m_instructions += encode(vmi::mffp).operand(r2).operand(r1);
+                        }
+                        
+                        m_map.append(i.src);
+                        break;
+                    }
+
                     if (t1->is_floating_point) {
-                        if (t1->size == sizeof(f64)) { rr = vmi::dadd; ri = vmi::daddi; ir = vmi::daddi; }
-                        else { rr = vmi::fadd; ri = vmi::faddi; ir = vmi::faddi; }
+                        if (t1->size == sizeof(f64)) { rr = vmi::dadd; ri = vmi::daddi; }
+                        else { rr = vmi::fadd; ri = vmi::faddi; }
                     } else {
-                        if (t1->is_unsigned || !t1->is_primitive) { rr = vmi::addu; ri = vmi::addui; ir = vmi::addui; }
-                        else { rr = vmi::add; ri = vmi::addi; ir = vmi::addi; }
+                        if (t1->is_unsigned || !t1->is_primitive) { rr = vmi::addu; ri = vmi::addui; }
+                        else { rr = vmi::add; ri = vmi::addi; }
                     }
 
                     if (o2.is_imm()) {
@@ -484,15 +512,7 @@ namespace gjs {
                             else m_instructions += encode(ri).operand(r1).operand(vmr::zero).operand(o2.imm_i());
                         }
                     }
-                    else if (o1.is_imm()) {
-                        if (t1->is_floating_point) {
-                            if (t1->size == sizeof(f64)) m_instructions += encode(ir).operand(r1).operand(vmr::zero).operand(o1.imm_d());
-                            else m_instructions += encode(ir).operand(r1).operand(vmr::zero).operand(o1.imm_f());
-                        } else {
-                            if (t1->is_unsigned) m_instructions += encode(ir).operand(r1).operand(vmr::zero).operand(o1.imm_u());
-                            else m_instructions += encode(ir).operand(r1).operand(vmr::zero).operand(o1.imm_i());
-                        }
-                    } else m_instructions += encode(rr).operand(r1).operand(r2).operand(vmr::zero);
+                    else m_instructions += encode(rr).operand(r1).operand(r2).operand(vmr::zero);
                     m_map.append(i.src);
                     break;
                 }
@@ -704,6 +724,74 @@ namespace gjs {
                 case op::ret: {
                     m_instructions += encode(vmi::jmpr).operand(vmr::ra);
                     m_map.append(i.src);
+                    break;
+                }
+                case op::cvt: {
+                    // todo: o1 could be an imm...
+                    if (o1.is_imm()) {
+                        break;
+                    }
+
+                    script_type* from = m_ctx->types()->get(o2.imm_u());
+                    script_type* to = m_ctx->types()->get(o3.imm_u());
+
+                    vmi ci = vmi::instruction_count;
+
+                    if (from->is_floating_point) {
+                        if (from->size == sizeof(f64)) {
+                            if (to->is_floating_point) {
+                                if (to->size == sizeof(f32)) ci = vmi::cvt_df;
+                            } else {
+                                if (to->is_unsigned) ci = vmi::cvt_du;
+                                else ci = vmi::cvt_di;
+                            }
+                        } else {
+                            if (to->is_floating_point) {
+                                if (to->size == sizeof(f64)) ci = vmi::cvt_fd;
+                            } else {
+                                if (to->is_unsigned) ci = vmi::cvt_fu;
+                                else ci = vmi::cvt_fi;
+                            }
+                        }
+                    } else {
+                        if (from->is_unsigned) {
+                            if (to->is_floating_point) {
+                                if (to->size == sizeof(f64)) ci = vmi::cvt_ud;
+                                else ci = vmi::cvt_uf;
+                            } else {
+                                if (!to->is_unsigned) ci = vmi::cvt_ui;
+                            }
+                        } else {
+                            if (to->is_floating_point) {
+                                if (to->size == sizeof(f64)) ci = vmi::cvt_id;
+                                else ci = vmi::cvt_if;
+                            } else {
+                                if (to->is_unsigned) ci = vmi::cvt_iu;
+                            }
+                        }
+                    }
+
+                    if (ci != vmi::instruction_count) {
+                        m_instructions += encode(ci).operand(r1);
+                        m_map.append(i.src);
+
+                        if (o1.is_spilled()) {
+                            u8 sz = t1->size;
+                            if (!t1->is_primitive) sz = sizeof(void*);
+                            vmi st = vmi::st8;
+                            switch (sz) {
+                                case 2: { st = vmi::st16; break; }
+                                case 4: { st = vmi::st32; break; }
+                                case 8: { st = vmi::st64; break; }
+                                default: {
+                                    // invalid size
+                                    // exception
+                                }
+                            }
+                            m_instructions += encode(st).operand(r1).operand(vmr::sp).operand((u64)o1.stack_off());
+                        }
+                    }
+
                     break;
                 }
                 case op::branch: {

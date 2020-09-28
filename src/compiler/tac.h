@@ -67,6 +67,7 @@ namespace gjs {
             call,
             param,
             ret,
+            cvt,
 
             // if op[0] is true: continue else jump to op[1]
             branch,
