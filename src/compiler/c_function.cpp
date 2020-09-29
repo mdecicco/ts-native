@@ -78,6 +78,11 @@ namespace gjs {
 
             block(ctx, n->body);
 
+            if (ctx.out.code.back().op != operation::ret) {
+                if (f->signature.return_type->size == 0) ctx.add(operation::ret);
+                else ctx.log()->err(ec::c_missing_return, n->ref, f->name.c_str());
+            }
+
             ctx.pop_block();
             ctx.pop_node();
         }

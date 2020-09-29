@@ -66,6 +66,9 @@ namespace gjs {
         robin_hood::unordered_map<u64, u64> tac_map;
         std::vector<var> params;
 
+        u64 v3 = -1;
+        bool nonHostCallSinceLastv3Set = false;
+
         u64 out_begin = m_instructions.size();
         for (u32 c = in.funcs[fidx].begin;c <= in.funcs[fidx].end;c++) {
             tac_map[c] = m_instructions.size();
@@ -525,8 +528,12 @@ namespace gjs {
                     if (i.callee->is_method_of && i.callee->is_method_of->requires_subtype) {
                         // get subtype from the this obj parameter
                         script_type* st = params[0].type()->sub_type;
-                        m_instructions += encode(vmi::addui).operand(vmr::v3).operand(vmr::zero).operand((u64)st->id());
-                        m_map.append(i.src);
+                        if (v3 != st->id() || nonHostCallSinceLastv3Set) {
+                            v3 = st->id();
+                            nonHostCallSinceLastv3Set = false;
+                            m_instructions += encode(vmi::addui).operand(vmr::v3).operand(vmr::zero).operand(v3);
+                            m_map.append(i.src);
+                        }
                     }
                     
                     struct bk { vmr reg; u64 addr; u64 sz; };
@@ -562,6 +569,7 @@ namespace gjs {
                                 m_map.append(i.src);
                             }
                         }
+                        nonHostCallSinceLastv3Set = true;
                     }
 
                     // pass parameters

@@ -31,6 +31,8 @@ namespace gjs {
             "Reference to function '%s' is ambiguous with the argument list '%s' and return type '%s'",
             "Function '%s %s %s' was already declared",
             "Function '%s %s %s' already has a body",
+            "Not all paths of function '%s' return a value",
+            "Return value of function '%s' type does not match the specified return type '%s'",
             "Property '%s' of type '%s' is non-static. References to this property must be relative to a specific object",
             "'%s' does not name a type",
             "Type '%s' can not be constructed without parameters",
