@@ -218,8 +218,8 @@ namespace gjs {
                     break;
                 }
                 case op::store: {
-                    u8 sz = o1.type()->size;
-                    if (!o1.type()->is_primitive) sz = sizeof(void*);
+                    u8 sz = o2.type()->size;
+                    if (!o2.type()->is_primitive) sz = sizeof(void*);
                     vmi st = vmi::st8;
                     switch (sz) {
                         case 2: { st = vmi::st16; break; }
@@ -528,37 +528,39 @@ namespace gjs {
                         m_instructions += encode(vmi::addui).operand(vmr::v3).operand(vmr::zero).operand((u64)st->id());
                         m_map.append(i.src);
                     }
-
-                    // Backup registers that were populated before this call
-                    // and will be used after this call
+                    
                     struct bk { vmr reg; u64 addr; u64 sz; };
                     std::vector<bk> backup;
-                    auto live = in.regs.get_live(c);
-                    for (u16 l = 0;l < live.size();l++) {
-                        if (live[l].begin == c) continue; // return value register does not need to be backed up
-                        if (live[l].end > c && !live[l].is_stack()) {
-                            script_type* tp = in.code[live[l].begin].operands[0].type();
+                    if (!i.callee->is_host) {
+                        // Backup registers that were populated before this call
+                        // and will be used after this call
+                        auto live = in.regs.get_live(c);
+                        for (u16 l = 0;l < live.size();l++) {
+                            if (live[l].begin == c) continue; // return value register does not need to be backed up
+                            if (live[l].end > c && !live[l].is_stack()) {
+                                script_type* tp = in.code[live[l].begin].operands[0].type();
 
-                            u8 sz = tp->size;
-                            if (!tp->is_primitive) sz = sizeof(void*);
-                            vmi st = vmi::st8;
-                            switch (sz) {
-                                case 2: { st = vmi::st16; break; }
-                                case 4: { st = vmi::st32; break; }
-                                case 8: { st = vmi::st64; break; }
-                                default: {
-                                    // invalid size
-                                    // exception
+                                u8 sz = tp->size;
+                                if (!tp->is_primitive) sz = sizeof(void*);
+                                vmi st = vmi::st8;
+                                switch (sz) {
+                                    case 2: { st = vmi::st16; break; }
+                                    case 4: { st = vmi::st32; break; }
+                                    case 8: { st = vmi::st64; break; }
+                                    default: {
+                                        // invalid size
+                                        // exception
+                                    }
                                 }
+                                vmr reg = live[l].is_fp ? vmr(u32(vmr::f0) + live[l].reg_id) : vmr(u32(vmr::s0) + live[l].reg_id);
+                                u64 sl = in.funcs[fidx].stack.alloc(sz);
+
+                                if (live[l].is_fp) backup.push_back({ reg, sl, sz });
+                                else backup.push_back({ reg, sl, sz });
+
+                                m_instructions += encode(st).operand(reg).operand(vmr::sp).operand(sl);
+                                m_map.append(i.src);
                             }
-                            vmr reg = live[l].is_fp ? vmr(u32(vmr::f0) + live[l].reg_id) : vmr(u32(vmr::s0) + live[l].reg_id);
-                            u64 sl = in.funcs[fidx].stack.alloc(sz);
-
-                            if (live[l].is_fp) backup.push_back({ reg, sl, sz });
-                            else backup.push_back({ reg, sl, sz });
-
-                            m_instructions += encode(st).operand(reg).operand(vmr::sp).operand(sl);
-                            m_map.append(i.src);
                         }
                     }
 
@@ -637,23 +639,29 @@ namespace gjs {
 
                     params.clear();
 
-                    // backup $ra
-                    u64 ra = in.funcs[fidx].stack.alloc(sizeof(u64));
-                    m_instructions += encode(vmi::st64).operand(vmr::ra).operand(vmr::sp).operand(ra);
-                    m_map.append(i.src);
+                    u64 ra = 0;
+                    if (!i.callee->is_host) {
+                        // backup $ra
+                        ra = in.funcs[fidx].stack.alloc(sizeof(u64));
+                        m_instructions += encode(vmi::st64).operand(vmr::ra).operand(vmr::sp).operand(ra);
+                        m_map.append(i.src);
 
-                    // offset $sp
-                    m_instructions += encode(vmi::addui).operand(vmr::sp).operand(vmr::sp).operand(in.funcs[fidx].stack.size());
-                    m_map.append(i.src);
+                        // offset $sp
+                        m_instructions += encode(vmi::addui).operand(vmr::sp).operand(vmr::sp).operand(in.funcs[fidx].stack.size());
+                        m_map.append(i.src);
+                    }
+
 
                     // do the call
                     if (i.callee->is_host) m_instructions += encode(vmi::jal).operand(i.callee->access.wrapped->address);
                     else m_instructions += encode(vmi::jal).operand(i.callee->access.entry);
                     m_map.append(i.src);
 
-                    // restore $sp
-                    m_instructions += encode(vmi::subui).operand(vmr::sp).operand(vmr::sp).operand(in.funcs[fidx].stack.size());
-                    m_map.append(i.src);
+                    if (!i.callee->is_host) {
+                        // restore $sp
+                        m_instructions += encode(vmi::subui).operand(vmr::sp).operand(vmr::sp).operand(in.funcs[fidx].stack.size());
+                        m_map.append(i.src);
+                    }
 
                     // store return value if necessary
                     if (t1) {
@@ -692,27 +700,29 @@ namespace gjs {
                         }
                     }
 
-                    // restore $ra
-                    in.funcs[fidx].stack.free(ra);
-                    m_instructions += encode(vmi::ld64).operand(vmr::ra).operand(vmr::sp).operand(ra);
-                    m_map.append(i.src);
-
-                    // restore backed up registers
-                    for (u16 b = 0;b < backup.size();b++) {
-                        vmi ld = vmi::ld8;
-                        switch (backup[b].sz) {
-                            case 2: { ld = vmi::ld16; break; }
-                            case 4: { ld = vmi::ld32; break; }
-                            case 8: { ld = vmi::ld64; break; }
-                            default: {
-                                // invalid size
-                                // exception
-                            }
-                        }
-
-                        m_instructions += encode(ld).operand(backup[b].reg).operand(vmr::sp).operand(backup[b].addr);
+                    if (!i.callee->is_host) {
+                        // restore $ra
+                        in.funcs[fidx].stack.free(ra);
+                        m_instructions += encode(vmi::ld64).operand(vmr::ra).operand(vmr::sp).operand(ra);
                         m_map.append(i.src);
-                        in.funcs[fidx].stack.free(backup[b].addr);
+
+                        // restore backed up registers
+                        for (u16 b = 0;b < backup.size();b++) {
+                            vmi ld = vmi::ld8;
+                            switch (backup[b].sz) {
+                                case 2: { ld = vmi::ld16; break; }
+                                case 4: { ld = vmi::ld32; break; }
+                                case 8: { ld = vmi::ld64; break; }
+                                default: {
+                                    // invalid size
+                                    // exception
+                                }
+                            }
+
+                            m_instructions += encode(ld).operand(backup[b].reg).operand(vmr::sp).operand(backup[b].addr);
+                            m_map.append(i.src);
+                            in.funcs[fidx].stack.free(backup[b].addr);
+                        }
                     }
 
                     break;
@@ -873,6 +883,6 @@ namespace gjs {
             }
         }
 
-        m_vm.execute(m_instructions, func->access.entry);
+        execute(func->access.entry);
     }
 };

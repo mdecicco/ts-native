@@ -212,7 +212,7 @@ int main(int arg_count, const char** args) {
     print_code(gen);
 
     printf("-------------result-------------\n");
-    //gen.log_instructions(true);
+    // gen.log_instructions(true);
     script_function* func = ctx.function("it");
     if (func) ctx.call<void>(func, nullptr);
     return 0;
