@@ -26,14 +26,15 @@ namespace gjs {
             ctx.push_node(n);
             
             if (n->body) {
-                if (f->signature.return_type->name == "void") {
+                if (f->signature.return_type->size == 0) {
                     ctx.log()->err(ec::c_no_void_return_val, n->ref);
                 } else {
                     var rv = expression(ctx, n->body).convert(f->signature.return_type);
                     ctx.add(operation::ret).operand(rv);
                 }
             } else {
-                ctx.add(operation::ret);
+                if (f->signature.return_type->size == 0) ctx.add(operation::ret);
+                else ctx.log()->err(ec::c_missing_return_value, n->ref, f->name.c_str());
             }
 
             ctx.pop_node();
