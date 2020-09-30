@@ -15,6 +15,8 @@ include_directories(${include_dirs})
 link_directories(${library_dirs})
 
 add_subdirectory("./deps")
+add_subdirectory("./tests")
+add_subdirectory("./playground")
 
 file(GLOB_RECURSE gjs_src
     "src/*.h"
@@ -47,7 +49,9 @@ file(GLOB_RECURSE gjs_src
 )
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
-add_executable(gjs ${gjs_src})
+
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/lib)
+add_library(gjs ${gjs_src})
 
 MACRO(SOURCE_GROUP_BY_FOLDER target)
   SET(SOURCE_GROUP_DELIMITER "/")
@@ -74,7 +78,4 @@ SOURCE_GROUP_BY_FOLDER(gjs)
 
 target_link_libraries(gjs asmjit dyncall_s)
 
-set_target_properties(gjs PROPERTIES
-  RUNTIME_OUTPUT_DIRECTORY_DEBUG   ${CMAKE_CURRENT_SOURCE_DIR}/bin 
-  RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_CURRENT_SOURCE_DIR}/bin
-)
+add_custom_command(TARGET gjs POST_BUILD COMMAND robocopy /S /MIR ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/include *.h)

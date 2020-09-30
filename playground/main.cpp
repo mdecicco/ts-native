@@ -154,8 +154,6 @@ void debug_ir_step(script_context* ctx, compilation_output& in) {
 }
 
 
-void dyncall_test(type_manager* tpm);
-
 // https://www.notion.so/3ccc9d8dba114bf8acfbbe238cb729e3?v=1a0dff3b20ba4f678bc7f5866665c4df
 int main(int arg_count, const char** args) {
     std::string dir = args[0];
@@ -200,8 +198,6 @@ int main(int arg_count, const char** args) {
     } catch (bind_exception& e) {
         printf("%s\n", e.text.c_str());
     }
-    
-    dyncall_test(ctx.types());
 
     if (!ctx.add_code("test.gjs", src)) {
         print_log(ctx);
