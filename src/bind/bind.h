@@ -109,8 +109,8 @@ namespace gjs {
                 arg_is_ptr = { (std::is_reference_v<Args> || std::is_pointer_v<Args>)... };
                 address = u64(reinterpret_cast<void*>(f));
 
-                bool sbv_args[] = { std::is_class_v<Args>... };
-                bool bt_args[] = { (!std::is_same_v<Args, script_type*> && tpm->get<Args>() == nullptr)... };
+                bool sbv_args[] = { std::is_class_v<Args>..., false };
+                bool bt_args[] = { (!std::is_same_v<Args, script_type*> && tpm->get<Args>() == nullptr)..., false };
                 // script_type* is allowed because host subclass types will be constructed with it, but
                 // it should not be bound as a type
 

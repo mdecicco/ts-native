@@ -22,9 +22,9 @@ namespace gjs {
             }
 
             template <typename Ret, typename... Args>
-            void bind(Ret(*func)(Args...), const std::string& name) {
+            script_function* bind(Ret(*func)(Args...), const std::string& name) {
                 bind::wrapped_function* w = bind::wrap(m_types, name, func);
-                new script_function(m_types, nullptr, w);
+                return new script_function(m_types, nullptr, w);
             }
 
             /*
@@ -142,9 +142,8 @@ namespace gjs {
                 return;
             }
 
-            // apparently a VS bug prevents this from compiling. Fix is on the way
-            // void* args[] = { *reinterpret_cast<void**>(&args)... };
-            // m_backend->call(func, (void*)ret, args);
+            void* vargs[] = { *reinterpret_cast<void**>(&args)... };
+            m_backend->call(func, (void*)ret, vargs);
         } else {
             if (func->signature.arg_types.size() != 0) valid_call = false;
             else valid_call = (func->signature.return_type->id() == ret->id());

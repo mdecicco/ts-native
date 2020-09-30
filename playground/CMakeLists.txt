@@ -3,9 +3,14 @@ project(playground)
 
 set(
     include_dirs
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+    ${CMAKE_CURRENT_SOURCE_DIR}/../include
+)
+set(
+    library_dirs
+    ${CMAKE_CURRENT_SOURCE_DIR}/../lib
 )
 include_directories(${include_dirs})
+link_directories(${library_dirs})
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
