@@ -142,8 +142,18 @@ namespace gjs {
                 return;
             }
 
-            void* vargs[] = { *reinterpret_cast<void**>(&args)... };
-            m_backend->call(func, (void*)ret, vargs);
+            void* vargs[] = {
+                std::is_class_v<Args> ?
+                // Pass non-pointer struct/class values as pointers to those values
+                // The only way that functions accepting these types could be bound
+                // is if the argument type is a pointer or a reference (which is
+                // basically a pointer)
+                (void*)&args
+                : 
+                // Otherwise, cast the value to void*
+                *reinterpret_cast<void**>(&args)...
+            };
+            m_backend->call(func, (void*)result, vargs);
         } else {
             if (func->signature.arg_types.size() != 0) valid_call = false;
             else valid_call = (func->signature.return_type->id() == ret->id());
@@ -153,7 +163,7 @@ namespace gjs {
                 return;
             }
 
-            m_backend->call(func, (void*)ret, nullptr);
+            m_backend->call(func, (void*)result, nullptr);
         }
     }
 };
