@@ -35,6 +35,7 @@ namespace gjs {
                 inline u32 reg_id() const { return m_reg_id; }
                 inline bool valid() const { return m_ctx != nullptr; }
                 inline bool flag(bind::property_flags f) const { return m_flags & f; }
+                inline void raise_flag(bind::property_flags f) { return m_flags |= f; }
                 inline void raise_stack_flag() { m_is_stack_obj = true; }
                 inline bool is_stack_obj() const { return m_is_stack_obj; }
 

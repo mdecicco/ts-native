@@ -121,6 +121,9 @@ namespace gjs {
                     ctx.pop_node();
                 }
             }
+
+            if (n->is_const) v.raise_flag(bind::pf_read_only);
+            if (n->is_static) v.raise_flag(bind::pf_static);
         }
 
         void class_declaration(context& ctx, parse::ast* n) {
