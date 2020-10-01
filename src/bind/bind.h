@@ -413,7 +413,12 @@ namespace gjs {
                     for (u8 a = 0;a < argc;a++) _args[a + 2] = args[a];
                     _pass_arg_wrapper<Ret*, void*, Args...>(0, call, _args);
                 } else _pass_arg_wrapper<Args...>(0, call, args);
+            } else if constexpr (std::is_class_v<Ret>) {
+                dcArgPointer(call, ret);
+                dcArgPointer(call, (void*)original_func);
             }
+
+
             if constexpr (std::is_pointer_v<Ret> || std::is_reference_v<Ret>) {
                 do_call<Ret>(call, (Ret*)ret, original_func);
             } else if constexpr (std::is_class_v<Ret>) {
