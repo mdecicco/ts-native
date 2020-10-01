@@ -222,7 +222,7 @@ namespace gjs {
                 }
             }
 
-            throw exc(ec::c_no_such_property, m_ctx->node()->ref, m_type->name.c_str(), prop.c_str());
+            m_ctx->log()->err(ec::c_no_such_property, m_ctx->node()->ref, m_type->name.c_str(), prop.c_str());
             return m_ctx->error_var();
         }
 
@@ -239,8 +239,8 @@ namespace gjs {
                     }
                 }
             }
-
-            throw exc(ec::c_no_such_property, m_ctx->node()->ref, m_type->name.c_str(), prop.c_str());
+            
+            m_ctx->log()->err(ec::c_no_such_property, m_ctx->node()->ref, m_type->name.c_str(), prop.c_str());
             return var();
         }
 
@@ -640,6 +640,11 @@ namespace gjs {
         }
 
         var do_bin_op(context* ctx, const var& a, const var& b, ot _op) {
+            if (a.flag(bind::pf_write_only) || b.flag(bind::pf_write_only)) {
+                ctx->log()->err(ec::c_no_read_write_only, ctx->node()->ref);
+                return ctx->error_var();
+            }
+
             operation op = get_op(_op, a.type());
             if ((u8)op) {
                 var ret = ctx->empty_var(a.type());
@@ -870,6 +875,11 @@ namespace gjs {
 
         var var::operator - () const {
             if (m_type->is_primitive) {
+                if (m_flags & bind::pf_write_only) {
+                    m_ctx->log()->err(ec::c_no_read_write_only, m_ctx->node()->ref);
+                    return m_ctx->error_var();
+                }
+
                 var v = m_ctx->empty_var(m_type);
                 m_ctx->add(operation::neg).operand(v).operand(*this);
                 return v;
@@ -880,6 +890,15 @@ namespace gjs {
         }
 
         var var::operator_eq (const var& rhs) const {
+            if (m_flags & bind::pf_read_only) {
+                m_ctx->log()->err(ec::c_no_assign_read_only, m_ctx->node()->ref);
+                return *this;
+            }
+            if (rhs.m_flags & bind::pf_write_only) {
+                m_ctx->log()->err(ec::c_no_read_write_only, m_ctx->node()->ref);
+                return *this;
+            }
+
             if (m_setter.func) {
                 var real_value = call(*m_ctx, m_setter.func, { *m_setter.this_obj, rhs });
                 m_ctx->add(operation::eq).operand(*this).operand(real_value);

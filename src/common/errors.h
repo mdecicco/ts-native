@@ -45,6 +45,8 @@ namespace gjs {
             c_no_global_return,
             c_no_void_return_val,
             c_no_valid_conversion,
+            c_no_assign_read_only,
+            c_no_read_write_only,
             c_compile_finished_with_errors,
             __compile_error_end
         };

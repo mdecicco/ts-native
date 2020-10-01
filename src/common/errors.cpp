@@ -43,6 +43,8 @@ namespace gjs {
             "'return' statement is invalid in the global scope",
             "Cannot return a value from a function with no return type",
             "No valid conversion from type '%s' to '%s' was found",
+            "Cannot assign value to read-only variable or property",
+            "Cannot read value of write-only property",
             "Compilation finished with errors",
             "" // end compile errors
         };
