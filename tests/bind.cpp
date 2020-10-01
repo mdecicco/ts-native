@@ -78,42 +78,42 @@ SCENARIO("Binding features behave as expected", "[gjs::bind]") {
     SECTION("int return") {
         script_function* func = ctx->bind(int_ret, "int_ret");
         int ret;
-        ctx->call<int>(func, &ret);
+        ctx->call(func, &ret);
         REQUIRE(ret == 5);
     }
 
     SECTION("float return") {
         script_function* func = ctx->bind(float_ret, "float_ret");
         float ret;
-        ctx->call<float>(func, &ret);
+        ctx->call(func, &ret);
         REQUIRE(ret == 5.0f);
     }
 
     SECTION("double return") {
         script_function* func = ctx->bind(double_ret, "double_ret");
         double ret;
-        ctx->call<double>(func, &ret);
+        ctx->call(func, &ret);
         REQUIRE(ret == 5.0);
     }
 
     SECTION("int return, with args") {
         script_function* func = ctx->bind(passthrough<int>, "int_ret_with_args");
         int ret;
-        ctx->call<int>(func, &ret, 5);
+        ctx->call(func, &ret, 5);
         REQUIRE(ret == 5);
     }
 
     SECTION("float return, with args") {
         script_function* func = ctx->bind(passthrough<float>, "float_ret_with_args");
         float ret;
-        ctx->call<float>(func, &ret, 5.0f);
+        ctx->call(func, &ret, 5.0f);
         REQUIRE(ret == 5.0f);
     }
 
     SECTION("double return, with args") {
         script_function* func = ctx->bind(passthrough<double>, "double_ret_with_args");
         double ret;
-        ctx->call<double>(func, &ret, 5.0);
+        ctx->call(func, &ret, 5.0);
         REQUIRE(ret == 5.0);
     }
 
@@ -170,7 +170,7 @@ SCENARIO("Binding features behave as expected", "[gjs::bind]") {
     SECTION("struct/class return (by value)") {
         script_function* func = ctx->bind(struct_ret, "struct_ret");
         vec3 ret;
-        ctx->call<vec3>(func, &ret);
+        ctx->call(func, &ret);
         REQUIRE(ret.x == 1.0f);
         REQUIRE(ret.y == 2.0f);
         REQUIRE(ret.z == 3.0f);
