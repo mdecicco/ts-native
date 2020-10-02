@@ -49,8 +49,8 @@ file(GLOB_RECURSE gjs_src
 )
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
-
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/lib)
+
 add_library(gjs ${gjs_src})
 
 MACRO(SOURCE_GROUP_BY_FOLDER target)
@@ -77,5 +77,4 @@ ENDMACRO(SOURCE_GROUP_BY_FOLDER)
 SOURCE_GROUP_BY_FOLDER(gjs)
 
 target_link_libraries(gjs asmjit dyncall_s)
-
-add_custom_command(TARGET gjs POST_BUILD COMMAND robocopy /S /MIR ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/include *.h)
+add_custom_command(TARGET gjs COMMAND robocopy ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/include *.h -MIR)

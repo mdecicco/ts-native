@@ -35,8 +35,7 @@ namespace gjs {
                 inline u32 reg_id() const { return m_reg_id; }
                 inline bool valid() const { return m_ctx != nullptr; }
                 inline bool flag(bind::property_flags f) const { return m_flags & f; }
-                inline void raise_flag(bind::property_flags f) { return m_flags |= f; }
-                inline void raise_stack_flag() { m_is_stack_obj = true; }
+                inline void raise_flag(bind::property_flags f) { m_flags |= f; }
                 inline bool is_stack_obj() const { return m_is_stack_obj; }
 
                 // used by code generation phase when generating load instructions
@@ -54,6 +53,7 @@ namespace gjs {
                 bool convertible_to(script_type* tp) const;
                 var convert(script_type* tp) const;
                 void set_mem_ptr(const var& v);
+                void raise_stack_flag();
 
                 // type used for first argument when calling methods
                 script_type* call_this_tp() const;

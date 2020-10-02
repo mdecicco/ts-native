@@ -204,10 +204,10 @@ namespace gjs {
                     auto& b = ctx.add(operation::branch).operand(expression(ctx, n->condition));
                     var tmp = expression(ctx, n->lvalue);
                     var result = ctx.empty_var(tmp.type());
-                    ctx.add(operation::eq).operand(result).operand(tmp);
+                    result.operator_eq(tmp);
                     auto& j = ctx.add(operation::jump);
                     b.operand(ctx.imm(ctx.code_sz()));
-                    ctx.add(operation::eq).operand(result).operand(expression(ctx, n->rvalue).convert(tmp.type()));
+                    result.operator_eq(expression(ctx, n->rvalue));
                     j.operand(ctx.imm(ctx.code_sz()));
                     
                     ctx.pop_node();

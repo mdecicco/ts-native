@@ -524,6 +524,11 @@ namespace gjs {
             m_mem_ptr.reg = v.m_reg_id;
         }
 
+        void var::raise_stack_flag() {
+            m_is_stack_obj = true;
+            m_ctx->block()->stack_objs.push_back(*this);
+        }
+
         script_type* var::call_this_tp() const {
             return m_type->base_type && m_type->is_host ? m_type->base_type : m_type;
         }

@@ -44,7 +44,7 @@ namespace gjs {
         var context::empty_var(script_type* type, const std::string& name) {
             var v = var(this, next_reg_id++, type);
             v.m_name = name;
-            func_stack[func_stack.size() - 1]->named_vars.push_back(v);
+            block_stack[block_stack.size() - 1]->named_vars.push_back(v);
             return v;
         }
 
@@ -58,7 +58,7 @@ namespace gjs {
             v.m_instantiation = node()->ref;
             v.m_name = name;
             v.m_type = type;
-            func_stack[func_stack.size() - 1]->named_vars.push_back(v);
+            block_stack[block_stack.size() - 1]->named_vars.push_back(v);
             return v;
         }
 
@@ -79,9 +79,9 @@ namespace gjs {
         }
 
         var context::get_var(const std::string& name) {
-            for (u8 i = func_stack.size() - 1;i > 0;i--) {
-                for (u16 v = 0;v < func_stack[i]->named_vars.size();v++) {
-                    if (func_stack[i]->named_vars[v].name() == name) return func_stack[i]->named_vars[v];
+            for (u8 i = block_stack.size() - 1;i > 0;i--) {
+                for (u16 v = 0;v < block_stack[i]->named_vars.size();v++) {
+                    if (block_stack[i]->named_vars[v].name() == name) return block_stack[i]->named_vars[v];
                 }
             }
 
@@ -284,15 +284,15 @@ namespace gjs {
         }
 
         void context::push_block(script_function* f) {
-            func_stack.push_back(new block_context);
-            func_stack[func_stack.size() - 1]->func = f;
+            block_stack.push_back(new block_context);
+            block_stack[block_stack.size() - 1]->func = f;
 
             if (f) out.funcs.push_back({ f, gjs::func_stack(), code_sz(), 0 });
         }
 
         void context::pop_block() {
-            if (func_stack.back()) {
-                script_function* f = func_stack.back()->func;
+            if (block_stack.back()) {
+                script_function* f = block_stack.back()->func;
                 if (f) {
                     for (u16 i = 0;i < out.funcs.size();i++) {
                         if (out.funcs[i].func == f) {
@@ -300,13 +300,32 @@ namespace gjs {
                         }
                     }
                 }
-                delete func_stack.back();
+
+                block_context* b = block_stack.back();
+
+                if (b->stack_objs.size() > 0) {
+                    script_type* void_tp = type("void");
+                    for (u16 i = 0;i < b->stack_objs.size();i++) {
+                        var& v = b->stack_objs[i];
+                        if (v.type()->destructor) {
+                            call(*this, v.type()->destructor, { v });
+                        }
+
+                        add(operation::stack_free).operand(v);
+                    }
+                }
+
+                delete b;
             }
-            func_stack.pop_back();
+            block_stack.pop_back();
         }
 
         parse::ast* context::node() {
             return node_stack[node_stack.size() - 1];
+        }
+
+        context::block_context* context::block() {
+            return block_stack[block_stack.size() - 1];
         }
 
         compile_log* context::log() {

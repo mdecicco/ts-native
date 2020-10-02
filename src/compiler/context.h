@@ -14,6 +14,14 @@ namespace gjs {
 
     namespace compile {
         struct context {
+            struct block_context {
+                script_function* func;
+                std::vector<var> named_vars;
+                std::vector<var> stack_objs;
+                u32 start;
+                u32 end;
+            };
+
             script_context* env;
             parse::ast* input;
             type_manager* new_types;
@@ -21,16 +29,7 @@ namespace gjs {
             compilation_output& out;
             u32 next_reg_id;
             std::vector<parse::ast*> node_stack;
-
-            struct block_context {
-                script_function* func;
-                std::vector<var> named_vars;
-                u32 start;
-                u32 end;
-            };
-
-            // stack is used in case I figure out a way to have arrow functions declared inside of functions
-            std::vector<block_context*> func_stack;
+            std::vector<block_context*> block_stack;
 
             context(compilation_output& out);
             var imm(u64 u);
@@ -69,6 +68,7 @@ namespace gjs {
             void push_block(script_function* f = nullptr);
             void pop_block();
             parse::ast* node();
+            block_context* block();
             compile_log* log();
         };
     };
