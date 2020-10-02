@@ -15,6 +15,9 @@ void it() {
         x.push(i);
     }
 
+    f.y = 69;
+    print_f32(61, f);
+
     for(u8 i = 0;i < x.length;i++) {
         print_f32(i, x[i]);
     }

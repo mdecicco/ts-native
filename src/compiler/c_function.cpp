@@ -170,18 +170,18 @@ namespace gjs {
         }
 
         var call(context& ctx, script_function* func, const std::vector<var>& args) {
+            std::vector<var> c_args;
             for (u8 i = 0;i < args.size();i++) {
                 if (i == 1 && func->is_method_of && func->is_method_of->requires_subtype && func->name.find("constructor") != std::string::npos) {
                     // don't try to convert type id (u64) to subtype (data)
-                    ctx.add(operation::param).operand(args[i]);
+                    c_args.push_back(args[i]);
                 } else if (func->signature.arg_types[i]->name == "subtype") {
-                    var v = args[i].convert(args[0].type()->sub_type);
-                    ctx.add(operation::param).operand(v);
+                    c_args.push_back(args[i].convert(args[0].type()->sub_type));
                 } else {
-                    var v = args[i].convert(func->signature.arg_types[i]);
-                    ctx.add(operation::param).operand(v);
+                    c_args.push_back(args[i].convert(func->signature.arg_types[i]));
                 }
             }
+            for (u8 i = 0;i < args.size();i++) ctx.add(operation::param).operand(c_args[i]);
             
             if (func->signature.return_type->name == "subtype") {
                 if (func->is_method_of) {

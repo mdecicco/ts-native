@@ -275,7 +275,7 @@ namespace gjs {
                 if (_name == "<cast>") {
                     script_function* mt = m_type->methods[m];
                     auto mparts = split(split(mt->name,":")[1], " \t\n\r");
-                    if (mparts.size() == 2 && mparts[0] == "operator" && mparts[1] == mt->signature.return_type->name && mt->signature.arg_types.size() == 0) {
+                    if (mparts.size() == 2 && mparts[0] == "operator" && mparts[1] == mt->signature.return_type->name && mt->signature.arg_types.size() == 1) {
                         if (mt->signature.return_type->id() == ret->id()) {
                             return mt;
                         } else if (has_valid_conversion(*m_ctx, mt->signature.return_type, ret)) {
@@ -356,7 +356,7 @@ namespace gjs {
                 if (_name == "<cast>") {
                     script_function* mt = m_type->methods[m];
                     auto mparts = split(split(mt->name,":")[1], " \t\n\r");
-                    if (mparts.size() == 2 && mparts[0] == "operator" && mparts[1] == mt->signature.return_type->name && mt->signature.arg_types.size() == 0) {
+                    if (mparts.size() == 2 && mparts[0] == "operator" && mparts[1] == mt->signature.return_type->name && mt->signature.arg_types.size() == 1) {
                         if (mt->signature.return_type->id() == ret->id()) {
                             return mt;
                         } else if (has_valid_conversion(*m_ctx, mt->signature.return_type, ret)) {
@@ -458,13 +458,21 @@ namespace gjs {
                 if (to->is_primitive) {
                     // last chance to find a conversion
                     script_function* cast = method("<cast>", to, { m_type });
-                    if (cast) return call(*m_ctx, cast, { *this });
+                    if (cast) {
+                        var ret = call(*m_ctx, cast, { *this });
+                        if (ret.type()->id() != to->id()) {
+                            return ret.convert(to);
+                        }
+                    }
 
                     m_ctx->log()->err(ec::c_no_valid_conversion, m_ctx->node()->ref, from->name.c_str(), to->name.c_str());
                     return m_ctx->error_var();
                 } else if (has_unambiguous_method("<cast>", to, { m_type })) {
                     script_function* cast = method("<cast>", to, { m_type });
-                    return call(*m_ctx, cast, { *this });
+                    var ret = call(*m_ctx, cast, { *this });
+                    if (ret.type()->id() != to->id()) {
+                        return ret.convert(to);
+                    }
                 }
             }
 
@@ -475,6 +483,10 @@ namespace gjs {
                     var ret = m_ctx->empty_var(to);
                     construct_on_stack(*m_ctx, ret, { *this });
                     ret.raise_stack_flag();
+
+                    if (ret.type()->id() != to->id()) {
+                        return ret.convert(to);
+                    }
                     return ret;
                 }
                 
