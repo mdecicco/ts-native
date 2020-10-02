@@ -28,7 +28,7 @@ namespace gjs {
         is_static = false;
         for (u8 i = 0;i < wrapped->arg_types.size();i++) {
             script_type* atp = nullptr;
-            if (std::string(wrapped->arg_types[i].name()) == "void" && wrapped->ret_is_ptr) {
+            if (std::string(wrapped->arg_types[i].name()) == "void" && wrapped->arg_is_ptr[i]) {
                 atp = mgr->get("void*"); // some object or primitive pointer
             } else if (tp && i == 1 && tp->requires_subtype && is_ctor) {
                 atp = mgr->get("void*"); // script_type*
