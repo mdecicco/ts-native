@@ -1,3 +1,14 @@
+## Documentation (todo)
+- [Overview](https://github.com/mdecicco/gjs/tree/master/src)
+    - [Backends](https://github.com/mdecicco/gjs/tree/master/src/backends)
+    - [Bind](https://github.com/mdecicco/gjs/tree/master/src/bind)
+    - [Common](https://github.com/mdecicco/gjs/tree/master/src/common)
+    - [Compiler](https://github.com/mdecicco/gjs/tree/master/src/compiler)
+    - [Lexer](https://github.com/mdecicco/gjs/tree/master/src/lexer)
+    - [Parser](https://github.com/mdecicco/gjs/tree/master/src/parser)
+    - [Util](https://github.com/mdecicco/gjs/tree/master/src/util)
+    - [VM](https://github.com/mdecicco/gjs/tree/master/src/vm)
+
 ## Goals
 - To produce a scripting language for games and hobby projects
 - Be as similar in syntax and core functionality to JS as possible
