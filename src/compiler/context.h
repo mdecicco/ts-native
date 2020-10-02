@@ -30,6 +30,8 @@ namespace gjs {
             u32 next_reg_id;
             std::vector<parse::ast*> node_stack;
             std::vector<block_context*> block_stack;
+            std::vector<parse::ast*> subtype_types;
+            script_type* subtype_replacement;
 
             context(compilation_output& out);
             var imm(u64 u);

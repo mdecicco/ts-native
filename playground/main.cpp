@@ -45,7 +45,13 @@ class foo {
 };
 f32 foo::s = 5.5;
 
-struct vec3 { f32 x, y, z; };
+struct vec3 {
+    vec3(f32 a) : x(a), y(a), z(a) { }
+    vec3(const foo& f) : x(f.x), y(f.y), z(f.z) { }
+
+    f32 x, y, z;
+};
+
 void testvec(void* vec) {
     vec3& v = *(vec3*)vec;
     printf("%f, %f, %f\n", v.x, v.y, v.z);
@@ -184,12 +190,14 @@ int main(int arg_count, const char** args) {
         f.method("ft", &foo::ft);
         f.method("operator i32", &foo::operator i32);
         f.method("static_func", &foo::static_func);
-        f.prop("x", &foo::get_x, &foo::set_x, bind::property_flags::pf_none);
-        f.prop("y", &foo::y, bind::property_flags::pf_none);
-        f.prop("z", &foo::z, bind::property_flags::pf_none);
-        f.prop("w", &foo::w, bind::property_flags::pf_none);
-        f.prop("s", &foo::s, bind::property_flags::pf_none);
+        f.prop("x", &foo::get_x, &foo::set_x);
+        f.prop("y", &foo::y);
+        f.prop("z", &foo::z);
+        f.prop("w", &foo::w);
+        f.prop("s", &foo::s, bind::pf_static);
         f.finalize();
+
+        ctx.bind<vec3>("vec3").constructor<f32>().constructor<const foo&>().prop("x", &vec3::x).prop("y", &vec3::y).prop("z", &vec3::z).finalize();
 
         ctx.bind(print_foo, "print_foo");
         ctx.bind(testvec, "testvec");

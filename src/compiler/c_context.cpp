@@ -18,6 +18,7 @@ namespace gjs {
             env = nullptr;
             input = nullptr;
             new_types = nullptr;
+            subtype_replacement = nullptr;
             push_block();
         }
 

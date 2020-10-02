@@ -101,6 +101,7 @@ namespace gjs {
             op = operation_type::invalid;
             is_const = false;
             is_static = false;
+            is_subtype = false;
             memset(&value, 0, sizeof(value));
         }
         

@@ -21,6 +21,13 @@ namespace gjs {
             ctx.consume();
             c->identifier = identifier(ctx);
 
+            if (ctx.match_s({ "<", "subtype", ">" })) {
+                ctx.consume();
+                ctx.consume();
+                ctx.consume();
+                c->is_subtype = true;
+            }
+
             if (ctx.match({ tt::semicolon })) {
                 ctx.consume();
                 return c;
@@ -193,6 +200,13 @@ namespace gjs {
             c->src(ctx.current());
             ctx.consume();
             c->identifier = identifier(ctx);
+
+            if (ctx.match_s({ "<", "subtype", ">" })) {
+                ctx.consume();
+                ctx.consume();
+                ctx.consume();
+                c->is_subtype = true;
+            }
             
             if (!ctx.match({ tt::open_block })) throw exc(ec::p_expected_char, ctx.current(), '{');
 

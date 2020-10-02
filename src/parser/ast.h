@@ -140,6 +140,7 @@ namespace gjs {
             operation_type op;
             bool is_const;
             bool is_static;
+            bool is_subtype;
         };
     };
 };
