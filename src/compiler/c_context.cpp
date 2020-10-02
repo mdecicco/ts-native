@@ -320,6 +320,37 @@ namespace gjs {
             block_stack.pop_back();
         }
 
+        void context::pop_block(const var& preserve) {
+            if (block_stack.back()) {
+                script_function* f = block_stack.back()->func;
+                if (f) {
+                    for (u16 i = 0;i < out.funcs.size();i++) {
+                        if (out.funcs[i].func == f) {
+                            out.funcs[i].end = code_sz() - 1;
+                        }
+                    }
+                }
+
+                block_context* b = block_stack.back();
+
+                if (b->stack_objs.size() > 0) {
+                    script_type* void_tp = type("void");
+                    for (u16 i = 0;i < b->stack_objs.size();i++) {
+                        var& v = b->stack_objs[i];
+                        if (v.reg_id() == preserve.reg_id()) continue;
+                        if (v.type()->destructor) {
+                            call(*this, v.type()->destructor, { v });
+                        }
+
+                        add(operation::stack_free).operand(v);
+                    }
+                }
+
+                delete b;
+            }
+            block_stack.pop_back();
+        }
+
         parse::ast* context::node() {
             return node_stack[node_stack.size() - 1];
         }

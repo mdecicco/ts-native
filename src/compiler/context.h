@@ -67,6 +67,7 @@ namespace gjs {
             void pop_node();
             void push_block(script_function* f = nullptr);
             void pop_block();
+            void pop_block(const var& v);
             parse::ast* node();
             block_context* block();
             compile_log* log();
