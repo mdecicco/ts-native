@@ -772,8 +772,8 @@ namespace gjs {
                 // jump to address and store $ip in $ra                jal        0x123                    $ra = $ip + 1;$ip = 0x123
                 case vmi::jal: {
                     u64 addr = _O1ui64;
-                    GRx(vmr::ra, u64) = (*ip) + 1;
                     if (addr < code.size()) {
+                        GRx(vmr::ra, u64) = (*ip) + 1;
                         *ip = addr - 1;
                     } else call_external(addr);
                     break;
