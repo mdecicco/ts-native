@@ -66,7 +66,7 @@ void print_foo(const foo& f) {
     printf("foo: %d, %d, %d, %f\n", f.x, f.y, f.z, f.w);
 }
 
-void print_f32(u8 i, f32 f) {
+void print_f32(u16 i, f32 f) {
     printf("%d: %f\n", i, f);
 }
 
@@ -181,7 +181,7 @@ int main(int arg_count, const char** args) {
     vm_allocator* alloc = new basic_malloc_allocator();
     vm_backend gen(alloc, 4096, 4096);
     script_context ctx(&gen);
-    // ctx.compiler()->add_ir_step(debug_ir_step);
+    ctx.compiler()->add_ir_step(debug_ir_step);
 
     try {
         auto f = ctx.bind<foo>("foo");

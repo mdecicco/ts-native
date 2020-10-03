@@ -7,7 +7,7 @@
 #include <bind/bind.h>
 
 namespace gjs {
-    #define is_fpr(x) (x >= vmr::f0 && x <= vmr::f15)
+    #define is_fpr(x) ((x >= vmr::f0 && x <= vmr::f15) || (x >= vmr::fa0 && x <= vmr::fa7))
 
     vm_exception::vm_exception(vm_backend* ctx, const std::string& _text) :
         text(_text), raised_from_script(true), line(0), col(0)
@@ -251,8 +251,16 @@ namespace gjs {
                             // exception
                         }
                     }
+                    // load dest_var imm_addr
+                    // load dest_var var_addr
+                    // load dest_var var_addr imm_offset
 
-                    m_instructions += encode(ld).operand(r1).operand(r2).operand((u64)0);
+                    if (o2.is_imm()) m_instructions += encode(ld).operand(r1).operand(vmr::zero).operand(o2.imm_u());
+                    else {
+                        if (o3.is_imm()) m_instructions += encode(ld).operand(r1).operand(r2).operand(o3.imm_u());
+                        else m_instructions += encode(ld).operand(r1).operand(r2).operand((u64)0);
+                    }
+                    
                     m_map.append(i.src);
                     break;
                 }
@@ -598,14 +606,81 @@ namespace gjs {
                                 vmr reg = live[l].is_fp ? vmr(u32(vmr::f0) + live[l].reg_id) : vmr(u32(vmr::s0) + live[l].reg_id);
                                 u64 sl = in.funcs[fidx].stack.alloc(sz);
 
-                                if (live[l].is_fp) backup.push_back({ reg, sl, sz });
-                                else backup.push_back({ reg, sl, sz });
+                                backup.push_back({ reg, sl, sz });
 
                                 m_instructions += encode(st).operand(reg).operand(vmr::sp).operand(sl);
                                 m_map.append(i.src);
                             }
                         }
                         nonHostCallSinceLastv3Set = true;
+                    } else {
+                        // live floating point registers may still need to be backed up,
+                        // since they're used for passing arguments
+                        auto live = in.funcs[fidx].regs.get_live(c);
+                        for (u16 l = 0;l < live.size();l++) {
+                            if (live[l].begin == c) continue; // return value register does not need to be backed up
+                            if (live[l].end > c && !live[l].is_stack()) {
+                                script_type* tp = in.code[live[l].begin].operands[0].type();
+                                if (!tp->is_floating_point) continue;
+
+                                vmr reg = live[l].is_fp ? vmr(u32(vmr::f0) + live[l].reg_id) : vmr(u32(vmr::s0) + live[l].reg_id);
+                                bool will_be_overwritten = false;
+                                for (u8 a = 0;a < i.callee->signature.arg_locs.size() && !will_be_overwritten;a++) {
+                                    will_be_overwritten = i.callee->signature.arg_locs[a] == reg;
+                                }
+                                if (!will_be_overwritten) continue;
+
+
+                                u8 sz = tp->size;
+                                if (!tp->is_primitive) sz = sizeof(void*);
+                                vmi st = vmi::st8;
+                                switch (sz) {
+                                    case 2: { st = vmi::st16; break; }
+                                    case 4: { st = vmi::st32; break; }
+                                    case 8: { st = vmi::st64; break; }
+                                    default: {
+                                        // invalid size
+                                        // exception
+                                    }
+                                }
+                                u64 sl = in.funcs[fidx].stack.alloc(sz);
+
+                                backup.push_back({ reg, sl, sz });
+
+                                m_instructions += encode(st).operand(reg).operand(vmr::sp).operand(sl);
+                                m_map.append(i.src);
+                            }
+                        }
+                    }
+
+                    // backup caller's args
+                    for (u8 a = 0;a < in.funcs[fidx].func->signature.arg_locs.size();a++) {
+                        vmr ar = in.funcs[fidx].func->signature.arg_locs[a];
+                        bool will_be_overwritten = false;
+                        for (u8 a1 = 0;a1 < i.callee->signature.arg_locs.size() && !will_be_overwritten;a1++) {
+                            will_be_overwritten = i.callee->signature.arg_locs[a1] == ar;
+                        }
+
+                        if (!will_be_overwritten) continue;
+                        script_type* tp = in.funcs[fidx].func->signature.arg_types[a];
+                        u8 sz = tp->size;
+                        if (!tp->is_primitive) sz = sizeof(void*);
+                        vmi st = vmi::st8;
+                        switch (sz) {
+                            case 2: { st = vmi::st16; break; }
+                            case 4: { st = vmi::st32; break; }
+                            case 8: { st = vmi::st64; break; }
+                            default: {
+                                // invalid size
+                                // exception
+                            }
+                        }
+                        u64 sl = in.funcs[fidx].stack.alloc(sz);
+
+                        backup.push_back({ ar, sl, sz });
+
+                        m_instructions += encode(st).operand(ar).operand(vmr::sp).operand(sl);
+                        m_map.append(i.src);
                     }
 
                     // pass parameters
@@ -664,7 +739,9 @@ namespace gjs {
                                 m_instructions += encode(ld).operand(i.callee->signature.arg_locs[p]).operand(vmr::sp).operand((u64)params[p].stack_off());
                                 m_map.append(i.src);
                             } else {
-                                vmr reg = tp->is_floating_point ? vmr(u32(vmr::f0) + params[p].reg_id()) : vmr(u32(vmr::s0) + params[p].reg_id());
+                                vmr reg;
+                                if (params[p].is_arg()) reg = in.funcs[fidx].func->signature.arg_locs[params[p].arg_idx()];
+                                else reg = tp->is_floating_point ? vmr(u32(vmr::f0) + params[p].reg_id()) : vmr(u32(vmr::s0) + params[p].reg_id());
                                 if (tp->is_floating_point) {
                                     if (!is_fpr(i.callee->signature.arg_locs[p]) && i.callee->is_method_of && i.callee->is_method_of->requires_subtype) {
                                         // fp value must be passed through GP register
@@ -749,24 +826,24 @@ namespace gjs {
                         in.funcs[fidx].stack.free(ra);
                         m_instructions += encode(vmi::ld64).operand(vmr::ra).operand(vmr::sp).operand(ra);
                         m_map.append(i.src);
-
-                        // restore backed up registers
-                        for (u16 b = 0;b < backup.size();b++) {
-                            vmi ld = vmi::ld8;
-                            switch (backup[b].sz) {
-                                case 2: { ld = vmi::ld16; break; }
-                                case 4: { ld = vmi::ld32; break; }
-                                case 8: { ld = vmi::ld64; break; }
-                                default: {
-                                    // invalid size
-                                    // exception
-                                }
+                    }
+                    
+                    // restore backed up registers
+                    for (u16 b = 0;b < backup.size();b++) {
+                        vmi ld = vmi::ld8;
+                        switch (backup[b].sz) {
+                            case 2: { ld = vmi::ld16; break; }
+                            case 4: { ld = vmi::ld32; break; }
+                            case 8: { ld = vmi::ld64; break; }
+                            default: {
+                                // invalid size
+                                // exception
                             }
-
-                            m_instructions += encode(ld).operand(backup[b].reg).operand(vmr::sp).operand(backup[b].addr);
-                            m_map.append(i.src);
-                            in.funcs[fidx].stack.free(backup[b].addr);
                         }
+
+                        m_instructions += encode(ld).operand(backup[b].reg).operand(vmr::sp).operand(backup[b].addr);
+                        m_map.append(i.src);
+                        in.funcs[fidx].stack.free(backup[b].addr);
                     }
 
                     break;

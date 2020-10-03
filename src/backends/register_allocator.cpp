@@ -1,6 +1,7 @@
 #include <backends/register_allocator.h>
 #include <compiler/tac.h>
 #include <common/script_type.h>
+#include <common/script_function.h>
 #include <common/pipeline.h>
 
 namespace gjs {
@@ -20,39 +21,12 @@ namespace gjs {
     
     void register_allocator::process(u16 fidx) {
         compilation_output::func_def& fd = m_in.funcs[fidx];
-        // printf("Pre-allocation\n");
-        calc_reg_lifetimes(fd.begin, fd.end);
-        /*
-        for (u16 i = 0;i < m_gpLf.size();i++) {
-            printf("$R%d: %d -> %d\n", m_gpLf[i].reg_id, m_gpLf[i].begin, m_gpLf[i].end);
-        }
-        for (u16 i = 0;i < m_fpLf.size();i++) {
-            printf("$F%d: %d -> %d\n", m_fpLf[i].reg_id, m_fpLf[i].begin, m_fpLf[i].end);
-        }
-        */
-
-        // std::vector<tac_instruction> old = m_in.code;
+        calc_reg_lifetimes(fidx, fd.begin, fd.end);
 
         reassign_registers(m_gpLf, m_gpc, fd.begin, fd.end, fidx);
         reassign_registers(m_fpLf, m_fpc, fd.begin, fd.end, fidx);
 
-        // printf("Post-allocation\n");
-        calc_reg_lifetimes(fd.begin, fd.end);
-        /*
-        for (u16 i = 0;i < m_gpLf.size();i++) {
-            printf("$R%d: %d -> %d\n", m_gpLf[i].reg_id, m_gpLf[i].begin, m_gpLf[i].end);
-        }
-        for (u16 i = 0;i < m_fpLf.size();i++) {
-            printf("$F%d: %d -> %d\n", m_fpLf[i].reg_id, m_fpLf[i].begin, m_fpLf[i].end);
-        }
-        */
-
-        //printf("New code\n");
-        /*
-        for (u32 i = fd.begin;i <= fd.end;i++) {
-            printf("%3.3d: %-35s %s\n", i, m_in.code[i].to_string().c_str(), old[i].to_string().c_str());
-        }
-        */
+        calc_reg_lifetimes(fidx, fd.begin, fd.end);
     }
 
     std::vector<register_allocator::reg_lifetime> register_allocator::get_live(u64 at) {
@@ -68,7 +42,7 @@ namespace gjs {
         return out;
     }
 
-    void register_allocator::calc_reg_lifetimes(u64 from, u64 to) {
+    void register_allocator::calc_reg_lifetimes(u16 fidx, u64 from, u64 to) {
         m_gpLf.clear();
         m_fpLf.clear();
         m_nextStackIdx = 0;

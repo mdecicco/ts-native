@@ -6,6 +6,11 @@ namespace gjs {
     namespace compile {
         enum class operation {
             null = 0,
+
+            // load can be in any of the following formats:
+            // load dest_var imm_addr
+            // load dest_var var_addr
+            // load dest_var var_addr imm_offset
             load, // load dest src
             store, // store dest src
             stack_alloc,

@@ -1,6 +1,8 @@
 class test<subtype> {
     constructor(subtype _x) {
         this.x = _x;
+        this.y = _x;
+        this.z = _x;
     }
 
     void print() {
@@ -9,6 +11,8 @@ class test<subtype> {
     }
 
     subtype x;
+    subtype y;
+    subtype z;
 };
 
 void it() {

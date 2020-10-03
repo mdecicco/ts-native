@@ -211,14 +211,15 @@ namespace gjs {
                         return v;
                     } else {
                         var ptr = m_ctx->empty_var(m_ctx->type("u64"));
+                        var ret = m_ctx->empty_var(p.type);
                         if (p.flags & bind::pf_static) {
                             m_ctx->add(operation::eq).operand(ptr).operand(m_ctx->imm(p.offset));
+                            m_ctx->add(operation::load).operand(ret).operand(m_ctx->imm(p.offset));
                         } else {
                             m_ctx->add(operation::uadd).operand(ptr).operand(*this).operand(m_ctx->imm(p.offset));
+                            m_ctx->add(operation::load).operand(ret).operand(*this).operand(m_ctx->imm(p.offset));
                         }
-                        var ret = m_ctx->empty_var(p.type);
                         ret.set_mem_ptr(ptr);
-                        m_ctx->add(operation::load).operand(ret).operand(ptr);
 
                         if (p.setter) {
                             ret.m_setter.this_obj.reset(new var(*this));

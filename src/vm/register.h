@@ -22,6 +22,14 @@ namespace gjs {
         a5        ,
         a6        ,
         a7        ,
+        fa0       ,
+        fa1       ,
+        fa2       ,
+        fa3       ,
+        fa4       ,
+        fa5       ,
+        fa6       ,
+        fa7       ,
 
         // temporary storage
         s0        ,

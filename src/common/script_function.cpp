@@ -42,7 +42,7 @@ namespace gjs {
             signature.arg_types.push_back(atp);
 
             vm_register last_a = vm_register(integer(vm_register::a0) - 1);
-            vm_register last_f = vm_register(integer(vm_register::f0) - 1);
+            vm_register last_f = vm_register(integer(vm_register::fa0) - 1);
 
             for (u8 a = 0;a < signature.arg_locs.size();a++) {
                 vm_register l = signature.arg_locs[a];
@@ -72,7 +72,7 @@ namespace gjs {
         if (!type) throw bind_exception("No type specified for argument");
         signature.arg_types.push_back(type);
         vm_register last_a = vm_register(integer(vm_register::a0) - 1);
-        vm_register last_f = vm_register(integer(vm_register::f0) - 1);
+        vm_register last_f = vm_register(integer(vm_register::fa0) - 1);
 
         for (u8 a = 0;a < signature.arg_locs.size();a++) {
             vm_register l = signature.arg_locs[a];

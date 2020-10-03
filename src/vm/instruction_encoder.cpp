@@ -347,35 +347,35 @@ namespace gjs {
         )
     
     #define third_operand_must_be_fpi(x) \
-        (                                 \
-               x == vmi::faddi             \
-            || x == vmi::fsubi             \
-            || x == vmi::fsubir             \
-            || x == vmi::fmuli             \
-            || x == vmi::fdivi             \
-            || x == vmi::fdivir             \
-            || x == vmi::flti             \
-            || x == vmi::fltei             \
-            || x == vmi::fgti             \
-            || x == vmi::fgtei             \
-            || x == vmi::fcmpi             \
-            || x == vmi::fncmpi             \
-            || x == vmi::daddi             \
-            || x == vmi::dsubi             \
-            || x == vmi::dsubir             \
-            || x == vmi::dmuli             \
-            || x == vmi::ddivi             \
-            || x == vmi::ddivir             \
-            || x == vmi::dncmpi             \
-            || x == vmi::dlti             \
-            || x == vmi::dltei             \
-            || x == vmi::dgti             \
-            || x == vmi::dgtei             \
-            || x == vmi::dcmpi             \
-            || x == vmi::dncmpi             \
+        (                                \
+               x == vmi::faddi           \
+            || x == vmi::fsubi           \
+            || x == vmi::fsubir          \
+            || x == vmi::fmuli           \
+            || x == vmi::fdivi           \
+            || x == vmi::fdivir          \
+            || x == vmi::flti            \
+            || x == vmi::fltei           \
+            || x == vmi::fgti            \
+            || x == vmi::fgtei           \
+            || x == vmi::fcmpi           \
+            || x == vmi::fncmpi          \
+            || x == vmi::daddi           \
+            || x == vmi::dsubi           \
+            || x == vmi::dsubir          \
+            || x == vmi::dmuli           \
+            || x == vmi::ddivi           \
+            || x == vmi::ddivir          \
+            || x == vmi::dncmpi          \
+            || x == vmi::dlti            \
+            || x == vmi::dltei           \
+            || x == vmi::dgti            \
+            || x == vmi::dgtei           \
+            || x == vmi::dcmpi           \
+            || x == vmi::dncmpi          \
         )
 
-    #define is_fpr(x) (x >= vmr::f0 && x <= vmr::f15)
+    #define is_fpr(x) ((x >= vmr::f0 && x <= vmr::f15) || (x >= vmr::fa0 && x <= vmr::fa7))
     #define decode_instr ((vmi)(m_code >> instr_shift))
     #define check_flag(f) (((m_code | flag_mask) ^ flag_mask) & f)
     #define set_flag(f) (m_code |= f)
