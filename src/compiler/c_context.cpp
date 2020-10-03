@@ -43,25 +43,25 @@ namespace gjs {
             return var(this, s);
         }
 
-        var context::empty_var(script_type* type, const std::string& name) {
+        var& context::empty_var(script_type* type, const std::string& name) {
             var v = var(this, next_reg_id++, type);
             v.m_name = name;
             block_stack[block_stack.size() - 1]->named_vars.push_back(v);
-            return v;
+            return block_stack[block_stack.size() - 1]->named_vars.back();
         }
 
         var context::empty_var(script_type* type) {
             return var(this, next_reg_id++, type);
         }
 
-        var context::dummy_var(script_type* type, const std::string& name) {
+        var& context::dummy_var(script_type* type, const std::string& name) {
             var v = var();
             v.m_ctx = this;
             v.m_instantiation = node()->ref;
             v.m_name = name;
             v.m_type = type;
             block_stack[block_stack.size() - 1]->named_vars.push_back(v);
-            return v;
+            return block_stack[block_stack.size() - 1]->named_vars.back();
         }
 
         var context::dummy_var(script_type* type) {
@@ -76,15 +76,20 @@ namespace gjs {
             return var();
         }
 
-        var context::error_var() {
-            return dummy_var(type("error_type"));
+        var& context::error_var() {
+            static var dv = dummy_var(type("error_type"));
+            return dv;
         }
 
-        var context::get_var(const std::string& name) {
+        var& context::get_var(const std::string& name) {
             for (u8 i = block_stack.size() - 1;i > 0;i--) {
                 for (u16 v = 0;v < block_stack[i]->named_vars.size();v++) {
                     if (block_stack[i]->named_vars[v].name() == name) return block_stack[i]->named_vars[v];
                 }
+
+                // don't check beyond the most recent function block
+                // (function compilation can be nested, if a subtype class has to be compiled and that subtype has methods)
+                if (block_stack[i]->func) break;
             }
 
             log()->err(ec::c_undefined_identifier, node()->ref, name.c_str());
@@ -199,6 +204,10 @@ namespace gjs {
                 for (u16 v = 0;v < block_stack[i]->named_vars.size();v++) {
                     if (block_stack[i]->named_vars[v].name() == name) return true;
                 }
+
+                // don't check beyond the most recent function block
+                // (function compilation can be nested, if a subtype class has to be compiled and that subtype has methods)
+                if (block_stack[i]->func) break;
             }
 
             return false;
@@ -348,7 +357,7 @@ namespace gjs {
             block_stack.push_back(new block_context);
             block_stack[block_stack.size() - 1]->func = f;
 
-            if (f) out.funcs.push_back({ f, gjs::func_stack(), code_sz(), 0 });
+            if (f) out.funcs.push_back({ f, gjs::func_stack(), code_sz(), 0, register_allocator(out) });
         }
 
         void context::pop_block() {

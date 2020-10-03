@@ -50,6 +50,7 @@ namespace gjs {
             m_imm.u = u;
             m_type = ctx->type("u64");
             m_stack_loc = -1;
+            m_arg_idx = -1;
             m_is_stack_obj = false;
             m_mem_ptr.valid = false;
             m_mem_ptr.reg = -1;
@@ -67,6 +68,7 @@ namespace gjs {
             m_imm.i = i;
             m_type = ctx->type("i64");
             m_stack_loc = -1;
+            m_arg_idx = -1;
             m_is_stack_obj = false;
             m_mem_ptr.valid = false;
             m_mem_ptr.reg = -1;
@@ -83,6 +85,7 @@ namespace gjs {
             m_imm.f = f;
             m_type = ctx->type("f32");
             m_stack_loc = -1;
+            m_arg_idx = -1;
             m_is_stack_obj = false;
             m_mem_ptr.valid = false;
             m_mem_ptr.reg = -1;
@@ -99,6 +102,7 @@ namespace gjs {
             m_imm.d = d;
             m_type = ctx->type("f64");
             m_stack_loc = -1;
+            m_arg_idx = -1;
             m_is_stack_obj = false;
             m_mem_ptr.valid = false;
             m_mem_ptr.reg = -1;
@@ -114,6 +118,7 @@ namespace gjs {
             m_reg_id = -1;
             m_type = ctx->type("string");
             m_stack_loc = -1;
+            m_arg_idx = -1;
             m_imm.u = 0;
             m_is_stack_obj = false;
             m_mem_ptr.valid = false;
@@ -130,6 +135,7 @@ namespace gjs {
             m_reg_id = reg_id;
             m_type = type;
             m_stack_loc = -1;
+            m_arg_idx = -1;
             m_imm.u = 0;
             m_is_stack_obj = false;
             m_mem_ptr.valid = false;
@@ -145,6 +151,7 @@ namespace gjs {
             m_reg_id = -1;
             m_type = nullptr;
             m_stack_loc = -1;
+            m_arg_idx = -1;
             m_imm.u = 0;
             m_is_stack_obj = false;
             m_mem_ptr.valid = false;
@@ -162,6 +169,7 @@ namespace gjs {
             m_imm = v.m_imm;
             m_type = v.m_type;
             m_stack_loc = v.m_stack_loc;
+            m_arg_idx = v.m_arg_idx;
             m_mem_ptr = v.m_mem_ptr;
             m_name = v.m_name;
             m_is_stack_obj = v.m_is_stack_obj;

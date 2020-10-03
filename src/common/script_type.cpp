@@ -10,6 +10,24 @@ namespace gjs {
     type_manager::~type_manager() {
     }
 
+    void type_manager::merge(type_manager* new_types) {
+        auto all = new_types->all();
+        new_types->m_types.clear();
+        new_types->m_types_by_id.clear();
+
+        for (u16 i = 0;i < all.size();i++) {
+            if (m_types.count(all[i]->name) > 0) {
+                throw bind_exception(format("Type '%s' already bound", all[i]->name.c_str()));
+            }
+            if (m_types_by_id.count(all[i]->id()) > 0) {
+                throw bind_exception(format("There was a type id collision while binding type '%s'", all[i]->name.c_str()));
+            }
+
+            m_types[all[i]->name] = all[i];
+            m_types_by_id[all[i]->id()] = all[i];
+        }
+    }
+
     script_type* type_manager::get(const std::string& name) {
         if (m_types.count(name) == 0) return nullptr;
         return m_types[name];

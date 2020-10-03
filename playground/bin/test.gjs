@@ -2,11 +2,12 @@ class test<subtype> {
     constructor(subtype _x) {
         this.x = _x;
     }
-    
+
     void print() {
         print_f32(666, this.x);
+        testvec(this);
     }
-    
+
     subtype x;
 };
 
@@ -26,8 +27,9 @@ void it() {
     for(u8 i = 0;i < 10;i++) {
         x.push(i);
     }
-    
+
     test<f32> ayy = test<f32>(1.23f);
+    ayy.print();
 
     f.x = 61;
     f.z = 2;

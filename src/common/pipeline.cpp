@@ -9,7 +9,7 @@
 #include <parser/parse.h>
 
 namespace gjs {
-    compilation_output::compilation_output(u16 gpN, u16 fpN) : regs(*this, gpN, fpN) {
+    compilation_output::compilation_output(u16 gpN, u16 fpN) {
     }
 
     void compilation_output::insert(u64 addr, const compile::tac_instruction& i) {
@@ -83,8 +83,11 @@ namespace gjs {
                     m_ir_steps[i](m_ctx, out);
                 }
 
-                out.regs.process();
-
+                for (u16 i = 0;i < out.funcs.size();i++) {
+                    out.funcs[i].regs.m_gpc = generator->gp_count();
+                    out.funcs[i].regs.m_fpc = generator->fp_count();
+                    out.funcs[i].regs.process(i);
+                }
             } catch (error::exception& e) {
                 throw e;
             } catch (std::exception& e) {

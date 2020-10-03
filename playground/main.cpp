@@ -181,7 +181,7 @@ int main(int arg_count, const char** args) {
     vm_allocator* alloc = new basic_malloc_allocator();
     vm_backend gen(alloc, 4096, 4096);
     script_context ctx(&gen);
-    //ctx.compiler()->add_ir_step(debug_ir_step);
+    // ctx.compiler()->add_ir_step(debug_ir_step);
 
     try {
         auto f = ctx.bind<foo>("foo");

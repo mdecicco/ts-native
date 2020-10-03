@@ -44,14 +44,16 @@ namespace gjs {
             c_no_primitive_delete,
             c_no_global_return,
             c_no_void_return_val,
+            c_no_ctor_return_val,
+            c_no_dtor_return_val,
             c_no_valid_conversion,
             c_no_assign_read_only,
             c_no_read_write_only,
             c_identifier_in_use,
             c_instantiation_requires_subtype,
             c_unexpected_instantiation_subtype,
-            c_compile_finished_with_errors,
             c_invalid_subtype_use,
+            c_compile_finished_with_errors,
             __compile_error_end
         };
 

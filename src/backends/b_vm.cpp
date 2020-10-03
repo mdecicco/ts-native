@@ -49,13 +49,38 @@ namespace gjs {
     }
 
     void vm_backend::generate(compilation_output& in) {
+        using vmi = vm_instruction;
+        u64 out_begin = m_instructions.size();
+        robin_hood::unordered_map<u64, u64> tac_map;
+
         for (u16 f = 0;f < in.funcs.size();f++) {
-            gen_function(in, f);
+            gen_function(in, tac_map, f);
             m_ctx->add(in.funcs[f].func);
+        }
+
+        // update jump, branch, jal addresses
+        for (u64 c = out_begin;c < m_instructions.size();c++) {
+            switch (m_instructions[c].instr()) {
+                case vmi::jal:
+                case vmi::jmp:
+                case vmi::beqz:
+                case vmi::bneqz:
+                case vmi::bgtz:
+                case vmi::bgtez:
+                case vmi::bltz:
+                case vmi::bltez: {
+                    u64 addr = m_instructions[c].imm_u();
+                    if (addr < m_instructions.size()) {
+                        // jumps to VM code
+                        m_instructions[c].m_imm = tac_map[addr];
+                    }
+                }
+                default: continue;
+            }
         }
     }
     
-    void vm_backend::gen_function(compilation_output& in, u16 fidx) {
+    void vm_backend::gen_function(compilation_output& in, robin_hood::unordered_map<u64, u64>& tac_map, u16 fidx) {
         using op = compile::operation;
         using vmi = vm_instruction;
         using vmr = vm_register;
@@ -63,7 +88,6 @@ namespace gjs {
 
         robin_hood::unordered_map<vmr, u64> reg_stack_addrs;
         robin_hood::unordered_map<u64, u64> stack_stack_addrs;
-        robin_hood::unordered_map<u64, u64> tac_map;
         std::vector<var> params;
 
         u64 v3 = -1;
@@ -144,8 +168,12 @@ namespace gjs {
                         m_map.append(i.src);
                     } else r1 = vmr::v0;
                 } else if (o1.valid() && !o1.is_imm()) {
-                    r1 = vmr((u8)vmr::s0 + o1.reg_id());
-                    if (t1->is_floating_point) r1 = vmr((u8)vmr::f0 + o1.reg_id());
+                    if (o1.is_arg()) {
+                        r1 = in.funcs[fidx].func->signature.arg_locs[o1.arg_idx()];
+                    } else {
+                        r1 = vmr((u8)vmr::s0 + o1.reg_id());
+                        if (t1->is_floating_point) r1 = vmr((u8)vmr::f0 + o1.reg_id());
+                    }
                 }
 
                 if (o2.is_spilled()) {
@@ -167,8 +195,12 @@ namespace gjs {
                     m_instructions += encode(ld).operand(r2).operand(vmr::sp).operand((u64)o2.stack_off());
                     m_map.append(i.src);
                 } else if (o2.valid() && !o2.is_imm()) {
-                    r2 = vmr((u8)vmr::s0 + o2.reg_id());
-                    if (t2->is_floating_point) r2 = vmr((u8)vmr::f0 + o2.reg_id());
+                    if (o2.is_arg()) {
+                        r2 = in.funcs[fidx].func->signature.arg_locs[o2.arg_idx()];
+                    } else {
+                        r2 = vmr((u8)vmr::s0 + o2.reg_id());
+                        if (t2->is_floating_point) r2 = vmr((u8)vmr::f0 + o2.reg_id());
+                    }
                 }
 
                 if (o3.is_spilled()) {
@@ -190,8 +222,12 @@ namespace gjs {
                     m_instructions += encode(ld).operand(r3).operand(vmr::sp).operand((u64)o3.stack_off());
                     m_map.append(i.src);
                 } else if (o3.valid() && !o3.is_imm()) {
-                    r3 = vmr((u8)vmr::s0 + o3.reg_id());
-                    if (t3->is_floating_point) r3 = vmr((u8)vmr::f0 + o3.reg_id());
+                    if (o3.is_arg()) {
+                        r3 = in.funcs[fidx].func->signature.arg_locs[o3.arg_idx()];
+                    } else {
+                        r3 = vmr((u8)vmr::s0 + o3.reg_id());
+                        if (t3->is_floating_point) r3 = vmr((u8)vmr::f0 + o3.reg_id());
+                    }
                 }
             }
 
@@ -541,7 +577,7 @@ namespace gjs {
                     if (!i.callee->is_host) {
                         // Backup registers that were populated before this call
                         // and will be used after this call
-                        auto live = in.regs.get_live(c);
+                        auto live = in.funcs[fidx].regs.get_live(c);
                         for (u16 l = 0;l < live.size();l++) {
                             if (live[l].begin == c) continue; // return value register does not need to be backed up
                             if (live[l].end > c && !live[l].is_stack()) {
@@ -836,27 +872,6 @@ namespace gjs {
                     m_map.append(i.src);
                     break;
                 }
-            }
-        }
-        
-        // update jump, branch, jal addresses
-        for (u64 c = out_begin;c < m_instructions.size();c++) {
-            switch (m_instructions[c].instr()) {
-                case vmi::jal:
-                case vmi::jmp:
-                case vmi::beqz:
-                case vmi::bneqz:
-                case vmi::bgtz:
-                case vmi::bgtez:
-                case vmi::bltz:
-                case vmi::bltez: {
-                    u64 addr = m_instructions[c].imm_u();
-                    if (addr < m_instructions.size()) {
-                        // jumps to VM code
-                        m_instructions[c].m_imm = tac_map[addr];
-                    }
-                }
-                default: continue;
             }
         }
 

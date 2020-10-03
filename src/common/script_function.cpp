@@ -50,7 +50,7 @@ namespace gjs {
                 else last_f = l;
             }
 
-            if (std::string(wrapped->arg_types[i].name()) == "float") signature.arg_locs.push_back(vm_register(integer(last_f) + 1));
+            if (atp->is_floating_point) signature.arg_locs.push_back(vm_register(integer(last_f) + 1));
             else signature.arg_locs.push_back(vm_register(integer(last_a) + 1));
         }
 
@@ -80,7 +80,7 @@ namespace gjs {
             else last_f = l;
         }
 
-        if (type->name == "decimal") signature.arg_locs.push_back(vm_register(integer(last_f) + 1));
+        if (type->is_floating_point) signature.arg_locs.push_back(vm_register(integer(last_f) + 1));
         else signature.arg_locs.push_back(vm_register(integer(last_a) + 1));
     }
 };

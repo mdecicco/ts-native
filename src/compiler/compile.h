@@ -26,6 +26,8 @@ namespace gjs {
 
         script_type* class_declaration(context& ctx, parse::ast* n);
 
+        void class_definition(context& ctx, parse::ast* n, script_type* subtype);
+
         script_type* format_declaration(context& ctx, parse::ast* n);
 
         void for_loop(context& ctx, parse::ast* n);

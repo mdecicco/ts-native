@@ -12,30 +12,13 @@ namespace gjs {
 
 
 
-    register_allocator::register_allocator(compilation_output& in, u16 gpN, u16 fpN) : m_gpc(gpN), m_fpc(fpN), m_in(in) {
+    register_allocator::register_allocator(compilation_output& in) : m_in(in) {
     }
 
     register_allocator::~register_allocator() {
     }
-
-    void register_allocator::process() {
-        for (u16 i = 0;i < m_in.funcs.size();i++) process_func(i);
-    }
-
-    std::vector<register_allocator::reg_lifetime> register_allocator::get_live(u64 at) {
-        std::vector<register_allocator::reg_lifetime> out;
-
-        for (u16 i = 0;i < m_gpLf.size();i++) {
-            if (m_gpLf[i].begin <= at && m_gpLf[i].end >= at) out.push_back(m_gpLf[i]);
-        }
-        for (u16 i = 0;i < m_fpLf.size();i++) {
-            if (m_fpLf[i].begin <= at && m_fpLf[i].end >= at) out.push_back(m_fpLf[i]);
-        }
-
-        return out;
-    }
-
-    void register_allocator::process_func(u16 fidx) {
+    
+    void register_allocator::process(u16 fidx) {
         compilation_output::func_def& fd = m_in.funcs[fidx];
         // printf("Pre-allocation\n");
         calc_reg_lifetimes(fd.begin, fd.end);
@@ -70,6 +53,19 @@ namespace gjs {
             printf("%3.3d: %-35s %s\n", i, m_in.code[i].to_string().c_str(), old[i].to_string().c_str());
         }
         */
+    }
+
+    std::vector<register_allocator::reg_lifetime> register_allocator::get_live(u64 at) {
+        std::vector<register_allocator::reg_lifetime> out;
+
+        for (u16 i = 0;i < m_gpLf.size();i++) {
+            if (m_gpLf[i].begin <= at && m_gpLf[i].end >= at) out.push_back(m_gpLf[i]);
+        }
+        for (u16 i = 0;i < m_fpLf.size();i++) {
+            if (m_fpLf[i].begin <= at && m_fpLf[i].end >= at) out.push_back(m_fpLf[i]);
+        }
+
+        return out;
     }
 
     void register_allocator::calc_reg_lifetimes(u64 from, u64 to) {
@@ -109,13 +105,19 @@ namespace gjs {
                 }
             }
 
-            if (!is_assignment(m_in.code[i].op) || !m_in.code[i].operands[0].valid() || m_in.code[i].operands[0].is_spilled()) continue;
+            bool needs_reassignment = is_assignment(m_in.code[i].op);
+            needs_reassignment = needs_reassignment && m_in.code[i].operands[0].valid();
+            needs_reassignment = needs_reassignment && !m_in.code[i].operands[0].is_spilled();
+            needs_reassignment = needs_reassignment && !m_in.code[i].operands[0].is_arg();
+
+
+            if (!needs_reassignment) continue;
 
             reg_lifetime l = { m_in.code[i].operands[0].m_reg_id, -1, -1, i, i, m_in.code[i].operands[0].type()->is_floating_point };
             for (u64 i1 = i + 1;i1 <= to;i1++) {
                 u8 o = 0;
                 for (;o < 3;o++) {
-                    if (m_in.code[i1].operands[o].m_reg_id == l.reg_id) break;
+                    if (m_in.code[i1].operands[o].m_reg_id == l.reg_id && m_in.code[i1].operands[o].type()->is_floating_point == l.is_fp) break;
                 }
 
                 if (o == 3) continue;

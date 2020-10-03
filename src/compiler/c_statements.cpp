@@ -26,14 +26,22 @@ namespace gjs {
             ctx.push_node(n);
             
             if (n->body) {
-                if (f->signature.return_type->size == 0) {
+                script_type* this_tp = ctx.class_tp();
+                if (this_tp && f->name == this_tp->name + "::constructor") {
+                    ctx.log()->err(ec::c_no_ctor_return_val, n->ref);
+                } else if (this_tp && f->name == this_tp->name + "::destructor") {
+                    ctx.log()->err(ec::c_no_dtor_return_val, n->ref);
+                } else if (f->signature.return_type->size == 0) {
                     ctx.log()->err(ec::c_no_void_return_val, n->ref);
                 } else {
                     var rv = expression(ctx, n->body).convert(f->signature.return_type);
                     ctx.add(operation::ret).operand(rv);
                 }
             } else {
-                if (f->signature.return_type->size == 0) ctx.add(operation::ret);
+                script_type* this_tp = ctx.class_tp();
+                if (this_tp && f->name == this_tp->name + "::constructor") {
+                    ctx.add(operation::ret).operand(ctx.get_var("this"));
+                } else if (f->signature.return_type->size == 0) ctx.add(operation::ret);
                 else ctx.log()->err(ec::c_missing_return_value, n->ref, f->name.c_str());
             }
 

@@ -37,6 +37,9 @@ namespace gjs {
                 inline bool flag(bind::property_flags f) const { return m_flags & f; }
                 inline void raise_flag(bind::property_flags f) { m_flags |= f; }
                 inline bool is_stack_obj() const { return m_is_stack_obj; }
+                inline bool is_arg() const { return m_arg_idx != u8(-1); }
+                inline u8 arg_idx() const { return m_arg_idx; }
+                inline void set_arg_idx(u8 idx) { m_arg_idx = idx; }
 
                 // used by code generation phase when generating load instructions
                 // for 'spilled' variables
@@ -118,6 +121,7 @@ namespace gjs {
                 source_ref m_instantiation;
                 script_type* m_type;
                 u8 m_flags;
+                u8 m_arg_idx;
 
                 bool m_is_imm;
                 u32 m_reg_id;

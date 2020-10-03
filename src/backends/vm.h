@@ -3,6 +3,7 @@
 #include <vm/vm.h>
 #include <backends/backend.h>
 #include <common/source_map.h>
+#include <util/robin_hood.h>
 
 namespace gjs {
     class script_context;
@@ -31,7 +32,7 @@ namespace gjs {
 
         protected:
             virtual void call(script_function* func, void* ret, void** args);
-            void gen_function(compilation_output& in, u16 fidx);
+            void gen_function(compilation_output& in, robin_hood::unordered_map<u64, u64>& tac_map, u16 fidx);
 
             vm_allocator* m_alloc;
             gjs::vm m_vm;

@@ -22,6 +22,11 @@ namespace gjs {
                 u32 end;
             };
 
+            struct deferred_node {
+                parse::ast* node;
+                script_type* subtype_replacement;
+            };
+
             script_context* env;
             parse::ast* input;
             type_manager* new_types;
@@ -30,8 +35,10 @@ namespace gjs {
             u32 next_reg_id;
             std::vector<parse::ast*> node_stack;
             std::vector<block_context*> block_stack;
+            std::vector<deferred_node> deferred;
             std::vector<parse::ast*> subtype_types;
             script_type* subtype_replacement;
+
 
             context(compilation_output& out);
             var imm(u64 u);
@@ -39,13 +46,13 @@ namespace gjs {
             var imm(f32 f);
             var imm(f64 d);
             var imm(const std::string& s);
-            var empty_var(script_type* type, const std::string& name);
+            var& empty_var(script_type* type, const std::string& name);
             var empty_var(script_type* type);
-            var dummy_var(script_type* type, const std::string& name);
+            var& dummy_var(script_type* type, const std::string& name);
             var dummy_var(script_type* type);
             var null_var();
-            var error_var();
-            var get_var(const std::string& name);
+            var& error_var();
+            var& get_var(const std::string& name);
 
             // use only to retrieve a function to be called (logs errors when not found or ambiguous)
             script_function* function(const std::string& name, script_type* ret, const std::vector<script_type*>& args);

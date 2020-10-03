@@ -36,15 +36,15 @@ namespace gjs {
                 inline bool is_stack() const { return stack_loc != u32(-1); }
             };
 
-            register_allocator(compilation_output& in, u16 gpN, u16 fpN);
+            register_allocator(compilation_output& in);
             ~register_allocator();
 
-            void process();
+            void process(u16 fidx);
 
             std::vector<reg_lifetime> get_live(u64 at);
 
         protected:
-            void process_func(u16 fidx);
+            friend class pipeline;
             void calc_reg_lifetimes(u64 from, u64 to);
             void reassign_registers(std::vector<reg_lifetime>& regs, u16 k, u64 from, u64 to, u16 fidx);
 

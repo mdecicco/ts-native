@@ -20,6 +20,7 @@ namespace gjs {
             func_stack stack;
             u64 begin;
             u64 end;
+            register_allocator regs;
         };
         typedef std::vector<func_def> func_defs;
         typedef std::vector<compile::tac_instruction> ir_code;
@@ -27,7 +28,6 @@ namespace gjs {
         func_defs funcs;
         std::vector<script_type*> types;
         ir_code code;
-        register_allocator regs;
 
         compilation_output(u16 gpN, u16 fpN);
 

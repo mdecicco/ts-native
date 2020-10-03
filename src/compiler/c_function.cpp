@@ -7,6 +7,7 @@
 #include <common/script_function.h>
 #include <common/script_type.h>
 #include <vm/register.h>
+#include <bind/bind.h>
 
 namespace gjs {
     using namespace parse;
@@ -21,13 +22,16 @@ namespace gjs {
             std::vector<script_type*> arg_types;
             std::vector<std::string> arg_names;
 
+            bool is_ctor = false;
+            bool is_dtor = false;
+
             script_type* method_of = ctx.class_tp();
             if (method_of) {
                 arg_types.push_back(method_of);
                 arg_names.push_back("this");
 
-                if (std::string(*n->identifier) == "constructor") ret = method_of;
-                else if (std::string(*n->identifier) == "destructor") ret = ctx.type("void");
+                if (is_ctor = (std::string(*n->identifier) == "constructor")) ret = method_of;
+                else if (is_dtor = (std::string(*n->identifier) == "destructor")) ret = ctx.type("void");
                 else {
                     ctx.push_node(n->data_type);
                     ret = ctx.type(n->data_type);
@@ -52,36 +56,57 @@ namespace gjs {
                 a = a->next;
             }
 
+            std::string fname = *n->identifier;
+            if (method_of) fname = method_of->name + "::" + fname;
+
             if (!n->body) {
                 // forward declaration
-                script_function* f = ctx.find_func(*n->identifier, ret, arg_types);
+                script_function* f = ctx.find_func(fname, ret, arg_types);
                 if (f) {
                     ctx.log()->err(ec::c_function_already_declared, n->ref, ret->name.c_str(), f->name.c_str(), arg_tp_str(arg_types));
+                    ctx.pop_node();
                     return nullptr;
                 }
-
-                ctx.new_functions.push_back(new script_function(ctx.env, *n->identifier, 0));
-                return nullptr;
+                
+                f = new script_function(ctx.env, fname, 0);
+                f->signature.return_type = ret;
+                f->signature.return_loc = vm_register::v0;
+                f->is_method_of = method_of;
+                f->access.entry = 0;
+                
+                for (u8 i = 0;i < arg_types.size();i++) {
+                    f->arg(arg_types[i]);
+                }
+                ctx.new_functions.push_back(f);
+                ctx.pop_node();
+                return f;
             }
             
-            script_function* f = ctx.find_func(*n->identifier, ret, arg_types);
+            script_function* f = ctx.find_func(fname, ret, arg_types);
             if (f) {
                 if (f->is_host || f->access.entry) {
                     ctx.log()->err(ec::c_function_already_defined, n->ref, ret->name.c_str(), f->name.c_str(), arg_tp_str(arg_types));
+                    ctx.pop_node();
                     return nullptr;
                 }
-            } else {
-                f = new script_function(ctx.env, *n->identifier, 0);
-                u16 gp = (u16)vm_register::a0;
-                u16 fp = (u16)vm_register::f0;
+                
+                ctx.push_block(f);
                 for (u8 i = 0;i < arg_types.size();i++) {
-                    f->arg(arg_types[i]);
-                    f->signature.arg_locs.push_back((vm_register)(arg_types[i]->is_floating_point ? fp++ : gp++));
+                    var& arg = ctx.empty_var(arg_types[i], arg_names[i]);
+                    arg.set_arg_idx(i);
                 }
-
+            } else {
+                f = new script_function(ctx.env, fname, 0);
                 f->signature.return_type = ret;
+                f->is_method_of = method_of;
                 ctx.new_functions.push_back(f);
                 ctx.push_block(f);
+
+                for (u8 i = 0;i < arg_types.size();i++) {
+                    f->arg(arg_types[i]);
+                    var& arg = ctx.empty_var(arg_types[i], arg_names[i]);
+                    arg.set_arg_idx(i);
+                }
             }
             
             f->access.entry = ctx.code_sz();
@@ -89,7 +114,8 @@ namespace gjs {
             block(ctx, n->body);
 
             if (ctx.out.code.back().op != operation::ret) {
-                if (f->signature.return_type->size == 0) ctx.add(operation::ret);
+                if (is_ctor) ctx.add(operation::ret).operand(ctx.get_var("this"));
+                else if (is_dtor || f->signature.return_type->size == 0) ctx.add(operation::ret);
                 else ctx.log()->err(ec::c_missing_return_value, n->ref, f->name.c_str());
             }
 

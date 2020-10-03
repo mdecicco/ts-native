@@ -141,16 +141,20 @@ namespace gjs {
 
             std::string name = n->is_subtype ? std::string(*n->identifier) + "<" + ctx.subtype_replacement->name + ">" : *n->identifier;
 
-            ctx.push_node(n);
-            
-            script_type* tp = ctx.new_types->add(name, name);
-            if (n->destructor) tp->destructor = function_declaration(ctx, n->destructor);
+            if (script_type* existing = ctx.new_types->get(name)) {
+                class_definition(ctx, n, ctx.subtype_replacement);
+                return existing;
+            }
 
+            ctx.push_node(n);
+            script_type* tp = ctx.new_types->add(name, name);
+
+            std::vector<parse::ast*> methods;
             parse::ast* cn = n->body;
             while (cn) {
                 switch (cn->type) {
                     case nt::function_declaration: {
-                        tp->methods.push_back(function_declaration(ctx, cn));
+                        methods.push_back(cn);
                         break;
                     }
                     case nt::class_property: {
@@ -179,9 +183,61 @@ namespace gjs {
                 cn = cn->next;
             }
 
+            if (n->destructor) {
+                // class methods must be compiled after the class is fully declared
+                // (and in the case of subtypes, which are compiled within functions,
+                // after the function that instantiates the class with a new subtype
+                // is finished compiling)
+                parse::ast* body = n->destructor->body;
+                n->destructor->body = nullptr;
+
+                tp->destructor = function_declaration(ctx, n->destructor);
+
+                n->destructor->body = body;
+            }
+
+            for (u16 i = 0;i < methods.size();i++) {
+                // class methods must be compiled after the class is fully declared
+                // (and in the case of subtypes, which are compiled within functions,
+                // after the function that instantiates the class with a new subtype
+                // is finished compiling)
+                parse::ast* body = methods[i]->body;
+                methods[i]->body = nullptr;
+
+                tp->methods.push_back(function_declaration(ctx, methods[i]));
+
+                methods[i]->body = body;
+            }
+
             ctx.pop_node();
 
+            ctx.deferred.push_back({ n, ctx.subtype_replacement });
+
             return tp;
+        }
+
+        void class_definition(context& ctx, parse::ast* n, script_type* subtype) {
+            ctx.push_node(n);
+            ctx.subtype_replacement = subtype;
+
+            if (n->destructor) function_declaration(ctx, n->destructor);
+
+            parse::ast* cn = n->body;
+            while (cn) {
+                switch (cn->type) {
+                    case nt::function_declaration: {
+                        function_declaration(ctx, cn);
+                        break;
+                    }
+                    default: {
+                        break;
+                    }
+                }
+                cn = cn->next;
+            }
+
+            ctx.subtype_replacement = nullptr;
+            ctx.pop_node();
         }
 
         script_type* format_declaration(context& ctx, parse::ast* n) {
@@ -261,6 +317,12 @@ namespace gjs {
                     any(ctx, n);
                     n = n->next;
                 }
+
+                for (u32 i = 0;i < ctx.deferred.size();i++) {
+                    ctx.subtype_replacement = ctx.deferred[i].subtype_replacement;
+                    any(ctx, ctx.deferred[i].node);
+                    ctx.subtype_replacement = nullptr;
+                }
             } catch (const error::exception &e) {
                 delete ctx.new_types;
                 for (u32 i = 0;i < ctx.new_functions.size();i++) delete ctx.new_functions[i];
@@ -283,7 +345,8 @@ namespace gjs {
                 throw exc(ec::c_compile_finished_with_errors, input->ref);
             }
 
-            // todo: copy types to vm context if no errors
+            env->types()->merge(ctx.new_types);
+             
             delete ctx.new_types;
             return;
         }

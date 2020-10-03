@@ -19,6 +19,8 @@ namespace gjs {
             type_manager(script_context* ctx);
             ~type_manager();
 
+            void merge(type_manager* new_types);
+
             script_type* get(const std::string& internal_name);
 
             script_type* get(u32 id);
