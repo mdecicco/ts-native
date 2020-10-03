@@ -127,10 +127,20 @@ namespace gjs {
         }
 
         void class_declaration(context& ctx, parse::ast* n) {
+            if (n->is_subtype && !ctx.subtype_replacement) {
+                // Will be compiled later for each instantiation of the class
+                // with a unique subtype
+                ctx.subtype_types.push_back(n);
+            }
             // ctx.out.types.push_back(...);
         }
 
         void format_declaration(context& ctx, parse::ast* n) {
+            if (n->is_subtype && !ctx.subtype_replacement) {
+                // Will be compiled later for each instantiation of the class
+                // with a unique subtype
+                ctx.subtype_types.push_back(n);
+            }
             // ctx.out.types.push_back(...);
         }
 
