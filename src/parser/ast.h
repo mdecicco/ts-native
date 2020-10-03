@@ -112,7 +112,6 @@ namespace gjs {
             ast* lvalue;
             ast* rvalue;
             ast* callee;
-            ast* constructor;
             ast* destructor;
             ast* condition;
             ast* modifier;

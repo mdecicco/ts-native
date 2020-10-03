@@ -42,6 +42,8 @@ namespace gjs {
                 }
                 return false;
             }
+
+            return false;
         }
 
         var expression_inner(context& ctx, ast* n);

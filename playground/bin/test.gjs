@@ -1,3 +1,15 @@
+class test<subtype> {
+    constructor(subtype _x) {
+        this.x = _x;
+    }
+    
+    void print() {
+        print_f32(666, this.x);
+    }
+    
+    subtype x;
+};
+
 void it() {
     array<f32> x;
     x.push(1.23f);
@@ -14,6 +26,8 @@ void it() {
     for(u8 i = 0;i < 10;i++) {
         x.push(i);
     }
+    
+    test<f32> ayy = test<f32>(1.23f);
 
     f.x = 61;
     f.z = 2;

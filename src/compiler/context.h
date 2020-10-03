@@ -53,6 +53,9 @@ namespace gjs {
             // use only when searching for a forward declaration or to determine if an identical function exists (does not log errors)
             script_function* find_func(const std::string& name, script_type* ret, const std::vector<script_type*>& args);
 
+            // use to determine if an identifier is in use
+            bool identifier_in_use(const std::string& name);
+
             script_type* type(const std::string& name);
             script_type* type(parse::ast* type_identifier);
 

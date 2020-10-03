@@ -126,22 +126,83 @@ namespace gjs {
             if (n->is_static) v.raise_flag(bind::pf_static);
         }
 
-        void class_declaration(context& ctx, parse::ast* n) {
+        script_type* class_declaration(context& ctx, parse::ast* n) {
+            if (ctx.identifier_in_use(*n->identifier) && !(n->is_subtype && ctx.subtype_replacement)) {
+                ctx.log()->err(ec::c_identifier_in_use, n->ref, std::string(*n->identifier).c_str());
+                return nullptr;
+            }
+
             if (n->is_subtype && !ctx.subtype_replacement) {
                 // Will be compiled later for each instantiation of the class
                 // with a unique subtype
                 ctx.subtype_types.push_back(n);
+                return nullptr;
             }
-            // ctx.out.types.push_back(...);
+
+            std::string name = n->is_subtype ? std::string(*n->identifier) + "<" + ctx.subtype_replacement->name + ">" : *n->identifier;
+
+            ctx.push_node(n);
+            
+            script_type* tp = ctx.new_types->add(name, name);
+            if (n->destructor) tp->destructor = function_declaration(ctx, n->destructor);
+
+            parse::ast* cn = n->body;
+            while (cn) {
+                switch (cn->type) {
+                    case nt::function_declaration: {
+                        tp->methods.push_back(function_declaration(ctx, cn));
+                        break;
+                    }
+                    case nt::class_property: {
+                        std::string name = *cn->identifier;
+                        script_type* p_tp = ctx.type(cn->data_type);
+                        u8 flags = 0;
+                        if (cn->is_static) flags |= bind::pf_static;
+                        if (cn->is_const) flags |= bind::pf_read_only;
+
+                        tp->properties.push_back({
+                            flags,
+                            name,
+                            p_tp,
+                            tp->size,
+                            nullptr,
+                            nullptr
+                        });
+
+                        tp->size += p_tp->size;
+                        break;
+                    }
+                    default: {
+                        break;
+                    }
+                }
+                cn = cn->next;
+            }
+
+            ctx.pop_node();
+
+            return tp;
         }
 
-        void format_declaration(context& ctx, parse::ast* n) {
+        script_type* format_declaration(context& ctx, parse::ast* n) {
+            if (ctx.identifier_in_use(*n->identifier)) {
+                ctx.log()->err(ec::c_identifier_in_use, n->ref, std::string(*n->identifier).c_str());
+                return nullptr;
+            }
+
             if (n->is_subtype && !ctx.subtype_replacement) {
                 // Will be compiled later for each instantiation of the class
                 // with a unique subtype
                 ctx.subtype_types.push_back(n);
+                return nullptr;
             }
-            // ctx.out.types.push_back(...);
+
+
+            ctx.push_node(n);
+            script_type* tp = ctx.new_types->add(*n->identifier, *n->identifier);
+            ctx.pop_node();
+
+            return tp;
         }
 
         void any(context& ctx, ast* n) {

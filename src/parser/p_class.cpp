@@ -21,6 +21,8 @@ namespace gjs {
             ctx.consume();
             c->identifier = identifier(ctx);
 
+            ctx.type_names.push_back(*c->identifier);
+
             if (ctx.match_s({ "<", "subtype", ">" })) {
                 ctx.consume();
                 ctx.consume();
@@ -34,6 +36,7 @@ namespace gjs {
             }
 
             if (!ctx.match({ tt::open_block })) throw exc(ec::p_expected_char, ctx.current().src, '{');
+            ctx.consume();
             ctx.path.push(c);
 
             auto add_to_body = [c](ast* node) {
@@ -67,7 +70,7 @@ namespace gjs {
                     } else ctx.consume();
                     ctx.path.pop();
 
-                    c->constructor = f;
+                    add_to_body(f);
                     continue;
                 }
 
@@ -129,26 +132,14 @@ namespace gjs {
                 if (ctx.match({ tt::identifier })) {
                     if (ctx.is_typename(ctx.current().text)) {
                         if (ctx.pattern({ tt::identifier, tt::identifier, tt::open_parenth })) {
-                            if (!ctx.is_typename(ctx.current().text)) {
-                                throw exc(ec::p_expected_class_prop_or_meth, ctx.current().src);
-                            }
-
                             // like 'void print(...' or 'i32 hello(...'
                             add_to_body(function_declaration(ctx));
                             continue;
                         } else if (ctx.pattern({ tt::identifier, tt::keyword, tt::operation, tt::open_parenth }) && ctx.pattern_s({ "", "operator" })) {
-                            if (!ctx.is_typename(ctx.current().text)) {
-                                throw exc(ec::p_expected_class_prop_or_meth, ctx.current().src);
-                            }
-
                             // like 'i32 operator += (...' or 'vec3f operator * (...'
                             add_to_body(function_declaration(ctx));
                             continue;
                         } else if (ctx.pattern({ tt::identifier, tt::identifier, tt::semicolon })) {
-                            if (!ctx.is_typename(ctx.current().text)) {
-                                throw exc(ec::p_expected_class_prop_or_meth, ctx.current().src);
-                            }
-
                             // like 'i32 x;' or 'f32 y;'
                             ast* decl = new ast();
                             decl->type = nt::class_property;
@@ -185,9 +176,11 @@ namespace gjs {
             if (!ctx.match({ tt::close_block })) {
                 throw exc(ec::p_unexpected_eof, c->ref, "class body");
             }
+            
+            ctx.consume();
 
             ctx.path.pop();
-            return nullptr;
+            return c;
         }
 
         ast* format_declaration(context& ctx) {
@@ -200,6 +193,8 @@ namespace gjs {
             c->src(ctx.current());
             ctx.consume();
             c->identifier = identifier(ctx);
+
+            ctx.type_names.push_back(*c->identifier);
 
             if (ctx.match_s({ "<", "subtype", ">" })) {
                 ctx.consume();
@@ -239,6 +234,8 @@ namespace gjs {
             if (!ctx.match({ tt::close_block })) {
                 throw exc(ec::p_unexpected_eof, c->ref, "format body");
             }
+
+            ctx.consume();
 
             return nullptr;
         };

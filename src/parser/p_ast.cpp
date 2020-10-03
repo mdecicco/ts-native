@@ -93,7 +93,6 @@ namespace gjs {
             lvalue = nullptr;
             rvalue = nullptr;
             callee = nullptr;
-            constructor = nullptr;
             destructor = nullptr;
             condition = nullptr;
             modifier = nullptr;
@@ -118,7 +117,6 @@ namespace gjs {
             if (lvalue) delete lvalue;
             if (rvalue) delete rvalue;
             if (callee) delete callee;
-            if (constructor) delete constructor;
             if (destructor) delete destructor;
             if (condition) delete condition;
             if (modifier) delete modifier;
@@ -181,7 +179,6 @@ namespace gjs {
             if (lvalue) child(lvalue, "lvalue");
             if (rvalue) child(rvalue, "rvalue");
             if (callee) child(callee, "callee");
-            if (constructor) child(constructor, "constructor");
             if (destructor) child(destructor, "destructor");
             if (condition) child(condition, "condition");
             if (modifier) child(modifier, "modifier");

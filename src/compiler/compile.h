@@ -3,6 +3,8 @@
 
 namespace gjs {
     class script_context;
+    class script_type;
+    class script_function;
     struct compilation_output;
 
     namespace parse {
@@ -18,13 +20,13 @@ namespace gjs {
 
         void variable_declaration(context& ctx, parse::ast* n);
 
-        void function_declaration(context& ctx, parse::ast* n);
+        script_function* function_declaration(context& ctx, parse::ast* n);
 
         var function_call(context& ctx, parse::ast* n);
 
-        void class_declaration(context& ctx, parse::ast* n);
+        script_type* class_declaration(context& ctx, parse::ast* n);
 
-        void format_declaration(context& ctx, parse::ast* n);
+        script_type* format_declaration(context& ctx, parse::ast* n);
 
         void for_loop(context& ctx, parse::ast* n);
 

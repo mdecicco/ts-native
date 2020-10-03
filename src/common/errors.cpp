@@ -45,6 +45,10 @@ namespace gjs {
             "No valid conversion from type '%s' to '%s' was found",
             "Cannot assign value to read-only variable or property",
             "Cannot read value of write-only property",
+            "The identifier '%s' is already in use",
+            "Unexpected subtype identifier while instantiating variable of type '%s', which is not a subtype class",
+            "The type '%s' cannot be instantiated without a subtype",
+            "The special 'subtype' type can not be used outside the context of a subtype class",
             "Compilation finished with errors",
             "" // end compile errors
         };

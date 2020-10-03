@@ -15,11 +15,9 @@ namespace gjs {
     using ot = ast::operation_type;
 
     namespace compile {
-        void function_declaration(context& ctx, ast* n) {
+        script_function* function_declaration(context& ctx, ast* n) {
             ctx.push_node(n);
-            ctx.push_node(n->data_type);
-            script_type* ret = ctx.type(n->data_type);
-            ctx.pop_node();
+            script_type* ret = nullptr;
             std::vector<script_type*> arg_types;
             std::vector<std::string> arg_names;
 
@@ -27,6 +25,18 @@ namespace gjs {
             if (method_of) {
                 arg_types.push_back(method_of);
                 arg_names.push_back("this");
+
+                if (std::string(*n->identifier) == "constructor") ret = method_of;
+                else if (std::string(*n->identifier) == "destructor") ret = ctx.type("void");
+                else {
+                    ctx.push_node(n->data_type);
+                    ret = ctx.type(n->data_type);
+                    ctx.pop_node();
+                }
+            } else {
+                ctx.push_node(n->data_type);
+                ret = ctx.type(n->data_type);
+                ctx.pop_node();
             }
 
             ast* a = n->arguments->body;
@@ -47,18 +57,18 @@ namespace gjs {
                 script_function* f = ctx.find_func(*n->identifier, ret, arg_types);
                 if (f) {
                     ctx.log()->err(ec::c_function_already_declared, n->ref, ret->name.c_str(), f->name.c_str(), arg_tp_str(arg_types));
-                    return;
+                    return nullptr;
                 }
 
                 ctx.new_functions.push_back(new script_function(ctx.env, *n->identifier, 0));
-                return;
+                return nullptr;
             }
             
             script_function* f = ctx.find_func(*n->identifier, ret, arg_types);
             if (f) {
                 if (f->is_host || f->access.entry) {
                     ctx.log()->err(ec::c_function_already_defined, n->ref, ret->name.c_str(), f->name.c_str(), arg_tp_str(arg_types));
-                    return;
+                    return nullptr;
                 }
             } else {
                 f = new script_function(ctx.env, *n->identifier, 0);
@@ -85,12 +95,15 @@ namespace gjs {
 
             ctx.pop_block();
             ctx.pop_node();
+
+            return f;
         }
 
         var evaluate_member(context& ctx, ast* n) {
             if (n->lvalue->type == nt::identifier) {
                 return ctx.get_var(*n->lvalue);
             }
+            return ctx.error_var();
         }
 
         var function_call(context& ctx, ast* n) {

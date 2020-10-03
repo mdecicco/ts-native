@@ -6,6 +6,7 @@
 #include <common/script_function.h>
 #include <common/errors.h>
 #include <common/warnings.h>
+#include <compiler/compile.h>
 
 namespace gjs {
     using exc = error::exception;
@@ -177,7 +178,41 @@ namespace gjs {
             return nullptr;
         }
 
+        bool context::identifier_in_use(const std::string& name) {
+            script_type* t = env->types()->get(hash(name));
+            if (t) return true;
+
+            t = new_types->get(name);
+            if (t) return true;
+
+            for (u16 i = 0;i < subtype_types.size();i++) {
+                if (std::string(*subtype_types[i]->identifier) == name) return true;
+            }
+
+            std::vector<script_function*> all = env->all_functions();
+            for (u16 f = 0;f < new_functions.size();f++) all.push_back(new_functions[f]);
+            for (u16 f = 0;f < all.size();f++) {
+                if (all[f]->name == name) return true;
+            }
+
+            for (u8 i = block_stack.size() - 1;i > 0;i--) {
+                for (u16 v = 0;v < block_stack[i]->named_vars.size();v++) {
+                    if (block_stack[i]->named_vars[v].name() == name) return true;
+                }
+            }
+
+            return false;
+        }
+
         script_type* context::type(const std::string& name) {
+            if (name == "subtype") {
+                if (subtype_replacement) return subtype_replacement;
+                else {
+                    log()->err(ec::c_invalid_subtype_use, node()->ref);
+                    return env->types()->get("error_type");
+                }
+            }
+
             script_type* t = env->types()->get(hash(name));
             if (t) return t;
             t = new_types->get(name);
@@ -191,12 +226,44 @@ namespace gjs {
         }
 
         script_type* context::type(parse::ast* type_identifier) {
-            script_type* t = type(*type_identifier);
-            if (!t) return nullptr;
+            std::string name = *type_identifier;
+            if (name == "subtype") {
+                if (subtype_replacement) return subtype_replacement;
+                else {
+                    log()->err(ec::c_invalid_subtype_use, type_identifier->ref);
+                    return env->types()->get("error_type");
+                }
+            }
+
+            for (u16 i = 0;i < subtype_types.size();i++) {
+                if (name == std::string(*subtype_types[i]->identifier)) {
+                    if (!type_identifier->data_type) {
+                        log()->err(ec::c_instantiation_requires_subtype, type_identifier->ref, name.c_str());
+                        return env->types()->get("error_type");
+                    }
+
+                    std::string full_name = name + "<" + std::string(*type_identifier->data_type) + ">";
+                    script_type* t = env->types()->get(hash(full_name));
+                    if (t) return t;
+                    t = new_types->get(full_name);
+                    if (t) return t;
+
+                    subtype_replacement = type(type_identifier->data_type);
+                    script_type* new_tp = class_declaration(*this, subtype_types[i]);
+                    subtype_replacement = nullptr;
+
+                    return new_tp;
+                }
+            }
+
+            script_type* t = type(name);
+            if (!t) return env->types()->get("error_type");
 
             if (type_identifier->data_type) {
                 if (!t->requires_subtype) {
                     // t is not a subtype class (error)
+                    log()->err(ec::c_unexpected_instantiation_subtype, type_identifier->data_type->ref, name.c_str());
+                    return env->types()->get("error_type");
                 } else {
                     script_type* st = type(type_identifier->data_type);
                     std::string ctn = t->name + "<" + st->name + ">";
@@ -204,32 +271,24 @@ namespace gjs {
                     if (!ct) ct = new_types->get(ctn);
                     if (!ct) {
                         ct = new_types->add(ctn, ctn);
-                        if (t->is_host) {
-                            // just copy the details
-                            ct->destructor = t->destructor;
-                            ct->methods = t->methods;
-                            ct->properties = t->properties;
-                            ct->base_type = t;
-                            ct->sub_type = st;
-                            ct->is_host = true;
-                            ct->is_builtin = t->is_builtin;
-                            ct->size = t->size;
-                            out.types.push_back(ct);
-                        } else {
-                            // recompile the type with all occurrences of "subtype"
-                            // as a data type changed to refer to the actual subtype
-                            // todo:
-                            //  - Decide syntax for declaring subtype classes in scripts
-                            //  - Store subtype class declaration nodes in context to be
-                            //    used here later
-                            //  - Add compiler function for compiling classes, formats,
-                            //    functions, methods that use subtypes
-                            //
-                        }
+
+                        // just copy the details
+                        ct->destructor = t->destructor;
+                        ct->methods = t->methods;
+                        ct->properties = t->properties;
+                        ct->base_type = t;
+                        ct->sub_type = st;
+                        ct->is_host = true;
+                        ct->is_builtin = t->is_builtin;
+                        ct->size = t->size;
+                        out.types.push_back(ct);
                     }
 
                     return ct;
                 }
+            } else if (t->requires_subtype) {
+                log()->err(ec::c_instantiation_requires_subtype, type_identifier->ref, name.c_str());
+                return env->types()->get("error_type");
             }
 
             return t;
@@ -238,6 +297,7 @@ namespace gjs {
         script_type* context::class_tp() {
             for (u32 i = node_stack.size() - 1;i > 0;i--) {
                 if (node_stack[i]->type == parse::ast::node_type::class_declaration) {
+                    if (node_stack[i]->is_subtype) return type(std::string(*node_stack[i]->identifier) + "<" + subtype_replacement->name + ">");
                     return type(node_stack[i]->identifier);
                 }
             }

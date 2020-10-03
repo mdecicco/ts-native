@@ -47,7 +47,11 @@ namespace gjs {
             c_no_valid_conversion,
             c_no_assign_read_only,
             c_no_read_write_only,
+            c_identifier_in_use,
+            c_instantiation_requires_subtype,
+            c_unexpected_instantiation_subtype,
             c_compile_finished_with_errors,
+            c_invalid_subtype_use,
             __compile_error_end
         };
 

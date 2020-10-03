@@ -808,6 +808,7 @@ namespace gjs {
 
             script_function* f = method("operator ++", m_type, { call_this_tp() });
             if (f) return call(*m_ctx, f, { *this });
+            return m_ctx->error_var();
         }
 
         var var::operator -- () const {
@@ -819,6 +820,7 @@ namespace gjs {
 
             script_function* f = method("operator --", m_type, { call_this_tp() });
             if (f) return call(*m_ctx, f, { *this });
+            return m_ctx->error_var();
         }
 
         var var::operator ++ (int) const {
@@ -888,6 +890,7 @@ namespace gjs {
 
             script_function* f = method("operator !", m_type, { call_this_tp() });
             if (f) return call(*m_ctx, f, { *this });
+            return m_ctx->error_var();
         }
 
         var var::operator - () const {
@@ -904,6 +907,7 @@ namespace gjs {
 
             script_function* f = method("operator -", m_type, { call_this_tp() });
             if (f) return call(*m_ctx, f, { *this });
+            return m_ctx->error_var();
         }
 
         var var::operator_eq (const var& rhs) const {
