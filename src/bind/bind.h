@@ -187,7 +187,7 @@ namespace gjs {
          * Class wrapping helper
          */
         template <typename Cls, typename... Args>
-        Cls* construct_object(void* mem, Args... args) {
+        Cls* construct_object(Cls* mem, Args... args) {
             return new (mem) Cls(args...);
         }
 

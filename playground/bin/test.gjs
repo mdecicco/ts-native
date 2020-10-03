@@ -4,6 +4,11 @@ class test<subtype> {
         this.y = _x;
         this.z = _x;
     }
+    constructor(foo f) {
+        this.x = f.x;
+        this.y = f.y;
+        this.z = f.z;
+    }
 
     void print() {
         print_f32(666, this.x);
@@ -32,13 +37,15 @@ void it() {
         x.push(i);
     }
 
-    test<f32> ayy = test<f32>(1.23f);
-    ayy.print();
-
     f.x = 61;
     f.z = 2;
     f.y = 69;
     print_f32(61, f);
+
+    test<f32> ayy = test<f32>(1.23f);
+    ayy.print();
+    test<f32> eyy = test<f32>(f);
+    eyy.print();
 
     testvec(vec3(2.0f));
     testvec(vec3(f));

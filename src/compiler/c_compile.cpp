@@ -16,7 +16,7 @@ namespace gjs {
         void construct_on_stack(context& ctx, const var& obj, const std::vector<var>& args) {
             ctx.add(operation::stack_alloc).operand(obj).operand(ctx.imm(obj.size()));
 
-            std::vector<script_type*> arg_types = { ctx.type("data") }; // this obj
+            std::vector<script_type*> arg_types = { obj.type() }; // this obj
             script_type* ret_tp = obj.type();
             if (obj.type()->base_type && obj.type()->is_host) {
                 ret_tp = obj.type()->base_type;
@@ -64,7 +64,7 @@ namespace gjs {
                 )
             );
 
-            std::vector<script_type*> arg_types = { ctx.type("data") }; // this obj
+            std::vector<script_type*> arg_types = { obj.type() }; // this obj
             script_type* ret_tp = obj.type();
             if (obj.type()->base_type && obj.type()->is_host) {
                 ret_tp = obj.type()->base_type;
