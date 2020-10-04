@@ -1,6 +1,6 @@
 #pragma once
 #include <common/types.h>
-#include <bind/builtin.h>
+#include <builtin/builtin.h>
 #include <util/template_utils.hpp>
 #include <util/robin_hood.h>
 #include <dyncall.h>
@@ -10,6 +10,7 @@
 #include <tuple>
 #include <string>
 
+#define METHOD_PTR(cls, method, ret, ...) ((ret(cls::*)(__VA_ARGS__))&cls::method)
 
 namespace gjs {
     class vm_backend;
@@ -79,12 +80,24 @@ namespace gjs {
         call_class_method(Ret(Cls::*method)(Args...), Cls* self, Args... args) {
             return (*self.*method)(args...);
         }
+        
+        template <typename Ret, typename Cls, typename... Args>
+        typename std::enable_if<!std::is_same<Ret, void>::value, Ret>::type
+        call_const_class_method(Ret(Cls::*method)(Args...) const, Cls* self, Args... args) {
+            return (*self.*method)(args...);
+        }
 
         // Call class method on object
         // Only visible to class methods with void return
         template <typename Ret, typename Cls, typename... Args>
         typename std::enable_if<std::is_same<Ret, void>::value, Ret>::type
         call_class_method(Ret(Cls::*method)(Args...), Cls* self, Args... args) {
+            (*self.*method)(args...);
+        }
+
+        template <typename Ret, typename Cls, typename... Args>
+        typename std::enable_if<std::is_same<Ret, void>::value, Ret>::type
+        call_const_class_method(Ret(Cls::*method)(Args...), Cls* self, Args... args) {
             (*self.*method)(args...);
         }
 
@@ -128,7 +141,6 @@ namespace gjs {
                         , a, name.c_str(), arg_types[a].name()));
                     }
                 }
-
             }
 
             virtual void call(void* ret, void** args);
@@ -142,7 +154,7 @@ namespace gjs {
                 typedef Ret (Cls::*method_type)(Args...);
                 typedef Ret (*func_type)(method_type, Cls*, Args...);
                 typedef std::tuple_size<std::tuple<Args...>> ac;
-
+                
                 class_method(type_manager* tpm, method_type f, const std::string& name) :
                     wrapped_function(
                         typeid(remove_all<Ret>::type),
@@ -162,6 +174,79 @@ namespace gjs {
                     ret_is_ptr = std::is_reference_v<Ret> || std::is_pointer_v<Ret>;
                     arg_is_ptr = { true, (std::is_reference_v<Args> || std::is_pointer_v<Args>)... };
                     address = *(u64*)reinterpret_cast<void*>(&f);
+
+                    bool sbv_args[] = { std::is_class_v<Args>..., false };
+                    bool bt_args[] = { (!std::is_same_v<Args, script_type*> && tpm->get<Args>() == nullptr)..., false };
+                    // script_type* is allowed because host subclass types will be constructed with it, but
+                    // it should not be bound as a type
+
+                    for (u8 a = 0;a < ac::value;a++) {
+                        if (sbv_args[a]) {
+                            throw bind_exception(format(
+                                "Argument %d of function '%s' is a struct or class that is passed by value. "
+                                "This is unsupported. Please use reference or pointer types for structs/classes"
+                            , a, name.c_str()));
+                        }
+
+                        if (bt_args[a]) {
+                            throw bind_exception(format(
+                                "Argument %d of function '%s' is of type '%s' that has not been bound yet"
+                            , a, name.c_str(), arg_types[a].name()));
+                        }
+                    }
+                }
+
+                virtual void call(void* ret, void** args);
+
+                func_type original_func;
+        };
+
+        template <typename Ret, typename Cls, typename... Args>
+        struct const_class_method : wrapped_function {
+            public:
+                typedef Ret (Cls::*method_type)(Args...) const;
+                typedef Ret (*func_type)(method_type, Cls*, Args...);
+                typedef std::tuple_size<std::tuple<Args...>> ac;
+                
+                const_class_method(type_manager* tpm, method_type f, const std::string& name) :
+                    wrapped_function(
+                        typeid(remove_all<Ret>::type),
+                        { typeid(remove_all<Cls>::type), typeid(remove_all<Args>::type)... },
+                        name
+                    ),
+                    original_func(call_const_class_method<Ret, Cls, Args...>)
+                {
+                    if (!tpm->get<Cls>()) {
+                        throw bind_exception(format("Binding method '%s' of class '%s' that has not been bound yet", name.c_str(), typeid(remove_all<Cls>::type).name()));
+                    }
+                    if (!tpm->get<Ret>()) {
+                        throw bind_exception(format("Return type '%s' of method '%s' of class '%s' has not been bound yet", base_type_name<Ret>(), name.c_str(), typeid(remove_all<Cls>::type).name()));
+                    }
+
+                    // describe the function for the wrapped_function interface
+                    ret_is_ptr = std::is_reference_v<Ret> || std::is_pointer_v<Ret>;
+                    arg_is_ptr = { true, (std::is_reference_v<Args> || std::is_pointer_v<Args>)... };
+                    address = *(u64*)reinterpret_cast<void*>(&f);
+
+                    bool sbv_args[] = { std::is_class_v<Args>..., false };
+                    bool bt_args[] = { (!std::is_same_v<Args, script_type*> && tpm->get<Args>() == nullptr)..., false };
+                    // script_type* is allowed because host subclass types will be constructed with it, but
+                    // it should not be bound as a type
+
+                    for (u8 a = 0;a < ac::value;a++) {
+                        if (sbv_args[a]) {
+                            throw bind_exception(format(
+                                "Argument %d of function '%s' is a struct or class that is passed by value. "
+                                "This is unsupported. Please use reference or pointer types for structs/classes"
+                            , a, name.c_str()));
+                        }
+
+                        if (bt_args[a]) {
+                            throw bind_exception(format(
+                                "Argument %d of function '%s' is of type '%s' that has not been bound yet"
+                            , a, name.c_str(), arg_types[a].name()));
+                        }
+                    }
                 }
 
                 virtual void call(void* ret, void** args);
@@ -180,6 +265,11 @@ namespace gjs {
         template <typename Ret, typename Cls, typename... Args>
         wrapped_function* wrap(type_manager* tpm, const std::string& name, Ret(Cls::*func)(Args...)) {
             return new class_method<Ret, Cls, Args...>(tpm, func, name);
+        };
+
+        template <typename Ret, typename Cls, typename... Args>
+        wrapped_function* wrap(type_manager* tpm, const std::string& name, Ret(Cls::*func)(Args...) const) {
+            return new const_class_method<Ret, Cls, Args...>(tpm, func, name);
         };
 
 
@@ -294,6 +384,26 @@ namespace gjs {
                     typeid(remove_all<T>::type),
                     0,
                     flags
+                    );
+                return *this;
+            }
+
+            template <typename T>
+            wrap_class& prop(const std::string& _name, T(Cls::*getter)() const, T(Cls::*setter)(T), u8 flags = property_flags::pf_none) {
+                if (properties.find(_name) != properties.end()) {
+                    throw bind_exception(format("Property '%s' already bound to type '%s'", _name.c_str(), name.c_str()));
+                }
+
+                if (!types->get<T>()) {
+                    throw bind_exception(format("Attempting to bind property of type '%s' that has not been bound itself", typeid(remove_all<T>::type).name()));
+                }
+
+                properties[_name] = new property(
+                    wrap(types, name + "::get_" + _name, getter),
+                    wrap(types, name + "::set_" + _name, setter),
+                    typeid(remove_all<T>::type),
+                    0,
+                    flags
                 );
                 return *this;
             }
@@ -314,7 +424,28 @@ namespace gjs {
                     nullptr,
                     typeid(remove_all<T>::type),
                     0,
-                    flags
+                    property_flags::pf_read_only | flags
+                );
+                return *this;
+            }
+
+
+            template <typename T>
+            wrap_class& prop(const std::string& _name, T(Cls::*getter)() const, u8 flags = property_flags::pf_none) {
+                if (properties.find(_name) != properties.end()) {
+                    throw bind_exception(format("Property '%s' already bound to type '%s'", _name.c_str(), name.c_str()));
+                }
+
+                if (!types->get<T>()) {
+                    throw bind_exception(format("Attempting to bind property of type '%s' that has not been bound itself", typeid(remove_all<T>::type).name()));
+                }
+
+                properties[_name] = new property(
+                    wrap(types, name + "::get_" + _name, getter),
+                    nullptr,
+                    typeid(remove_all<T>::type),
+                    0,
+                    property_flags::pf_read_only | flags
                 );
                 return *this;
             }
@@ -420,7 +551,7 @@ namespace gjs {
 
 
             if constexpr (std::is_pointer_v<Ret> || std::is_reference_v<Ret>) {
-                do_call<Ret>(call, (Ret*)ret, original_func);
+                do_call<remove_all<Ret>*>(call, (remove_all<Ret>**)ret, original_func);
             } else if constexpr (std::is_class_v<Ret>) {
                 do_call<void>(call, nullptr, srv_wrapper<Ret, Args...>);
             } else {
@@ -453,7 +584,40 @@ namespace gjs {
             }
 
             if constexpr (std::is_pointer_v<Ret> || std::is_reference_v<Ret>) {
+                do_call<remove_all<Ret>*>(call, (remove_all<Ret>**)ret, original_func);
+            } else if constexpr (std::is_class_v<Ret>) {
+                do_call<void>(call, nullptr, srv_wrapper<Ret, Args...>);
+            } else {
                 do_call<Ret>(call, (Ret*)ret, original_func);
+            }
+            dcFree(call);
+        }
+
+        template <typename Ret, typename Cls, typename... Args>
+        void const_class_method<Ret, Cls, Args...>::call(void* ret, void** args) {
+            size_t total_arg_sz = 0;
+            using I = std::size_t[];
+            (void)(I{ 0u, total_arg_sz += sizeof(Args)... });
+            DCCallVM* call = dcNewCallVM(total_arg_sz);
+            dcMode(call, DC_CALL_C_DEFAULT);
+            dcReset(call);
+
+            constexpr int argc = std::tuple_size_v<std::tuple<Args...>>;
+
+            if constexpr (std::is_class_v<Ret>) {
+                void* _args[argc + 4] = { ret, original_func, (void*)address };
+                for (u8 a = 0;a < argc + 1;a++) _args[a + 3] = args[a];
+                // return value, original_func, method pointer, this obj
+                _pass_arg_wrapper<Ret*, void*, void*, void*, Args...>(0, call, _args);
+            } else {
+                void* _args[argc + 2] = { (void*)address };
+                for (u8 a = 0;a < argc + 1;a++) _args[a + 1] = args[a];
+                // method pointer, this obj
+                _pass_arg_wrapper<void*, void*, Args...>(0, call, _args);
+            }
+
+            if constexpr (std::is_pointer_v<Ret> || std::is_reference_v<Ret>) {
+                do_call<remove_all<Ret>*>(call, (remove_all<Ret>**)ret, original_func);
             } else if constexpr (std::is_class_v<Ret>) {
                 do_call<void>(call, nullptr, srv_wrapper<Ret, Args...>);
             } else {

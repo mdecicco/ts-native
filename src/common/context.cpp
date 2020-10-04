@@ -4,7 +4,7 @@
 #include <backends/backend.h>
 
 #include <bind/bind.h>
-#include <bind/builtin.h>
+#include <builtin/builtin.h>
 #include <common/errors.h>
 
 namespace gjs {

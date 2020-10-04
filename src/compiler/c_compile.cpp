@@ -164,14 +164,7 @@ namespace gjs {
                         if (cn->is_static) flags |= bind::pf_static;
                         if (cn->is_const) flags |= bind::pf_read_only;
 
-                        tp->properties.push_back({
-                            flags,
-                            name,
-                            p_tp,
-                            tp->size,
-                            nullptr,
-                            nullptr
-                        });
+                        tp->properties.push_back({ flags, name, p_tp, tp->size, nullptr, nullptr });
 
                         tp->size += p_tp->size;
                         break;
@@ -253,9 +246,32 @@ namespace gjs {
                 return nullptr;
             }
 
-
             ctx.push_node(n);
-            script_type* tp = ctx.new_types->add(*n->identifier, *n->identifier);
+            std::string name = n->is_subtype ? std::string(*n->identifier) + "<" + ctx.subtype_replacement->name + ">" : *n->identifier;
+
+            script_type* tp = ctx.new_types->add(name, name);
+
+            parse::ast* cn = n->body;
+            while (cn) {
+                switch (cn->type) {
+                    case nt::format_property: {
+                        std::string name = *cn->identifier;
+                        script_type* p_tp = ctx.type(cn->data_type);
+                        u8 flags = 0;
+                        if (cn->is_static) flags |= bind::pf_static;
+                        if (cn->is_const) flags |= bind::pf_read_only;
+
+                        tp->properties.push_back({ flags, name, p_tp, tp->size, nullptr, nullptr });
+
+                        tp->size += p_tp->size;
+                        break;
+                    }
+                    default: {
+                        break;
+                    }
+                }
+                cn = cn->next;
+            }
             ctx.pop_node();
 
             return tp;
