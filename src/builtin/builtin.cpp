@@ -3,6 +3,7 @@
 #include <builtin/builtin.h>
 #include <builtin/script_array.h>
 #include <builtin/script_string.h>
+#include <builtin/script_buffer.h>
 #include <common/context.h>
 #include <bind/bind.h>
 
@@ -12,6 +13,10 @@ namespace gjs {
 
     void set_builtin_context(script_context* _ctx) {
         ctx = _ctx;
+    }
+
+    script_context* current_ctx() {
+        return ctx;
     }
 
     void init_context(script_context* ctx) {
@@ -113,14 +118,29 @@ namespace gjs {
         tp->size = sizeof(void*);
         tp->is_unsigned = true;
 
-        ctx->bind<subtype_t>("subtype").finalize();
+        tp = ctx->bind<subtype_t>("subtype").finalize();
+        tp->is_builtin = true;
 
         auto str = ctx->bind<script_string>("string");
         str.constructor();
         str.constructor<const script_string&>();
         str.method("operator []", &script_string::operator[]);
         str.method("operator =", METHOD_PTR(script_string, operator=, script_string&, const script_string&));
+        str.method("operator+=", METHOD_PTR(script_string, operator+=, script_string&, const script_string&));
+        str.method("operator+", METHOD_PTR(script_string, operator+, script_string, const script_string&));
+        str.method("operator+=", METHOD_PTR(script_string, operator+=, script_string&, char));
+        str.method("operator+", METHOD_PTR(script_string, operator+, script_string, char));
+        str.method("operator+=", METHOD_PTR(script_string, operator+=, script_string&, i64));
+        str.method("operator+", METHOD_PTR(script_string, operator+, script_string, i64));
+        str.method("operator+=", METHOD_PTR(script_string, operator+=, script_string&, u64));
+        str.method("operator+", METHOD_PTR(script_string, operator+, script_string, u64));
+        str.method("operator+=", METHOD_PTR(script_string, operator+=, script_string&, f32));
+        str.method("operator+", METHOD_PTR(script_string, operator+, script_string, f32));
+        str.method("operator+=", METHOD_PTR(script_string, operator+=, script_string&, f64));
+        str.method("operator+", METHOD_PTR(script_string, operator+, script_string, f64));
         str.prop("length", &script_string::length);
+        tp = str.finalize();
+        tp->is_builtin = true;
 
         auto arr = ctx->bind<script_array>("array");
         arr.constructor<script_type*>();
@@ -129,6 +149,40 @@ namespace gjs {
         arr.prop("length", &script_array::length);
         tp = arr.finalize();
         tp->requires_subtype = true;
+        tp->is_builtin = true;
+
+        auto buf = ctx->bind<script_buffer>("buffer");
+        buf.constructor();
+        buf.constructor<u64>();
+        buf.method("write", METHOD_PTR(script_buffer, write, void, void*, u64));
+        buf.method("read", METHOD_PTR(script_buffer, read, void, void*, u64));
+        buf.method("write", METHOD_PTR(script_buffer, write, void, script_buffer*, u64));
+        buf.method("read", METHOD_PTR(script_buffer, read, void, script_buffer*, u64));
+        buf.method("write", METHOD_PTR(script_buffer, write, void, script_string*));
+        buf.method("read", METHOD_PTR(script_buffer, read, void, script_string*));
+        buf.method("read", METHOD_PTR(script_buffer, read, void, script_string*, u32));
+        buf.method("data", METHOD_PTR(script_buffer, data, void*, u64));
+        buf.method("data", METHOD_PTR(script_buffer, data, void*));
+
+        #define rm(tp) buf.method("read", &script_buffer::read<tp>);
+        buf.method("read", &script_buffer::read<u8>);
+        buf.method("read", &script_buffer::read<i8>);
+        buf.method("read", &script_buffer::read<u16>);
+        buf.method("read", &script_buffer::read<i16>);
+        buf.method("read", &script_buffer::read<u32>);
+        buf.method("read", &script_buffer::read<i32>);
+        buf.method("read", &script_buffer::read<u64>);
+        buf.method("read", &script_buffer::read<i64>);
+        buf.method("read", &script_buffer::read<f32>);
+        buf.method("read", &script_buffer::read<f64>);
+
+        buf.prop("resizes", &script_buffer::can_resize);
+        buf.prop("size", &script_buffer::size);
+        buf.prop("remaining", &script_buffer::remaining);
+        buf.prop("capacity", &script_buffer::capacity);
+        buf.prop("position", CONST_METHOD_PTR(script_buffer, position, u64), METHOD_PTR(script_buffer, position, u64, u64));
+        buf.prop("at_end", &script_buffer::at_end);
+        tp = buf.finalize();
         tp->is_builtin = true;
 
 

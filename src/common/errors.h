@@ -54,7 +54,12 @@ namespace gjs {
             c_unexpected_instantiation_subtype,
             c_invalid_subtype_use,
             c_compile_finished_with_errors,
-            __compile_error_end
+            __compile_error_end,
+            __runtime_error_start,
+            r_buffer_offset_out_of_range,
+            r_buffer_read_out_of_range,
+            r_buffer_overflow,
+            __runtime_error_end
         };
 
         const char* format_str(ecode code);
@@ -62,6 +67,17 @@ namespace gjs {
         class exception : public std::exception {
             public:
                 exception(ecode code, source_ref at, ...);
+
+                ecode code;
+                source_ref src;
+                std::string message;
+        };
+
+
+        class script_context;
+        class runtime_exception : public std::exception {
+            public:
+                runtime_exception(ecode code, ...);
 
                 ecode code;
                 source_ref src;

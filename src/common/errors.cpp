@@ -1,4 +1,5 @@
 #include <common/errors.h>
+#include <builtin/builtin.h>
 #include <stdarg.h>
 
 namespace gjs {
@@ -52,7 +53,12 @@ namespace gjs {
             "Unexpected 'subtype' while instantiating variable of type '%s', which is not a subtype class or format",
             "The special 'subtype' type can not be used outside the context of a subtype class",
             "Compilation finished with errors",
-            "" // end compile errors
+            "", // end compile errors
+            "", // start runtime errors
+            "Buffer offset %llu is out of range (size: %llu)",
+            "Cannot read %llu bytes from buffer (%llu bytes remain from current position)",
+            "Cannot write %llu bytes to buffer (%llu bytes remain from current position)",
+            "" // end runtime errors
         };
 
         const char* format_str(ecode c) {
@@ -62,6 +68,17 @@ namespace gjs {
         exception::exception(ecode _code, source_ref at, ...) : code(_code), src(at) {
             va_list l;
             va_start(l, at);
+            char out[1024] = { 0 };
+            vsnprintf(out, 1024, error_fmts[(u16)code], l);
+            va_end(l);
+            message = out;
+        }
+
+        runtime_exception::runtime_exception(ecode _code, ...) : code(_code) {
+            // script_context* ctx = current_ctx();
+            // todo: get source ref
+            va_list l;
+            va_start(l, _code);
             char out[1024] = { 0 };
             vsnprintf(out, 1024, error_fmts[(u16)code], l);
             va_end(l);

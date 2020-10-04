@@ -11,6 +11,7 @@
 #include <string>
 
 #define METHOD_PTR(cls, method, ret, ...) ((ret(cls::*)(__VA_ARGS__))&cls::method)
+#define CONST_METHOD_PTR(cls, method, ret, ...) ((ret(cls::*)(__VA_ARGS__) const)&cls::method)
 
 namespace gjs {
     class vm_backend;
@@ -333,6 +334,12 @@ namespace gjs {
             }
 
             template <typename Ret, typename... Args>
+            wrap_class& method(const std::string& _name, Ret(Cls::*func)(Args...) const) {
+                methods.push_back(wrap(types, name + "::" + _name, func));
+                return *this;
+            }
+
+            template <typename Ret, typename... Args>
             wrap_class& method(const std::string& _name, Ret(*func)(Args...)) {
                 methods.push_back(wrap(types, name + "::" + _name, func));
                 methods[methods.size() - 1]->is_static_method = true;
@@ -463,6 +470,7 @@ namespace gjs {
         
         pa_func_simp(f32, dcArgFloat)
         pa_func_simp(f64, dcArgDouble)
+        pa_func_simp(char, dcArgChar);
         pa_func_simp(u8, dcArgChar)
         pa_func_simp(i8, dcArgChar)
         pa_func_simp(u16, dcArgShort)

@@ -6,6 +6,9 @@ namespace gjs {
 
     void set_builtin_context(script_context* ctx);
     void init_context(script_context* ctx);
+
+    // Gets the context of the current thread, if one is currently executing
+    script_context* current_ctx();
     
     void* script_allocate(u64 size);
     void script_free(void* ptr);
