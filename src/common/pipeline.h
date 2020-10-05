@@ -11,6 +11,7 @@ namespace gjs {
     class script_context;
     class script_function;
     class backend;
+    class script_module;
 
     namespace parse { struct ast; };
 
@@ -28,6 +29,7 @@ namespace gjs {
         func_defs funcs;
         std::vector<script_type*> types;
         ir_code code;
+        script_module* mod;
 
         compilation_output(u16 gpN, u16 fpN);
 

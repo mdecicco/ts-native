@@ -11,6 +11,10 @@ namespace gjs {
      *
      * Resizable buffers are initialized with a capacity of 4kB to
      * start with.
+     * 
+     * Note: the 'size' (m_used) may not refer to the actual total
+     * size of stored data, since the write position can be moved.
+     * 'size' refers to the furthest written byte from the origin. 
      */
     class script_buffer {
         public:

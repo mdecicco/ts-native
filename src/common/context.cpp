@@ -1,6 +1,7 @@
 #include <common/context.h>
 #include <common/script_function.h>
 #include <common/script_type.h>
+#include <common/module.h>
 #include <backends/backend.h>
 
 #include <bind/bind.h>
@@ -54,6 +55,19 @@ namespace gjs {
         }
     }
 
+    void script_context::add(script_module* module) {
+        if (m_modules.count(module->name()) > 0) {
+            throw bind_exception(format("Module '%s' has already been added to the context", module->name().c_str()));
+        }
+
+        if (m_modules_by_id.count(module->id()) > 0) {
+            throw bind_exception(format("Hash collision binding module '%s' (id: %lu)", module->name().c_str(), module->id()));
+        }
+
+        m_modules[module->name()] = module;
+        m_modules_by_id[module->id()] = module;
+    }
+
     script_function* script_context::function(const std::string& name) {
         auto it = m_funcs.find(name);
         if (it == m_funcs.end()) return nullptr;
@@ -63,6 +77,18 @@ namespace gjs {
     script_function* script_context::function(u64 address) {
         auto it = m_funcs_by_addr.find(address);
         if (it == m_funcs_by_addr.end()) return nullptr;
+        return it->getSecond();
+    }
+
+    script_module* script_context::module(const std::string& name) {
+        auto it = m_modules.find(name);
+        if (it == m_modules.end()) return nullptr;
+        return it->getSecond();
+    }
+
+    script_module* script_context::module(u32 id) {
+        auto it = m_modules_by_id.find(id);
+        if (it == m_modules_by_id.end()) return nullptr;
         return it->getSecond();
     }
 

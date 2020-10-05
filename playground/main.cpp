@@ -207,16 +207,20 @@ int main(int arg_count, const char** args) {
         printf("%s\n", e.text.c_str());
     }
 
+    ctx.add_code("test.gjs", "void it() { string s = 'fuck' + 'abc'; print(s); }");
+
+    /*
     if (!ctx.add_code("test.gjs", src)) {
         print_log(ctx);
         return 1;
     }
+    */
 
     print_log(ctx);
     print_code(gen);
 
     printf("-------------result-------------\n");
-    // gen.log_instructions(true);
+    gen.log_instructions(true);
     script_function* func = ctx.function("it");
     if (func) ctx.call<void>(func, nullptr);
     return 0;

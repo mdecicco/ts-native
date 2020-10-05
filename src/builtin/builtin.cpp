@@ -18,7 +18,7 @@ namespace gjs {
     script_context* current_ctx() {
         return ctx;
     }
-
+    u32 script_print(const std::string& str);
     void init_context(script_context* ctx) {
         script_type* tp = nullptr;
 
@@ -82,6 +82,15 @@ namespace gjs {
         tp->is_builtin = true;
         tp->size = sizeof(u8);
 
+        if (typeid(char) != typeid(i8)) {
+            tp = nullptr;
+            tp = ctx->types()->add("___char", typeid(char).name());
+            tp->is_host = true;
+            tp->is_primitive = true;
+            tp->is_builtin = true;
+            tp->size = sizeof(char);
+        }
+
         tp = ctx->types()->add("f32", typeid(f32).name());
         tp->is_host = true;
         tp->is_primitive = true;
@@ -121,23 +130,29 @@ namespace gjs {
         tp = ctx->bind<subtype_t>("subtype").finalize();
         tp->is_builtin = true;
 
+        auto std_str = ctx->bind<std::string>("___std_str").finalize();
+        std_str->size = sizeof(std::string);
+
         auto str = ctx->bind<script_string>("string");
         str.constructor();
+        str.constructor<void*, u32>();
         str.constructor<const script_string&>();
         str.method("operator []", &script_string::operator[]);
         str.method("operator =", METHOD_PTR(script_string, operator=, script_string&, const script_string&));
-        str.method("operator+=", METHOD_PTR(script_string, operator+=, script_string&, const script_string&));
-        str.method("operator+", METHOD_PTR(script_string, operator+, script_string, const script_string&));
-        str.method("operator+=", METHOD_PTR(script_string, operator+=, script_string&, char));
-        str.method("operator+", METHOD_PTR(script_string, operator+, script_string, char));
-        str.method("operator+=", METHOD_PTR(script_string, operator+=, script_string&, i64));
-        str.method("operator+", METHOD_PTR(script_string, operator+, script_string, i64));
-        str.method("operator+=", METHOD_PTR(script_string, operator+=, script_string&, u64));
-        str.method("operator+", METHOD_PTR(script_string, operator+, script_string, u64));
-        str.method("operator+=", METHOD_PTR(script_string, operator+=, script_string&, f32));
-        str.method("operator+", METHOD_PTR(script_string, operator+, script_string, f32));
-        str.method("operator+=", METHOD_PTR(script_string, operator+=, script_string&, f64));
-        str.method("operator+", METHOD_PTR(script_string, operator+, script_string, f64));
+        str.method("operator +=", METHOD_PTR(script_string, operator+=, script_string&, const script_string&));
+        str.method("operator +", METHOD_PTR(script_string, operator+, script_string, const script_string&));
+        str.method("operator +=", METHOD_PTR(script_string, operator+=, script_string&, char));
+        str.method("operator +", METHOD_PTR(script_string, operator+, script_string, char));
+        str.method("operator +=", METHOD_PTR(script_string, operator+=, script_string&, i64));
+        str.method("operator +", METHOD_PTR(script_string, operator+, script_string, i64));
+        str.method("operator +=", METHOD_PTR(script_string, operator+=, script_string&, u64));
+        str.method("operator +", METHOD_PTR(script_string, operator+, script_string, u64));
+        str.method("operator +=", METHOD_PTR(script_string, operator+=, script_string&, f32));
+        str.method("operator +", METHOD_PTR(script_string, operator+, script_string, f32));
+        str.method("operator +=", METHOD_PTR(script_string, operator+=, script_string&, f64));
+        str.method("operator +", METHOD_PTR(script_string, operator+, script_string, f64));
+        str.method("operator data", &script_string::operator void *);
+        str.method("operator ___std_str", &script_string::operator std::string);
         str.prop("length", &script_string::length);
         tp = str.finalize();
         tp->is_builtin = true;
@@ -189,6 +204,11 @@ namespace gjs {
         ctx->bind(script_allocate, "alloc");
         ctx->bind(script_free, "free");
         ctx->bind(script_copymem, "memcopy");
+        ctx->bind(script_print, "print");
+    }
+
+    u32 script_print(const std::string& str) {
+        return printf(str.c_str());
     }
 
     void* script_allocate(u64 size) {

@@ -21,7 +21,7 @@ namespace gjs {
     }
 
     void script_buffer::write(void* data, u64 sz) {
-        if ((m_position + sz) > m_used) {
+        if ((m_position + sz) > m_capacity) {
             if (m_can_resize) {
                 m_capacity *= 2;
                 u8* data = (u8*)script_allocate(m_capacity);
@@ -33,16 +33,18 @@ namespace gjs {
 
         memcpy(m_data + m_position, data, sz);
         m_position += sz;
+        if (m_position > m_used) m_used = m_position;
     }
 
     void script_buffer::read(void* out, u64 sz) {
-        if ((m_position + sz) > m_used) throw runtime_exception(ecode::r_buffer_read_out_of_range, sz, m_used - m_position);
+        if ((m_position + sz) > m_capacity) throw runtime_exception(ecode::r_buffer_read_out_of_range, sz, m_used - m_position);
         memcpy(out, m_data + m_position, sz);
         m_position += sz;
+        if (m_position > m_used) m_used = m_position;
     }
 
     void script_buffer::write(script_buffer* buf, u64 sz) {
-        if ((buf->m_position + sz) < buf->m_used) throw runtime_exception(ecode::r_buffer_read_out_of_range, sz, buf->remaining());
+        if ((buf->m_position + sz) > buf->m_capacity) throw runtime_exception(ecode::r_buffer_read_out_of_range, sz, buf->remaining());
         write(buf->data(), sz);
     }
 
@@ -65,7 +67,7 @@ namespace gjs {
     }
 
     void script_buffer::read(script_string* str, u32 len) {
-        if ((m_position + len) > m_used) throw runtime_exception(ecode::r_buffer_read_out_of_range, len, m_used - m_position);
+        if ((m_position + len) > m_capacity) throw runtime_exception(ecode::r_buffer_read_out_of_range, len, m_used - m_position);
 
         for (u32 i = 0;i < len;i++) {
             char ch = 0;

@@ -10,49 +10,48 @@ namespace gjs {
     using vmr = vm_register;
 
     // term, null
-    #define check_instr_type_0(x)    \
-        (                            \
-               x == vmi::term        \
-            || x == vmi::null        \
+    #define check_instr_type_0(x)   \
+        (                           \
+               x == vmi::term       \
+            || x == vmi::null       \
         )
 
     // jal, jmp
-    #define check_instr_type_1(x)    \
-        (                            \
+    #define check_instr_type_1(x)   \
+        (                           \
                x == vmi::jal        \
             || x == vmi::jmp        \
         )
 
-    // jalr, jmpr, push, pop, cvt_*
-    #define check_instr_type_2(x)    \
-        (                            \
-               x == vmi::jalr        \
-            || x == vmi::jmpr        \
-            || x == vmi::cvt_if        \
-            || x == vmi::cvt_id        \
-            || x == vmi::cvt_iu        \
-            || x == vmi::cvt_uf        \
-            || x == vmi::cvt_ud        \
-            || x == vmi::cvt_ui        \
-            || x == vmi::cvt_fi        \
-            || x == vmi::cvt_fu        \
-            || x == vmi::cvt_fd        \
-            || x == vmi::cvt_di        \
-            || x == vmi::cvt_du        \
-            || x == vmi::cvt_df        \
-            || x == vmi::push        \
-            || x == vmi::pop        \
+    // jalr, jmpr, cvt_*
+    #define check_instr_type_2(x)   \
+        (                           \
+               x == vmi::jalr       \
+            || x == vmi::jmpr       \
+            || x == vmi::cvt_if     \
+            || x == vmi::cvt_id     \
+            || x == vmi::cvt_iu     \
+            || x == vmi::cvt_uf     \
+            || x == vmi::cvt_ud     \
+            || x == vmi::cvt_ui     \
+            || x == vmi::cvt_fi     \
+            || x == vmi::cvt_fu     \
+            || x == vmi::cvt_fd     \
+            || x == vmi::cvt_di     \
+            || x == vmi::cvt_du     \
+            || x == vmi::cvt_df     \
         )
 
-    // bits*, push, pop
-    #define check_instr_type_3(x)    \
-        (                            \
-               x == vmi::beqz        \
-            || x == vmi::bneqz        \
-            || x == vmi::bgtz        \
-            || x == vmi::bgtez        \
-            || x == vmi::bltz        \
-            || x == vmi::bltez        \
+    // b*, mptr
+    #define check_instr_type_3(x)   \
+        (                           \
+               x == vmi::beqz       \
+            || x == vmi::bneqz      \
+            || x == vmi::bgtz       \
+            || x == vmi::bgtez      \
+            || x == vmi::bltz       \
+            || x == vmi::bltez      \
+            || x == vmi::mptr       \
         )
 
     // mtfp, mffp
@@ -76,7 +75,6 @@ namespace gjs {
         )
 
     // *i, *ir
-
     #define check_instr_type_6(x)    \
         (                            \
                x == vmi::addi        \
@@ -248,7 +246,7 @@ namespace gjs {
             || x == vmi::dncmpi              \
         )
 
-    // push, pop, cvt_*
+    // cvt_*, ld*, st*
     #define first_operand_can_be_fpr(x)    \
         (                                \
                x == vmi::ld8            \
@@ -269,8 +267,6 @@ namespace gjs {
             || x == vmi::cvt_di            \
             || x == vmi::cvt_du            \
             || x == vmi::cvt_df            \
-            || x == vmi::push            \
-            || x == vmi::pop            \
         )
     
     #define second_operand_must_be_fpr(x) \

@@ -7,6 +7,8 @@
 #include <common/compile_log.h>
 #include <bind/bind.h>
 #include <common/script_type.h>
+#include <common/module.h>
+#include <builtin/script_buffer.h>
 
 namespace gjs {
     using namespace parse;
@@ -197,7 +199,16 @@ namespace gjs {
                             return v;
                         }
                         case ct::string: {
-                            var v = ctx.imm(n->value.s);
+                            u64 off = ctx.out.mod->data()->position();
+                            u32 len = strlen(n->value.s);
+                            ctx.out.mod->data()->write(n->value.s, len);
+
+                            var d = ctx.empty_var(ctx.type("data"));
+                            ctx.add(operation::module_data).operand(d).operand(ctx.imm((u64)ctx.out.mod->id())).operand(ctx.imm(off));
+
+                            var v = ctx.empty_var(ctx.type("string"));
+                            construct_on_stack(ctx, v, { d, ctx.imm((u64)len) });
+                            v.raise_stack_flag();
                             ctx.pop_node();
                             return v;
                         }

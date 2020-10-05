@@ -472,6 +472,8 @@ namespace gjs {
                         if (ret.type()->id() != to->id()) {
                             return ret.convert(to);
                         }
+
+                        return ret;
                     }
 
                     m_ctx->log()->err(ec::c_no_valid_conversion, m_ctx->node()->ref, from->name.c_str(), to->name.c_str());
@@ -482,6 +484,8 @@ namespace gjs {
                     if (ret.type()->id() != to->id()) {
                         return ret.convert(to);
                     }
+
+                    return ret;
                 }
             }
 

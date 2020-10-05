@@ -12,6 +12,7 @@ namespace gjs {
         #define dc_func_simp(tp, cfunc) template <> void do_call<tp>(DCCallVM* call, tp* ret, void* func) { (*(tp*)ret) = (tp)cfunc(call, func); }
         dc_func_simp(f32, dcCallFloat);
         dc_func_simp(f64, dcCallDouble);
+        dc_func_simp(bool, dcCallBool);
         dc_func_simp(char, dcCallChar);
         dc_func_simp(u8, dcCallChar);
         dc_func_simp(i8, dcCallChar);

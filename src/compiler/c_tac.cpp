@@ -10,7 +10,7 @@ namespace gjs {
             "store",
             "stack_alloc",
             "stack_free",
-            "spill",
+            "module_data",
             "add",
             "sub",
             "mul",
@@ -79,7 +79,7 @@ namespace gjs {
                 false,   // store
                 true,    // stack_alloc
                 false,   // stack_free
-                false,   // spill
+                true,    // module_data
                 true,    // iadd
                 true,    // isub
                 true,    // imul

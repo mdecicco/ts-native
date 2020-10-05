@@ -2,6 +2,7 @@
 #include <backends/backend.h>
 #include <common/context.h>
 #include <common/errors.h>
+#include <common/module.h>
 #include <backends/register_allocator.h>
 
 #include <compiler/compile.h>
@@ -63,12 +64,14 @@ namespace gjs {
         }
 
         compilation_output out(generator->gp_count(), generator->fp_count());
+        out.mod = new script_module(m_ctx, file);
 
         try {
             compile::compile(m_ctx, tree, out);
             delete tree;
         } catch (error::exception& e) {
             delete tree;
+            delete out.mod;
             throw e;
         } catch (std::exception& e) {
             delete tree;
@@ -76,6 +79,7 @@ namespace gjs {
         }
 
         if (m_log.errors.size() > 0) {
+            delete out.mod;
         }
         else {
             try {
@@ -88,13 +92,20 @@ namespace gjs {
                     out.funcs[i].regs.m_fpc = generator->fp_count();
                     out.funcs[i].regs.process(i);
                 }
+
+                generator->generate(out);
+
+
+                if (m_log.errors.size() == 0) {
+                    m_ctx->add(out.mod);
+                }
             } catch (error::exception& e) {
+                delete out.mod;
                 throw e;
             } catch (std::exception& e) {
+                delete out.mod;
                 throw e;
             }
-
-            generator->generate(out);
         }
 
 

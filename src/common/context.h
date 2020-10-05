@@ -10,6 +10,7 @@
 namespace gjs {
     class type_manager;
     class script_function;
+    class script_module;
     class script_context {
         public:
             script_context(backend* generator);
@@ -39,14 +40,17 @@ namespace gjs {
             script_function* function(const std::string& name);
 
             script_function* function(u64 address);
+            script_module* module(const std::string& name);
+            script_module* module(u32 id);
 
             void add(script_function* func);
+            void add(script_module* module);
 
-            std::vector<script_function*>   all_functions();
-            std::vector<script_type*>       all_types();
-            inline type_manager*        types     () { return m_types; }
-            inline pipeline*            compiler  () { return &m_pipeline; }
-            inline backend*             generator () { return m_backend; }
+            std::vector<script_function*> all_functions();
+            std::vector<script_type*> all_types();
+            inline type_manager* types() { return m_types; }
+            inline pipeline* compiler() { return &m_pipeline; }
+            inline backend* generator() { return m_backend; }
 
             bool add_code(const std::string& filename, const std::string& code);
 
@@ -57,6 +61,8 @@ namespace gjs {
             void call(script_function* func, Ret* result, Args... args);
 
         protected:
+            robin_hood::unordered_map<std::string, script_module*> m_modules;
+            robin_hood::unordered_map<u32, script_module*> m_modules_by_id;
             robin_hood::unordered_map<u64, script_function*> m_funcs_by_addr;
             robin_hood::unordered_map<std::string, std::vector<script_function*>> m_funcs;
 

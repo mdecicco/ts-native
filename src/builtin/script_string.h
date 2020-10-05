@@ -9,6 +9,7 @@ namespace gjs {
             script_string(const std::string& str);
             script_string(const script_string& str);
             script_string(char* str, u32 len);
+            script_string(void* str, u64 len) : script_string((char*)str, (u32)len) { }
             ~script_string();
 
             u32 length() const;
@@ -16,6 +17,7 @@ namespace gjs {
 
             inline const char* c_str() const { return m_data; }
             inline operator std::string() const { return std::string(m_data, m_len); }
+            inline operator void*() const { return m_data; }
 
             script_string& operator =(const std::string& rhs);
             script_string& operator =(const script_string& rhs);

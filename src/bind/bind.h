@@ -391,7 +391,7 @@ namespace gjs {
                     typeid(remove_all<T>::type),
                     0,
                     flags
-                    );
+                );
                 return *this;
             }
 
@@ -468,7 +468,8 @@ namespace gjs {
         #define pa_func(tp) template <typename T> inline void pass_arg(DCCallVM* call, std::enable_if_t<std::is_same_v<T, tp>, void*> p)
         #define pa_func_simp(tp, func) pa_func(tp) { func(call, *(tp*)&p); }
         
-        pa_func_simp(f32, dcArgFloat)
+        pa_func_simp(bool, dcArgBool);
+        pa_func_simp(f32, dcArgFloat);
         pa_func_simp(f64, dcArgDouble)
         pa_func_simp(char, dcArgChar);
         pa_func_simp(u8, dcArgChar)
@@ -485,6 +486,7 @@ namespace gjs {
         
         template <typename T>
         inline void pass_arg(DCCallVM* call, std::enable_if_t<std::is_pointer_v<T> || std::is_reference_v<T>, void*> p) {
+            printf("0x%llX\n", p);
             dcArgPointer(call, p);
         }
 
@@ -497,6 +499,7 @@ namespace gjs {
 
         template <typename T, typename... Rest>
         void _pass_arg_wrapper(u16 i, DCCallVM* call, void** params) {
+            printf("arg[%d]: ", i);
             pass_arg<T>(call, params[i]);
             if constexpr (std::tuple_size_v<std::tuple<Rest...>> > 0) {
                 _pass_arg_wrapper<Rest...>(i + 1, call, params);
@@ -515,6 +518,7 @@ namespace gjs {
         #define dc_func_simp(tp, cfunc) template <> void do_call<tp>(DCCallVM* call, tp* ret, void* func);
         dc_func_simp(f32, dcCallFloat);
         dc_func_simp(f64, dcCallDouble);
+        dc_func_simp(bool, dcCallBool);
         dc_func_simp(u8, dcCallChar);
         dc_func_simp(i8, dcCallChar);
         dc_func_simp(u16, dcCallShort);
@@ -529,18 +533,16 @@ namespace gjs {
 
         template <typename Ret, typename... Args>
         void srv_wrapper(Ret* out, Ret (*f)(Args...), Args... args) {
-            *out = f(args...);
+            new (out) Ret(f(args...));
         }
 
         /*
          * Call helpers for VM
+         * todo: move DCCallVM to script_context
          */
         template <typename Ret, typename... Args>
         void global_function<Ret, Args...>::call(void* ret, void** args) {
-            size_t total_arg_sz = 0;
-            using I = std::size_t[];
-            (void)(I{ 0u, total_arg_sz += sizeof(Args)... });
-            DCCallVM* call = dcNewCallVM(total_arg_sz);
+            DCCallVM* call = dcNewCallVM(4096);
             dcMode(call, DC_CALL_C_DEFAULT);
             dcReset(call);
 
@@ -570,10 +572,7 @@ namespace gjs {
         
         template <typename Ret, typename Cls, typename... Args>
         void class_method<Ret, Cls, Args...>::call(void* ret, void** args) {
-            size_t total_arg_sz = 0;
-            using I = std::size_t[];
-            (void)(I{ 0u, total_arg_sz += sizeof(Args)... });
-            DCCallVM* call = dcNewCallVM(total_arg_sz);
+            DCCallVM* call = dcNewCallVM(4096);
             dcMode(call, DC_CALL_C_DEFAULT);
             dcReset(call);
 
@@ -594,7 +593,7 @@ namespace gjs {
             if constexpr (std::is_pointer_v<Ret> || std::is_reference_v<Ret>) {
                 do_call<remove_all<Ret>*>(call, (remove_all<Ret>**)ret, original_func);
             } else if constexpr (std::is_class_v<Ret>) {
-                do_call<void>(call, nullptr, srv_wrapper<Ret, Args...>);
+                do_call<void>(call, nullptr, srv_wrapper<Ret, void*, void*, Args...>);
             } else {
                 do_call<Ret>(call, (Ret*)ret, original_func);
             }
@@ -603,10 +602,7 @@ namespace gjs {
 
         template <typename Ret, typename Cls, typename... Args>
         void const_class_method<Ret, Cls, Args...>::call(void* ret, void** args) {
-            size_t total_arg_sz = 0;
-            using I = std::size_t[];
-            (void)(I{ 0u, total_arg_sz += sizeof(Args)... });
-            DCCallVM* call = dcNewCallVM(total_arg_sz);
+            DCCallVM* call = dcNewCallVM(4096);
             dcMode(call, DC_CALL_C_DEFAULT);
             dcReset(call);
 
@@ -627,7 +623,7 @@ namespace gjs {
             if constexpr (std::is_pointer_v<Ret> || std::is_reference_v<Ret>) {
                 do_call<remove_all<Ret>*>(call, (remove_all<Ret>**)ret, original_func);
             } else if constexpr (std::is_class_v<Ret>) {
-                do_call<void>(call, nullptr, srv_wrapper<Ret, Args...>);
+                do_call<void>(call, nullptr, srv_wrapper<Ret, void*, void*, Args...>);
             } else {
                 do_call<Ret>(call, (Ret*)ret, original_func);
             }

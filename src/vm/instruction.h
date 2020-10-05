@@ -24,8 +24,7 @@ namespace gjs {
         st16            ,    // store 2 bytes in memory from register               store   (src)    (dest)      0xa    dest = *((u16*)(src + 0xa))
         st32            ,    // store 4 bytes in memory from register               store   (src)    (dest)      0xa    dest = *((u32*)(src + 0xa))
         st64            ,    // store 8 bytes in memory from register               store   (src)    (dest)      0xa    dest = *((u64*)(src + 0xa))
-        push            ,    // push register onto stack                            push    (a)                         *sp = a; sp--
-        pop             ,    // pop value from the stack into register              pop     (a)                         a = *sp; sp++
+        mptr            ,    // store address of module data in register            mptr    (dest)               0xf    dest = modules[$v3] + 0xf    ($v3 must be module id)
         mtfp            ,    // move from general register to float register        mtfp    (a)      (b)                b = a                        (a must be gp, b must be fp)
         mffp            ,    // move from float register to general register        mffp    (a)      (b)                b = a                        (a must be fp, b must be gp)
 

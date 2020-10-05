@@ -13,9 +13,9 @@ namespace gjs {
             // load dest_var var_addr imm_offset
             load, // load dest src
             store, // store dest src
-            stack_alloc,
-            stack_free,
-            spill,
+            stack_alloc, // stack_alloc dest imm_size
+            stack_free, // stack_free obj
+            module_data, // module_data imm_module_id imm_offset
             iadd,
             isub,
             imul,

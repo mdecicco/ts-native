@@ -10,12 +10,12 @@ namespace gjs {
      * Anatomy of an encoded instruction
      *
      * type 0  | instruction |-----------------------------------------| flags | <- term, null
-     * type 1  | instruction |-----------------------------------------| flags | <- jal, jmp
-     * type 2  | instruction |  operand  |-----------------------------| flags | <- jalr, jmpr, ctf, cti, push, pop
-     * type 3  | instruction |  operand  |-----------------------------| flags | <- b*
+     * type 1  | instruction |--------------------------------------imm| flags | <- jal, jmp
+     * type 2  | instruction |  operand  |-----------------------------| flags | <- jalr, jmpr, cvt_*
+     * type 3  | instruction |  operand  |--------------------------imm| flags | <- b*, mptr
      * type 4  | instruction |  operand  |  operand  |-----------------| flags | <- mtfp, mffp
-     * type 5  | instruction |  operand  |  operand  |-----------------| flags | <- ld*, st*
-     * type 6  | instruction |  operand  |  operand  |-----------------| flags | <- *i, *ir
+     * type 5  | instruction |  operand  |  operand  |--------------imm| flags | <- ld*, st*
+     * type 6  | instruction |  operand  |  operand  |--------------imm| flags | <- *i, *ir
      * type 7  | instruction |  operand  |  operand  |  operand  |-----| flags | <- the rest
      *         |0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0| (bits)
      *         |32             |24             |16             |8              | (bytes)

@@ -308,8 +308,11 @@ namespace gjs {
                     }
                     break;
                 }
-                case op::spill: {
-                    // probably not a necessary TAC instruction
+                case op::module_data: {
+                    m_instructions += encode(vmi::addui).operand(vmr::v3).operand(vmr::zero).operand(o2.imm_u());
+                    m_map.append(i.src);
+                    m_instructions += encode(vmi::mptr).operand(r1).operand(o3.imm_u());
+                    m_map.append(i.src);
                     break;
                 }
                 case op::iadd: {

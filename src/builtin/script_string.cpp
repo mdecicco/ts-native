@@ -8,18 +8,21 @@ namespace gjs {
     }
 
     script_string::script_string(const std::string& str) : m_data(nullptr), m_len(str.length()), m_capacity(m_len) {
-        m_data = (char*)script_allocate(m_capacity);
+        m_data = (char*)script_allocate(m_capacity + 1);
         memcpy(m_data, str.c_str(), str.length());
+        m_data[m_len] = 0;
     }
 
     script_string::script_string(const script_string& str) : m_data(nullptr), m_len(str.length()), m_capacity(m_len) {
-        m_data = (char*)script_allocate(m_capacity);
+        m_data = (char*)script_allocate(m_capacity + 1);
         memcpy(m_data, str.c_str(), str.length());
+        m_data[m_len] = 0;
     }
 
     script_string::script_string(char* str, u32 len) : m_data(nullptr), m_len(len), m_capacity(len) {
-        m_data = (char*)script_allocate(m_capacity);
+        m_data = (char*)script_allocate(m_capacity + 1);
         memcpy(m_data, str, len);
+        m_data[m_len] = 0;
     }
 
     script_string::~script_string() {

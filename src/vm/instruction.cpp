@@ -14,8 +14,7 @@ namespace gjs {
         "st16",
         "st32",
         "st64",
-        "push",
-        "pop",
+        "mptr",
         "mtfp",
         "mffp",
 
