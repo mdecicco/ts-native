@@ -112,12 +112,14 @@ namespace gjs {
             ctx.pop_node();
 
             if (n->initializer) {
-                v.operator_eq(expression(ctx, n->initializer->body));
+                var val = expression(ctx, n->initializer->body);
+                v.operator_eq(val);
+                v.adopt_stack_flag(val); // remove this, implement assignment operator use within operator_eq
             } else {
                 if (!tp->is_primitive) {
                     ctx.push_node(n->data_type);
-                    construct_on_stack(ctx, v, {});
                     v.raise_stack_flag();
+                    construct_on_stack(ctx, v, {});
                     ctx.pop_node();
                 }
             }

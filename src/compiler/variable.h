@@ -36,7 +36,8 @@ namespace gjs {
                 inline bool valid() const { return m_ctx != nullptr; }
                 inline bool flag(bind::property_flags f) const { return m_flags & f; }
                 inline void raise_flag(bind::property_flags f) { m_flags |= f; }
-                inline bool is_stack_obj() const { return m_is_stack_obj; }
+                inline bool is_stack_obj() const { return m_stack_id != 0; }
+                inline u64 stack_id() const { return m_stack_id; }
                 inline bool is_arg() const { return m_arg_idx != u8(-1); }
                 inline u8 arg_idx() const { return m_arg_idx; }
                 inline void set_arg_idx(u8 idx) { m_arg_idx = idx; }
@@ -57,6 +58,7 @@ namespace gjs {
                 var convert(script_type* tp) const;
                 void set_mem_ptr(const var& v);
                 void raise_stack_flag();
+                void adopt_stack_flag(var& from);
 
                 // type used for first argument when calling methods
                 script_type* call_this_tp() const;
@@ -129,9 +131,9 @@ namespace gjs {
                 // Used in the register allocation phase when no registers are available
                 u32 m_stack_loc;
 
-                // If the object was allocated in the stack
-                // (used to log compiler errors if script uses 'delete' on a stack object)
-                bool m_is_stack_obj;
+                // If the object was allocated in the stack, this will be set to some unique
+                // value. If it's non-zero, this var represents a pointer to a stack object.
+                u64 m_stack_id;
 
                 struct {
                     bool valid;

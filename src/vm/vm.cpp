@@ -837,17 +837,15 @@ namespace gjs {
 
         void* ret_addr = nullptr;
         if (f->signature.return_type->size > 0) {
-            ret_addr = &(m_ctx->state()->registers[(u8)f->signature.return_loc]);
-
-            // make sure there are no left over bits or bytes from the previous value
-            (*(u64*)ret_addr) = 0;
-
             if (f->signature.returns_on_stack) {
-                u64 return_value_end = u64(ret_addr) + f->signature.return_type->size;
-                u64 stack_end = (u64)state.memory[0] + m_stack_size;
-                if (return_value_end >= stack_end) {
-                    throw vm_exception(m_ctx, "Stack overflow detected");
-                }
+                // return_loc register contains a pointer to a memory location within the stack
+                ret_addr = (void*)m_ctx->state()->registers[(u8)f->signature.return_loc];
+            } else {
+                // return_loc register will directly contain the return value
+                ret_addr = &(m_ctx->state()->registers[(u8)f->signature.return_loc]);
+
+                // make sure there are no left over bits or bytes from the previous value (if it's smaller than 64 bits, there would be)
+                (*(u64*)ret_addr) = 0;
             }
         }
 

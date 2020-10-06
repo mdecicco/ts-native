@@ -150,11 +150,11 @@ namespace gjs {
                         a = a->next;
                     }
 
+                    obj.raise_stack_flag();
                     construct_on_stack(ctx, obj, args);
 
                     ctx.pop_node();
 
-                    obj.raise_stack_flag();
                     return obj;
                     break;
                 }
@@ -207,8 +207,8 @@ namespace gjs {
                             ctx.add(operation::module_data).operand(d).operand(ctx.imm((u64)ctx.out.mod->id())).operand(ctx.imm(off));
 
                             var v = ctx.empty_var(ctx.type("string"));
-                            construct_on_stack(ctx, v, { d, ctx.imm((u64)len) });
                             v.raise_stack_flag();
+                            construct_on_stack(ctx, v, { d, ctx.imm((u64)len) });
                             ctx.pop_node();
                             return v;
                         }

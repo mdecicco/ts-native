@@ -207,7 +207,7 @@ int main(int arg_count, const char** args) {
         printf("%s\n", e.text.c_str());
     }
 
-    ctx.add_code("test.gjs", "void it() { string s = 'fuck' + 'abc'; print(s); }");
+    ctx.add_code("test.gjs", "void it() { string s = 'fuck' + ' the dmv'; print(s + ', also your ass'); }");
 
     /*
     if (!ctx.add_code("test.gjs", src)) {
@@ -220,7 +220,7 @@ int main(int arg_count, const char** args) {
     print_code(gen);
 
     printf("-------------result-------------\n");
-    gen.log_instructions(true);
+    //gen.log_instructions(true);
     script_function* func = ctx.function("it");
     if (func) ctx.call<void>(func, nullptr);
     return 0;

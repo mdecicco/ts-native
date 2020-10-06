@@ -335,7 +335,7 @@ namespace gjs {
         }
 
         void context::ensure_code_ref() {
-            if (out.code.size() >= out.code.capacity() - 32) {
+            if (i64(out.code.size()) >= i64(out.code.capacity()) - 32) {
                 // prevent vector resizing before some instruction is fully defined
                 out.code.reserve(out.code.capacity() + 32);
             }
@@ -407,7 +407,10 @@ namespace gjs {
                     script_type* void_tp = type("void");
                     for (u16 i = 0;i < b->stack_objs.size();i++) {
                         var& v = b->stack_objs[i];
-                        if (v.reg_id() == preserve.reg_id()) continue;
+                        if (v.reg_id() == preserve.reg_id()) {
+                            block_stack[block_stack.size() - 2]->stack_objs.push_back(v);
+                            continue;
+                        }
                         if (v.type()->destructor) {
                             call(*this, v.type()->destructor, { v });
                         }

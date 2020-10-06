@@ -220,21 +220,37 @@ namespace gjs {
                     c_args.push_back(args[i].convert(func->signature.arg_types[i]));
                 }
             }
+
+            tac_instruction* stack_ret = nullptr;
+            if (func->signature.returns_on_stack) {
+                ctx.ensure_code_ref();
+                stack_ret = &ctx.add(operation::stack_alloc);
+            }
             for (u8 i = 0;i < args.size();i++) ctx.add(operation::param).operand(c_args[i]);
             
             if (func->signature.return_type->name == "subtype") {
                 if (func->is_method_of) {
                     script_type* this_tp = args[0].type();
-                    var result = func->signature.returns_pointer ? ctx.empty_var(ctx.type("data")) : ctx.empty_var(this_tp->sub_type);
-                    ctx.add(operation::call).operand(result).func(func);
 
                     if (func->signature.returns_pointer) {
+                        var result = ctx.empty_var(ctx.type("data"));
+                        ctx.add(operation::call).operand(result).func(func);
+
                         var ret = ctx.empty_var(this_tp->sub_type);
                         ret.set_mem_ptr(result);
                         ctx.add(operation::load).operand(ret).operand(result);
                         return ret;
+                    } else if (func->signature.returns_on_stack) {
+                        var ret = ctx.empty_var(this_tp->sub_type);
+                        ret.raise_stack_flag();
+                        stack_ret->operand(ret).operand(ctx.imm((u64)this_tp->sub_type->size));
+                        ctx.add(operation::call).operand(ret).func(func);
+                        return ret;
+                    } else {
+                        var ret = ctx.empty_var(this_tp->sub_type);
+                        ctx.add(operation::call).operand(ret).func(func);
+                        return ret;
                     }
-                    return result;
                 } else {
                     // subtype functions (global functions) are not supported yet
                     return ctx.error_var();
@@ -243,18 +259,29 @@ namespace gjs {
                 ctx.add(operation::call).func(func);
                 return ctx.empty_var(func->signature.return_type);
             } else {
-                var result = func->signature.returns_pointer ? ctx.empty_var(ctx.type("data")) : ctx.empty_var(func->signature.return_type);
-                ctx.add(operation::call).operand(result).func(func);
-
                 if (func->signature.returns_pointer) {
+                    var result = ctx.empty_var(ctx.type("data"));
+                    ctx.add(operation::call).operand(result).func(func);
+
                     var ret = ctx.empty_var(func->signature.return_type);
                     ret.set_mem_ptr(result);
                     if (func->signature.return_type->is_primitive) ctx.add(operation::load).operand(ret).operand(result);
                     else ctx.add(operation::eq).operand(ret).operand(result);
                     return ret;
+                } else if (func->signature.returns_on_stack) {
+                    var ret = ctx.empty_var(func->signature.return_type);
+                    ret.raise_stack_flag();
+                    stack_ret->operand(ret).operand(ctx.imm((u64)func->signature.return_type->size));
+                    ctx.add(operation::call).operand(ret).func(func);
+                    return ret;
+                } else {
+                    var ret = ctx.empty_var(func->signature.return_type);
+                    ctx.add(operation::call).operand(ret).func(func);
+                    return ret;
                 }
-                return result;
             }
+
+            return ctx.error_var();
         }
     };
 };

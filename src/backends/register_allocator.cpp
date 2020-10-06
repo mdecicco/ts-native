@@ -27,6 +27,9 @@ namespace gjs {
         reassign_registers(m_fpLf, m_fpc, fd.begin, fd.end, fidx);
 
         calc_reg_lifetimes(fidx, fd.begin, fd.end);
+
+        printf("post-alloc[%s]:\n", fd.func->name.c_str());
+        for (u64 i = fd.begin;i <= fd.end;i++) printf("%3.3d: %s\n", i, m_in.code[i].to_string().c_str());
     }
 
     std::vector<register_allocator::reg_lifetime> register_allocator::get_live(u64 at) {
@@ -154,17 +157,24 @@ namespace gjs {
             }
         }
 
+        struct change { u64 addr; u8 operand; u32 reg; };
+        std::vector<change> changes;
+
         for (u32 i = 0;i < regs.size();i++) {
             for (u32 c = regs[i].begin;c <= regs[i].end;c++) {
-                for (u32 o = 0;o < 3;o++) {
+                for (u8 o = 0;o < 3;o++) {
                     if (m_in.code[c].operands[o].m_reg_id == regs[i].reg_id) {
-                        if (regs[i].stack_loc == u32(-1)) {
-                            m_in.code[c].operands[o].m_reg_id = regs[i].new_id;
-                        } else {
-                            m_in.code[c].operands[o].m_stack_loc = regs[i].stack_loc;
-                        }
+                        changes.push_back({ c, o, i });
                     }
                 }
+            }
+        }
+
+        for (u32 i = 0;i < changes.size();i++) {
+            if (regs[changes[i].reg].stack_loc == u32(-1)) {
+                m_in.code[changes[i].addr].operands[changes[i].operand].m_reg_id = regs[changes[i].reg].new_id;
+            } else {
+                m_in.code[changes[i].addr].operands[changes[i].operand].m_stack_loc = regs[changes[i].reg].stack_loc;
             }
         }
     }

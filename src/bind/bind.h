@@ -486,7 +486,6 @@ namespace gjs {
         
         template <typename T>
         inline void pass_arg(DCCallVM* call, std::enable_if_t<std::is_pointer_v<T> || std::is_reference_v<T>, void*> p) {
-            printf("0x%llX\n", p);
             dcArgPointer(call, p);
         }
 
@@ -499,7 +498,6 @@ namespace gjs {
 
         template <typename T, typename... Rest>
         void _pass_arg_wrapper(u16 i, DCCallVM* call, void** params) {
-            printf("arg[%d]: ", i);
             pass_arg<T>(call, params[i]);
             if constexpr (std::tuple_size_v<std::tuple<Rest...>> > 0) {
                 _pass_arg_wrapper<Rest...>(i + 1, call, params);

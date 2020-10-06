@@ -86,7 +86,7 @@ namespace gjs {
         using vmr = vm_register;
         using var = compile::var;
 
-        robin_hood::unordered_map<vmr, u64> reg_stack_addrs;
+        robin_hood::unordered_map<u64, u64> reg_stack_addrs;
         robin_hood::unordered_map<u64, u64> stack_stack_addrs;
         std::vector<var> params;
 
@@ -290,7 +290,7 @@ namespace gjs {
                         m_map.append(i.src);
                         m_instructions += encode(vmi::st64).operand(r1).operand(vmr::sp).operand((u64)o1.stack_off());
                     } else {
-                        reg_stack_addrs[r1] = addr;
+                        reg_stack_addrs[o1.stack_id()] = addr;
                         m_instructions += encode(vmi::addui).operand(r1).operand(vmr::sp).operand(addr);
                     }
                     m_map.append(i.src);
@@ -302,7 +302,7 @@ namespace gjs {
                         in.funcs[fidx].stack.free(it->getSecond());
                         stack_stack_addrs.erase(it);
                     } else {
-                        auto it = reg_stack_addrs.find(r1);
+                        auto it = reg_stack_addrs.find(o1.stack_id());
                         in.funcs[fidx].stack.free(it->getSecond());
                         reg_stack_addrs.erase(it);
                     }
@@ -775,6 +775,10 @@ namespace gjs {
                         m_map.append(i.src);
                     }
 
+                    if (i.callee->signature.returns_on_stack) {
+                        m_instructions += encode(vmi::addu).operand(i.callee->signature.return_loc).operand(vmr::zero).operand(r1);
+                        m_map.append(i.src);
+                    }
 
                     // do the call
                     if (i.callee->is_host) m_instructions += encode(vmi::jal).operand(i.callee->access.wrapped->address);
@@ -791,6 +795,9 @@ namespace gjs {
                     if (t1) {
                         if (i.callee->signature.returns_pointer) {
                             m_instructions += encode(vmi::addu).operand(r1).operand(i.callee->signature.return_loc).operand(vmr::zero);
+                            m_map.append(i.src);
+                        } else if (i.callee->signature.returns_on_stack) {
+                            // return location was pre-populated with a pointer to the stack address which will hold the return value
                         } else {
                             if (t1->is_floating_point) {
                                 if (!is_fpr(i.callee->signature.return_loc) && i.callee->is_method_of && i.callee->is_method_of->requires_subtype) {
@@ -803,10 +810,12 @@ namespace gjs {
                             } else {
                                 m_instructions += encode(vmi::addu).operand(r1).operand(i.callee->signature.return_loc).operand(vmr::zero);
                             }
+                            m_map.append(i.src);
                         }
-                        m_map.append(i.src);
 
-                        if (o1.is_spilled()) {
+                        if (o1.is_spilled() && !i.callee->signature.returns_on_stack) {
+                            // (if it returns on the stack, the value of the pointer doesn't change so the spilled register
+                            //  doesn't need to be updated)
                             u8 sz = t1->size;
                             if (!t1->is_primitive) sz = sizeof(void*);
                             vmi st = vmi::st8;

@@ -51,7 +51,7 @@ namespace gjs {
             m_type = ctx->type("u64");
             m_stack_loc = -1;
             m_arg_idx = -1;
-            m_is_stack_obj = false;
+            m_stack_id = 0;
             m_mem_ptr.valid = false;
             m_mem_ptr.reg = -1;
             m_flags = bind::pf_none;
@@ -69,7 +69,7 @@ namespace gjs {
             m_type = ctx->type("i64");
             m_stack_loc = -1;
             m_arg_idx = -1;
-            m_is_stack_obj = false;
+            m_stack_id = 0;
             m_mem_ptr.valid = false;
             m_mem_ptr.reg = -1;
             m_setter.this_obj = nullptr;
@@ -86,7 +86,7 @@ namespace gjs {
             m_type = ctx->type("f32");
             m_stack_loc = -1;
             m_arg_idx = -1;
-            m_is_stack_obj = false;
+            m_stack_id = 0;
             m_mem_ptr.valid = false;
             m_mem_ptr.reg = -1;
             m_setter.this_obj = nullptr;
@@ -103,7 +103,7 @@ namespace gjs {
             m_type = ctx->type("f64");
             m_stack_loc = -1;
             m_arg_idx = -1;
-            m_is_stack_obj = false;
+            m_stack_id = 0;
             m_mem_ptr.valid = false;
             m_mem_ptr.reg = -1;
             m_setter.this_obj = nullptr;
@@ -120,7 +120,7 @@ namespace gjs {
             m_stack_loc = -1;
             m_arg_idx = -1;
             m_imm.u = 0;
-            m_is_stack_obj = false;
+            m_stack_id = 0;
             m_mem_ptr.valid = false;
             m_mem_ptr.reg = -1;
             m_setter.this_obj = nullptr;
@@ -137,7 +137,7 @@ namespace gjs {
             m_stack_loc = -1;
             m_arg_idx = -1;
             m_imm.u = 0;
-            m_is_stack_obj = false;
+            m_stack_id = 0;
             m_mem_ptr.valid = false;
             m_mem_ptr.reg = -1;
             m_setter.this_obj = nullptr;
@@ -153,7 +153,7 @@ namespace gjs {
             m_stack_loc = -1;
             m_arg_idx = -1;
             m_imm.u = 0;
-            m_is_stack_obj = false;
+            m_stack_id = 0;
             m_mem_ptr.valid = false;
             m_mem_ptr.reg = 0;
             m_setter.this_obj = nullptr;
@@ -172,7 +172,7 @@ namespace gjs {
             m_arg_idx = v.m_arg_idx;
             m_mem_ptr = v.m_mem_ptr;
             m_name = v.m_name;
-            m_is_stack_obj = v.m_is_stack_obj;
+            m_stack_id = v.m_stack_id;
             m_setter.func = v.m_setter.func;
             m_setter.this_obj = v.m_setter.this_obj;
         }
@@ -494,8 +494,8 @@ namespace gjs {
                 script_function* ctor = tv.method("constructor", to, { m_ctx->type("data"), from });
                 if (ctor) {
                     var ret = m_ctx->empty_var(to);
-                    construct_on_stack(*m_ctx, ret, { *this });
                     ret.raise_stack_flag();
+                    construct_on_stack(*m_ctx, ret, { *this });
 
                     if (ret.type()->id() != to->id()) {
                         return ret.convert(to);
@@ -550,8 +550,27 @@ namespace gjs {
         }
 
         void var::raise_stack_flag() {
-            m_is_stack_obj = true;
+            static u64 next_stack_id = 1;
+            m_stack_id = next_stack_id++;
             m_ctx->block()->stack_objs.push_back(*this);
+        }
+
+        void var::adopt_stack_flag(var& from) {
+            m_stack_id = from.m_stack_id;
+            from.m_stack_id = 0;
+            bool found = false;
+            for (u16 b = 0;b < m_ctx->block_stack.size();b++) {
+                auto* cblock = m_ctx->block_stack[b];
+                for (u16 i = 0;i < cblock->stack_objs.size();i++) {
+                    if (cblock->stack_objs[i].m_stack_id == m_stack_id) {
+                        cblock->stack_objs.insert(cblock->stack_objs.begin() + i, *this);
+                        cblock->stack_objs.erase(cblock->stack_objs.begin() + (i + 1));
+                        found = true;
+                        break;
+                    }
+                }
+                if (found) break;
+            }
         }
 
         script_type* var::call_this_tp() const {
@@ -847,8 +866,8 @@ namespace gjs {
 
             var clone = m_ctx->empty_var(m_type);
             // todo: specific error when type is not copy constructible 
-            construct_on_stack(*m_ctx, clone, { *this });
             clone.raise_stack_flag();
+            construct_on_stack(*m_ctx, clone, { *this });
             script_function* f = method("operator ++", m_type, { call_this_tp() });
             if (f) call(*m_ctx, f, { *this });
             return clone;
@@ -864,9 +883,9 @@ namespace gjs {
             }
 
             var clone = m_ctx->empty_var(m_type);
-            // todo: specific error when type is not copy constructible 
-            construct_on_stack(*m_ctx, clone, { *this });
+            // todo: specific error when type is not copy constructible
             clone.raise_stack_flag();
+            construct_on_stack(*m_ctx, clone, { *this });
             script_function* f = method("operator --", m_type, { call_this_tp() });
             if (f) call(*m_ctx, f, { *this });
             return clone;
@@ -937,6 +956,7 @@ namespace gjs {
                 var real_value = call(*m_ctx, m_setter.func, { *m_setter.this_obj, rhs });
                 m_ctx->add(operation::eq).operand(*this).operand(real_value);
             } else {
+                // todo: operator =, remove 'adopt_stack_flag'
                 var v = rhs.convert(m_type);
                 m_ctx->add(operation::eq).operand(*this).operand(v);
                 if (m_mem_ptr.valid) {

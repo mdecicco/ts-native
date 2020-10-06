@@ -20,7 +20,6 @@ namespace gjs {
     script_function::script_function(type_manager* mgr, script_type* tp, bind::wrapped_function* wrapped, bool is_ctor, bool is_dtor) {
         is_method_of = tp;
         m_ctx = mgr->m_ctx;
-        signature.returns_on_stack = false;
         signature.return_loc = vm_register::v0;
         signature.returns_pointer = wrapped->ret_is_ptr;
         name = wrapped->name;
@@ -61,6 +60,8 @@ namespace gjs {
         if (!signature.return_type) {
             throw bind_exception(format("Return value of function '%s' is of type '%s' that has not been bound yet", name.c_str(), wrapped->return_type.name()));
         }
+
+        signature.returns_on_stack = !signature.return_type->is_primitive && !signature.returns_pointer && signature.return_type->size != 0;
 
         signature.is_thiscall = tp && !wrapped->is_static_method;
         access.wrapped = wrapped;
