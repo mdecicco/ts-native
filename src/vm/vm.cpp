@@ -849,6 +849,6 @@ namespace gjs {
             }
         }
 
-        f->access.wrapped->call(ret_addr, args.data());
+        f->access.wrapped->call(m_ctx->context()->call_vm(), ret_addr, args.data());
     }
 };

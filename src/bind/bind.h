@@ -43,7 +43,7 @@ namespace gjs {
             bool ret_is_ptr;
             u64 address;
 
-            virtual void call(void* ret, void** args) = 0;
+            virtual void call(DCCallVM* call, void* ret, void** args) = 0;
         };
 
         struct wrapped_class {
@@ -144,7 +144,7 @@ namespace gjs {
                 }
             }
 
-            virtual void call(void* ret, void** args);
+            virtual void call(DCCallVM* call, void* ret, void** args);
 
             func_type original_func;
         };
@@ -197,7 +197,7 @@ namespace gjs {
                     }
                 }
 
-                virtual void call(void* ret, void** args);
+                virtual void call(DCCallVM* call, void* ret, void** args);
 
                 func_type original_func;
         };
@@ -250,7 +250,7 @@ namespace gjs {
                     }
                 }
 
-                virtual void call(void* ret, void** args);
+                virtual void call(DCCallVM* call, void* ret, void** args);
 
                 func_type original_func;
         };
@@ -539,8 +539,7 @@ namespace gjs {
          * todo: move DCCallVM to script_context
          */
         template <typename Ret, typename... Args>
-        void global_function<Ret, Args...>::call(void* ret, void** args) {
-            DCCallVM* call = dcNewCallVM(4096);
+        void global_function<Ret, Args...>::call(DCCallVM* call, void* ret, void** args) {
             dcMode(call, DC_CALL_C_DEFAULT);
             dcReset(call);
 
@@ -565,12 +564,10 @@ namespace gjs {
             } else {
                 do_call<Ret>(call, (Ret*)ret, original_func);
             }
-            dcFree(call);
         }
         
         template <typename Ret, typename Cls, typename... Args>
-        void class_method<Ret, Cls, Args...>::call(void* ret, void** args) {
-            DCCallVM* call = dcNewCallVM(4096);
+        void class_method<Ret, Cls, Args...>::call(DCCallVM* call, void* ret, void** args) {
             dcMode(call, DC_CALL_C_DEFAULT);
             dcReset(call);
 
@@ -595,12 +592,10 @@ namespace gjs {
             } else {
                 do_call<Ret>(call, (Ret*)ret, original_func);
             }
-            dcFree(call);
         }
 
         template <typename Ret, typename Cls, typename... Args>
-        void const_class_method<Ret, Cls, Args...>::call(void* ret, void** args) {
-            DCCallVM* call = dcNewCallVM(4096);
+        void const_class_method<Ret, Cls, Args...>::call(DCCallVM* call, void* ret, void** args) {
             dcMode(call, DC_CALL_C_DEFAULT);
             dcReset(call);
 
@@ -625,7 +620,6 @@ namespace gjs {
             } else {
                 do_call<Ret>(call, (Ret*)ret, original_func);
             }
-            dcFree(call);
         }
     };
 };

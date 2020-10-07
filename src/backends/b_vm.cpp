@@ -993,7 +993,7 @@ namespace gjs {
 
     void vm_backend::call(script_function* func, void* ret, void** args) {
         if (func->is_host) {
-            func->access.wrapped->call(ret, args);
+            func->access.wrapped->call(m_ctx->call_vm(), ret, args);
             return;
         }
 

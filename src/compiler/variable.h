@@ -44,7 +44,7 @@ namespace gjs {
 
                 // used by code generation phase when generating load instructions
                 // for 'spilled' variables
-                inline bool is_spilled() const { return m_stack_loc != u32(-1); }
+                inline bool is_spilled() const { return m_stack_loc != u64(-1); }
                 inline u64 stack_off() const { return m_stack_loc; }
 
                 u64 size() const;

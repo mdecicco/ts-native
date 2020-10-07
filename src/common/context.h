@@ -6,6 +6,8 @@
 
 #include <util/robin_hood.h>
 #include <string>
+#include <dyncall.h>
+
 
 namespace gjs {
     class type_manager;
@@ -51,6 +53,7 @@ namespace gjs {
             inline type_manager* types() { return m_types; }
             inline pipeline* compiler() { return &m_pipeline; }
             inline backend* generator() { return m_backend; }
+            inline DCCallVM* call_vm() { return m_host_call_vm; }
 
             bool add_code(const std::string& filename, const std::string& code);
 
@@ -69,6 +72,7 @@ namespace gjs {
             type_manager* m_types;
             pipeline m_pipeline;
             backend* m_backend;
+            DCCallVM* m_host_call_vm;
     };
 
     template <typename Ret, typename...Args>

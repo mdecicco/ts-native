@@ -10,14 +10,17 @@
 
 namespace gjs {
     script_context::script_context(backend* generator) : 
-         m_types(new type_manager(this)), m_pipeline(this), m_backend(generator)
+         m_types(new type_manager(this)), m_pipeline(this), m_backend(generator),
+         m_host_call_vm(nullptr)
     {
+        m_host_call_vm = dcNewCallVM(4096);
         m_backend->m_ctx = this;
 
         init_context(this);
     }
 
     script_context::~script_context() {
+        dcFree(m_host_call_vm);
     }
 
     void script_context::add(script_function* func) {
