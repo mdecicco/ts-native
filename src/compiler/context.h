@@ -15,16 +15,16 @@ namespace gjs {
     namespace compile {
         struct context {
             struct block_context {
-                script_function* func;
+                script_function* func = nullptr;
                 std::vector<var> named_vars;
                 std::vector<var> stack_objs;
-                u32 start;
-                u32 end;
+                u32 start = 0;
+                u32 end = 0;
             };
 
             struct deferred_node {
-                parse::ast* node;
-                script_type* subtype_replacement;
+                parse::ast* node = 0;
+                script_type* subtype_replacement = 0;
             };
 
             script_context* env;

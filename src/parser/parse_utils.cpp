@@ -184,7 +184,7 @@ namespace gjs {
         char c = m_input[m_idx];
         if (isalpha(c)) is_alnum = true;
         else if (c >= 48 && c <= 57) is_num = true;
-        else if (c == '-' && m_input[m_idx + 1] >= 48 && m_input[m_idx + 1] <= 57) {
+        else if (c == '-' && m_input[m_idx + 1ull] >= 48 && m_input[m_idx + 1ull] <= 57) {
             out.text += m_input[m_idx++];
             is_num = true;
         }
@@ -252,15 +252,15 @@ namespace gjs {
 
         token out = { m_line, m_col, "", file };
 
-        size_t offset = 0;
+        u64 offset = 0;
 
         if (kw.length() == 0) {
-            size_t max_len = 0;
+            u64 max_len = 0;
             for (u32 i = 0;i < m_keywords.size();i++) {
                 if (m_keywords[i].length() > max_len) max_len = m_keywords[i].length();
             }
             token longest_kw;
-            size_t kw_offset = 0;
+            u64 kw_offset = 0;
             while((offset + m_idx) < m_input.size() && out.text.length() < max_len) {
                 char c = m_input[m_idx + offset];
                 offset++;
@@ -283,7 +283,7 @@ namespace gjs {
             } else if (!longest_kw) return token();
 
             m_idx += kw_offset;
-            m_col += kw_offset;
+            m_col += (u32)kw_offset;
             return longest_kw;
         }
 
@@ -361,7 +361,7 @@ namespace gjs {
         }
 
         m_idx += offset;
-        m_col += offset;
+        m_col += (u32)offset;
 
         return out;
     }
@@ -429,7 +429,7 @@ namespace gjs {
             } else if (!longest_kw) return token();
 
             m_idx += kw_offset;
-            m_col += kw_offset;
+            m_col += (u32)kw_offset;
             return longest_kw;
         }
 
@@ -507,7 +507,7 @@ namespace gjs {
         }
 
         m_idx += offset;
-        m_col += offset;
+        m_col += (u32)offset;
 
         return out;
     }
@@ -588,7 +588,7 @@ namespace gjs {
         }
 
         m_idx += offset;
-        m_col += offset;
+        m_col += (u32)offset;
 
         return out;
     }
@@ -837,15 +837,15 @@ namespace gjs {
         }
 
         m_idx += offset;
-        m_col += offset;
+        m_col += (u32)offset;
 
         return out;
     }
     
     tokenizer::token tokenizer::line_comment() {
         whitespace();
-        if (m_idx + 1 >= m_input.size()) return token();
-        if (m_input[m_idx] != '/' && m_input[m_idx + 1] != '/') return token();
+        if (m_idx + 1ull >= m_input.size()) return token();
+        if (m_input[m_idx] != '/' && m_input[m_idx + 1ull] != '/') return token();
         token out = { m_line, m_col, "", file };
         while (!at_end(false)) {
             if (m_input[m_idx] == '\n' || m_input[m_idx] == '\r') break;
@@ -858,14 +858,14 @@ namespace gjs {
 
     tokenizer::token tokenizer::block_comment() {
         whitespace();
-        if (m_idx + 1 >= m_input.size()) return token();
-        if (m_input[m_idx] != '/' && m_input[m_idx + 1] != '*') return token();
+        if (m_idx + 1ull >= m_input.size()) return token();
+        if (m_input[m_idx] != '/' && m_input[m_idx + 1ull] != '*') return token();
         token out = { m_line, m_col, "", file };
         bool lastWasNewLine = false;
         while (!at_end(false)) {
-            if (m_idx + 1 >= m_input.size()) break;
+            if (m_idx + 1ull >= m_input.size()) break;
 
-            if (m_input[m_idx] == '*' && m_input[m_idx + 1] == '/') {
+            if (m_input[m_idx] == '*' && m_input[m_idx + 1ull] == '/') {
                 out.text += "*/";
                 m_idx += 2;
                 break;

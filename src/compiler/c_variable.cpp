@@ -564,7 +564,7 @@ namespace gjs {
                 for (u16 i = 0;i < cblock->stack_objs.size();i++) {
                     if (cblock->stack_objs[i].m_stack_id == m_stack_id) {
                         cblock->stack_objs.insert(cblock->stack_objs.begin() + i, *this);
-                        cblock->stack_objs.erase(cblock->stack_objs.begin() + (i + 1));
+                        cblock->stack_objs.erase(cblock->stack_objs.begin() + (u64(i) + u64(1)));
                         found = true;
                         break;
                     }
@@ -957,10 +957,15 @@ namespace gjs {
                 m_ctx->add(operation::eq).operand(*this).operand(real_value);
             } else {
                 // todo: operator =, remove 'adopt_stack_flag'
-                var v = rhs.convert(m_type);
-                m_ctx->add(operation::eq).operand(*this).operand(v);
-                if (m_mem_ptr.valid) {
-                    m_ctx->add(operation::store).operand(var(m_ctx, m_mem_ptr.reg, m_ctx->type("data"))).operand(*this);
+                if (m_type->is_primitive) {
+                    var v = rhs.convert(m_type);
+                    m_ctx->add(operation::eq).operand(*this).operand(v);
+                    if (m_mem_ptr.valid) {
+                        m_ctx->add(operation::store).operand(var(m_ctx, m_mem_ptr.reg, m_ctx->type("data"))).operand(*this);
+                    }
+                } else {
+                    script_function* assign = method("operator =", m_type, { rhs.m_type, rhs.m_type });
+                    if (assign) call(*m_ctx, assign, { *this, rhs });
                 }
             }
 

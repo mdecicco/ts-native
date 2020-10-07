@@ -23,11 +23,11 @@ namespace gjs {
             }
         }
         if (!found_file) {
-            e.file = files.size();
+            e.file = (u16)files.size();
             files.push_back(file);
         }
         if (!found_line) {
-            e.lineTextIdx = lines.size();
+            e.lineTextIdx = (u32)lines.size();
             lines.push_back(lineText);
         }
 

@@ -4,6 +4,7 @@
 #include <parser/ast.h>
 #include <common/context.h>
 #include <common/script_type.h>
+#include <common/script_function.h>
 #include <common/errors.h>
 
 namespace gjs {
@@ -112,9 +113,15 @@ namespace gjs {
             ctx.pop_node();
 
             if (n->initializer) {
-                var val = expression(ctx, n->initializer->body);
-                v.operator_eq(val);
-                v.adopt_stack_flag(val); // remove this, implement assignment operator use within operator_eq
+                if (!tp->is_primitive) {
+                    ctx.push_node(n->data_type);
+                    v.raise_stack_flag();
+                    construct_on_stack(ctx, v, { expression(ctx, n->initializer->body) });
+                    ctx.pop_node();
+                } else {
+                    var val = expression(ctx, n->initializer->body);
+                    v.operator_eq(val);
+                }
             } else {
                 if (!tp->is_primitive) {
                     ctx.push_node(n->data_type);

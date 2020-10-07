@@ -67,7 +67,7 @@ namespace gjs {
         script_type* t = it->getSecond();
         t->m_wrapped = wrapped;
         t->requires_subtype = wrapped->requires_subtype;
-        t->size = wrapped->size;
+        t->size = (u32)wrapped->size;
         t->destructor = wrapped->dtor ? new script_function(this, t, wrapped->dtor, false, true) : nullptr;
 
         for (auto i = wrapped->properties.begin();i != wrapped->properties.end();++i) {
@@ -103,6 +103,7 @@ namespace gjs {
 
 
     script_type::script_type() {
+        m_id = 0;
         destructor = nullptr;
         size = 0;
         is_primitive = false;

@@ -69,13 +69,13 @@ namespace gjs {
         u64 stack_padding_end = stack_padding_start + STACK_PADDING_SIZE;
 
         instruction i;
-        integer* ip = &GRi(vmr::ip);
-        u32 cs = code.size();
+        u64* ip = &GRx(vmr::ip, u64);
+        u64 cs = code.size();
         bool term = false;
         while ((*ip) <= cs && !term) {
             i = code[*ip];
             if (m_ctx->log_instructions()) {
-                printf("0x%2.2x: %s\n", *ip, i.to_string(m_ctx).c_str());
+                printf("0x%2.2llx: %s\n", *ip, i.to_string(m_ctx).c_str());
             }
 
             vmi instr = i.instr();
@@ -171,7 +171,7 @@ namespace gjs {
                 }
                 // store address of module data in register         mptr    (dest)               0xf    dest = modules[$v3] + 0xf    ($v3 must be module id)
                 case vmi::mptr: {
-                    script_module* mod = m_ctx->context()->module(GRx(vmr::v3, u64));
+                    script_module* mod = m_ctx->context()->module((u32)GRx(vmr::v3, u64));
                     if (!mod) throw vm_exception(m_ctx, "Invalid module id");
                     GR64(_O1) = (u64)mod->data()->data(_O2ui);
                     break;
@@ -290,7 +290,7 @@ namespace gjs {
                 // convert integer to f32                           cvt_if    (a)                        a = f32(a)
                 case vmi::cvt_if: {
                     i64* r = &GRx(_O1, i64);
-                    f32 v = *r;
+                    f32 v = (f32)*r;
                     *r = 0;
                     (*(f32*)r) = v;
                     break;
@@ -298,7 +298,7 @@ namespace gjs {
                 // convert integer to f64                           cvt_id    (a)                        a = f64(a)
                 case vmi::cvt_id: {
                     i64* r = &GRx(_O1, i64);
-                    (*(f64*)r) = *r;
+                    (*(f64*)r) = (f64)*r;
                     break;
                 }
                 // convert integer to uinteger                      cvt_iu    (a)                        a = uinteger_tp(a)
@@ -310,7 +310,7 @@ namespace gjs {
                 // convert uinteger to f32                          cvt_if    (a)                        a = f32(a)
                 case vmi::cvt_uf: {
                     u64* r = &GRx(_O1, u64);
-                    f32 v = *r;
+                    f32 v = (f32)*r;
                     *r = 0;
                     (*(f32*)r) = v;
                     break;
@@ -318,7 +318,7 @@ namespace gjs {
                 // convert uinteger to f64                          cvt_id    (a)                        a = f64(a)
                 case vmi::cvt_ud: {
                     u64* r = &GRx(_O1, u64);
-                    (*(f64*)r) = *r;
+                    (*(f64*)r) = (f64)*r;
                     break;
                 }
                 // convert uinteger to integer                      cvt_iu    (a)                        a = integer_tp(a)
@@ -330,13 +330,13 @@ namespace gjs {
                 // convert f32 to integer                           cvt_fi     (a)                        a = integer_tp(a)
                 case vmi::cvt_fi: {
                     f32* r = &GRx(_O1, f32);
-                    (*(i64*)r) = *r;
+                    (*(i64*)r) = (i64)*r;
                     break;
                 }
                 // convert f32 to uinteger                          cvt_fi     (a)                        a = uinteger_tp(a)
                 case vmi::cvt_fu: {
                     f32* r = &GRx(_O1, f32);
-                    (*(u64*)r) = *r;
+                    (*(u64*)r) = (u64)*r;
                     break;
                 }
                 // convert f32 to f64                               cvt_fd     (a)                        a = f64(a)
@@ -348,19 +348,19 @@ namespace gjs {
                 // convert f64 to integer                           cvt_di     (a)                        a = integer_tp(a)
                 case vmi::cvt_di: {
                     f64* r = &GRx(_O1, f64);
-                    (*(i64*)r) = *r;
+                    (*(i64*)r) = (i64)*r;
                     break;
                 }
                 // convert f64 to uinteger                          cvt_di     (a)                        a = uinteger_tp(a)
                 case vmi::cvt_du: {
                     f64* r = &GRx(_O1, f64);
-                    (*(u64*)r) = *r;
+                    (*(u64*)r) = (u64)*r;
                     break;
                 }
                 // convert f64 to f32                               cvt_df     (a)                        a = f32(a)
                 case vmi::cvt_df: {
                     f64* r = &GRx(_O1, f64);
-                    f32 v = *r;
+                    f32 v = (f32)*r;
                     (*(u64*)r) = 0;
                     (*(f32*)r) = v;
                     break;

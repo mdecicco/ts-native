@@ -82,7 +82,7 @@ namespace gjs {
         }
 
         var& context::get_var(const std::string& name) {
-            for (u8 i = block_stack.size() - 1;i > 0;i--) {
+            for (u8 i = (u8)block_stack.size() - 1;i > 0;i--) {
                 for (u16 v = 0;v < block_stack[i]->named_vars.size();v++) {
                     if (block_stack[i]->named_vars[v].name() == name) return block_stack[i]->named_vars[v];
                 }
@@ -200,7 +200,7 @@ namespace gjs {
                 if (all[f]->name == name) return true;
             }
 
-            for (u8 i = block_stack.size() - 1;i > 0;i--) {
+            for (u8 i = (u8)block_stack.size() - 1;i > 0;i--) {
                 for (u16 v = 0;v < block_stack[i]->named_vars.size();v++) {
                     if (block_stack[i]->named_vars[v].name() == name) return true;
                 }
@@ -304,7 +304,7 @@ namespace gjs {
         }
 
         script_type* context::class_tp() {
-            for (u32 i = node_stack.size() - 1;i > 0;i--) {
+            for (u32 i = (u32)node_stack.size() - 1;i > 0;i--) {
                 if (node_stack[i]->type == parse::ast::node_type::class_declaration) {
                     if (node_stack[i]->is_subtype) return type(std::string(*node_stack[i]->identifier) + "<" + subtype_replacement->name + ">");
                     return type(node_stack[i]->identifier);
@@ -314,7 +314,7 @@ namespace gjs {
         }
 
         script_function* context::current_function() {
-            for (u32 i = node_stack.size() - 1;i > 0;i--) {
+            for (u32 i = (u32)node_stack.size() - 1;i > 0;i--) {
                 if (node_stack[i]->type == parse::ast::node_type::function_declaration) {
                     script_type* ret = type(node_stack[i]->data_type);
                     std::vector<script_type*> args;

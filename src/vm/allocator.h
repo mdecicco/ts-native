@@ -7,8 +7,8 @@ namespace gjs {
             vm_allocator() { }
             ~vm_allocator() { }
 
-            virtual void* allocate(u32 size) = 0;
-            virtual void* reallocate(void* ptr, u32 size) = 0;
+            virtual void* allocate(u64 size) = 0;
+            virtual void* reallocate(void* ptr, u64 size) = 0;
             virtual void deallocate(void* ptr) = 0;
     };
 
@@ -17,8 +17,8 @@ namespace gjs {
             basic_malloc_allocator() { }
             ~basic_malloc_allocator() { }
 
-            virtual void* allocate(u32 size);
-            virtual void* reallocate(void* ptr, u32 size);
+            virtual void* allocate(u64 size);
+            virtual void* reallocate(void* ptr, u64 size);
             virtual void deallocate(void* ptr);
     };
 };

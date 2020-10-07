@@ -200,7 +200,7 @@ namespace gjs {
                         }
                         case ct::string: {
                             u64 off = ctx.out.mod->data()->position();
-                            u32 len = strlen(n->value.s);
+                            u64 len = strlen(n->value.s);
                             ctx.out.mod->data()->write(n->value.s, len);
 
                             var d = ctx.empty_var(ctx.type("data"));

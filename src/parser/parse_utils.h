@@ -63,12 +63,12 @@ namespace gjs {
             std::vector<std::string> m_operators;
             std::string m_input;
             struct stored_state {
-                u32 idx;
+                u64 idx;
                 u32 line;
                 u32 col;
             };
             std::stack<stored_state> m_storedState;
-            u32 m_idx;
+            u64 m_idx;
             u32 m_line;
             u32 m_col;
     };

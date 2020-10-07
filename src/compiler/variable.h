@@ -45,7 +45,7 @@ namespace gjs {
                 // used by code generation phase when generating load instructions
                 // for 'spilled' variables
                 inline bool is_spilled() const { return m_stack_loc != u32(-1); }
-                inline u32 stack_off() const { return m_stack_loc; }
+                inline u64 stack_off() const { return m_stack_loc; }
 
                 u64 size() const;
                 bool has_prop(const std::string& name) const;
@@ -129,7 +129,7 @@ namespace gjs {
                 u32 m_reg_id;
                 
                 // Used in the register allocation phase when no registers are available
-                u32 m_stack_loc;
+                u64 m_stack_loc;
 
                 // If the object was allocated in the stack, this will be set to some unique
                 // value. If it's non-zero, this var represents a pointer to a stack object.
@@ -143,7 +143,7 @@ namespace gjs {
                 // this is set when this var is a reference to an object property that has a setter
                 struct {
                     std::shared_ptr<var> this_obj; // dynamically allocated copy of the original var
-                    script_function* func;
+                    script_function* func = nullptr;
                 } m_setter;
 
                 union {

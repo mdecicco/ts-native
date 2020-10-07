@@ -22,7 +22,7 @@ namespace gjs {
     }
 
     const script_module::local_var& script_module::local(const std::string& name) const {
-        static script_module::local_var invalid = { -1, nullptr, "" };
+        static script_module::local_var invalid = { u64(-1), nullptr, "" };
         auto it = m_local_map.find(name);
         if (it == m_local_map.end()) return invalid;
         return m_locals[it->getSecond()];

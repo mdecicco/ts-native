@@ -617,7 +617,7 @@ namespace gjs {
                 node->type = nt::constant;
                 if (tok.text[tok.text.length() - 1] == 'f') {
                     node->c_type = ast::constant_type::f32;
-                    node->value.f_32 = atof(tok.text.c_str());
+                    node->value.f_32 = (f32)atof(tok.text.c_str());
                 } else {
                     node->c_type = ast::constant_type::f64;
                     node->value.f_64 = atof(tok.text.c_str());

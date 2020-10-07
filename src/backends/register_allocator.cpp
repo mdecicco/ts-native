@@ -13,7 +13,7 @@ namespace gjs {
 
 
 
-    register_allocator::register_allocator(compilation_output& in) : m_in(in) {
+    register_allocator::register_allocator(compilation_output& in) : m_in(in), m_fpc(0), m_gpc(0) {
     }
 
     register_allocator::~register_allocator() {
@@ -28,8 +28,8 @@ namespace gjs {
 
         calc_reg_lifetimes(fidx, fd.begin, fd.end);
 
-        printf("post-alloc[%s]:\n", fd.func->name.c_str());
-        for (u64 i = fd.begin;i <= fd.end;i++) printf("%3.3d: %s\n", i, m_in.code[i].to_string().c_str());
+        // printf("post-alloc[%s]:\n", fd.func->name.c_str());
+        // for (u64 i = fd.begin;i <= fd.end;i++) printf("%3.3d: %s\n", i, m_in.code[i].to_string().c_str());
     }
 
     std::vector<register_allocator::reg_lifetime> register_allocator::get_live(u64 at) {
@@ -48,7 +48,6 @@ namespace gjs {
     void register_allocator::calc_reg_lifetimes(u16 fidx, u64 from, u64 to) {
         m_gpLf.clear();
         m_fpLf.clear();
-        m_nextStackIdx = 0;
 
         for (u64 i = from;i <= to;i++) {
             // If a backwards jump goes into a live range,
@@ -90,7 +89,7 @@ namespace gjs {
 
             if (!needs_reassignment) continue;
 
-            reg_lifetime l = { m_in.code[i].operands[0].m_reg_id, -1, -1, i, i, m_in.code[i].operands[0].type()->is_floating_point };
+            reg_lifetime l = { m_in.code[i].operands[0].m_reg_id, u32(-1), u32(-1), i, i, m_in.code[i].operands[0].type()->is_floating_point };
             for (u64 i1 = i + 1;i1 <= to;i1++) {
                 u8 o = 0;
                 for (;o < 3;o++) {
@@ -161,7 +160,7 @@ namespace gjs {
         std::vector<change> changes;
 
         for (u32 i = 0;i < regs.size();i++) {
-            for (u32 c = regs[i].begin;c <= regs[i].end;c++) {
+            for (u64 c = regs[i].begin;c <= regs[i].end;c++) {
                 for (u8 o = 0;o < 3;o++) {
                     if (m_in.code[c].operands[o].m_reg_id == regs[i].reg_id) {
                         changes.push_back({ c, o, i });

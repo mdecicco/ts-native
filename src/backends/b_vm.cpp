@@ -74,8 +74,9 @@ namespace gjs {
                         // jumps to VM code
                         m_instructions[c].m_imm = tac_map[addr];
                     }
+                    break;
                 }
-                default: continue;
+                default: break;
             }
         }
     }
@@ -94,7 +95,7 @@ namespace gjs {
         bool nonHostCallSinceLastv3Set = false;
 
         u64 out_begin = m_instructions.size();
-        for (u32 c = in.funcs[fidx].begin;c <= in.funcs[fidx].end;c++) {
+        for (u64 c = in.funcs[fidx].begin;c <= in.funcs[fidx].end;c++) {
             tac_map[c] = m_instructions.size();
             const compile::tac_instruction& i = in.code[c];
             const var& o1 = i.operands[0];
@@ -140,6 +141,7 @@ namespace gjs {
                         default: {
                             // invalid size
                             // exception
+                            break;
                         }
                     }
                     m_instructions += encode(st).operand(r1).operand(vmr::sp).operand((u64)o1.stack_off());
@@ -162,6 +164,7 @@ namespace gjs {
                             default: {
                                 // invalid size
                                 // exception
+                                break;
                             }
                         }
                         m_instructions += encode(ld).operand(r1).operand(vmr::sp).operand((u64)o1.stack_off());
@@ -190,6 +193,7 @@ namespace gjs {
                         default: {
                             // invalid size
                             // exception
+                            break;
                         }
                     }
                     m_instructions += encode(ld).operand(r2).operand(vmr::sp).operand((u64)o2.stack_off());
@@ -217,6 +221,7 @@ namespace gjs {
                         default: {
                             // invalid size
                             // exception
+                            break;
                         }
                     }
                     m_instructions += encode(ld).operand(r3).operand(vmr::sp).operand((u64)o3.stack_off());
@@ -249,6 +254,7 @@ namespace gjs {
                         default: {
                             // invalid size
                             // exception
+                            break;
                         }
                     }
                     // load dest_var imm_addr
@@ -275,6 +281,7 @@ namespace gjs {
                         default: {
                             // invalid size
                             // exception
+                            break;
                         }
                     }
 
@@ -604,6 +611,7 @@ namespace gjs {
                                     default: {
                                         // invalid size
                                         // exception
+                                        break;
                                     }
                                 }
                                 vmr reg = live[l].is_fp ? vmr(u32(vmr::f0) + live[l].reg_id) : vmr(u32(vmr::s0) + live[l].reg_id);
@@ -644,6 +652,7 @@ namespace gjs {
                                     default: {
                                         // invalid size
                                         // exception
+                                        break;
                                     }
                                 }
                                 u64 sl = in.funcs[fidx].stack.alloc(sz);
@@ -676,6 +685,7 @@ namespace gjs {
                             default: {
                                 // invalid size
                                 // exception
+                                break;
                             }
                         }
                         u64 sl = in.funcs[fidx].stack.alloc(sz);
@@ -729,7 +739,7 @@ namespace gjs {
                                 m_map.append(i.src);
                             } else if (params[p].is_spilled()) {
                                 vmi ld = vmi::ld8;
-                                u16 sz = tp->is_primitive ? tp->size : sizeof(void*);
+                                u64 sz = tp->is_primitive ? tp->size : sizeof(void*);
                                 switch (sz) {
                                     case 2: { ld = vmi::ld16; break; }
                                     case 4: { ld = vmi::ld32; break; }
@@ -737,6 +747,7 @@ namespace gjs {
                                     default: {
                                         // invalid size
                                         // exception
+                                        break;
                                     }
                                 }
                                 m_instructions += encode(ld).operand(i.callee->signature.arg_locs[p]).operand(vmr::sp).operand((u64)params[p].stack_off());
@@ -826,6 +837,7 @@ namespace gjs {
                                 default: {
                                     // invalid size
                                     // exception
+                                    break;
                                 }
                             }
                             m_instructions += encode(st).operand(r1).operand(vmr::sp).operand((u64)o1.stack_off());
@@ -850,6 +862,7 @@ namespace gjs {
                             default: {
                                 // invalid size
                                 // exception
+                                break;
                             }
                         }
 
@@ -875,8 +888,8 @@ namespace gjs {
                         break;
                     }
 
-                    script_type* from = m_ctx->types()->get(o2.imm_u());
-                    script_type* to = m_ctx->types()->get(o3.imm_u());
+                    script_type* from = m_ctx->types()->get((u32)o2.imm_u());
+                    script_type* to = m_ctx->types()->get((u32)o3.imm_u());
 
                     vmi ci = vmi::instruction_count;
 
@@ -929,6 +942,7 @@ namespace gjs {
                                 default: {
                                     // invalid size
                                     // exception
+                                    break;
                                 }
                             }
                             m_instructions += encode(st).operand(r1).operand(vmr::sp).operand((u64)o1.stack_off());

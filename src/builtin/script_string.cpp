@@ -8,19 +8,19 @@ namespace gjs {
     }
 
     script_string::script_string(const std::string& str) : m_data(nullptr), m_len(str.length()), m_capacity(m_len) {
-        m_data = (char*)script_allocate(m_capacity + 1);
+        m_data = (char*)script_allocate(m_capacity + u64(1));
         memcpy(m_data, str.c_str(), str.length());
         m_data[m_len] = 0;
     }
 
     script_string::script_string(const script_string& str) : m_data(nullptr), m_len(str.length()), m_capacity(m_len) {
-        m_data = (char*)script_allocate(m_capacity + 1);
+        m_data = (char*)script_allocate(m_capacity + u64(1));
         memcpy(m_data, str.c_str(), str.length());
         m_data[m_len] = 0;
     }
 
-    script_string::script_string(char* str, u32 len) : m_data(nullptr), m_len(len), m_capacity(len) {
-        m_data = (char*)script_allocate(m_capacity + 1);
+    script_string::script_string(char* str, u64 len) : m_data(nullptr), m_len(len), m_capacity(len) {
+        m_data = (char*)script_allocate(m_capacity + u64(1));
         memcpy(m_data, str, len);
         m_data[m_len] = 0;
     }
@@ -30,16 +30,16 @@ namespace gjs {
         m_data = nullptr;
     }
 
-    u32 script_string::length() const {
+    u64 script_string::length() const {
         return m_len;
     }
 
-    char& script_string::operator[](u32 idx) {
+    char& script_string::operator[](u64 idx) {
         return m_data[idx];
     }
 
     script_string& script_string::operator =(const std::string& rhs) {
-        u32 cap = rhs.length() > 32 ? rhs.length() + 32 : 32;
+        u64 cap = rhs.length() > 32 ? rhs.length() + 32 : 32;
         if (rhs.length() > 0 && rhs.length() < m_capacity) {
             memcpy(m_data, rhs.c_str(), rhs.length());
             m_len = rhs.length();
@@ -144,7 +144,7 @@ namespace gjs {
         return s;
     }
 
-    void script_string::resize(u32 cap) {
+    void script_string::resize(u64 cap) {
         m_capacity = cap;
         char* data = (char*)script_allocate(cap);
         if (m_len < m_capacity) memset(data + m_len, 0, m_capacity - m_len);

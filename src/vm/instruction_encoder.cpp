@@ -483,8 +483,8 @@ namespace gjs {
 
         if (check_instr_type_0(i)) return instruction_str[(u8)i];
 
-        auto reg_str = [state, i, ctx](vmr r, i32 offset = 0, bool is_mem = false) {
-            if (!state || !ctx || !ctx->is_executing()) return "$" + std::string(register_str[(integer)r]);
+        auto reg_str = [state, i, ctx](vmr r, i64 offset = 0, bool is_mem = false) {
+            if (!state || !ctx || !ctx->is_executing()) return "$" + std::string(register_str[(u64)r]);
             else {
                 /*
                 vm_memory* mem = nullptr;
@@ -498,9 +498,9 @@ namespace gjs {
 
                 std::string reg_val = ""; // "<" + state->registers[(integer)r].to_string() + ">"
 
-                if (is_fpr(r)) reg_val = format("<%f>", *(f32*)&state->registers[(integer)r]);
-                else reg_val = format("<%lld>", *(i64*)&state->registers[(integer)r]);
-                return "$" + std::string(register_str[(integer)r]) + reg_val;
+                if (is_fpr(r)) reg_val = format("<%f>", *(f32*)&state->registers[(u64)r]);
+                else reg_val = format("<%lld>", *(i64*)&state->registers[(u64)r]);
+                return "$" + std::string(register_str[(u64)r]) + reg_val;
             }
 
             return std::string();
@@ -545,9 +545,9 @@ namespace gjs {
             vmr o2 = op_2r();
             if (o2 >= vmr::register_count) return "Invalid Instruction";
 
-            integer o3 = imm_i();
+            u64 o3 = imm_u();
             char offset[32] = { 0 };
-            _itoa_s<32>(o3, offset, 10);
+            _ui64toa_s(o3, offset, 32, 10);
             out += offset;
             out += '(' + reg_str(o2, o3, true) + ')';
         } else if (check_instr_type_6(i)) {
@@ -564,14 +564,14 @@ namespace gjs {
             out += ", ";
 
             if (imm_is_flt()) {
-                decimal o3 = imm_f();
+                f64 o3 = imm_f();
                 char imm[32] = { 0 };
-                snprintf(imm, 32, "%f", o3);
+                snprintf(imm, 32, "%lf", o3);
                 out += imm;
             } else {
-                integer o3 = imm_i();
+                i64 o3 = imm_i();
                 char imm[32] = { 0 };
-                _itoa_s<32>(o3, imm, 10);
+                _i64toa_s(o3, imm, 32, 10);
                 out += imm;
             }
 

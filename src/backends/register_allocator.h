@@ -27,9 +27,9 @@ namespace gjs {
             struct reg_lifetime {
                 u32 reg_id;
                 u32 new_id;
-                u32 stack_loc;
-                u32 begin;
-                u32 end;
+                u64 stack_loc;
+                u64 begin;
+                u64 end;
                 bool is_fp;
 
                 bool is_concurrent(const reg_lifetime& o) const;
@@ -53,6 +53,5 @@ namespace gjs {
             compilation_output& m_in;
             std::vector<reg_lifetime> m_gpLf;
             std::vector<reg_lifetime> m_fpLf;
-            u16 m_nextStackIdx;
     };
 };

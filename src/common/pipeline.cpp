@@ -8,9 +8,10 @@
 #include <compiler/compile.h>
 #include <lexer/lexer.h>
 #include <parser/parse.h>
+#include <parser/ast.h>
 
 namespace gjs {
-    compilation_output::compilation_output(u16 gpN, u16 fpN) {
+    compilation_output::compilation_output(u16 gpN, u16 fpN) : mod(nullptr) {
     }
 
     void compilation_output::insert(u64 addr, const compile::tac_instruction& i) {

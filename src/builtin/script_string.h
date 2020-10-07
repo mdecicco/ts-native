@@ -8,12 +8,12 @@ namespace gjs {
             script_string();
             script_string(const std::string& str);
             script_string(const script_string& str);
-            script_string(char* str, u32 len);
-            script_string(void* str, u64 len) : script_string((char*)str, (u32)len) { }
+            script_string(char* str, u64 len);
+            script_string(void* str, u64 len) : script_string((char*)str, len) { }
             ~script_string();
 
-            u32 length() const;
-            char& operator[](u32 idx);
+            u64 length() const;
+            char& operator[](u64 idx);
 
             inline const char* c_str() const { return m_data; }
             inline operator std::string() const { return std::string(m_data, m_len); }
@@ -35,10 +35,10 @@ namespace gjs {
             script_string operator +(f64 rhs);
 
         protected:
-            void resize(u32 cap);
+            void resize(u64 cap);
             char* m_data;
-            u32 m_len;
-            u32 m_capacity;
+            u64 m_len;
+            u64 m_capacity;
     };
 };
 
