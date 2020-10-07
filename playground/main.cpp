@@ -179,8 +179,8 @@ int main(int arg_count, const char** args) {
         fclose(fp);
     }
 
-    vm_allocator* alloc = new basic_malloc_allocator();
-    vm_backend gen(alloc, 4096, 4096);
+    basic_malloc_allocator alloc;
+    vm_backend gen(&alloc, 4096, 4096);
     script_context ctx(&gen);
     ctx.compiler()->add_ir_step(debug_ir_step);
 
@@ -208,8 +208,12 @@ int main(int arg_count, const char** args) {
         printf("%s\n", e.text.c_str());
     }
 
-    gen.log_instructions(true);
-    script_module* mod = ctx.add_code("test.gjs", "f32 abc = 4.5f;\nvoid it() { print_f32(0, abc); }\nabc = 1.0f;");
+    //gen.log_instructions(true);
+    script_module* mod = ctx.add_code(
+        "test.gjs",
+        "string world = 'world!';\n"
+        "void func() { print('Hello, ' + world); }\n"
+    );
     if (mod) mod->init();
 
     /*
@@ -223,7 +227,7 @@ int main(int arg_count, const char** args) {
     print_code(gen);
 
     printf("-------------result-------------\n");
-    script_function* func = ctx.function("it");
+    script_function* func = ctx.function("func");
     if (func) ctx.call<void>(func, nullptr);
     return 0;
 }
