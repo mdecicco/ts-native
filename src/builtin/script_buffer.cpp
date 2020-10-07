@@ -77,13 +77,13 @@ namespace gjs {
     }
 
     u64 script_buffer::position(u64 pos) {
-        if (pos >= m_used) throw runtime_exception(ecode::r_buffer_offset_out_of_range, pos, m_used);
+        if (pos >= m_capacity) throw runtime_exception(ecode::r_buffer_offset_out_of_range, pos, m_capacity);
         m_position = pos;
         return m_position;
     }
 
     void* script_buffer::data(u64 offset) {
-        if (offset >= m_used) throw runtime_exception(ecode::r_buffer_offset_out_of_range, offset, m_used);
+        if (offset >= m_capacity) throw runtime_exception(ecode::r_buffer_offset_out_of_range, offset, m_capacity);
         return m_data + offset;
     }
 };

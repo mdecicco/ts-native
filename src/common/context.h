@@ -55,7 +55,7 @@ namespace gjs {
             inline backend* generator() { return m_backend; }
             inline DCCallVM* call_vm() { return m_host_call_vm; }
 
-            bool add_code(const std::string& filename, const std::string& code);
+            script_module* add_code(const std::string& filename, const std::string& code);
 
             /*
             * Call function

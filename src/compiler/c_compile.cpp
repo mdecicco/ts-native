@@ -6,6 +6,9 @@
 #include <common/script_type.h>
 #include <common/script_function.h>
 #include <common/errors.h>
+#include <common/module.h>
+#include <vm/register.h>
+#include <builtin/script_buffer.h>
 
 namespace gjs {
     using exc = error::exception;
@@ -104,30 +107,113 @@ namespace gjs {
             }
         }
 
+        u64 construct_in_module_memory(context& ctx, const var& obj, const std::vector<var>& args) {
+            u64 offset = ctx.out.mod->data()->position();
+            ctx.add(operation::module_data).operand(obj).operand(ctx.imm((u64)ctx.out.mod->id())).operand(ctx.imm(offset));
+
+            std::vector<script_type*> arg_types = { obj.type() }; // this obj
+            script_type* ret_tp = obj.type();
+            if (obj.type()->base_type && obj.type()->is_host) {
+                ret_tp = obj.type()->base_type;
+                arg_types.push_back(ctx.type("data")); // subtype id
+            }
+            ctx.out.mod->data()->position(offset + ret_tp->size);
+
+            std::vector<var> c_args = { obj };
+            if (obj.type()->sub_type && obj.type()->is_host) {
+                // second parameter should be type id. This should
+                // only happen for host calls, script subtype calls
+                // should be compiled as if all occurrences of 'subtype'
+                // are the subtype used by the related instantiation
+                c_args.push_back(ctx.imm((u64)obj.type()->sub_type->id()));
+            }
+
+            if (args.size() > 0) {
+                for (u8 a = 0;a < args.size();a++) {
+                    arg_types.push_back(args[a].type());
+                    c_args.push_back(args[a]);
+                }
+
+                script_function* f = obj.method("constructor", ret_tp, arg_types);
+                if (f) call(ctx, f, c_args);
+            } else {
+                if (obj.has_unambiguous_method("constructor", ret_tp, arg_types)) {
+                    // Default constructor
+                    script_function* f = obj.method("constructor", ret_tp, arg_types);
+                    if (f) call(ctx, f, c_args);
+                } else {
+                    if (obj.has_any_method("constructor")) {
+                        ctx.log()->err(ec::c_no_default_constructor, ctx.node()->ref, obj.type()->name.c_str());
+                    } else {
+                        // No construction necessary
+                    }
+                }
+            }
+
+            return offset;
+        }
+
         void variable_declaration(context& ctx, parse::ast* n) {
             ctx.push_node(n->data_type);
             script_type* tp = ctx.type(n->data_type);
             ctx.pop_node();
             ctx.push_node(n->identifier);
-            var v = ctx.empty_var(tp, *n->identifier);
+            var& v = ctx.empty_var(tp, *n->identifier);
             ctx.pop_node();
 
-            if (n->initializer) {
-                if (!tp->is_primitive) {
-                    ctx.push_node(n->data_type);
-                    v.raise_stack_flag();
-                    construct_on_stack(ctx, v, { expression(ctx, n->initializer->body) });
-                    ctx.pop_node();
+            if (!ctx.compiling_function) {
+                if (n->initializer) {
+                    if (!tp->is_primitive) {
+                        ctx.push_node(n->data_type);
+                        u64 off = construct_in_module_memory(ctx, v, { expression(ctx, n->initializer->body) });
+                        ctx.pop_node();
+                        ctx.out.mod->define_local(*n->identifier, off, tp, n->data_type->ref);
+                    } else {
+                        u64 off = ctx.out.mod->data()->position();
+                        ctx.out.mod->define_local(*n->identifier, off, tp, n->data_type->ref);
+                        ctx.out.mod->data()->position(off + tp->size);
+
+                        var ptr = ctx.empty_var(ctx.type("data"));
+                        ctx.add(operation::module_data).operand(ptr).operand(ctx.imm((u64)ctx.out.mod->id())).operand(ctx.imm(off));
+                        v.set_mem_ptr(ptr);
+
+                        var val = expression(ctx, n->initializer->body);
+                        v.operator_eq(val);
+                    }
                 } else {
-                    var val = expression(ctx, n->initializer->body);
-                    v.operator_eq(val);
+                    if (!tp->is_primitive) {
+                        ctx.push_node(n->data_type);
+                        u64 off = construct_in_module_memory(ctx, v, {});
+                        ctx.pop_node();
+                        ctx.out.mod->define_local(*n->identifier, off, tp, n->data_type->ref);
+                    } else {
+                        u64 off = ctx.out.mod->data()->position();
+                        ctx.out.mod->define_local(*n->identifier, off, tp, n->data_type->ref);
+                        ctx.out.mod->data()->position(off + tp->size);
+
+                        var ptr = ctx.empty_var(ctx.type("data"));
+                        ctx.add(operation::module_data).operand(ptr).operand(ctx.imm((u64)ctx.out.mod->id())).operand(ctx.imm(off));
+                        v.set_mem_ptr(ptr);
+                    }
                 }
             } else {
-                if (!tp->is_primitive) {
-                    ctx.push_node(n->data_type);
-                    v.raise_stack_flag();
-                    construct_on_stack(ctx, v, {});
-                    ctx.pop_node();
+                if (n->initializer) {
+                    if (!tp->is_primitive) {
+                        ctx.push_node(n->data_type);
+                        v.raise_stack_flag();
+                        construct_on_stack(ctx, v, { expression(ctx, n->initializer->body) });
+                        ctx.pop_node();
+                    } else {
+                        var val = expression(ctx, n->initializer->body);
+                        v.operator_eq(val);
+                    }
+                } else {
+                    if (!tp->is_primitive) {
+                        ctx.push_node(n->data_type);
+                        v.raise_stack_flag();
+                        construct_on_stack(ctx, v, {});
+                        ctx.pop_node();
+                    }
                 }
             }
 
@@ -336,6 +422,13 @@ namespace gjs {
             ctx.new_types = new type_manager(env);
             ctx.push_node(input->body);
 
+            // return type will be determined by the first global return statement, or it will be void
+            script_function* init = new script_function(ctx.env, "__init__", 0);
+            init->signature.return_loc = vm_register::v0;
+            ctx.new_functions.push_back(init);
+            ctx.out.funcs.push_back({ init, gjs::func_stack(), 0, 0, register_allocator(out) });
+            ctx.push_block();
+
             ast* n = input->body;
             try {
                 while (n) {
@@ -351,13 +444,22 @@ namespace gjs {
             } catch (const error::exception &e) {
                 delete ctx.new_types;
                 for (u32 i = 0;i < ctx.new_functions.size();i++) delete ctx.new_functions[i];
+                delete init;
+                ctx.out.funcs.clear();
                 throw e;
             } catch (const std::exception &e) {
                 delete ctx.new_types;
                 for (u32 i = 0;i < ctx.new_functions.size();i++) delete ctx.new_functions[i];
+                delete init;
+                ctx.out.funcs.clear();
                 throw e;
             }
 
+            ctx.out.funcs[0].end = ctx.code_sz();
+            if (!init->signature.return_type) init->signature.return_type = ctx.type("void");
+            ctx.add(operation::term);
+
+            ctx.pop_block();
             ctx.pop_node();
 
             if (ctx.log()->errors.size() > 0) {
@@ -366,6 +468,9 @@ namespace gjs {
                 for (u32 i = 0;i < ctx.new_functions.size();i++) {
                     delete ctx.new_functions[i];
                 }
+
+                delete init;
+                ctx.out.funcs.clear();
 
                 throw exc(ec::c_compile_finished_with_errors, input->ref);
             }

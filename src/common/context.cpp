@@ -107,7 +107,7 @@ namespace gjs {
         return m_types->all();
     }
 
-    bool script_context::add_code(const std::string& filename, const std::string& code) {
+    script_module* script_context::add_code(const std::string& filename, const std::string& code) {
         try {
             return m_pipeline.compile(filename, code, m_backend);
         } catch (error::exception& e) {

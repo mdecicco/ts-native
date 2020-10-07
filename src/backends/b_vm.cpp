@@ -55,7 +55,9 @@ namespace gjs {
 
         for (u16 f = 0;f < in.funcs.size();f++) {
             gen_function(in, tac_map, f);
-            m_ctx->add(in.funcs[f].func);
+            if (f > 0) { // Don't add __init__ to the context
+                m_ctx->add(in.funcs[f].func);
+            }
         }
 
         // update jump, branch, jal addresses
@@ -96,6 +98,13 @@ namespace gjs {
 
         u64 out_begin = m_instructions.size();
         for (u64 c = in.funcs[fidx].begin;c <= in.funcs[fidx].end;c++) {
+            if (fidx == 0) {
+                // ignore all code within functions other than __init__
+                bool ignore = false;
+                for (u16 f = 1;f < in.funcs.size() && !ignore;f++) ignore = c >= in.funcs[f].begin && c <= in.funcs[f].end;
+                if (ignore) continue;
+            }
+
             tac_map[c] = m_instructions.size();
             const compile::tac_instruction& i = in.code[c];
             const var& o1 = i.operands[0];
@@ -240,6 +249,11 @@ namespace gjs {
             switch(i.op) {
                 case op::null: {
                     m_instructions += encode(vmi::null);
+                    m_map.append(i.src);
+                    break;
+                }
+                case op::term: {
+                    m_instructions += encode(vmi::term);
                     m_map.append(i.src);
                     break;
                 }

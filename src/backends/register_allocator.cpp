@@ -20,6 +20,16 @@ namespace gjs {
     }
     
     void register_allocator::process(u16 fidx) {
+        if (fidx == u16(-1)) {
+            calc_reg_lifetimes(fidx, 0, m_in.code.size() - 1);
+
+            reassign_registers(m_gpLf, m_gpc, 0, m_in.code.size() - 1, fidx);
+            reassign_registers(m_fpLf, m_fpc, 0, m_in.code.size() - 1, fidx);
+
+            calc_reg_lifetimes(fidx, 0, m_in.code.size() - 1);
+            return;
+        }
+
         compilation_output::func_def& fd = m_in.funcs[fidx];
         calc_reg_lifetimes(fidx, fd.begin, fd.end);
 
@@ -50,6 +60,13 @@ namespace gjs {
         m_fpLf.clear();
 
         for (u64 i = from;i <= to;i++) {
+            if (fidx == 0) {
+                // ignore all code within functions other than __init__
+                bool ignore = false;
+                for (u16 f = 1;f < m_in.funcs.size() && !ignore;f++) ignore = i >= m_in.funcs[f].begin && i <= m_in.funcs[f].end;
+                if (ignore) continue;
+            }
+
             // If a backwards jump goes into a live range,
             // then that live range must be extended to fit
             // the jump (if it doesn't already)
@@ -112,6 +129,8 @@ namespace gjs {
             return a.begin < b.begin;
         });
 
+        func_stack& stack = m_in.funcs[fidx].stack;
+
         std::vector<u32> free_regs;
         for (u32 r = 0;r < k;r++) free_regs.insert(free_regs.begin(), r);
         std::vector<reg_lifetime*> active;
@@ -135,7 +154,7 @@ namespace gjs {
                 if (spill->end > regs[l].end) {
                     regs[l].new_id = spill->new_id;
                     script_type* tp = m_in.code[spill->begin].operands[0].type();
-                    spill->stack_loc = m_in.funcs[fidx].stack.alloc(tp->is_primitive ? tp->size : sizeof(void*));
+                    spill->stack_loc = stack.alloc(tp->is_primitive ? tp->size : sizeof(void*));
                     active.pop_back();
                     active.push_back(&regs[l]);
                     std::sort(active.begin(), active.end(), [](reg_lifetime* a, reg_lifetime* b) {
@@ -144,7 +163,7 @@ namespace gjs {
                 }
                 else {
                     script_type* tp = m_in.code[regs[l].begin].operands[0].type();
-                    regs[l].stack_loc = m_in.funcs[fidx].stack.alloc(tp->is_primitive ? tp->size : sizeof(void*));
+                    regs[l].stack_loc = stack.alloc(tp->is_primitive ? tp->size : sizeof(void*));
                 }
             } else {
                 regs[l].new_id = free_regs.back();
@@ -161,6 +180,13 @@ namespace gjs {
 
         for (u32 i = 0;i < regs.size();i++) {
             for (u64 c = regs[i].begin;c <= regs[i].end;c++) {
+                if (fidx == 0) {
+                    // ignore all code within functions other than __init__
+                    bool ignore = false;
+                    for (u16 f = 1;f < m_in.funcs.size() && !ignore;f++) ignore = c >= m_in.funcs[f].begin && c <= m_in.funcs[f].end;
+                    if (ignore) continue;
+                }
+
                 for (u8 o = 0;o < 3;o++) {
                     if (m_in.code[c].operands[o].m_reg_id == regs[i].reg_id) {
                         changes.push_back({ c, o, i });

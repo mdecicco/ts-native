@@ -1,5 +1,6 @@
 #pragma once
 #include <common/types.h>
+#include <common/source_ref.h>
 #include <util/robin_hood.h>
 #include <string>
 #include <vector>
@@ -16,9 +17,13 @@ namespace gjs {
                 u64 offset;
                 script_type* type;
                 std::string name;
+                source_ref ref;
             };
             ~script_module();
 
+            void init();
+
+            void define_local(const std::string& name, u64 offset, script_type* type, const source_ref& ref);
             bool has_local(const std::string& name) const;
             const local_var& local(const std::string& name) const;
 
@@ -44,6 +49,7 @@ namespace gjs {
 
             std::string m_name;
             u32 m_id;
+            script_function* m_init;
             std::vector<script_function*> m_functions;
             std::vector<script_type*> m_types;
             std::vector<local_var> m_locals;

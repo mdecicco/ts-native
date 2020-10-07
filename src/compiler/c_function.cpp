@@ -108,7 +108,7 @@ namespace gjs {
                     arg.set_arg_idx(i);
                 }
             }
-            
+
             f->access.entry = ctx.code_sz();
 
             block(ctx, n->body);

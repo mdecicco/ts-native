@@ -7,6 +7,8 @@
 #include <common/errors.h>
 #include <common/warnings.h>
 #include <compiler/compile.h>
+#include <builtin/script_buffer.h>
+#include <common/module.h>
 
 namespace gjs {
     using exc = error::exception;
@@ -20,7 +22,7 @@ namespace gjs {
             input = nullptr;
             new_types = nullptr;
             subtype_replacement = nullptr;
-            push_block();
+            compiling_function = false;
         }
 
         var context::imm(u64 u) {
@@ -82,14 +84,33 @@ namespace gjs {
         }
 
         var& context::get_var(const std::string& name) {
-            for (u8 i = (u8)block_stack.size() - 1;i > 0;i--) {
-                for (u16 v = 0;v < block_stack[i]->named_vars.size();v++) {
-                    if (block_stack[i]->named_vars[v].name() == name) return block_stack[i]->named_vars[v];
+            for (auto i = block_stack.rbegin();i != block_stack.rend();i++) {
+                for (u16 v = 0;v < (*i)->named_vars.size();v++) {
+                    if ((*i)->named_vars[v].name() == name) return (*i)->named_vars[v];
                 }
 
                 // don't check beyond the most recent function block
                 // (function compilation can be nested, if a subtype class has to be compiled and that subtype has methods)
-                if (block_stack[i]->func) break;
+                if ((*i)->func) break;
+            }
+
+            if (out.mod->has_local(name)) {
+                auto global = out.mod->local(name);
+                var v = empty_var(global.type, name);
+                v.m_instantiation = global.ref;
+
+                if (global.type->is_primitive) {
+                    var ptr = empty_var(type("data"));
+                    add(operation::module_data).operand(ptr).operand(imm((u64)out.mod->id())).operand(imm(global.offset));
+                    v.set_mem_ptr(ptr);
+                    add(operation::load).operand(v).operand(ptr);
+                } else {
+                    add(operation::module_data).operand(v).operand(imm((u64)out.mod->id())).operand(imm(global.offset));
+                }
+
+                auto& vec = block()->named_vars;
+                vec.push_back(v);
+                return vec.back();
             }
 
             log()->err(ec::c_undefined_identifier, node()->ref, name.c_str());
@@ -330,11 +351,25 @@ namespace gjs {
         }
 
         tac_instruction& context::add(operation op) {
+            if (!compiling_function) {
+                // global code
+                global_code.push_back(tac_instruction(op, node()->ref));
+                return global_code.back();
+            }
+
             out.code.push_back(tac_instruction(op, node()->ref));
             return out.code.back();
         }
 
         void context::ensure_code_ref() {
+            if (!compiling_function) {
+                if (i64(global_code.size()) >= i64(global_code.capacity()) - 32) {
+                    // prevent vector resizing before some instruction is fully defined
+                    global_code.reserve(global_code.capacity() + 32);
+                }
+                return;
+            }
+
             if (i64(out.code.size()) >= i64(out.code.capacity()) - 32) {
                 // prevent vector resizing before some instruction is fully defined
                 out.code.reserve(out.code.capacity() + 32);
@@ -342,6 +377,7 @@ namespace gjs {
         }
 
         u64 context::code_sz() const {
+            if (!compiling_function) return global_code.size();
             return out.code.size();
         }
 
@@ -357,7 +393,10 @@ namespace gjs {
             block_stack.push_back(new block_context);
             block_stack[block_stack.size() - 1]->func = f;
 
-            if (f) out.funcs.push_back({ f, gjs::func_stack(), code_sz(), 0, register_allocator(out) });
+            if (f) {
+                out.funcs.push_back({ f, gjs::func_stack(), out.code.size(), 0, register_allocator(out) });
+                compiling_function = true;
+            }
         }
 
         void context::pop_block() {
@@ -369,6 +408,7 @@ namespace gjs {
                             out.funcs[i].end = code_sz() - 1;
                         }
                     }
+                    compiling_function = false;
                 }
 
                 block_context* b = block_stack.back();
@@ -377,7 +417,10 @@ namespace gjs {
                     script_type* void_tp = type("void");
                     for (u16 i = 0;i < b->stack_objs.size();i++) {
                         var& v = b->stack_objs[i];
-                        if (v.type()->destructor) {
+
+                        // only destruct objects if this isn't the global scope
+                        // global objects will be destructed with the module
+                        if (v.type()->destructor && block_stack.size() > 1) {
                             call(*this, v.type()->destructor, { v });
                         }
 
@@ -388,6 +431,31 @@ namespace gjs {
                 delete b;
             }
             block_stack.pop_back();
+
+            if (block_stack.size() == 0) {
+                // global function concluded, combine code and assign __init__ function's range
+                out.funcs[0].begin = out.code.size();
+                out.code.insert(out.code.end(), global_code.begin(), global_code.end());
+                out.funcs[0].end = out.code.size() - 1;
+
+                // update global code jump/branch addresses
+                for (u64 c = out.funcs[0].begin;c <= out.funcs[0].end;c++) {
+                    tac_instruction& i = out.code[c];
+                    switch(i.op) {
+                        case operation::jump: {
+                            i.operands[0].m_imm.u += out.funcs[0].begin;
+                            break;
+                        }
+                        case operation::branch: {
+                            i.operands[1].m_imm.u += out.funcs[1].begin;
+                            break;
+                        }
+                        default: {
+                            break;
+                        }
+                    }
+                }
+            }
         }
 
         void context::pop_block(const var& preserve) {

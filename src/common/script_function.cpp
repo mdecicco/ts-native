@@ -11,6 +11,7 @@ namespace gjs {
         name = _name;
         access.entry = addr;
         is_host = false;
+        signature.return_type = nullptr;
         signature.returns_on_stack = false;
         signature.is_subtype_obj_ctor = false;
         is_method_of = nullptr;

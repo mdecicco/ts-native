@@ -76,7 +76,8 @@ namespace gjs {
 
             // if op[0] is true: continue else jump to op[1]
             branch,
-            jump
+            jump,
+            term
         };
 
         bool is_assignment(operation op);

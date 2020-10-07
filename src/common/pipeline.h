@@ -60,8 +60,10 @@ namespace gjs {
              *    - parse_exception
              *    - compile_exception
              *    - any exceptions thrown by the ir steps or ast steps
+             *
+             * Returns the compiled module or null
              */
-            bool compile(const std::string& file, const std::string& code, backend* generator);
+            script_module* compile(const std::string& file, const std::string& code, backend* generator);
 
             /*
              * Takes IR code as a parameter, and modifies it in some way.

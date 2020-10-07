@@ -43,7 +43,7 @@ namespace gjs {
     pipeline::~pipeline() {
     }
 
-    bool pipeline::compile(const std::string& file, const std::string& code, backend* generator) {
+    script_module* pipeline::compile(const std::string& file, const std::string& code, backend* generator) {
         m_log.errors.clear();
         m_log.warnings.clear();
 
@@ -80,6 +80,9 @@ namespace gjs {
         }
 
         if (m_log.errors.size() > 0) {
+            for (u16 i = 0;i < out.funcs.size();i++) {
+                delete out.funcs[i].func;
+            }
             delete out.mod;
         }
         else {
@@ -96,21 +99,35 @@ namespace gjs {
 
                 generator->generate(out);
 
-
                 if (m_log.errors.size() == 0) {
+                    out.mod->m_init = out.funcs[0].func;
                     m_ctx->add(out.mod);
+                } else {
+                    for (u16 i = 0;i < out.funcs.size();i++) {
+                        delete out.funcs[i].func;
+                    }
                 }
             } catch (error::exception& e) {
+                for (u16 i = 0;i < out.funcs.size();i++) {
+                    delete out.funcs[i].func;
+                }
+                out.funcs.clear();
+
                 delete out.mod;
                 throw e;
             } catch (std::exception& e) {
+                for (u16 i = 0;i < out.funcs.size();i++) {
+                    delete out.funcs[i].func;
+                }
+                out.funcs.clear();
+
                 delete out.mod;
                 throw e;
             }
         }
 
 
-        return m_log.errors.size() == 0;
+        return m_log.errors.size() == 0 ? out.mod : nullptr;
     }
 
     void pipeline::add_ir_step(ir_step_func step) {

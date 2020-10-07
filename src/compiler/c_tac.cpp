@@ -69,7 +69,8 @@ namespace gjs {
             "ret",
             "cvt",
             "branch",
-            "jump"
+            "jump",
+            "term"
         };
 
         bool is_assignment(operation op) {
@@ -138,7 +139,8 @@ namespace gjs {
                 false,   // ret
                 false,   // cvt
                 false,   // branch
-                false    // jump
+                false,   // jump
+                false    // term
             };
 
             return s_is_assignment[u32(op)];

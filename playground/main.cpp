@@ -5,6 +5,7 @@
 #include <compiler/tac.h>
 #include <backends/vm.h>
 #include <stdio.h>
+#include <common/module.h>
 
 using namespace gjs;
 
@@ -207,7 +208,9 @@ int main(int arg_count, const char** args) {
         printf("%s\n", e.text.c_str());
     }
 
-    ctx.add_code("test.gjs", "void it() { string s = 'fuck' + ' the dmv'; print(s + ', also your ass'); }");
+    gen.log_instructions(true);
+    script_module* mod = ctx.add_code("test.gjs", "f32 abc = 4.5f;\nvoid it() { print_f32(0, abc); }\nabc = 1.0f;");
+    if (mod) mod->init();
 
     /*
     if (!ctx.add_code("test.gjs", src)) {
@@ -220,7 +223,6 @@ int main(int arg_count, const char** args) {
     print_code(gen);
 
     printf("-------------result-------------\n");
-    //gen.log_instructions(true);
     script_function* func = ctx.function("it");
     if (func) ctx.call<void>(func, nullptr);
     return 0;

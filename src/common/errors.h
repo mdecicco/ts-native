@@ -42,7 +42,6 @@ namespace gjs {
             c_no_stack_delete,
             c_no_primitive_delete_named_var,
             c_no_primitive_delete,
-            c_no_global_return,
             c_no_void_return_val,
             c_no_ctor_return_val,
             c_no_dtor_return_val,

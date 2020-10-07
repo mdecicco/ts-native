@@ -19,7 +19,23 @@ namespace gjs {
         void return_statement(context& ctx, parse::ast* n) {
             script_function* f = ctx.current_function();
             if (!f) {
-                ctx.log()->err(ec::c_no_global_return, n->ref);
+                f = ctx.out.funcs[0].func;
+                
+                if (n->body) {
+                    if (f->signature.return_type) {
+                        var rv = expression(ctx, n->body).convert(f->signature.return_type);
+                        ctx.add(operation::ret).operand(rv);
+                    } else {
+                        var rv = expression(ctx, n->body);
+                        ctx.add(operation::ret).operand(rv);
+                        f->signature.return_type = rv.type();
+                    }
+                } else if (!f->signature.return_type) {
+                    ctx.add(operation::ret);
+                    f->signature.return_type = ctx.type("void");
+                } else if (f->signature.return_type->size == 0) ctx.add(operation::ret);
+                else ctx.log()->err(ec::c_missing_return_value, n->ref, f->name.c_str());
+
                 return;
             }
 
@@ -77,7 +93,8 @@ namespace gjs {
         void if_statement(context& ctx, parse::ast* n) {
             ctx.push_node(n);
             ctx.ensure_code_ref();
-            tac_instruction& branch = ctx.add(operation::branch).operand(expression(ctx, n->condition));
+            var cond = expression(ctx, n->condition);
+            tac_instruction& branch = ctx.add(operation::branch).operand(cond);
 
             ctx.push_block();
             any(ctx, n->body);

@@ -27,11 +27,14 @@ namespace gjs {
                 script_type* subtype_replacement = 0;
             };
 
+            // todo: comments
             script_context* env;
             parse::ast* input;
             type_manager* new_types;
             std::vector<script_function*> new_functions;
             compilation_output& out;
+            bool compiling_function;
+            std::vector<tac_instruction> global_code;
             u32 next_reg_id;
             std::vector<parse::ast*> node_stack;
             std::vector<block_context*> block_stack;

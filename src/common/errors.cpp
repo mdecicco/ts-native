@@ -41,7 +41,6 @@ namespace gjs {
             "Cannot delete object which was not constructed with 'new'",
             "Cannot delete variable '%s' which is not an object",
             "Cannot delete object which is not an object",
-            "'return' statement is invalid in the global scope",
             "Cannot return a value from a function with no return type",
             "Cannot return a value from a constructor",
             "Cannot return a value from a destructor",
