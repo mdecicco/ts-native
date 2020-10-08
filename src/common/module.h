@@ -28,12 +28,19 @@ namespace gjs {
             const local_var& local(const std::string& name) const;
 
             template <typename T>
-            std::enable_if_t<!std::is_class_v<T>, T> local_value(const std::string& name) {
+            std::enable_if_t<!std::is_class_v<T>, T> get_local(const std::string& name) {
                 const local_var& v = local(name);
                 T val;
                 m_data->position(v.offset);
                 m_data->read(val);
                 return val;
+            }
+
+            template <typename T>
+            std::enable_if_t<!std::is_class_v<T>, void> set_local(const std::string& name, const T& val) {
+                const local_var& v = local(name);
+                m_data->position(v.offset);
+                m_data->write<T>(val);
             }
 
             inline std::string name() const { return m_name; }

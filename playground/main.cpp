@@ -6,6 +6,7 @@
 #include <backends/vm.h>
 #include <stdio.h>
 #include <common/module.h>
+#include <builtin/script_buffer.h>
 
 using namespace gjs;
 
@@ -211,10 +212,10 @@ int main(int arg_count, const char** args) {
     //gen.log_instructions(true);
     script_module* mod = ctx.add_code(
         "test.gjs",
-        "string world = 'world!';\n"
-        "void func() { print('Hello, ' + world); }\n"
+        "f32 abc = 4.5f;\n"
+        "void it() { print_f32(0, abc); }\n"
+        "abc = 1.0f;\n"
     );
-    if (mod) mod->init();
 
     /*
     if (!ctx.add_code("test.gjs", src)) {
@@ -227,7 +228,10 @@ int main(int arg_count, const char** args) {
     print_code(gen);
 
     printf("-------------result-------------\n");
-    script_function* func = ctx.function("func");
+    if (mod) mod->init();
+
+    mod->set_local("abc", 3.14f);
+    script_function* func = ctx.function("it");
     if (func) ctx.call<void>(func, nullptr);
     return 0;
 }

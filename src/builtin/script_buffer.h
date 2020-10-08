@@ -41,10 +41,10 @@ namespace gjs {
             inline bool at_end() const { return m_position == m_used; }
 
             template <typename T>
-            inline void write(const T& val) { write(&val, sizeof(T)); }
+            inline void write(const T& val) { write((void*)&val, sizeof(T)); }
 
             template <typename T>
-            inline void read(T& val) { read(&val, sizeof(T)); }
+            inline void read(T& val) { read((void*)&val, sizeof(T)); }
 
         protected:
             u8* m_data;
