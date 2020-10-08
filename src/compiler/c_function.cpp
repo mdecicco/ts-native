@@ -153,6 +153,42 @@ namespace gjs {
                     script_function* func = dummy.method(*n->callee->rvalue, nullptr, arg_types);
                     if (func) return call(ctx, func, args);
                 } else {
+                    if (n->callee->lvalue->type == nt::identifier) {
+                        std::string name = *n->callee->lvalue;
+                        // check if lvalue refers to an aliased import
+                        for (u16 i = 0;i < ctx.imports.size();i++) {
+                            if (ctx.imports[i]->alias == name) {
+                                std::string fname = *n->callee->rvalue;
+                                bool is_imported = false;
+                                for (u16 s = 0;s < ctx.imports[i]->symbols.size() && !is_imported;s++) {
+                                    auto& sym = ctx.imports[i]->symbols[s];
+                                    if (sym.alias.length() == 0 && sym.name == fname && sym.is_func) is_imported = true;
+                                    else if (sym.alias == fname && sym.is_func) is_imported = true;
+                                }
+
+                                if (is_imported) {
+                                    std::vector<var> args = { };
+                                    std::vector<script_type*> arg_types = { };
+
+                                    ast* a = n->arguments;
+                                    while (a) {
+                                        var arg = expression(ctx, a);
+                                        args.push_back(arg);
+                                        arg_types.push_back(arg.type());
+                                        a = a->next;
+                                    }
+                                    script_function* func = ctx.function(name, fname, nullptr, arg_types);
+                                    if (func) return call(ctx, func, args);
+
+                                    ctx.push_node(n->callee);
+                                    var ret = ctx.error_var();
+                                    ctx.pop_node();
+                                    return ret;
+                                }
+                            }
+                        }
+                    }
+
                     var obj = expression(ctx, n->callee->lvalue);
 
                     std::vector<var> args = { obj };

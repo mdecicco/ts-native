@@ -101,6 +101,8 @@ namespace gjs {
 
                 if (m_log.errors.size() == 0) {
                     out.mod->m_init = out.funcs[0].func;
+
+                    for (u16 i = 1;i < out.funcs.size();i++) out.mod->add(out.funcs[i].func);
                     m_ctx->add(out.mod);
                 } else {
                     for (u16 i = 0;i < out.funcs.size();i++) {

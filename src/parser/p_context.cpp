@@ -1,11 +1,12 @@
 #include <parser/context.h>
 #include <common/context.h>
 #include <common/script_type.h>
+#include <common/module.h>
 
 namespace gjs {
     namespace parse {
         context::context(script_context* ctx) : env(ctx), cur_token(0), root(nullptr) {
-            std::vector<script_type*> types = ctx->all_types();
+            std::vector<script_type*> types = ctx->global()->types()->all();
             for (u16 t = 0;t < types.size();t++) {
                 type_names.push_back(types[t]->name);
             }

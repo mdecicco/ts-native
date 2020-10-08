@@ -243,6 +243,7 @@ namespace gjs {
 
             ctx.push_node(n);
             script_type* tp = ctx.new_types->add(name, name);
+            tp->owner = ctx.out.mod;
 
             std::vector<parse::ast*> methods;
             parse::ast* cn = n->body;
@@ -345,6 +346,7 @@ namespace gjs {
             std::string name = n->is_subtype ? std::string(*n->identifier) + "<" + ctx.subtype_replacement->name + ">" : *n->identifier;
 
             script_type* tp = ctx.new_types->add(name, name);
+            tp->owner = ctx.out.mod;
 
             parse::ast* cn = n->body;
             while (cn) {
@@ -384,7 +386,6 @@ namespace gjs {
                 case nt::while_loop: { while_loop(ctx, n); break; }
                 case nt::do_while_loop: { do_while_loop(ctx, n); break; }
                 case nt::import_statement: { import_statement(ctx, n); break; }
-                case nt::export_statement: { export_statement(ctx, n); break; }
                 case nt::return_statement: { return_statement(ctx, n); break; }
                 case nt::delete_statement: { delete_statement(ctx, n); break; }
                 case nt::scoped_block: { block(ctx, n); break; }
@@ -411,6 +412,23 @@ namespace gjs {
             ctx.pop_block();
         }
 
+        void import_globals(context& ctx) {
+            context::import* im = new context::import;
+            im->mod = ctx.env->global();
+            im->alias = "";
+
+            const auto& types = im->mod->types()->all();
+            for (u16 i = 0;i < types.size();i++) im->symbols.push_back({ types[i]->name, "", types[i], false, false, true });
+
+            auto functions = im->mod->function_names();
+            for (u16 i = 0;i < functions.size();i++) im->symbols.push_back({ functions[i], "", nullptr, false, true, false });
+
+            const auto& locals = im->mod->locals();
+            for (u16 i = 0;i < locals.size();i++) im->symbols.push_back({ locals[i].name, "", locals[i].type, true, false, false });
+            
+            ctx.imports.push_back(im);
+        }
+
         void compile(script_context* env, ast* input, compilation_output& out) {
             if (!input || !input->body) {
                 throw exc(ec::c_no_code, input ? input->ref : source_ref("[unknown]", "", 0, 0));
@@ -421,6 +439,8 @@ namespace gjs {
             ctx.input = input;
             ctx.new_types = new type_manager(env);
             ctx.push_node(input->body);
+
+            import_globals(ctx);
 
             // return type will be determined by the first global return statement, or it will be void
             script_function* init = new script_function(ctx.env, "__init__", 0);
@@ -475,7 +495,7 @@ namespace gjs {
                 throw exc(ec::c_compile_finished_with_errors, input->ref);
             }
 
-            env->types()->merge(ctx.new_types);
+            out.mod->types()->merge(ctx.new_types);
              
             delete ctx.new_types;
             return;

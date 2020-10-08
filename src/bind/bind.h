@@ -71,6 +71,7 @@ namespace gjs {
             std::vector<wrapped_function*> methods;
             robin_hood::unordered_map<std::string, property*> properties;
             wrapped_function* dtor;
+            script_type* type;
             size_t size;
         };
 
@@ -308,8 +309,8 @@ namespace gjs {
         template <typename Cls>
         struct wrap_class : wrapped_class {
             wrap_class(type_manager* tpm, const std::string& name) : wrapped_class(name, typeid(remove_all<Cls>::type).name(), sizeof(remove_all<Cls>::type)), types(tpm) {
-                script_type* tp = tpm->add(name, typeid(remove_all<Cls>::type).name());
-                tp->is_host = true;
+                type = tpm->add(name, typeid(remove_all<Cls>::type).name());
+                type->is_host = true;
             }
 
             template <typename... Args, std::enable_if_t<sizeof...(Args) != 0, int> = 0>

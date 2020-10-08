@@ -4,6 +4,7 @@
 #include <common/script_type.h>
 #include <common/script_function.h>
 #include <common/context.h>
+#include <common/module.h>
 #include <bind/bind.h>
 
 namespace gjs {
@@ -55,9 +56,6 @@ namespace gjs {
 
         for (u16 f = 0;f < in.funcs.size();f++) {
             gen_function(in, tac_map, f);
-            if (f > 0) { // Don't add __init__ to the context
-                m_ctx->add(in.funcs[f].func);
-            }
         }
 
         // update jump, branch, jal addresses
@@ -596,8 +594,9 @@ namespace gjs {
                     if (i.callee->is_method_of && i.callee->is_method_of->requires_subtype) {
                         // get subtype from the this obj parameter
                         script_type* st = params[0].type()->sub_type;
-                        if (v3 != st->id() || nonHostCallSinceLastv3Set) {
-                            v3 = st->id();
+                        u64 moduletype = join_u32(params[0].type()->owner->id(), st->id());
+                        if (v3 != moduletype || nonHostCallSinceLastv3Set) {
+                            v3 = moduletype;
                             nonHostCallSinceLastv3Set = false;
                             m_instructions += encode(vmi::addui).operand(vmr::v3).operand(vmr::zero).operand(v3);
                             m_map.append(i.src);
@@ -902,8 +901,8 @@ namespace gjs {
                         break;
                     }
 
-                    script_type* from = m_ctx->types()->get((u32)o2.imm_u());
-                    script_type* to = m_ctx->types()->get((u32)o3.imm_u());
+                    script_type* from = m_ctx->module(extract_left_u32(o2.imm_u()))->types()->get(extract_right_u32(o2.imm_u()));
+                    script_type* to = m_ctx->module(extract_left_u32(o3.imm_u()))->types()->get(extract_right_u32(o3.imm_u()));
 
                     vmi ci = vmi::instruction_count;
 

@@ -13,6 +13,7 @@ namespace gjs {
 
     class script_context;
     class script_type;
+    class script_module;
 
     class type_manager {
         public:
@@ -65,6 +66,7 @@ namespace gjs {
                 script_function* setter;
             };
 
+            script_module* owner;
             script_type* base_type;
             script_type* sub_type;
             std::vector<property> properties;

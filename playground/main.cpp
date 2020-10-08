@@ -231,7 +231,7 @@ int main(int arg_count, const char** args) {
     if (mod) mod->init();
 
     mod->set_local("abc", 3.14f);
-    script_function* func = ctx.function("it");
+    script_function* func = mod->function("it");
     if (func) ctx.call<void>(func, nullptr);
     return 0;
 }

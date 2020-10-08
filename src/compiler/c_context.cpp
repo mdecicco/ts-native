@@ -119,14 +119,99 @@ namespace gjs {
 
         script_function* context::function(const std::string& name, script_type* ret, const std::vector<script_type*>& args) {
             std::vector<script_function*> matches;
+            std::vector<script_function*> all;
+            
+            for (u16 i = 0;i < imports.size();i++) {
+                if (imports[i]->alias.length() > 0) continue;
 
-            std::vector<script_function*> all = env->all_functions();
-            for (u16 f = 0;f < new_functions.size();f++) all.push_back(new_functions[f]);
+                for (u16 s = 0;s < imports[i]->symbols.size();s++) {
+                    auto& sym = imports[i]->symbols[s];
+                    if (sym.alias.length() == 0 && sym.name == name && sym.is_func) {
+                        auto funcs = imports[i]->mod->function_overloads(name);
+                        all.insert(all.begin(), funcs.begin(), funcs.end());
+                    } else if (sym.alias == name && sym.is_func) {
+                        auto funcs = imports[i]->mod->function_overloads(sym.name);
+                        all.insert(all.begin(), funcs.begin(), funcs.end());
+                    }
+                }
+            }
+
+            for (u16 f = 0;f < new_functions.size();f++) {
+                if (new_functions[f]->name != name) continue;
+                all.push_back(new_functions[f]);
+            }
+
             for (u16 f = 0;f < all.size();f++) {
-                // match name
                 script_function* func = all[f];
 
-                if (func->name != name) continue;
+                // match return type
+                if (ret && !has_valid_conversion(*this, func->signature.return_type, ret)) continue;
+                bool ret_tp_strict = ret ? func->signature.return_type->id() == ret->id() : false;
+
+                // match argument types
+                if (func->signature.arg_types.size() != args.size()) continue;
+
+                // prefer strict type matches
+                bool match = true;
+                for (u8 i = 0;i < args.size();i++) {
+                    if (func->signature.arg_types[i]->id() != args[i]->id()) {
+                        match = false;
+                        break;
+                    }
+                }
+
+                if (match && ret_tp_strict) return func;
+
+                if (!match) {
+                    // check if the arguments are at least convertible
+                    match = true;
+                    for (u8 i = 0;i < args.size();i++) {
+                        if (!has_valid_conversion(*this, args[i], func->signature.arg_types[i])) {
+                            match = false;
+                            break;
+                        }
+                    }
+
+                    if (!match) continue;
+                }
+
+                matches.push_back(func);
+            }
+
+            if (matches.size() > 1) {
+                log()->err(ec::c_ambiguous_function, node()->ref, name.c_str(), name.c_str(), arg_tp_str(args).c_str(), !ret ? "<any>" : ret->name.c_str());
+                return nullptr;
+            }
+
+            if (matches.size() == 1) {
+                return matches[0];
+            }
+
+            log()->err(ec::c_no_such_function, node()->ref, name.c_str(), arg_tp_str(args).c_str(), !ret ? "<any>" : ret->name.c_str());
+            return nullptr;
+        }
+
+        script_function* context::function(const std::string& from_aliased_import, const std::string& name, script_type* ret, const std::vector<script_type*>& args) {
+            std::vector<script_function*> matches;
+            std::vector<script_function*> all;
+
+            for (u16 i = 0;i < imports.size();i++) {
+                if (imports[i]->alias != from_aliased_import) continue;
+
+                for (u16 s = 0;s < imports[i]->symbols.size();s++) {
+                    auto& sym = imports[i]->symbols[s];
+                    if (sym.alias.length() == 0 && sym.name == name && sym.is_func) {
+                        auto funcs = imports[i]->mod->function_overloads(name);
+                        all.insert(all.begin(), funcs.begin(), funcs.end());
+                    } else if (sym.alias == name && sym.is_func) {
+                        auto funcs = imports[i]->mod->function_overloads(sym.name);
+                        all.insert(all.begin(), funcs.begin(), funcs.end());
+                    }
+                }
+            }
+
+            for (u16 f = 0;f < all.size();f++) {
+                script_function* func = all[f];
 
                 // match return type
                 if (ret && !has_valid_conversion(*this, func->signature.return_type, ret)) continue;
@@ -176,13 +261,71 @@ namespace gjs {
         }
 
         script_function* context::find_func(const std::string& name, script_type* ret, const std::vector<script_type*>& args) {
-            std::vector<script_function*> all = env->all_functions();
-            for (u16 f = 0;f < new_functions.size();f++) all.push_back(new_functions[f]);
+            std::vector<script_function*> all;
+            for (u16 i = 0;i < imports.size();i++) {
+                if (imports[i]->alias.length() > 0) continue;
+
+                for (u16 s = 0;s < imports[i]->symbols.size();s++) {
+                    auto& sym = imports[i]->symbols[s];
+                    if (sym.alias.length() == 0 && sym.name == name && sym.is_func) {
+                        auto funcs = imports[i]->mod->function_overloads(name);
+                        all.insert(all.begin(), funcs.begin(), funcs.end());
+                    } else if (sym.alias == name && sym.is_func) {
+                        auto funcs = imports[i]->mod->function_overloads(sym.name);
+                        all.insert(all.begin(), funcs.begin(), funcs.end());
+                    }
+                }
+            }
+
+            for (u16 f = 0;f < new_functions.size();f++) {
+                if (new_functions[f]->name != name) continue;
+                all.push_back(new_functions[f]);
+            }
+
             for (u16 f = 0;f < all.size();f++) {
-                // match name
                 script_function* func = all[f];
 
-                if (func->name != name) continue;
+                // match return type
+                if (ret && func->signature.return_type->id() != ret->id()) continue;
+
+                // match argument types
+                if (func->signature.arg_types.size() != args.size()) continue;
+
+                // only strict type matches
+                bool match = true;
+                for (u8 i = 0;i < args.size();i++) {
+                    if (func->signature.arg_types[i]->id() != args[i]->id()) {
+                        match = false;
+                        break;
+                    }
+                }
+
+                if (match) return func;
+            }
+            return nullptr;
+        }
+
+
+        script_function* context::find_func(const std::string& from_aliased_import, const std::string& name, script_type* ret, const std::vector<script_type*>& args) {
+            std::vector<script_function*> all;
+
+            for (u16 i = 0;i < imports.size();i++) {
+                if (imports[i]->alias != from_aliased_import) continue;
+
+                for (u16 s = 0;s < imports[i]->symbols.size();s++) {
+                    auto& sym = imports[i]->symbols[s];
+                    if (sym.alias.length() == 0 && sym.name == name && sym.is_func) {
+                        auto funcs = imports[i]->mod->function_overloads(name);
+                        all.insert(all.begin(), funcs.begin(), funcs.end());
+                    } else if (sym.alias == name && sym.is_func) {
+                        auto funcs = imports[i]->mod->function_overloads(sym.name);
+                        all.insert(all.begin(), funcs.begin(), funcs.end());
+                    }
+                }
+            }
+
+            for (u16 f = 0;f < all.size();f++) {
+                script_function* func = all[f];
 
                 // match return type
                 if (ret && func->signature.return_type->id() != ret->id()) continue;
@@ -205,20 +348,25 @@ namespace gjs {
         }
 
         bool context::identifier_in_use(const std::string& name) {
-            script_type* t = env->types()->get(hash(name));
-            if (t) return true;
+            for (u16 i = 0;i < imports.size();i++) {
+                if (imports[i]->alias == name) return true;
 
-            t = new_types->get(name);
+                for (u16 s = 0;s < imports[i]->symbols.size();s++) {
+                    auto& sym = imports[i]->symbols[s];
+                    if (sym.alias.length() == 0 && sym.name == name) return true;
+                    if (sym.alias == name) return true;
+                }
+            }
+
+            script_type* t = new_types->get(name);
             if (t) return true;
 
             for (u16 i = 0;i < subtype_types.size();i++) {
                 if (std::string(*subtype_types[i]->identifier) == name) return true;
             }
 
-            std::vector<script_function*> all = env->all_functions();
-            for (u16 f = 0;f < new_functions.size();f++) all.push_back(new_functions[f]);
-            for (u16 f = 0;f < all.size();f++) {
-                if (all[f]->name == name) return true;
+            for (u16 f = 0;f < new_functions.size();f++) {
+                if (new_functions[f]->name == name) return true;
             }
 
             for (u8 i = (u8)block_stack.size() - 1;i > 0;i--) {
@@ -239,17 +387,25 @@ namespace gjs {
                 if (subtype_replacement) return subtype_replacement;
                 else {
                     log()->err(ec::c_invalid_subtype_use, node()->ref);
-                    return env->types()->get("error_type");
+                    return env->global()->types()->get("error_type");
                 }
             }
 
-            script_type* t = env->types()->get(hash(name));
-            if (t) return t;
-            t = new_types->get(name);
+            for (u16 i = 0;i < imports.size();i++) {
+                if (imports[i]->alias.length() > 0) continue;
+
+                for (u16 s = 0;s < imports[i]->symbols.size();s++) {
+                    auto& sym = imports[i]->symbols[s];
+                    if (sym.alias.length() == 0 && sym.name == name && sym.is_type) return sym.type;
+                    if (sym.alias == name && sym.is_type) return sym.type;
+                }
+            }
+
+            script_type* t = new_types->get(name);
 
             if (!t) {
                 log()->err(ec::c_no_such_type, node()->ref, name.c_str());
-                return env->types()->get("error_type");
+                return env->global()->types()->get("error_type");
             }
 
             return t;
@@ -257,11 +413,29 @@ namespace gjs {
 
         script_type* context::type(parse::ast* type_identifier) {
             std::string name = *type_identifier;
+            if (type_identifier->rvalue) {
+                std::string tn = *type_identifier->rvalue;
+                script_type* tp = nullptr;
+                for (u16 i = 0;i < imports.size() && !tp;i++) {
+                    if (imports[i]->alias != name) continue;
+
+                    for (u16 s = 0;s < imports[i]->symbols.size() && !tp;s++) {
+                        auto& sym = imports[i]->symbols[s];
+                        if (sym.alias.length() == 0 && sym.name == tn && sym.is_type) tp = sym.type;
+                        else if (sym.alias == tn && sym.is_type) tp = sym.type;
+                    }
+                }
+
+                // todo: imported subtype classes
+
+                return tp;
+            }
+
             if (name == "subtype") {
                 if (subtype_replacement) return subtype_replacement;
                 else {
                     log()->err(ec::c_invalid_subtype_use, type_identifier->ref);
-                    return env->types()->get("error_type");
+                    return env->global()->types()->get("error_type");
                 }
             }
 
@@ -269,13 +443,11 @@ namespace gjs {
                 if (name == std::string(*subtype_types[i]->identifier)) {
                     if (!type_identifier->data_type) {
                         log()->err(ec::c_instantiation_requires_subtype, type_identifier->ref, name.c_str());
-                        return env->types()->get("error_type");
+                        return env->global()->types()->get("error_type");
                     }
 
                     std::string full_name = name + "<" + std::string(*type_identifier->data_type) + ">";
-                    script_type* t = env->types()->get(hash(full_name));
-                    if (t) return t;
-                    t = new_types->get(full_name);
+                    script_type* t = new_types->get(full_name);
                     if (t) return t;
 
                     subtype_replacement = type(type_identifier->data_type);
@@ -287,17 +459,17 @@ namespace gjs {
             }
 
             script_type* t = type(name);
-            if (!t) return env->types()->get("error_type");
+            if (!t) return env->global()->types()->get("error_type");
 
             if (type_identifier->data_type) {
                 if (!t->requires_subtype) {
                     // t is not a subtype class (error)
                     log()->err(ec::c_unexpected_instantiation_subtype, type_identifier->data_type->ref, name.c_str());
-                    return env->types()->get("error_type");
+                    return env->global()->types()->get("error_type");
                 } else {
                     script_type* st = type(type_identifier->data_type);
                     std::string ctn = t->name + "<" + st->name + ">";
-                    script_type* ct = env->types()->get(hash(ctn));
+                    script_type* ct = type(ctn);
                     if (!ct) ct = new_types->get(ctn);
                     if (!ct) {
                         ct = new_types->add(ctn, ctn);
@@ -318,7 +490,7 @@ namespace gjs {
                 }
             } else if (t->requires_subtype) {
                 log()->err(ec::c_instantiation_requires_subtype, type_identifier->ref, name.c_str());
-                return env->types()->get("error_type");
+                return env->global()->types()->get("error_type");
             }
 
             return t;

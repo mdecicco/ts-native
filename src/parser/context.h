@@ -14,6 +14,7 @@ namespace gjs {
             std::stack<ast*> path;
             std::vector<lex::token> tokens;
             std::vector<std::string> type_names;
+            std::vector<std::pair<std::string, std::vector<std::string>>> named_imports;
             u32 cur_token;
 
             context(script_context* ctx);
