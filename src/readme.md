@@ -1,7 +1,9 @@
-## Script Context
+## A disorganized collection of useful information
+
+### Script Context
 The `script_context` class is a container for everything related to the compilation and execution of scripts. Multiple script contexts can exist concurrently and will not interfere with each other on their own.
 
-A script context can not be used without having a _backend_ provided.
+A script context can not be used meaningfully without having a _backend_.
 
 ### Backends
 A _backend_ is a class that inherits from the  `backend` class (`gjs/backend/backend.h`) and defines the interface for the _pipeline_ to generate code for some target architecture.
@@ -45,6 +47,8 @@ The `stack_size` parameter defines how large the stack can grow before throwing 
 
 The `mem_size` parameter defines how much memory can be dynamically allocated by all scripts before a runtime exception is thrown.
 
+Currently, the VM context is created by default and managed internally if `nullptr` is passed to the `backend` parameter of `script_context`.
+
 ### Compiling scripts
 To compile scripts, you just need to provide the filename and source code to the context via `ctx.add_code(const std::string& filename, const std::string& source)`. Here's an example:
 
@@ -56,12 +60,52 @@ script_module* mod = ctx.add_code(
 );
 if (mod) {
     mod->init();
-    ctx.call<void>(ctx.function("func"), nullptr);
+    ctx.call<void>(mod->function("func"), nullptr);
 } else {
-	// do something with error log (ctx.compiler()->log())
+	print_log(&ctx);
 }
 ```
 
 The `add_code` function will return a `script_module` object on success which must be initialized with `mod->init()` if there is any code in the global scope of the script. Global code is added to an implicit function named `__init__`, which takes no parameters and adopts the return type of the first encountered `return` statement in the global scope. The call to `init` may be made automatic in the future. Modules will be covered more in a later section.
 
-(work in progress)
+### Executing script functions
+The execution of script functions is somewhat similar to calling native functions. The differences are that you have to go through the `script_context`, pass a pointer to the function, and the return value is always written to an output parameter. Also templates are somewhat heavily involved, though as much out of view as possible.
+
+First, the function to call must be obtained from the module which it belongs to. There are a few ways of doing this:
+```
+// This is the easiest way, but it's only valid if the function is not overloaded
+script_function* func = mod->function("function_name");
+
+// If you know the return type and argument types (if any) of a specific overload, this is the way
+// Note: You can't get overloaded functions with this method if any of the involved types are pure
+//       script types that have no bound or mirrored C++ types
+script_function* func = mod->function<ret_type, arg_types...>("function_name");
+
+// If you'd prefer to programmatically determine which overload to use for some reason, there's this
+std::vector<script_function*> funcs = mod->function_overloads("function_name");
+
+// You also have access to all of the functions in the module (except for the __init__ function) with
+const std::vector<script_function*>& funcs = mod->functions();
+
+// If you want to get the __init__ function for some reason, you can do this
+script_function* init = mod->function("__init__");
+```
+
+Then, to call the script function:
+```
+// no return (void return type must be specified)
+ctx.call<void>(func, nullptr);
+
+// float return (return type determined automatically)
+float result;
+ctx.call(func, &result);
+
+// arguments are also automatically determined and can be passed like a regular function call!
+ctx.call(multiply_floats, &result, 61.0f, 69.0f);
+```
+
+**Note:** the `call` method will throw an exception if one of the following happens:
+- Return type doesn't match the function being called
+- Provided argument count doesn't match the number of arguments of the function being called
+- Any argument type does not match the corresponding argument type of the function being called
+- No output variable is specified for a function that returns a value
