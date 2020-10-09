@@ -1,215 +1,23 @@
-#include <vm/allocator.h>
-#include <common/script_function.h>
-#include <common/context.h>
-#include <common/script_type.h>
-#include <compiler/tac.h>
-#include <backends/vm.h>
+#include <gjs.h>
 #include <stdio.h>
-#include <common/module.h>
-#include <builtin/script_buffer.h>
 
 using namespace gjs;
-
-class foo {
-    public:
-        foo() : x(0), y(0), z(0), w(0.0f) {
-            printf("Construct foo\n");
-        }
-        ~foo() {
-            printf("Destruct foo\n");
-        }
-
-        i32 t(i32 a, i32* b) {
-            return printf("%d, %d, %d\n", y, a, *b);
-        }
-
-        static void static_func(i32 a) {
-            printf("ayyy: %d\n", a);
-        }
-        f32 ft(f32 a) {
-            return s = a;
-        }
-
-        operator i32() { return y; }
-
-        i32 get_x() {
-            return x;
-        }
-        i32 set_x(i32 _x) {
-            return x = _x;
-        }
-
-        i32 x;
-        i32 y;
-        i32 z;
-        f32 w;
-        static f32 s;
-};
-f32 foo::s = 5.5;
-
-struct vec3 {
-    vec3(f32 a) : x(a), y(a), z(a) { }
-    vec3(const foo& f) : x(f.x), y(f.y), z(f.z) { }
-
-    f32 x, y, z;
-};
-
-void testvec(void* vec) {
-    vec3& v = *(vec3*)vec;
-    printf("%f, %f, %f\n", v.x, v.y, v.z);
-}
-
-void dtestvec(void* vec) {
-    vec3& v = *(vec3*)vec;
-    printf("Destroyed: %f, %f, %f\n", v.x, v.y, v.z);
-}
-
-void print_foo(const foo& f) {
-    printf("foo: %d, %d, %d, %f\n", f.x, f.y, f.z, f.w);
-}
 
 void print_f32(u16 i, f32 f) {
     printf("%d: %f\n", i, f);
 }
 
-void print_log(script_context& ctx) {
-    for (u8 i = 0;i < ctx.compiler()->log()->errors.size();i++) {
-        compile_message& m = ctx.compiler()->log()->errors[i];
-        printf("%s:%d:%d: Error: %s\n", m.src.filename.c_str(), m.src.line, m.src.col, m.text.c_str());
-        std::string ln = "";
-        u32 wscount = 0;
-        bool reachedText = false;
-        for (u32 i = 0;i < m.src.line_text.length();i++) {
-            if (isspace(m.src.line_text[i]) && !reachedText) wscount++;
-            else {
-                reachedText = true;
-                ln += m.src.line_text[i];
-            }
-        }
-        printf("%s\n", ln.c_str());
-        for (u32 i = 0;i < m.src.col - wscount;i++) printf(" ");
-        printf("^\n");
-    }
-
-    for (u8 i = 0;i < ctx.compiler()->log()->warnings.size();i++) {
-        compile_message& m = ctx.compiler()->log()->warnings[i];
-        printf("%s:%d:%d: Warning: %s\n", m.src.filename.c_str(), m.src.line, m.src.col, m.text.c_str());
-        std::string ln = "";
-        u32 wscount = 0;
-        bool reachedText = false;
-        for (u32 i = 0;i < m.src.line_text.length();i++) {
-            if (isspace(m.src.line_text[i]) && !reachedText) wscount++;
-            else {
-                reachedText = true;
-                ln += m.src.line_text[i];
-            }
-        }
-        printf("%s\n", ln.c_str());
-        for (u32 i = 0;i < m.src.col - wscount;i++) printf(" ");
-        printf("^\n");
-    }
-}
-
-void print_code(vm_backend& ctx) {
-    std::string last_line = "";
-    for (u32 i = 0;i < ctx.code()->size();i++) {
-        script_function* f = ctx.context()->function(i);
-        if (f) {
-            printf("\n[%s %s(", f->signature.return_type->name.c_str(), f->name.c_str());
-            for(u8 a = 0;a < f->signature.arg_types.size();a++) {
-                if (a > 0) printf(", ");
-                printf("%s arg_%d -> $%s", f->signature.arg_types[a]->name.c_str(), a, register_str[u8(f->signature.arg_locs[a])]);
-            }
-            printf(")");
-
-            if (f->signature.return_type->name == "void") printf(" -> null");
-            else {
-                if (f->signature.returns_on_stack) {
-                    printf(" -> $%s (stack)", register_str[u8(f->signature.return_loc)]);
-                } else {
-                    printf(" -> $%s", register_str[u8(f->signature.return_loc)]);
-                }
-            }
-            printf("]\n");
-        }
-
-        instruction ins = (*ctx.code())[i];
-        printf("0x%3.3X: %-32s", i, ins.to_string(&ctx).c_str());
-        auto src = ctx.map()->get(i);
-        if (src.line_text != last_line) {
-            printf("; %s", src.line_text.c_str());
-            last_line = src.line_text;
-        } else if (ins.instr() == vm_instruction::jal) {
-            std::string str;
-            script_function* f = ctx.context()->function(ins.imm_u());
-            str += f->signature.return_type->name + " " + f->name + "(";
-            for (u8 a = 0;a < f->signature.arg_types.size();a++) {
-                if ((a > 0 && !f->is_method_of) || (f->is_method_of && a > 1)) str += ", ";
-                if (a == 0 && f->is_method_of) continue; // skip implicit 'this' parameter
-                str += f->signature.arg_types[a]->name;
-            }
-            str += ")";
-            printf("; <- %s", str.c_str());
-        }
-        printf("\n");
-    }
-}
-
-void debug_ir_step(script_context* ctx, compilation_output& in) {
-    for (u32 i = 0;i < in.code.size();i++) {
-        printf("%3.3d: %s\n", i, in.code[i].to_string().c_str());
-    }
-}
-
-
 // https://www.notion.so/3ccc9d8dba114bf8acfbbe238cb729e3?v=1a0dff3b20ba4f678bc7f5866665c4df
 int main(int arg_count, const char** args) {
-    std::string dir = args[0];
-    dir = dir.substr(0, dir.find_last_of('\\'));
-    FILE* fp = fopen((dir + "\\test.gjs").c_str(), "r");
-    std::string src;
-    if (fp) {
-        fseek(fp, 0, SEEK_END);
-        size_t sz = ftell(fp);
-        fseek(fp, 0, SEEK_SET);
-        char* c = new char[sz + 1];
-        memset(c, 0, sz + 1);
-        fread(c, sz, 1, fp);
-        src = c;
-        delete [] c;
-        fclose(fp);
-    }
-
     basic_malloc_allocator alloc;
     vm_backend gen(&alloc, 4096, 4096);
     script_context ctx(&gen);
+
     ctx.compiler()->add_ir_step(debug_ir_step);
 
-    try {
-        auto f = ctx.bind<foo>("foo");
-        f.constructor();
-        f.method("t", &foo::t);
-        f.method("ft", &foo::ft);
-        f.method("operator i32", &foo::operator i32);
-        f.method("static_func", &foo::static_func);
-        f.prop("x", &foo::get_x, &foo::set_x);
-        f.prop("y", &foo::y);
-        f.prop("z", &foo::z);
-        f.prop("w", &foo::w);
-        f.prop("s", &foo::s, bind::pf_static);
-        f.finalize();
+    ctx.bind(print_f32, "print_f32");
 
-        ctx.bind<vec3>("vec3").constructor<f32>().constructor<const foo&>().prop("x", &vec3::x).prop("y", &vec3::y).prop("z", &vec3::z).finalize();
-
-        ctx.bind(print_foo, "print_foo");
-        ctx.bind(testvec, "testvec");
-        ctx.bind(dtestvec, "dtestvec");
-        ctx.bind(print_f32, "print_f32");
-    } catch (bind_exception& e) {
-        printf("%s\n", e.text.c_str());
-    }
-
-    //gen.log_instructions(true);
+    printf("------------IR code-------------\n");
     script_module* mod = ctx.add_code(
         "test.gjs",
         "f32 abc = 4.5f;\n"
@@ -217,21 +25,30 @@ int main(int arg_count, const char** args) {
         "abc = 1.0f;\n"
     );
 
-    /*
-    if (!ctx.add_code("test.gjs", src)) {
+    script_module* mod1 = ctx.add_code(
+        "test1.gjs",
+        "import 'test' as ayy;\n"
+        // import { it, abc } from 'test';
+        // import { it as thing, abc as what } from 'test';
+        "void it1() {\n"
+            "ayy.it();\n"
+            "print_f32(0, ayy.abc);\n"
+        "}\n"
+    );
+
+    if (mod && mod1) {
+        printf("------------VM code-------------\n");
+        print_code(gen);
+
+        printf("-------------result-------------\n");
+        mod->init();
+        mod1->init();
+
+        ctx.call<void>(mod->function("it"), nullptr);
+        mod->set_local("abc", 3.14f);
+        ctx.call<void>(mod1->function("it1"), nullptr);
+    } else {
         print_log(ctx);
-        return 1;
     }
-    */
-
-    print_log(ctx);
-    print_code(gen);
-
-    printf("-------------result-------------\n");
-    if (mod) mod->init();
-
-    mod->set_local("abc", 3.14f);
-    script_function* func = mod->function("it");
-    if (func) ctx.call<void>(func, nullptr);
     return 0;
 }

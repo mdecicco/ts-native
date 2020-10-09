@@ -34,6 +34,7 @@ namespace gjs {
 
             script_module* module(const std::string& name);
             script_module* module(u32 id);
+            std::vector<script_module*> modules() const;
             script_function* function(u64 address);
 
             void add(script_function* func);

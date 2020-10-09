@@ -445,6 +445,7 @@ namespace gjs {
             // return type will be determined by the first global return statement, or it will be void
             script_function* init = new script_function(ctx.env, "__init__", 0);
             init->signature.return_loc = vm_register::v0;
+            init->owner = out.mod;
             ctx.new_functions.push_back(init);
             ctx.out.funcs.push_back({ init, gjs::func_stack(), 0, 0, register_allocator(out) });
             ctx.push_block();
@@ -464,20 +465,30 @@ namespace gjs {
             } catch (const error::exception &e) {
                 delete ctx.new_types;
                 for (u32 i = 0;i < ctx.new_functions.size();i++) delete ctx.new_functions[i];
-                delete init;
                 ctx.out.funcs.clear();
                 throw e;
             } catch (const std::exception &e) {
                 delete ctx.new_types;
                 for (u32 i = 0;i < ctx.new_functions.size();i++) delete ctx.new_functions[i];
-                delete init;
                 ctx.out.funcs.clear();
                 throw e;
             }
 
             ctx.out.funcs[0].end = ctx.code_sz();
-            if (!init->signature.return_type) init->signature.return_type = ctx.type("void");
-            ctx.add(operation::term);
+            if (!init->signature.return_type) {
+                if (ctx.global_code.size() != 0) {
+                    init->signature.return_type = ctx.type("void");
+                    ctx.add(operation::ret);
+                } else {
+                    delete init;
+                    ctx.new_functions[0] = nullptr;
+                    ctx.out.funcs[0].func = nullptr;
+                }
+            }
+            else if (ctx.global_code.back().op != operation::ret) {
+                if (init->signature.return_type->size == 0) ctx.add(operation::ret);
+                else ctx.log()->err(ec::c_missing_return_value, n->ref, "__init__");
+            }
 
             ctx.pop_block();
             ctx.pop_node();
@@ -486,10 +497,9 @@ namespace gjs {
                 delete ctx.new_types;
                 
                 for (u32 i = 0;i < ctx.new_functions.size();i++) {
-                    delete ctx.new_functions[i];
+                    if (ctx.new_functions[i]) delete ctx.new_functions[i];
                 }
 
-                delete init;
                 ctx.out.funcs.clear();
 
                 throw exc(ec::c_compile_finished_with_errors, input->ref);

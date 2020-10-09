@@ -50,6 +50,10 @@ namespace gjs {
     }
 
     script_module* script_context::resolve(const std::string& rel_path, const std::string& module_path) {
+        // first check if it's a direct reference
+        script_module* mod = module(module_path);
+        if (mod) return mod;
+
         return nullptr;
     }
 
@@ -63,6 +67,16 @@ namespace gjs {
         auto it = m_modules_by_id.find(id);
         if (it == m_modules_by_id.end()) return nullptr;
         return it->getSecond();
+    }
+
+    std::vector<script_module*> script_context::modules() const {
+        std::vector<script_module*> out;
+        
+        for (auto it = m_modules_by_id.begin();it != m_modules_by_id.end();++it) {
+            out.push_back(it->getSecond());
+        }
+
+        return out;
     }
 
     script_function* script_context::function(u64 address) {

@@ -113,6 +113,39 @@ namespace gjs {
                 return vec.back();
             }
 
+            for (u16 i = 0;i < imports.size();i++) {
+                if (imports[i]->alias.length() > 0) continue;
+
+                const script_module::local_var* imported = nullptr;
+                for (u16 s = 0;s < imports[i]->symbols.size() && !imported;s++) {
+                    auto& sym = imports[i]->symbols[s];
+                    if (sym.alias.length() == 0 && sym.name == name && sym.is_local) {
+                        imported = &imports[i]->mod->local(name);
+                    } else if (sym.alias == name && sym.is_local) {
+                        imported = &imports[i]->mod->local(sym.name);
+                    }
+                }
+
+                if (imported) {
+                    var v = empty_var(imported->type, name);
+                    v.m_instantiation = imported->ref;
+
+                    if (imported->type->is_primitive) {
+                        var ptr = empty_var(type("data"));
+                        add(operation::module_data).operand(ptr).operand(imm((u64)imports[i]->mod->id())).operand(imm(imported->offset));
+                        v.set_mem_ptr(ptr);
+                        add(operation::load).operand(v).operand(ptr);
+                    } else {
+                        add(operation::module_data).operand(v).operand(imm((u64)imports[i]->mod->id())).operand(imm(imported->offset));
+                    }
+
+                    auto& vec = block()->named_vars;
+                    vec.push_back(v);
+                    return vec.back();
+                }
+            }
+
+
             log()->err(ec::c_undefined_identifier, node()->ref, name.c_str());
             return error_var();
         }

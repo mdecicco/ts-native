@@ -92,6 +92,10 @@ namespace gjs {
             if (ctx.match({ tt::open_block })) {
                 ctx.consume();
                 do {
+                    if (symbols.size() > 0) {
+                        if (!ctx.match({ tt::comma })) throw exc(ec::p_expected_char, ctx.current().src, ',');
+                        ctx.consume();
+                    }
                     ast* n = identifier(ctx);
                     symbols.push_back(*n);
 
@@ -117,7 +121,6 @@ namespace gjs {
                 ctx.consume();
 
                 if (!ctx.match({ tt::string_literal })) throw exc(ec::p_expected_import_path, ctx.current().src);
-                ctx.consume();
 
                 from = ctx.current().text;
                 ast* b = new ast();
@@ -167,6 +170,8 @@ namespace gjs {
                 auto types = mod->types()->all();
                 for (u16 i = 0;i < types.size();i++) ctx.type_names.push_back(types[i]->name);
             }
+
+            return stmt;
         }
     };
 };

@@ -3,6 +3,7 @@
 #include <common/context.h>
 #include <common/errors.h>
 #include <common/module.h>
+#include <common/script_function.h>
 #include <backends/register_allocator.h>
 
 #include <compiler/compile.h>
@@ -92,6 +93,7 @@ namespace gjs {
                 }
 
                 for (u16 i = 0;i < out.funcs.size();i++) {
+                    if (!out.funcs[i].func) continue;
                     out.funcs[i].regs.m_gpc = generator->gp_count();
                     out.funcs[i].regs.m_fpc = generator->fp_count();
                     out.funcs[i].regs.process(i);

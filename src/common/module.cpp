@@ -31,7 +31,7 @@ namespace gjs {
 
     void script_module::define_local(const std::string& name, u64 offset, script_type* type, const source_ref& ref) {
         if (has_local(name)) return;
-        m_local_map[name] = m_locals.size();
+        m_local_map[name] = (u16)m_locals.size();
         m_locals.push_back({ offset, type, name, ref });
     }
 
@@ -60,6 +60,8 @@ namespace gjs {
     }
 
     script_function* script_module::function(const std::string& name) {
+        if (name == "__init__") return m_init;
+
         auto it = m_func_map.find(name);
         if (it == m_func_map.end()) return nullptr;
         if (it->getSecond().size() > 1) return nullptr;

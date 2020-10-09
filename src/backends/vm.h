@@ -32,7 +32,9 @@ namespace gjs {
 
         protected:
             virtual void call(script_function* func, void* ret, void** args);
-            void gen_function(compilation_output& in, robin_hood::unordered_map<u64, u64>& tac_map, u16 fidx);
+            typedef robin_hood::unordered_map<u64, u64> tac_map;
+            typedef robin_hood::unordered_map<u64, script_function*> jal_map;
+            void gen_function(compilation_output& in, tac_map& tmap, jal_map& jmap, u16 fidx);
 
             vm_allocator* m_alloc;
             gjs::vm m_vm;
