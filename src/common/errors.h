@@ -24,6 +24,7 @@ namespace gjs {
             p_unexpected_eof,
             p_expected_import_path,
             p_malformed_import,
+            p_failed_to_resolve_module,
             __parse_error_end,
             __compile_error_start,
             c_no_code,

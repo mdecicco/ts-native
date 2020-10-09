@@ -12,6 +12,7 @@
 #include <common/errors.h>
 #include <common/warnings.h>
 #include <common/module.h>
+#include <common/io.h>
 
 #include <backends/backend.h>
 #include <backends/vm.h>

@@ -415,7 +415,7 @@ namespace gjs {
             return false;
         }
 
-        script_type* context::type(const std::string& name) {
+        script_type* context::type(const std::string& name, bool do_throw) {
             if (name == "subtype") {
                 if (subtype_replacement) return subtype_replacement;
                 else {
@@ -436,7 +436,7 @@ namespace gjs {
 
             script_type* t = new_types->get(name);
 
-            if (!t) {
+            if (!t && do_throw) {
                 log()->err(ec::c_no_such_type, node()->ref, name.c_str());
                 return env->global()->types()->get("error_type");
             }
@@ -479,11 +479,13 @@ namespace gjs {
                         return env->global()->types()->get("error_type");
                     }
 
-                    std::string full_name = name + "<" + std::string(*type_identifier->data_type) + ">";
+                    script_type* st = type(type_identifier->data_type);
+
+                    std::string full_name = name + "<" + st->name + ">";
                     script_type* t = new_types->get(full_name);
                     if (t) return t;
 
-                    subtype_replacement = type(type_identifier->data_type);
+                    subtype_replacement = st;
                     script_type* new_tp = class_declaration(*this, subtype_types[i]);
                     subtype_replacement = nullptr;
 
@@ -502,7 +504,7 @@ namespace gjs {
                 } else {
                     script_type* st = type(type_identifier->data_type);
                     std::string ctn = t->name + "<" + st->name + ">";
-                    script_type* ct = type(ctn);
+                    script_type* ct = type(ctn, false);
                     if (!ct) ct = new_types->get(ctn);
                     if (!ct) {
                         ct = new_types->add(ctn, ctn);
@@ -516,6 +518,7 @@ namespace gjs {
                         ct->is_host = true;
                         ct->is_builtin = t->is_builtin;
                         ct->size = t->size;
+                        ct->owner = t->owner;
                         out.types.push_back(ct);
                     }
 

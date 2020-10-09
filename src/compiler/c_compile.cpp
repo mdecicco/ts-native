@@ -29,11 +29,12 @@ namespace gjs {
 
             std::vector<var> c_args = { obj };
             if (obj.type()->sub_type && obj.type()->is_host) {
-                // second parameter should be type id. This should
+                // second parameter should be moduletype id. This should
                 // only happen for host calls, script subtype calls
                 // should be compiled as if all occurrences of 'subtype'
                 // are the subtype used by the related instantiation
-                c_args.push_back(ctx.imm((u64)obj.type()->sub_type->id()));
+                u64 moduletype = join_u32(obj.type()->owner->id(), obj.type()->sub_type->id());
+                c_args.push_back(ctx.imm(moduletype));
             }
 
             if (args.size() > 0) {
@@ -81,7 +82,8 @@ namespace gjs {
                 // only happen for host calls, script subtype calls
                 // should be compiled as if all occurrences of 'subtype'
                 // are the subtype used by the related instantiation
-                c_args.push_back(ctx.imm((u64)obj.type()->sub_type->id()));
+                u64 moduletype = join_u32(obj.type()->owner->id(), obj.type()->sub_type->id());
+                c_args.push_back(ctx.imm(moduletype));
             }
 
             if (args.size() > 0) {
@@ -125,7 +127,8 @@ namespace gjs {
                 // only happen for host calls, script subtype calls
                 // should be compiled as if all occurrences of 'subtype'
                 // are the subtype used by the related instantiation
-                c_args.push_back(ctx.imm((u64)obj.type()->sub_type->id()));
+                u64 moduletype = join_u32(obj.type()->owner->id(), obj.type()->sub_type->id());
+                c_args.push_back(ctx.imm(moduletype));
             }
 
             if (args.size() > 0) {

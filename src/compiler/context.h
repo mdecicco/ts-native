@@ -88,7 +88,7 @@ namespace gjs {
             // use to determine if an identifier is in use
             bool identifier_in_use(const std::string& name);
 
-            script_type* type(const std::string& name);
+            script_type* type(const std::string& name, bool do_throw = true);
             script_type* type(parse::ast* type_identifier);
 
             // returns class type if compilation is currently nested within a class

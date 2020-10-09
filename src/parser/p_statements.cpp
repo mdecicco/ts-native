@@ -148,6 +148,8 @@ namespace gjs {
 
             // The module must be resolved
             script_module* mod = ctx.env->resolve(stmt->ref.filename, from);
+            if (!mod) throw exc(ec::p_failed_to_resolve_module, stmt->ref, from.c_str());
+
             stmt->body->set(mod->name());
 
             if (symbols.size() > 0) {

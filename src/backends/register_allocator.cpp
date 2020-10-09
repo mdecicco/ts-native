@@ -36,10 +36,10 @@ namespace gjs {
         reassign_registers(m_gpLf, m_gpc, fd.begin, fd.end, fidx);
         reassign_registers(m_fpLf, m_fpc, fd.begin, fd.end, fidx);
 
-        calc_reg_lifetimes(fidx, fd.begin, fd.end);
-
         // printf("post-alloc[%s]:\n", fd.func->name.c_str());
         // for (u64 i = fd.begin;i <= fd.end;i++) printf("%3.3d: %s\n", i, m_in.code[i].to_string().c_str());
+
+        calc_reg_lifetimes(fidx, fd.begin, fd.end);
     }
 
     std::vector<register_allocator::reg_lifetime> register_allocator::get_live(u64 at) {
@@ -67,47 +67,38 @@ namespace gjs {
                 if (ignore) continue;
             }
 
-            // If a backwards jump goes into a live range,
-            // then that live range must be extended to fit
-            // the jump (if it doesn't already)
-            if (m_in.code[i].op == operation::jump) {
-                u64 jaddr = m_in.code[i].operands[0].imm_u();
-                if (jaddr > i) continue;
-                for (u32 r = 0;r < m_gpLf.size();r++) {
-                    if (m_gpLf[r].begin <= jaddr && m_gpLf[r].end >= jaddr && m_gpLf[r].end < i) {
-                        m_gpLf[r].end = i;
+            bool do_calc = is_assignment(m_in.code[i].op);
+            do_calc = do_calc && m_in.code[i].operands[0].valid();
+            do_calc = do_calc && !m_in.code[i].operands[0].is_spilled();
+            do_calc = do_calc && !m_in.code[i].operands[0].is_arg();
+
+            if (do_calc) {
+                // Determine if this assignment is within an established
+                // live range for the same virtual register id
+                if (!m_in.code[i].operands[0].type()->is_floating_point) {
+                    for (u32 r = 0;r < m_gpLf.size() && do_calc;r++) {
+                        if (m_gpLf[r].reg_id != m_in.code[i].operands[0].m_reg_id) continue;
+                        if (i < m_gpLf[r].end) do_calc = false;
                     }
-                }
-                for (u32 r = 0;r < m_fpLf.size();r++) {
-                    if (m_fpLf[r].begin <= jaddr && m_fpLf[r].end >= jaddr && m_fpLf[r].end < i) {
-                        m_fpLf[r].end = i;
-                    }
-                }
-            } else if (m_in.code[i].op == operation::branch) {
-                u64 jaddr = m_in.code[i].operands[1].imm_u();
-                if (jaddr > i) continue;
-                for (u32 r = 0;r < m_gpLf.size();r++) {
-                    if (m_gpLf[r].begin <= jaddr && m_gpLf[r].end >= jaddr && m_gpLf[r].end < i) {
-                        m_gpLf[r].end = i;
-                    }
-                }
-                for (u32 r = 0;r < m_fpLf.size();r++) {
-                    if (m_fpLf[r].begin <= jaddr && m_fpLf[r].end >= jaddr && m_fpLf[r].end < i) {
-                        m_fpLf[r].end = i;
+                } else {
+                    for (u32 r = 0;r < m_fpLf.size() && do_calc;r++) {
+                        if (m_fpLf[r].reg_id != m_in.code[i].operands[0].m_reg_id) continue;
+                        if (i < m_fpLf[r].end) do_calc = false;
                     }
                 }
             }
 
-            bool needs_reassignment = is_assignment(m_in.code[i].op);
-            needs_reassignment = needs_reassignment && m_in.code[i].operands[0].valid();
-            needs_reassignment = needs_reassignment && !m_in.code[i].operands[0].is_spilled();
-            needs_reassignment = needs_reassignment && !m_in.code[i].operands[0].is_arg();
-
-
-            if (!needs_reassignment) continue;
+            if (!do_calc) continue;
 
             reg_lifetime l = { m_in.code[i].operands[0].m_reg_id, u32(-1), u32(-1), i, i, m_in.code[i].operands[0].type()->is_floating_point };
             for (u64 i1 = i + 1;i1 <= to;i1++) {
+                if (fidx == 0) {
+                    // ignore all code within functions other than __init__
+                    bool ignore = false;
+                    for (u16 f = 1;f < m_in.funcs.size() && !ignore;f++) ignore = i1 >= m_in.funcs[f].begin && i1 <= m_in.funcs[f].end;
+                    if (ignore) continue;
+                }
+
                 u8 o = 0;
                 for (;o < 3;o++) {
                     if (m_in.code[i1].operands[o].m_reg_id == l.reg_id && m_in.code[i1].operands[o].type()->is_floating_point == l.is_fp) break;
@@ -116,6 +107,28 @@ namespace gjs {
                 if (o == 3) continue;
                 if (o > 0 || !is_assignment(m_in.code[i1].op)) l.end = i1;
                 else if (o == 0 && is_assignment(m_in.code[i1].op)) break;
+            }
+            for (u64 i1 = i + 1;i1 <= to;i1++) {
+                if (fidx == 0) {
+                    // ignore all code within functions other than __init__
+                    bool ignore = false;
+                    for (u16 f = 1;f < m_in.funcs.size() && !ignore;f++) ignore = i1 >= m_in.funcs[f].begin && i1 <= m_in.funcs[f].end;
+                    if (ignore) continue;
+                }
+                // If a backwards jump goes into a live range,
+                // then that live range must be extended to fit
+                // the jump (if it doesn't already)
+                u64 jaddr = u64(-1);
+
+                if (m_in.code[i1].op == operation::jump) jaddr = m_in.code[i1].operands[0].imm_u();
+                else if (m_in.code[i].op == operation::branch) jaddr = m_in.code[i1].operands[1].imm_u();
+
+                if (jaddr != u64(-1)) {
+                    if (jaddr > i1) continue;
+                    if (l.begin < jaddr && l.end >= jaddr && l.end < i1) {
+                        l.end = i1;
+                    }
+                }
             }
 
             if (l.is_fp) m_fpLf.push_back(l);

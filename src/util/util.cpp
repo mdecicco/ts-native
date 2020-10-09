@@ -76,9 +76,9 @@ namespace gjs {
         return h + (h >> 5);
     }
 
-    void print_log(script_context& ctx) {
-        for (u8 i = 0;i < ctx.compiler()->log()->errors.size();i++) {
-            compile_message& m = ctx.compiler()->log()->errors[i];
+    void print_log(script_context* ctx) {
+        for (u8 i = 0;i < ctx->compiler()->log()->errors.size();i++) {
+            compile_message& m = ctx->compiler()->log()->errors[i];
             printf("%s:%d:%d: Error: %s\n", m.src.filename.c_str(), m.src.line, m.src.col, m.text.c_str());
             std::string ln = "";
             u32 wscount = 0;
@@ -90,13 +90,14 @@ namespace gjs {
                     ln += m.src.line_text[i];
                 }
             }
+            if (wscount > m.src.col) wscount = m.src.col;
             printf("%s\n", ln.c_str());
             for (u32 i = 0;i < m.src.col - wscount;i++) printf(" ");
             printf("^\n");
         }
 
-        for (u8 i = 0;i < ctx.compiler()->log()->warnings.size();i++) {
-            compile_message& m = ctx.compiler()->log()->warnings[i];
+        for (u8 i = 0;i < ctx->compiler()->log()->warnings.size();i++) {
+            compile_message& m = ctx->compiler()->log()->warnings[i];
             printf("%s:%d:%d: Warning: %s\n", m.src.filename.c_str(), m.src.line, m.src.col, m.text.c_str());
             std::string ln = "";
             u32 wscount = 0;
@@ -108,27 +109,28 @@ namespace gjs {
                     ln += m.src.line_text[i];
                 }
             }
+            if (wscount > m.src.col) wscount = m.src.col;
             printf("%s\n", ln.c_str());
             for (u32 i = 0;i < m.src.col - wscount;i++) printf(" ");
             printf("^\n");
         }
     }
 
-    void print_code(vm_backend& ctx) {
+    void print_code(vm_backend* ctx) {
         robin_hood::unordered_map<u64, script_function*> module_initializers;
-        auto modules = ctx.context()->modules();
+        auto modules = ctx->context()->modules();
         for (u32 i = 0;i < modules.size();i++) {
             script_function* init = modules[i]->function("__init__");
             if (init) module_initializers[init->access.entry] = init;
         }
 
         char instr_fmt[32] = { 0 };
-        u8 addr_w = snprintf(instr_fmt, 32, "%llx", ctx.code()->size());
+        u8 addr_w = snprintf(instr_fmt, 32, "%llx", ctx->code()->size());
         snprintf(instr_fmt, 32, " 0x\%%%d.%dllX: \%%-32s", addr_w, addr_w);
         
         std::string last_line = "";
-        for (u64 i = 0;i < ctx.code()->size();i++) {
-            script_function* f = ctx.context()->function(i);
+        for (u64 i = 0;i < ctx->code()->size();i++) {
+            script_function* f = ctx->context()->function(i);
             if (!f) {
                 auto init = module_initializers.find(i);
                 if (init != module_initializers.end()) f = init->getSecond();
@@ -153,15 +155,15 @@ namespace gjs {
                 printf("]\n");
             }
 
-            instruction ins = (*ctx.code())[i];
-            printf(instr_fmt, i, ins.to_string(&ctx).c_str());
-            auto src = ctx.map()->get(i);
+            instruction ins = (*ctx->code())[i];
+            printf(instr_fmt, i, ins.to_string(ctx).c_str());
+            auto src = ctx->map()->get(i);
             if (src.line_text != last_line) {
                 printf("; %s", src.line_text.c_str());
                 last_line = src.line_text;
             } else if (ins.instr() == vm_instruction::jal) {
                 std::string str;
-                script_function* f = ctx.context()->function(ins.imm_u());
+                script_function* f = ctx->context()->function(ins.imm_u());
                 if (f) {
                     str += f->signature.return_type->name + " " + f->owner->name() + "::" + f->name + "(";
                     for (u8 a = 0;a < f->signature.arg_types.size();a++) {

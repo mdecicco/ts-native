@@ -82,6 +82,7 @@ namespace gjs {
             std::vector<ir_step_func> m_ir_steps;
             std::vector<ast_step_func> m_ast_steps;
             compile_log m_log;
+            u8 m_depth;
     };
 };
 

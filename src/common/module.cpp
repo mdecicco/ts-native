@@ -13,6 +13,7 @@ namespace gjs {
         size_t nameIdx = file.find_last_of('\\');
         if (nameIdx == std::string::npos) nameIdx = file.find_last_of('/');
         if (nameIdx == std::string::npos) nameIdx = 0;
+        else nameIdx++;
         m_name = file.substr(nameIdx, file.find_last_of('.')  - nameIdx);
         m_id = hash(m_name);
         m_data = new script_buffer();

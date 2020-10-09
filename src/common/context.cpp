@@ -2,14 +2,27 @@
 #include <common/script_function.h>
 #include <common/script_type.h>
 #include <common/module.h>
+#include <common/io.h>
 #include <backends/backend.h>
+#include <backends/vm.h>
+#include <vm/allocator.h>
 
 #include <bind/bind.h>
 #include <builtin/builtin.h>
 #include <common/errors.h>
 
 namespace gjs {
-    script_context::script_context(backend* generator) : m_pipeline(this), m_backend(generator), m_host_call_vm(nullptr) {
+    script_context::script_context(backend* generator, io_interface* io) : m_pipeline(this), m_backend(generator), m_host_call_vm(nullptr), m_io(io) {
+        if (!m_backend) {
+            m_owns_backend = true;
+            m_backend = new vm_backend(new basic_malloc_allocator(), 8 * 1024 * 1024, 8 * 1024 * 1024);
+        } else m_owns_backend = false;
+
+        if (!m_io) {
+            m_owns_io = true;
+            m_io = new basic_io_interface();
+        } else m_owns_io = false;
+        
         m_global = new script_module(this, "__global__");
         add(m_global);
         m_host_call_vm = dcNewCallVM(4096);
@@ -19,8 +32,19 @@ namespace gjs {
     }
 
     script_context::~script_context() {
+        for (auto it = m_modules.begin();it != m_modules.end();++it) delete it->getSecond();
+
         dcFree(m_host_call_vm);
-        delete m_global;
+
+        if (m_owns_backend) {
+            basic_malloc_allocator* alloc = (basic_malloc_allocator*)((vm_backend*)m_backend)->allocator();
+            delete m_backend;
+            delete alloc;
+        }
+
+        if (m_owns_io) {
+            delete m_io;
+        }
     }
 
     void script_context::add(script_function* func) {
@@ -53,6 +77,47 @@ namespace gjs {
         // first check if it's a direct reference
         script_module* mod = module(module_path);
         if (mod) return mod;
+
+        auto final_dir = split(rel_path, "/\\");
+        if (!m_io->is_dir(rel_path)) {
+            final_dir.pop_back();
+        }
+
+        auto mod_dirs = split(module_path, "/\\");
+
+        for (u32 i = 0;i < mod_dirs.size() - 1;i++) {
+            if (mod_dirs[i] == "..") {
+                final_dir.pop_back();
+                continue;
+            }
+            if (mod_dirs[i] == ".") continue;
+            final_dir.push_back(mod_dirs[i]);
+        }
+
+        if (mod_dirs.back().find_last_of('.') == std::string::npos) {
+            mod_dirs.back() += ".gjs";
+        }
+        final_dir.push_back(mod_dirs.back());
+
+        std::string out_path = "";
+        for (u32 i = 0;i < final_dir.size();i++) {
+            if (i > 0) out_path += "/";
+            out_path += final_dir[i];
+        }
+
+        if (!m_io->exists(out_path) || m_io->is_dir(out_path)) return nullptr;
+
+        file_interface* file = m_io->open(out_path, io_open_mode::existing_only);
+        if (file && file->size() > 0) {
+            char* c_src = new char[file->size() + 1];
+            c_src[file->size()] = 0;
+            file->read(c_src, file->size());
+            std::string src = c_src;
+            delete [] c_src;
+            m_io->close(file);
+
+            return add_code(out_path, src);
+        }
 
         return nullptr;
     }

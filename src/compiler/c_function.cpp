@@ -69,6 +69,7 @@ namespace gjs {
                 }
                 
                 f = new script_function(ctx.env, fname, 0);
+                f->owner = ctx.out.mod;
                 f->signature.return_type = ret;
                 f->signature.return_loc = vm_register::v0;
                 f->is_method_of = method_of;
@@ -97,6 +98,7 @@ namespace gjs {
                 }
             } else {
                 f = new script_function(ctx.env, fname, 0);
+                f->owner = ctx.out.mod;
                 f->signature.return_type = ret;
                 f->is_method_of = method_of;
                 ctx.new_functions.push_back(f);
@@ -248,7 +250,7 @@ namespace gjs {
             std::vector<var> c_args;
             for (u8 i = 0;i < args.size();i++) {
                 if (i == 1 && func->is_method_of && func->is_method_of->requires_subtype && func->name.find("constructor") != std::string::npos) {
-                    // don't try to convert type id (u64) to subtype (data)
+                    // don't try to convert moduletype id (u64) to subtype (data)
                     c_args.push_back(args[i]);
                 } else if (func->signature.arg_types[i]->name == "subtype") {
                     c_args.push_back(args[i].convert(args[0].type()->sub_type));

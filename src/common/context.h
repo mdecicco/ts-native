@@ -13,9 +13,10 @@ namespace gjs {
     class type_manager;
     class script_function;
     class script_module;
+    class io_interface;
     class script_context {
         public:
-            script_context(backend* generator);
+            script_context(backend* generator = nullptr, io_interface* io = nullptr);
             ~script_context();
 
             template <class Cls>
@@ -44,6 +45,7 @@ namespace gjs {
             inline pipeline* compiler() { return &m_pipeline; }
             inline backend* generator() { return m_backend; }
             inline DCCallVM* call_vm() { return m_host_call_vm; }
+            inline io_interface* io() { return m_io; }
 
             script_module* resolve(const std::string& rel_path, const std::string& module_path);
 
@@ -64,6 +66,9 @@ namespace gjs {
             backend* m_backend;
             DCCallVM* m_host_call_vm;
             script_module* m_global;
+            io_interface* m_io;
+            bool m_owns_backend;
+            bool m_owns_io;
     };
 
     template <typename Ret, typename... Args>

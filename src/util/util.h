@@ -22,9 +22,9 @@ namespace gjs {
 
     inline u32 extract_right_u32(u64 joined) { return ((u32*)&joined)[0]; }
 
-    void print_log(script_context& ctx);
+    void print_log(script_context* ctx);
 
-    void print_code(vm_backend& ctx);
+    void print_code(vm_backend* ctx);
 
     void debug_ir_step(script_context* ctx, compilation_output& in);
 };
