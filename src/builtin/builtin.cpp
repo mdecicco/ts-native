@@ -5,6 +5,7 @@
 #include <builtin/script_string.h>
 #include <builtin/script_buffer.h>
 #include <common/context.h>
+#include <common/module.h>
 #include <bind/bind.h>
 
 namespace gjs {
@@ -23,14 +24,16 @@ namespace gjs {
         script_type* tp = nullptr;
 
         tp = nullptr;
-        tp = ctx->types()->add("i64", typeid(i64).name());
+        tp = ctx->global()->types()->add("i64", typeid(i64).name());
+        tp->owner = ctx->global();
         tp->is_host = true;
         tp->is_primitive = true;
         tp->is_builtin = true;
         tp->size = sizeof(i64);
 
         tp = nullptr;
-        tp = ctx->types()->add("u64", typeid(u64).name());
+        tp = ctx->global()->types()->add("u64", typeid(u64).name());
+        tp->owner = ctx->global();
         tp->is_host = true;
         tp->is_primitive = true;
         tp->is_unsigned = true;
@@ -38,14 +41,16 @@ namespace gjs {
         tp->size = sizeof(u64);
 
         tp = nullptr;
-        tp = ctx->types()->add("i32", typeid(i32).name());
+        tp = ctx->global()->types()->add("i32", typeid(i32).name());
+        tp->owner = ctx->global();
         tp->is_host = true;
         tp->is_primitive = true;
         tp->is_builtin = true;
         tp->size = sizeof(i32);
 
         tp = nullptr;
-        tp = ctx->types()->add("u32", typeid(u32).name());
+        tp = ctx->global()->types()->add("u32", typeid(u32).name());
+        tp->owner = ctx->global();
         tp->is_host = true;
         tp->is_primitive = true;
         tp->is_unsigned = true;
@@ -53,14 +58,16 @@ namespace gjs {
         tp->size = sizeof(u32);
 
         tp = nullptr;
-        tp = ctx->types()->add("i16", typeid(i16).name());
+        tp = ctx->global()->types()->add("i16", typeid(i16).name());
+        tp->owner = ctx->global();
         tp->is_host = true;
         tp->is_primitive = true;
         tp->is_builtin = true;
         tp->size = sizeof(i16);
 
         tp = nullptr;
-        tp = ctx->types()->add("u16", typeid(u16).name());
+        tp = ctx->global()->types()->add("u16", typeid(u16).name());
+        tp->owner = ctx->global();
         tp->is_host = true;
         tp->is_primitive = true;
         tp->is_unsigned = true;
@@ -68,14 +75,16 @@ namespace gjs {
         tp->size = sizeof(u16);
 
         tp = nullptr;
-        tp = ctx->types()->add("i8", typeid(i8).name());
+        tp = ctx->global()->types()->add("i8", typeid(i8).name());
+        tp->owner = ctx->global();
         tp->is_host = true;
         tp->is_primitive = true;
         tp->is_builtin = true;
         tp->size = sizeof(i8);
 
         tp = nullptr;
-        tp = ctx->types()->add("u8", typeid(u8).name());
+        tp = ctx->global()->types()->add("u8", typeid(u8).name());
+        tp->owner = ctx->global();
         tp->is_host = true;
         tp->is_primitive = true;
         tp->is_unsigned = true;
@@ -84,54 +93,63 @@ namespace gjs {
 
         if (typeid(char) != typeid(i8)) {
             tp = nullptr;
-            tp = ctx->types()->add("___char", typeid(char).name());
+            tp = ctx->global()->types()->add("___char", typeid(char).name());
+            tp->owner = ctx->global();
             tp->is_host = true;
             tp->is_primitive = true;
             tp->is_builtin = true;
             tp->size = sizeof(char);
         }
 
-        tp = ctx->types()->add("f32", typeid(f32).name());
+        tp = ctx->global()->types()->add("f32", typeid(f32).name());
+        tp->owner = ctx->global();
         tp->is_host = true;
         tp->is_primitive = true;
         tp->is_floating_point = true;
         tp->is_builtin = true;
         tp->size = sizeof(f32);
 
-        tp = ctx->types()->add("f64", typeid(f64).name());
+        tp = ctx->global()->types()->add("f64", typeid(f64).name());
+        tp->owner = ctx->global();
         tp->is_host = true;
         tp->is_primitive = true;
         tp->is_floating_point = true;
         tp->is_builtin = true;
         tp->size = sizeof(f64);
 
-        tp = ctx->types()->add("bool", typeid(bool).name());
+        tp = ctx->global()->types()->add("bool", typeid(bool).name());
+        tp->owner = ctx->global();
         tp->is_host = true;
         tp->is_primitive = true;
         tp->is_builtin = true;
         tp->size = sizeof(bool);
 
-        tp = ctx->types()->add("void", "void");
+        tp = ctx->global()->types()->add("void", "void");
+        tp->owner = ctx->global();
         tp->is_host = true;
         tp->is_builtin = true;
         tp->size = 0;
 
-        tp = ctx->types()->add("error_type", "error_type");
+        tp = ctx->global()->types()->add("error_type", "error_type");
+        tp->owner = ctx->global();
         tp->is_host = true;
         tp->is_builtin = true;
         tp->size = 0;
 
-        tp = ctx->types()->add("data", "void*");
+        tp = ctx->global()->types()->add("data", "void*");
+        tp->owner = ctx->global();
         tp->is_host = true;
         tp->is_builtin = true;
         tp->size = sizeof(void*);
         tp->is_unsigned = true;
 
         tp = ctx->bind<subtype_t>("subtype").finalize();
+        tp->owner = ctx->global();
         tp->is_builtin = true;
 
-        auto std_str = ctx->bind<std::string>("___std_str").finalize();
-        std_str->size = sizeof(std::string);
+        tp = ctx->bind<std::string>("___std_str").finalize();
+        tp->size = sizeof(std::string);
+        tp->owner = ctx->global();
 
         auto str = ctx->bind<script_string>("string");
         str.constructor();
@@ -155,6 +173,7 @@ namespace gjs {
         str.method("operator ___std_str", &script_string::operator std::string);
         str.prop("length", &script_string::length);
         tp = str.finalize();
+        tp->owner = ctx->global();
         tp->is_builtin = true;
 
         auto arr = ctx->bind<script_array>("array");
@@ -163,6 +182,7 @@ namespace gjs {
         arr.method("operator []", &script_array::operator[]);
         arr.prop("length", &script_array::length);
         tp = arr.finalize();
+        tp->owner = ctx->global();
         tp->requires_subtype = true;
         tp->is_builtin = true;
 
@@ -198,6 +218,7 @@ namespace gjs {
         buf.prop("position", CONST_METHOD_PTR(script_buffer, position, u64), METHOD_PTR(script_buffer, position, u64, u64));
         buf.prop("at_end", &script_buffer::at_end);
         tp = buf.finalize();
+        tp->owner = ctx->global();
         tp->is_builtin = true;
 
 

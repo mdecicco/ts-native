@@ -104,7 +104,6 @@ namespace gjs {
 
     script_type::script_type() {
         m_id = 0;
-        destructor = nullptr;
         size = 0;
         is_primitive = false;
         is_floating_point = false;
@@ -112,6 +111,8 @@ namespace gjs {
         is_builtin = false;
         is_host = false;
         requires_subtype = false;
+        owner = nullptr;
+        destructor = nullptr;
         m_wrapped = nullptr;
         base_type = nullptr;
         sub_type = nullptr;

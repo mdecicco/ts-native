@@ -19,7 +19,6 @@ namespace gjs {
             "while_loop",
             "do_while_loop",
             "import_statement",
-            "export_statement",
             "return_statement",
             "delete_statement",
             "object",

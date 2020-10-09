@@ -7,6 +7,7 @@ namespace gjs {
     class script_context;
     class type_manager;
     class script_type;
+    class script_module;
     enum class vm_register;
 
     namespace bind {
@@ -41,6 +42,7 @@ namespace gjs {
                 address entry;
             } access;
 
+            script_module* owner;
         protected:
             script_context* m_ctx;
     };

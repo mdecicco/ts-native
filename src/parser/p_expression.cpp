@@ -432,19 +432,9 @@ namespace gjs {
         ast* primary(context& ctx) {
             ast* n = nullptr;
 
+            token cur = ctx.current();
             n = parse_type_identifier(ctx, ctx.current(), false);
             if (n) {
-                token typeTok = ctx.current();
-                ctx.consume();
-
-                if (ctx.match({ "<" })) {
-                    ctx.consume();
-                    n->data_type = parse_type_identifier(ctx, ctx.current());
-                    ctx.consume();
-                    if (!ctx.match({ ">" })) throw exc(ec::p_expected_char, ctx.current().src, '>');
-                    ctx.consume();
-                }
-
                 // could be referring to a static method or property
                 if (ctx.match({ tt::member_accessor })) return n;
 
@@ -472,7 +462,7 @@ namespace gjs {
                     ctx.consume();
                 }
 
-                set_node_src(op, typeTok);
+                set_node_src(op, cur);
                 return op;
             }
 
@@ -517,16 +507,7 @@ namespace gjs {
                 op->data_type = parse_type_identifier(ctx, ctx.current());
 
                 if (!op->data_type) throw exc(ec::p_expected_type_identifier, ctx.current().src);
-                ctx.consume();
-
-                if (ctx.match({ "<" })) {
-                    ctx.consume();
-                    op->data_type->data_type = parse_type_identifier(ctx, ctx.current());
-                    ctx.consume();
-                    if (!ctx.match({ ">" })) throw exc(ec::p_expected_char, ctx.current().src, '>');
-                    ctx.consume();
-                }
-
+                
                 if (ctx.match({ tt::open_parenth })) {
                     ctx.consume();
 
@@ -568,11 +549,29 @@ namespace gjs {
         ast* parse_type_identifier(context& ctx, const token& tok, bool expected) {
             if (tok == tt::identifier) {
                 if (ctx.is_typename(tok.text)) {
-                    ast* n = new ast();
-                    n->type = nt::type_identifier;
-                    n->set(tok.text);
+                    ast* n = type_identifier(ctx);
                     set_node_src(n, tok);
                     return n;
+                } else {
+                    if (ctx.match({ tok.text, "." }) && ctx.tokens.size() > ctx.cur_token + 2) {
+                        token& ni = ctx.tokens[ctx.cur_token + 2];
+                        if (ni.type == tt::identifier) {
+                            bool is_type = false;
+                            for (u16 m = 0;m < ctx.named_imports.size() && !is_type;m++) {
+                                if (ctx.named_imports[m].first == tok.text) {
+                                    for (u16 i = 0;i < ctx.named_imports[m].second.size() && !is_type;i++) {
+                                        is_type = ctx.named_imports[m].second[i] == ni.text;
+                                    }
+                                }
+                            }
+                            
+                            if (is_type) {
+                                ast* n = type_identifier(ctx);
+                                set_node_src(n, tok);
+                                return n;
+                            }
+                        }
+                    }
                 }
             }
 

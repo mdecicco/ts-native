@@ -26,6 +26,7 @@ namespace gjs {
 
                 inline std::string name() const { return m_name; }
                 inline source_ref instantiation() const { return m_instantiation; }
+                inline void set_code_ref(const source_ref& ref) { m_instantiation = ref; }
                 inline bool is_imm() const { return m_is_imm; }
                 inline script_type* type() const { return m_type; }
                 inline u64 imm_u() const { return m_imm.u; }

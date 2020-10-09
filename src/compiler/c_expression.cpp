@@ -96,6 +96,8 @@ namespace gjs {
                 case ot::member: {
                     // note: function_call compiler will handle the case when rvalue
                     // is an identifier that references a class method
+                    // another note: function_call compiler will handle the case when
+                    // lvalue is a module alias and rvalue is a function name 
                     if (n->lvalue->type == nt::type_identifier) {
                         ctx.push_node(n->lvalue);
                         script_type* tp = ctx.type(n->lvalue);
@@ -116,6 +118,43 @@ namespace gjs {
                         }
                         return ret;
                     }
+
+                    // check if lvalue refers to a module alias
+                    if (n->lvalue->type == nt::identifier) {
+                        std::string name = *n->lvalue;
+                        for (u16 i = 0;i < ctx.imports.size();i++) {
+                            if (ctx.imports[i]->alias == name) {
+                                std::string pname = *n->rvalue;
+                                const script_module::local_var* v = nullptr;
+                                for (u16 s = 0;s < ctx.imports[i]->symbols.size();s++) {
+                                    auto& sym = ctx.imports[i]->symbols[s];
+
+                                    if (sym.alias.length() == 0 && sym.name == pname && sym.is_local) {
+                                        v = &ctx.imports[i]->mod->local(pname);
+                                    } else if (sym.alias == pname && sym.is_local) {
+                                        v = &ctx.imports[i]->mod->local(sym.name);
+                                    }
+                                }
+
+                                if (v) {
+                                    var ret = ctx.empty_var(v->type);
+                                    ret.set_code_ref(v->ref);
+
+                                    if (v->type->is_primitive) {
+                                        var ptr = ctx.empty_var(ctx.type("data"));
+                                        ctx.add(operation::module_data).operand(ptr).operand(ctx.imm((u64)ctx.imports[i]->mod->id())).operand(ctx.imm(v->offset));
+                                        ret.set_mem_ptr(ptr);
+                                        ctx.add(operation::load).operand(ret).operand(ptr);
+                                    } else {
+                                        ctx.add(operation::module_data).operand(ret).operand(ctx.imm((u64)ctx.imports[i]->mod->id())).operand(ctx.imm(v->offset));
+                                    }
+
+                                    return ret;
+                                }
+                            }
+                        }
+                    }
+
                     return expression_inner(ctx, n->lvalue).prop(*n->rvalue);
                     break;
                 }

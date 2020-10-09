@@ -6,14 +6,52 @@
 #include <common/script_function.h>
 #include <common/compile_log.h>
 #include <common/errors.h>
+#include <common/context.h>
+#include <common/module.h>
 
 namespace gjs {
     using ec = error::ecode;
     namespace compile {
         void import_statement(context& ctx, parse::ast* n) {
-        }
+            std::string from = *n->body;
+            std::string as = n->identifier ? std::string(*n->identifier) : "";
 
-        void export_statement(context& ctx, parse::ast* n) {
+            context::import* im = new context::import;
+            im->mod = ctx.env->module(from);
+            im->alias = as;
+            
+            if (n->body->next) {
+                parse::ast* i = n->body->next;
+                while (i) {
+                    std::string symbol = *i;
+                    std::string alias = i->identifier ? std::string(*i->identifier) : "";
+                    script_type* tp = im->mod->types()->get(hash(symbol));
+
+                    if (tp) {
+                        im->symbols.push_back({ symbol, alias, tp, false, false, true });
+                    } else if (im->mod->has_local(symbol)) {
+                        auto& l = im->mod->local(symbol);
+                        im->symbols.push_back({ symbol, alias, l.type, true, false, false });
+                    } else if (im->mod->has_function(symbol)) {
+                        im->symbols.push_back({ symbol, alias, nullptr, false, true, false });
+                    } else {
+                        ctx.log()->err(ec::c_symbol_not_found_in_module, i->ref, symbol.c_str(), from.c_str());
+                    }
+
+                    i = i->next;
+                }
+            } else {
+                const auto& types = im->mod->types()->all();
+                for (u16 i = 0;i < types.size();i++) im->symbols.push_back({ types[i]->name, "", types[i], false, false, true });
+
+                auto functions = im->mod->function_names();
+                for (u16 i = 0;i < functions.size();i++) im->symbols.push_back({ functions[i], "", nullptr, false, true, false });
+
+                const auto& locals = im->mod->locals();
+                for (u16 i = 0;i < locals.size();i++) im->symbols.push_back({ locals[i].name, "", locals[i].type, true, false, false });
+            }
+
+            ctx.imports.push_back(im);
         }
 
         void return_statement(context& ctx, parse::ast* n) {

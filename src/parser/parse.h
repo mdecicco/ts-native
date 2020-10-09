@@ -33,6 +33,8 @@ namespace gjs {
 
         ast* delete_statement(context& ctx);
 
+        ast* import_statement(context& ctx);
+
         ast* while_loop(context& ctx);
 
         ast* for_loop(context& ctx);

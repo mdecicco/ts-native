@@ -29,11 +29,12 @@ namespace gjs {
 
             std::vector<var> c_args = { obj };
             if (obj.type()->sub_type && obj.type()->is_host) {
-                // second parameter should be type id. This should
+                // second parameter should be moduletype id. This should
                 // only happen for host calls, script subtype calls
                 // should be compiled as if all occurrences of 'subtype'
                 // are the subtype used by the related instantiation
-                c_args.push_back(ctx.imm((u64)obj.type()->sub_type->id()));
+                u64 moduletype = join_u32(obj.type()->owner->id(), obj.type()->sub_type->id());
+                c_args.push_back(ctx.imm(moduletype));
             }
 
             if (args.size() > 0) {
@@ -81,7 +82,8 @@ namespace gjs {
                 // only happen for host calls, script subtype calls
                 // should be compiled as if all occurrences of 'subtype'
                 // are the subtype used by the related instantiation
-                c_args.push_back(ctx.imm((u64)obj.type()->sub_type->id()));
+                u64 moduletype = join_u32(obj.type()->owner->id(), obj.type()->sub_type->id());
+                c_args.push_back(ctx.imm(moduletype));
             }
 
             if (args.size() > 0) {
@@ -125,7 +127,8 @@ namespace gjs {
                 // only happen for host calls, script subtype calls
                 // should be compiled as if all occurrences of 'subtype'
                 // are the subtype used by the related instantiation
-                c_args.push_back(ctx.imm((u64)obj.type()->sub_type->id()));
+                u64 moduletype = join_u32(obj.type()->owner->id(), obj.type()->sub_type->id());
+                c_args.push_back(ctx.imm(moduletype));
             }
 
             if (args.size() > 0) {
@@ -243,6 +246,7 @@ namespace gjs {
 
             ctx.push_node(n);
             script_type* tp = ctx.new_types->add(name, name);
+            tp->owner = ctx.out.mod;
 
             std::vector<parse::ast*> methods;
             parse::ast* cn = n->body;
@@ -345,6 +349,7 @@ namespace gjs {
             std::string name = n->is_subtype ? std::string(*n->identifier) + "<" + ctx.subtype_replacement->name + ">" : *n->identifier;
 
             script_type* tp = ctx.new_types->add(name, name);
+            tp->owner = ctx.out.mod;
 
             parse::ast* cn = n->body;
             while (cn) {
@@ -384,7 +389,6 @@ namespace gjs {
                 case nt::while_loop: { while_loop(ctx, n); break; }
                 case nt::do_while_loop: { do_while_loop(ctx, n); break; }
                 case nt::import_statement: { import_statement(ctx, n); break; }
-                case nt::export_statement: { export_statement(ctx, n); break; }
                 case nt::return_statement: { return_statement(ctx, n); break; }
                 case nt::delete_statement: { delete_statement(ctx, n); break; }
                 case nt::scoped_block: { block(ctx, n); break; }
@@ -411,6 +415,23 @@ namespace gjs {
             ctx.pop_block();
         }
 
+        void import_globals(context& ctx) {
+            context::import* im = new context::import;
+            im->mod = ctx.env->global();
+            im->alias = "";
+
+            const auto& types = im->mod->types()->all();
+            for (u16 i = 0;i < types.size();i++) im->symbols.push_back({ types[i]->name, "", types[i], false, false, true });
+
+            auto functions = im->mod->function_names();
+            for (u16 i = 0;i < functions.size();i++) im->symbols.push_back({ functions[i], "", nullptr, false, true, false });
+
+            const auto& locals = im->mod->locals();
+            for (u16 i = 0;i < locals.size();i++) im->symbols.push_back({ locals[i].name, "", locals[i].type, true, false, false });
+            
+            ctx.imports.push_back(im);
+        }
+
         void compile(script_context* env, ast* input, compilation_output& out) {
             if (!input || !input->body) {
                 throw exc(ec::c_no_code, input ? input->ref : source_ref("[unknown]", "", 0, 0));
@@ -422,9 +443,12 @@ namespace gjs {
             ctx.new_types = new type_manager(env);
             ctx.push_node(input->body);
 
+            import_globals(ctx);
+
             // return type will be determined by the first global return statement, or it will be void
             script_function* init = new script_function(ctx.env, "__init__", 0);
             init->signature.return_loc = vm_register::v0;
+            init->owner = out.mod;
             ctx.new_functions.push_back(init);
             ctx.out.funcs.push_back({ init, gjs::func_stack(), 0, 0, register_allocator(out) });
             ctx.push_block();
@@ -444,20 +468,30 @@ namespace gjs {
             } catch (const error::exception &e) {
                 delete ctx.new_types;
                 for (u32 i = 0;i < ctx.new_functions.size();i++) delete ctx.new_functions[i];
-                delete init;
                 ctx.out.funcs.clear();
                 throw e;
             } catch (const std::exception &e) {
                 delete ctx.new_types;
                 for (u32 i = 0;i < ctx.new_functions.size();i++) delete ctx.new_functions[i];
-                delete init;
                 ctx.out.funcs.clear();
                 throw e;
             }
 
             ctx.out.funcs[0].end = ctx.code_sz();
-            if (!init->signature.return_type) init->signature.return_type = ctx.type("void");
-            ctx.add(operation::term);
+            if (!init->signature.return_type) {
+                if (ctx.global_code.size() != 0) {
+                    init->signature.return_type = ctx.type("void");
+                    ctx.add(operation::ret);
+                } else {
+                    delete init;
+                    ctx.new_functions[0] = nullptr;
+                    ctx.out.funcs[0].func = nullptr;
+                }
+            }
+            else if (ctx.global_code.back().op != operation::ret) {
+                if (init->signature.return_type->size == 0) ctx.add(operation::ret);
+                else ctx.log()->err(ec::c_missing_return_value, n->ref, "__init__");
+            }
 
             ctx.pop_block();
             ctx.pop_node();
@@ -466,16 +500,15 @@ namespace gjs {
                 delete ctx.new_types;
                 
                 for (u32 i = 0;i < ctx.new_functions.size();i++) {
-                    delete ctx.new_functions[i];
+                    if (ctx.new_functions[i]) delete ctx.new_functions[i];
                 }
 
-                delete init;
                 ctx.out.funcs.clear();
 
                 throw exc(ec::c_compile_finished_with_errors, input->ref);
             }
 
-            env->types()->merge(ctx.new_types);
+            out.mod->types()->merge(ctx.new_types);
              
             delete ctx.new_types;
             return;

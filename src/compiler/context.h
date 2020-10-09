@@ -27,6 +27,21 @@ namespace gjs {
                 script_type* subtype_replacement = 0;
             };
 
+            struct import {
+                struct symbol {
+                    std::string name;
+                    std::string alias;
+                    script_type* type;
+                    bool is_local;
+                    bool is_func;
+                    bool is_type;
+                };
+
+                script_module* mod;
+                std::string alias;
+                std::vector<symbol> symbols;
+            };
+
             // todo: comments
             script_context* env;
             parse::ast* input;
@@ -40,6 +55,7 @@ namespace gjs {
             std::vector<block_context*> block_stack;
             std::vector<deferred_node> deferred;
             std::vector<parse::ast*> subtype_types;
+            std::vector<import*> imports;
             script_type* subtype_replacement;
 
 
@@ -60,13 +76,19 @@ namespace gjs {
             // use only to retrieve a function to be called (logs errors when not found or ambiguous)
             script_function* function(const std::string& name, script_type* ret, const std::vector<script_type*>& args);
 
+            // use only to retrieve a function to be called (logs errors when not found or ambiguous)
+            script_function* function(const std::string& from_aliased_import, const std::string& name, script_type* ret, const std::vector<script_type*>& args);
+
             // use only when searching for a forward declaration or to determine if an identical function exists (does not log errors)
             script_function* find_func(const std::string& name, script_type* ret, const std::vector<script_type*>& args);
+
+            // use only when searching for a forward declaration or to determine if an identical function exists (does not log errors)
+            script_function* find_func(const std::string& from_aliased_import, const std::string& name, script_type* ret, const std::vector<script_type*>& args);
 
             // use to determine if an identifier is in use
             bool identifier_in_use(const std::string& name);
 
-            script_type* type(const std::string& name);
+            script_type* type(const std::string& name, bool do_throw = true);
             script_type* type(parse::ast* type_identifier);
 
             // returns class type if compilation is currently nested within a class

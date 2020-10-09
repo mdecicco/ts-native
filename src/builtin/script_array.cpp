@@ -2,7 +2,7 @@
 #include <common/script_type.h>
 
 namespace gjs {
-    script_array::script_array(script_type* type) : m_size(0), m_count(0), m_capacity(0), m_type(type) {
+    script_array::script_array(script_type* type) : m_size(0), m_count(0), m_capacity(0), m_type(type), m_data(nullptr) {
     }
 
     script_array::~script_array() {

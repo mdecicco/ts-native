@@ -16,6 +16,7 @@ namespace gjs {
         signature.is_subtype_obj_ctor = false;
         is_method_of = nullptr;
         is_static = false;
+        owner = nullptr;
     }
 
     script_function::script_function(type_manager* mgr, script_type* tp, bind::wrapped_function* wrapped, bool is_ctor, bool is_dtor) {
@@ -26,6 +27,7 @@ namespace gjs {
         name = wrapped->name;
         signature.is_subtype_obj_ctor = tp && tp->requires_subtype && is_ctor;
         is_static = false;
+        owner = nullptr;
         for (u8 i = 0;i < wrapped->arg_types.size();i++) {
             script_type* atp = nullptr;
             if (std::string(wrapped->arg_types[i].name()) == "void" && wrapped->arg_is_ptr[i]) {

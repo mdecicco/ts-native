@@ -4,6 +4,7 @@
 #include <common/script_type.h>
 #include <common/script_function.h>
 #include <common/context.h>
+#include <common/module.h>
 #include <bind/bind.h>
 
 namespace gjs {
@@ -51,19 +52,21 @@ namespace gjs {
     void vm_backend::generate(compilation_output& in) {
         using vmi = vm_instruction;
         u64 out_begin = m_instructions.size();
-        robin_hood::unordered_map<u64, u64> tac_map;
+        tac_map tmap;
+        jal_map jmap;
 
         for (u16 f = 0;f < in.funcs.size();f++) {
-            gen_function(in, tac_map, f);
-            if (f > 0) { // Don't add __init__ to the context
-                m_ctx->add(in.funcs[f].func);
-            }
+            if (!in.funcs[f].func) continue;
+            gen_function(in, tmap, jmap, f);
         }
 
         // update jump, branch, jal addresses
         for (u64 c = out_begin;c < m_instructions.size();c++) {
             switch (m_instructions[c].instr()) {
-                case vmi::jal:
+                case vmi::jal: {
+                    script_function* f = jmap[c];
+                    if (f->owner->id() != in.mod->id()) break;
+                }
                 case vmi::jmp:
                 case vmi::beqz:
                 case vmi::bneqz:
@@ -74,7 +77,7 @@ namespace gjs {
                     u64 addr = m_instructions[c].imm_u();
                     if (addr < m_instructions.size()) {
                         // jumps to VM code
-                        m_instructions[c].m_imm = tac_map[addr];
+                        m_instructions[c].m_imm = tmap[addr];
                     }
                     break;
                 }
@@ -83,7 +86,7 @@ namespace gjs {
         }
     }
     
-    void vm_backend::gen_function(compilation_output& in, robin_hood::unordered_map<u64, u64>& tac_map, u16 fidx) {
+    void vm_backend::gen_function(compilation_output& in, tac_map& tmap, jal_map& jmap, u16 fidx) {
         using op = compile::operation;
         using vmi = vm_instruction;
         using vmr = vm_register;
@@ -105,7 +108,7 @@ namespace gjs {
                 if (ignore) continue;
             }
 
-            tac_map[c] = m_instructions.size();
+            tmap[c] = m_instructions.size();
             const compile::tac_instruction& i = in.code[c];
             const var& o1 = i.operands[0];
             const var& o2 = i.operands[1];
@@ -330,7 +333,8 @@ namespace gjs {
                     break;
                 }
                 case op::module_data: {
-                    m_instructions += encode(vmi::addui).operand(vmr::v3).operand(vmr::zero).operand(o2.imm_u());
+                    v3 = o2.imm_u();
+                    m_instructions += encode(vmi::addui).operand(vmr::v3).operand(vmr::zero).operand(v3);
                     m_map.append(i.src);
                     m_instructions += encode(vmi::mptr).operand(r1).operand(o3.imm_u());
                     m_map.append(i.src);
@@ -596,8 +600,9 @@ namespace gjs {
                     if (i.callee->is_method_of && i.callee->is_method_of->requires_subtype) {
                         // get subtype from the this obj parameter
                         script_type* st = params[0].type()->sub_type;
-                        if (v3 != st->id() || nonHostCallSinceLastv3Set) {
-                            v3 = st->id();
+                        u64 moduletype = join_u32(params[0].type()->owner->id(), st->id());
+                        if (v3 != moduletype || nonHostCallSinceLastv3Set) {
+                            v3 = moduletype;
                             nonHostCallSinceLastv3Set = false;
                             m_instructions += encode(vmi::addui).operand(vmr::v3).operand(vmr::zero).operand(v3);
                             m_map.append(i.src);
@@ -806,6 +811,7 @@ namespace gjs {
                     }
 
                     // do the call
+                    jmap[m_instructions.size()] = i.callee;
                     if (i.callee->is_host) m_instructions += encode(vmi::jal).operand(i.callee->access.wrapped->address);
                     else m_instructions += encode(vmi::jal).operand(i.callee->access.entry);
                     m_map.append(i.src);
@@ -902,8 +908,8 @@ namespace gjs {
                         break;
                     }
 
-                    script_type* from = m_ctx->types()->get((u32)o2.imm_u());
-                    script_type* to = m_ctx->types()->get((u32)o3.imm_u());
+                    script_type* from = m_ctx->module(extract_left_u32(o2.imm_u()))->types()->get(extract_right_u32(o2.imm_u()));
+                    script_type* to = m_ctx->module(extract_left_u32(o3.imm_u()))->types()->get(extract_right_u32(o3.imm_u()));
 
                     vmi ci = vmi::instruction_count;
 

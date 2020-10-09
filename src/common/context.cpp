@@ -2,17 +2,29 @@
 #include <common/script_function.h>
 #include <common/script_type.h>
 #include <common/module.h>
+#include <common/io.h>
 #include <backends/backend.h>
+#include <backends/vm.h>
+#include <vm/allocator.h>
 
 #include <bind/bind.h>
 #include <builtin/builtin.h>
 #include <common/errors.h>
 
 namespace gjs {
-    script_context::script_context(backend* generator) : 
-         m_types(new type_manager(this)), m_pipeline(this), m_backend(generator),
-         m_host_call_vm(nullptr)
-    {
+    script_context::script_context(backend* generator, io_interface* io) : m_pipeline(this), m_backend(generator), m_host_call_vm(nullptr), m_io(io) {
+        if (!m_backend) {
+            m_owns_backend = true;
+            m_backend = new vm_backend(new basic_malloc_allocator(), 8 * 1024 * 1024, 8 * 1024 * 1024);
+        } else m_owns_backend = false;
+
+        if (!m_io) {
+            m_owns_io = true;
+            m_io = new basic_io_interface();
+        } else m_owns_io = false;
+        
+        m_global = new script_module(this, "__global__");
+        add(m_global);
         m_host_call_vm = dcNewCallVM(4096);
         m_backend->m_ctx = this;
 
@@ -20,7 +32,19 @@ namespace gjs {
     }
 
     script_context::~script_context() {
+        for (auto it = m_modules.begin();it != m_modules.end();++it) delete it->getSecond();
+
         dcFree(m_host_call_vm);
+
+        if (m_owns_backend) {
+            basic_malloc_allocator* alloc = (basic_malloc_allocator*)((vm_backend*)m_backend)->allocator();
+            delete m_backend;
+            delete alloc;
+        }
+
+        if (m_owns_io) {
+            delete m_io;
+        }
     }
 
     void script_context::add(script_function* func) {
@@ -33,29 +57,7 @@ namespace gjs {
         }
 
         m_funcs_by_addr[addr] = func;
-
-        if (m_funcs.count(func->name) == 0) {
-            m_funcs[func->name] = { func };
-        } else {
-            std::vector<script_function*>& funcs = m_funcs[func->name];
-            for (u8 i = 0;i < funcs.size();i++) {
-                bool matches = funcs[i]->signature.return_type->id() == func->signature.return_type->id();
-                if (!matches) continue;
-
-                if (funcs[i]->signature.arg_types.size() != func->signature.arg_types.size()) continue;
-
-                matches = true;
-                for (u8 a = 0;a < funcs[i]->signature.arg_types.size() && matches;a++) {
-                    matches = (funcs[i]->signature.arg_types[a]->id() == func->signature.arg_types[a]->id());
-                }
-
-                if (matches) {
-                    throw bind_exception(format("Function '%s' has already been added to the context", func->name.c_str()));
-                }
-            }
-
-            funcs.push_back(func);
-        }
+        if (!func->owner) m_global->add(func);
     }
 
     void script_context::add(script_module* module) {
@@ -71,16 +73,53 @@ namespace gjs {
         m_modules_by_id[module->id()] = module;
     }
 
-    script_function* script_context::function(const std::string& name) {
-        auto it = m_funcs.find(name);
-        if (it == m_funcs.end()) return nullptr;
-        return it->getSecond()[0];
-    }
+    script_module* script_context::resolve(const std::string& rel_path, const std::string& module_path) {
+        // first check if it's a direct reference
+        script_module* mod = module(module_path);
+        if (mod) return mod;
 
-    script_function* script_context::function(u64 address) {
-        auto it = m_funcs_by_addr.find(address);
-        if (it == m_funcs_by_addr.end()) return nullptr;
-        return it->getSecond();
+        auto final_dir = split(rel_path, "/\\");
+        if (!m_io->is_dir(rel_path)) {
+            final_dir.pop_back();
+        }
+
+        auto mod_dirs = split(module_path, "/\\");
+
+        for (u32 i = 0;i < mod_dirs.size() - 1;i++) {
+            if (mod_dirs[i] == "..") {
+                final_dir.pop_back();
+                continue;
+            }
+            if (mod_dirs[i] == ".") continue;
+            final_dir.push_back(mod_dirs[i]);
+        }
+
+        if (mod_dirs.back().find_last_of('.') == std::string::npos) {
+            mod_dirs.back() += ".gjs";
+        }
+        final_dir.push_back(mod_dirs.back());
+
+        std::string out_path = "";
+        for (u32 i = 0;i < final_dir.size();i++) {
+            if (i > 0) out_path += "/";
+            out_path += final_dir[i];
+        }
+
+        if (!m_io->exists(out_path) || m_io->is_dir(out_path)) return nullptr;
+
+        file_interface* file = m_io->open(out_path, io_open_mode::existing_only);
+        if (file && file->size() > 0) {
+            char* c_src = new char[file->size() + 1];
+            c_src[file->size()] = 0;
+            file->read(c_src, file->size());
+            std::string src = c_src;
+            delete [] c_src;
+            m_io->close(file);
+
+            return add_code(out_path, src);
+        }
+
+        return nullptr;
     }
 
     script_module* script_context::module(const std::string& name) {
@@ -95,16 +134,20 @@ namespace gjs {
         return it->getSecond();
     }
 
-    std::vector<script_function*> script_context::all_functions() {
-        std::vector<script_function*> out;
-        for (auto i = m_funcs.begin();i != m_funcs.end();++i) {
-            out.insert(out.begin(), i->getSecond().begin(), i->getSecond().end());
+    std::vector<script_module*> script_context::modules() const {
+        std::vector<script_module*> out;
+        
+        for (auto it = m_modules_by_id.begin();it != m_modules_by_id.end();++it) {
+            out.push_back(it->getSecond());
         }
+
         return out;
     }
 
-    std::vector<script_type*> script_context::all_types() {
-        return m_types->all();
+    script_function* script_context::function(u64 address) {
+        auto it = m_funcs_by_addr.find(address);
+        if (it == m_funcs_by_addr.end()) return nullptr;
+        return it->getSecond();
     }
 
     script_module* script_context::add_code(const std::string& filename, const std::string& code) {

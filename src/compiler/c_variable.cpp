@@ -8,6 +8,7 @@
 #include <common/context.h>
 #include <common/script_type.h>
 #include <common/script_function.h>
+#include <common/module.h>
 #include <util/robin_hood.h>
 
 namespace gjs {
@@ -510,7 +511,10 @@ namespace gjs {
             // conversion between non-void primitive types is always possible
             var v = m_ctx->empty_var(to);
             m_ctx->add(operation::eq).operand(v).operand(*this);
-            m_ctx->add(operation::cvt).operand(v).operand(m_ctx->imm((u64)from->id())).operand(m_ctx->imm((u64)to->id()));
+            
+            u64 from_id = join_u32(from->owner->id(), from->id());
+            u64 to_id = join_u32(to->owner->id(), to->id());
+            m_ctx->add(operation::cvt).operand(v).operand(m_ctx->imm(from_id)).operand(m_ctx->imm(to_id));
             return v;
         }
 

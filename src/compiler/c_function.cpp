@@ -69,6 +69,7 @@ namespace gjs {
                 }
                 
                 f = new script_function(ctx.env, fname, 0);
+                f->owner = ctx.out.mod;
                 f->signature.return_type = ret;
                 f->signature.return_loc = vm_register::v0;
                 f->is_method_of = method_of;
@@ -97,6 +98,7 @@ namespace gjs {
                 }
             } else {
                 f = new script_function(ctx.env, fname, 0);
+                f->owner = ctx.out.mod;
                 f->signature.return_type = ret;
                 f->is_method_of = method_of;
                 ctx.new_functions.push_back(f);
@@ -153,6 +155,42 @@ namespace gjs {
                     script_function* func = dummy.method(*n->callee->rvalue, nullptr, arg_types);
                     if (func) return call(ctx, func, args);
                 } else {
+                    if (n->callee->lvalue->type == nt::identifier) {
+                        std::string name = *n->callee->lvalue;
+                        // check if lvalue refers to an aliased import
+                        for (u16 i = 0;i < ctx.imports.size();i++) {
+                            if (ctx.imports[i]->alias == name) {
+                                std::string fname = *n->callee->rvalue;
+                                bool is_imported = false;
+                                for (u16 s = 0;s < ctx.imports[i]->symbols.size() && !is_imported;s++) {
+                                    auto& sym = ctx.imports[i]->symbols[s];
+                                    if (sym.alias.length() == 0 && sym.name == fname && sym.is_func) is_imported = true;
+                                    else if (sym.alias == fname && sym.is_func) is_imported = true;
+                                }
+
+                                if (is_imported) {
+                                    std::vector<var> args = { };
+                                    std::vector<script_type*> arg_types = { };
+
+                                    ast* a = n->arguments;
+                                    while (a) {
+                                        var arg = expression(ctx, a);
+                                        args.push_back(arg);
+                                        arg_types.push_back(arg.type());
+                                        a = a->next;
+                                    }
+                                    script_function* func = ctx.function(name, fname, nullptr, arg_types);
+                                    if (func) return call(ctx, func, args);
+
+                                    ctx.push_node(n->callee);
+                                    var ret = ctx.error_var();
+                                    ctx.pop_node();
+                                    return ret;
+                                }
+                            }
+                        }
+                    }
+
                     var obj = expression(ctx, n->callee->lvalue);
 
                     std::vector<var> args = { obj };
@@ -212,7 +250,7 @@ namespace gjs {
             std::vector<var> c_args;
             for (u8 i = 0;i < args.size();i++) {
                 if (i == 1 && func->is_method_of && func->is_method_of->requires_subtype && func->name.find("constructor") != std::string::npos) {
-                    // don't try to convert type id (u64) to subtype (data)
+                    // don't try to convert moduletype id (u64) to subtype (data)
                     c_args.push_back(args[i]);
                 } else if (func->signature.arg_types[i]->name == "subtype") {
                     c_args.push_back(args[i].convert(args[0].type()->sub_type));

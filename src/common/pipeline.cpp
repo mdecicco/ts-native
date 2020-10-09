@@ -3,6 +3,7 @@
 #include <common/context.h>
 #include <common/errors.h>
 #include <common/module.h>
+#include <common/script_function.h>
 #include <backends/register_allocator.h>
 
 #include <compiler/compile.h>
@@ -37,30 +38,36 @@ namespace gjs {
     }
 
 
-    pipeline::pipeline(script_context* ctx) : m_ctx(ctx) {
+    pipeline::pipeline(script_context* ctx) : m_ctx(ctx), m_depth(0) {
     }
 
     pipeline::~pipeline() {
     }
 
     script_module* pipeline::compile(const std::string& file, const std::string& code, backend* generator) {
-        m_log.errors.clear();
-        m_log.warnings.clear();
+        if (m_depth == 0) {
+            m_log.errors.clear();
+            m_log.warnings.clear();
+        }
+        m_depth++;
 
-        std::vector<lex::token> tokens;
-        lex::tokenize(code, file, tokens);
-
-        parse::ast* tree = parse::parse(m_ctx, file, tokens);
+        parse::ast* tree = nullptr;
 
         try {
+            std::vector<lex::token> tokens;
+            lex::tokenize(code, file, tokens);
+
+            tree = parse::parse(m_ctx, file, tokens);
             for (u8 i = 0;i < m_ast_steps.size();i++) {
                 m_ast_steps[i](m_ctx, tree);
             }
         } catch (error::exception& e) {
-            delete tree;
+            m_depth--;
+            if (tree) delete tree;
             throw e;
         } catch (std::exception& e) {
-            delete tree;
+            m_depth--;
+            if (tree) delete tree;
             throw e;
         }
 
@@ -71,10 +78,12 @@ namespace gjs {
             compile::compile(m_ctx, tree, out);
             delete tree;
         } catch (error::exception& e) {
+            m_depth--;
             delete tree;
             delete out.mod;
             throw e;
         } catch (std::exception& e) {
+            m_depth--;
             delete tree;
             throw e;
         }
@@ -92,6 +101,7 @@ namespace gjs {
                 }
 
                 for (u16 i = 0;i < out.funcs.size();i++) {
+                    if (!out.funcs[i].func) continue;
                     out.funcs[i].regs.m_gpc = generator->gp_count();
                     out.funcs[i].regs.m_fpc = generator->fp_count();
                     out.funcs[i].regs.process(i);
@@ -101,6 +111,8 @@ namespace gjs {
 
                 if (m_log.errors.size() == 0) {
                     out.mod->m_init = out.funcs[0].func;
+
+                    for (u16 i = 1;i < out.funcs.size();i++) out.mod->add(out.funcs[i].func);
                     m_ctx->add(out.mod);
                 } else {
                     for (u16 i = 0;i < out.funcs.size();i++) {
@@ -113,6 +125,7 @@ namespace gjs {
                 }
                 out.funcs.clear();
 
+                m_depth--;
                 delete out.mod;
                 throw e;
             } catch (std::exception& e) {
@@ -121,12 +134,13 @@ namespace gjs {
                 }
                 out.funcs.clear();
 
+                m_depth--;
                 delete out.mod;
                 throw e;
             }
         }
 
-
+        m_depth--;
         return m_log.errors.size() == 0 ? out.mod : nullptr;
     }
 

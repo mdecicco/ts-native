@@ -38,6 +38,25 @@ namespace gjs {
             n->src(t);
             n->set(t.text);
 
+            if (ctx.match({ "." })) {
+                ctx.consume();
+                n->rvalue = identifier(ctx);
+                std::string tn = *n->rvalue;
+
+                bool is_type = false;
+                for (u16 m = 0;m < ctx.named_imports.size() && !is_type;m++) {
+                    if (ctx.named_imports[m].first == t.text) {
+                        for (u16 i = 0;i < ctx.named_imports[m].second.size() && !is_type;i++) {
+                            is_type = ctx.named_imports[m].second[i] == tn;
+                        }
+                    }
+                }
+
+                if (!is_type) {
+                    throw exc(ec::p_expected_type_identifier, t.src);
+                }
+            } else if (!ctx.is_typename(t.text)) throw exc(ec::p_expected_type_identifier, t.src);
+
             if (ctx.match({ "<" })) {
                 ctx.consume();
 
@@ -136,6 +155,7 @@ namespace gjs {
                 else if (ctx.match({ "this", "null", "new" })) r = expression(ctx);
                 else if (ctx.match({ "delete" })) r = delete_statement(ctx);
                 else if (ctx.match({ "return" })) r = return_statement(ctx);
+                else if (ctx.match({ "import" })) r = import_statement(ctx);
                 else {
                     throw exc(ec::p_unexpected_token, ctx.current().src, ctx.current().text.c_str());
                 }

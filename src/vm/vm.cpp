@@ -798,15 +798,17 @@ namespace gjs {
             bool is_ptr = f->access.wrapped->arg_is_ptr[a];
 
             if (f->signature.is_subtype_obj_ctor && a == 1) {
-                // arg refers to a type id
-                script_type* tp = m_ctx->context()->types()->get(*(u32*)reg);
+                // arg refers to a module/type id
+
+                script_type* tp = m_ctx->context()->module(extract_left_u32(*reg))->types()->get(extract_right_u32(*reg));
                 args.push_back(tp);
                 continue;
             }
 
             if (tp->name == "subtype") {
                 // get subtype from $v3
-                tp = m_ctx->context()->types()->get(*(u32*)&m_ctx->state()->registers[(u8)vmr::v3]);
+                u64 v3 = m_ctx->state()->registers[(u8)vmr::v3];
+                script_type* tp = m_ctx->context()->module(extract_left_u32(v3))->types()->get(extract_right_u32(v3));
                 if (!tp) {
                     throw vm_exception(m_ctx, format(
                         "Function '%s' is a method of a sub-type class but no type ID was provided. This is not a user error",

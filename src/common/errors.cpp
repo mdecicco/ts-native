@@ -21,6 +21,9 @@ namespace gjs {
             "Expected identifier or member expression",
             "Expected class property or method",
             "Unexpected end of file while parsing %s",
+            "Expected import path",
+            "Expected import path or import list",
+            "Failed to resolve module '%s'",
             "", // end parse errors
             "", // compile errors
             "No source code to compile",
@@ -51,6 +54,7 @@ namespace gjs {
             "The type '%s' cannot be instantiated without a subtype",
             "Unexpected 'subtype' while instantiating variable of type '%s', which is not a subtype class or format",
             "The special 'subtype' type can not be used outside the context of a subtype class",
+            "Symbol '%s' was not found in module '%s'",
             "Compilation finished with errors",
             "", // end compile errors
             "", // start runtime errors
