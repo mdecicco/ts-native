@@ -9,47 +9,37 @@ void print_f32(u16 i, f32 f) {
 
 // https://www.notion.so/3ccc9d8dba114bf8acfbbe238cb729e3?v=1a0dff3b20ba4f678bc7f5866665c4df
 int main(int arg_count, const char** args) {
-    script_context ctx;
+    std::string dir = "";
+    auto dp = split(args[0], "/\\");
+    for (u16 i = 0;i < dp.size() - 1;i++) dir += dp[i] + "/";
 
-    //ctx.compiler()->add_ir_step(debug_ir_step);
+    script_context ctx;
+    ctx.io()->set_cwd(dir);
+
+    // ctx.compiler()->add_ir_step(debug_ir_step);
 
     ctx.bind(print_f32, "print_f32");
 
-    printf("------------IR code-------------\n");
+    // printf("------------IR code-------------\n");
+
+
     script_module* mod = ctx.add_code(
-        "C:/Users/miguel/Documents/programming/gjs/playground/bin/itabc.gjs",
-        "f32 abc = 4.5f;\n"
-        "void it() { print_f32(0, abc); }\n"
-        "abc = 1.0f;\n"
+        "test",
+        "print(1.2345f.toFixed(4));\n"
     );
 
-    script_module* mod1 = ctx.add_code(
-        "C:/Users/miguel/Documents/programming/gjs/playground/bin/test1.gjs",
-        "import 'itabc' as ayy;\n"
-        "import { it as stuff } from 'test';\n"
-        // import { it, abc } from 'test';
-        // import { it as thing, abc as what } from 'test';
-        "void it1() {\n"
-            "ayy.it();\n"
-            "stuff();\n"
-            "print_f32(0, ayy.abc);\n"
-        "}\n"
-    );
-
-    if (mod && mod1) {
-        printf("------------VM code-------------\n");
-        print_code((vm_backend*)ctx.generator());
-
-        printf("-------------result-------------\n");
-        mod->init();
-        mod1->init();
-
-        //((vm_backend*)ctx.generator())->log_instructions(true);
-        ctx.call<void>(mod->function("it"), nullptr);
-        mod->set_local("abc", 3.14f);
-        ctx.call<void>(mod1->function("it1"), nullptr);
-    } else {
+    if (!mod) {
         print_log(&ctx);
+        return -1;
     }
+
+
+    printf("------------VM code-------------\n");
+    print_code((vm_backend*)ctx.generator());
+
+    printf("-------------result-------------\n");
+    // ((vm_backend*)ctx.generator())->log_instructions(true);
+    mod->init();
+
     return 0;
 }

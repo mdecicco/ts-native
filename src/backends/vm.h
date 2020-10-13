@@ -53,7 +53,7 @@ namespace gjs {
             virtual char const* what() const { return text.c_str(); }
 
             bool raised_from_script;
-            std::string file;
+            std::string module;
             std::string lineText;
             std::string text;
             u32 line;

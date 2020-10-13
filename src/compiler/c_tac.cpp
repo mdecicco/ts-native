@@ -73,7 +73,7 @@ namespace gjs {
             "term"
         };
 
-        bool is_assignment(operation op) {
+        bool is_assignment(const tac_instruction& i) {
             static bool s_is_assignment[] = {
                 false,   // null
                 true,    // load
@@ -134,7 +134,7 @@ namespace gjs {
                 true,    // dcmp
                 true,    // eq
                 true,    // neg
-                true,    // call
+                true,    // call (not an assignment when call returns on stack)
                 false,   // param
                 false,   // ret
                 false,   // cvt
@@ -143,7 +143,7 @@ namespace gjs {
                 false    // term
             };
 
-            return s_is_assignment[u32(op)];
+            return s_is_assignment[u32(i.op)] && !(i.op == operation::call && i.callee->signature.returns_on_stack);
         }
 
         tac_instruction::tac_instruction() : op(operation::null), op_idx(0), callee(nullptr) {

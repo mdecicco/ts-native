@@ -147,7 +147,9 @@ namespace gjs {
             } else throw exc(ec::p_malformed_import, stmt->ref);
 
             // The module must be resolved
-            script_module* mod = ctx.env->resolve(stmt->ref.filename, from);
+            ctx.env->compiler()->push_import(stmt->ref, ctx.env->module_name(stmt->ref.module, from));
+            script_module* mod = ctx.env->resolve(stmt->ref.module, from);
+            ctx.env->compiler()->pop_import();
             if (!mod) throw exc(ec::p_failed_to_resolve_module, stmt->ref, from.c_str());
 
             stmt->body->set(mod->name());

@@ -4,6 +4,6 @@
 
 namespace gjs {
     namespace lex {
-        void tokenize(const std::string& source, const std::string& file, std::vector<token>& out);
+        void tokenize(const std::string& source, const std::string& module, std::vector<token>& out);
     };
 };

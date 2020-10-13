@@ -8,13 +8,9 @@
 #include <common/context.h>
 
 namespace gjs {
-    script_module::script_module(script_context* ctx, const std::string& file) : m_ctx(ctx), m_data(nullptr), m_init(nullptr) {
+    script_module::script_module(script_context* ctx, const std::string& name) : m_ctx(ctx), m_data(nullptr), m_init(nullptr) {
         m_types = new type_manager(ctx);
-        size_t nameIdx = file.find_last_of('\\');
-        if (nameIdx == std::string::npos) nameIdx = file.find_last_of('/');
-        if (nameIdx == std::string::npos) nameIdx = 0;
-        else nameIdx++;
-        m_name = file.substr(nameIdx, file.find_last_of('.')  - nameIdx);
+        m_name = name;
         m_id = hash(m_name);
         m_data = new script_buffer();
     }

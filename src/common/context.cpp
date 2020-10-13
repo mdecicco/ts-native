@@ -11,6 +11,8 @@
 #include <builtin/builtin.h>
 #include <common/errors.h>
 
+#include <filesystem>
+
 namespace gjs {
     script_context::script_context(backend* generator, io_interface* io) : m_pipeline(this), m_backend(generator), m_host_call_vm(nullptr), m_io(io) {
         if (!m_backend) {
@@ -73,6 +75,11 @@ namespace gjs {
         m_modules_by_id[module->id()] = module;
     }
 
+
+    script_module* script_context::resolve(const std::string& module_path) {
+        return resolve(m_io->get_cwd(), module_path);
+    }
+
     script_module* script_context::resolve(const std::string& rel_path, const std::string& module_path) {
         // first check if it's a direct reference
         script_module* mod = module(module_path);
@@ -105,7 +112,19 @@ namespace gjs {
             out_path += final_dir[i];
         }
 
+        // Make sure the path is absolute
+        try {
+            std::filesystem::path p(out_path);
+            out_path = std::filesystem::absolute(p).u8string();
+        } catch(...) {
+            return nullptr;
+        }
+
         if (!m_io->exists(out_path) || m_io->is_dir(out_path)) return nullptr;
+
+        // check if the module was already loaded
+        mod = module(out_path);
+        if (mod) return mod;
 
         file_interface* file = m_io->open(out_path, io_open_mode::existing_only);
         if (file && file->size() > 0) {
@@ -121,6 +140,56 @@ namespace gjs {
 
         return nullptr;
     }
+
+    std::string script_context::module_name(const std::string& module_path) {
+        return module_name(m_io->get_cwd(), module_path);
+    }
+
+    std::string script_context::module_name(const std::string& rel_path, const std::string& module_path) {
+        // first check if it's a direct reference
+        script_module* mod = module(module_path);
+        if (mod) return mod->name();
+
+        auto final_dir = split(rel_path, "/\\");
+        if (!m_io->is_dir(rel_path)) {
+            final_dir.pop_back();
+        }
+
+        auto mod_dirs = split(module_path, "/\\");
+
+        for (u32 i = 0;i < mod_dirs.size() - 1;i++) {
+            if (mod_dirs[i] == "..") {
+                final_dir.pop_back();
+                continue;
+            }
+            if (mod_dirs[i] == ".") continue;
+            final_dir.push_back(mod_dirs[i]);
+        }
+
+        if (mod_dirs.back().find_last_of('.') == std::string::npos) {
+            mod_dirs.back() += ".gjs";
+        }
+        final_dir.push_back(mod_dirs.back());
+
+        std::string out_path = "";
+        for (u32 i = 0;i < final_dir.size();i++) {
+            if (i > 0) out_path += "/";
+            out_path += final_dir[i];
+        }
+
+        // Make sure the path is absolute
+        try {
+            std::filesystem::path p(out_path);
+            out_path = std::filesystem::absolute(p).u8string();
+        } catch(...) {
+            return "";
+        }
+
+        if (!m_io->exists(out_path) || m_io->is_dir(out_path)) return "";
+
+        return out_path;
+    }
+
 
     script_module* script_context::module(const std::string& name) {
         auto it = m_modules.find(name);
@@ -150,9 +219,9 @@ namespace gjs {
         return it->getSecond();
     }
 
-    script_module* script_context::add_code(const std::string& filename, const std::string& code) {
+    script_module* script_context::add_code(const std::string& module, const std::string& code) {
         try {
-            return m_pipeline.compile(filename, code, m_backend);
+            return m_pipeline.compile(module, code, m_backend);
         } catch (error::exception& e) {
             m_pipeline.log()->errors.push_back({ true, e.code, e.message, e.src });
         } catch (std::exception& e) {

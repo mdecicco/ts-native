@@ -5,6 +5,7 @@
 #include <common/script_function.h>
 #include <common/script_type.h>
 #include <common/module.h>
+#include <common/errors.h>
 #include <stdio.h>
 using namespace std;
 
@@ -79,7 +80,11 @@ namespace gjs {
     void print_log(script_context* ctx) {
         for (u8 i = 0;i < ctx->compiler()->log()->errors.size();i++) {
             compile_message& m = ctx->compiler()->log()->errors[i];
-            printf("%s:%d:%d: Error: %s\n", m.src.filename.c_str(), m.src.line, m.src.col, m.text.c_str());
+
+            // useless
+            if (m.code.e == error::ecode::c_compile_finished_with_errors) continue;
+
+            printf("Error: %s\nIn module: %s\n", m.text.c_str(), m.src.module.c_str());
             std::string ln = "";
             u32 wscount = 0;
             bool reachedText = false;
@@ -91,14 +96,14 @@ namespace gjs {
                 }
             }
             if (wscount > m.src.col) wscount = m.src.col;
-            printf("%s\n", ln.c_str());
+            printf("%5d | %s\n", m.src.line, ln.c_str());
             for (u32 i = 0;i < m.src.col - wscount;i++) printf(" ");
-            printf("^\n");
+            printf("        ^\n");
         }
 
         for (u8 i = 0;i < ctx->compiler()->log()->warnings.size();i++) {
             compile_message& m = ctx->compiler()->log()->warnings[i];
-            printf("%s:%d:%d: Warning: %s\n", m.src.filename.c_str(), m.src.line, m.src.col, m.text.c_str());
+            printf("Warning: %s\nIn module: %s\n", m.text.c_str(), m.src.module.c_str());
             std::string ln = "";
             u32 wscount = 0;
             bool reachedText = false;
@@ -110,9 +115,9 @@ namespace gjs {
                 }
             }
             if (wscount > m.src.col) wscount = m.src.col;
-            printf("%s\n", ln.c_str());
+            printf("%5d | %s\n", m.src.line, ln.c_str());
             for (u32 i = 0;i < m.src.col - wscount;i++) printf(" ");
-            printf("^\n");
+            printf("        ^\n");
         }
     }
 

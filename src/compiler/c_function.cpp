@@ -115,7 +115,7 @@ namespace gjs {
 
             block(ctx, n->body);
 
-            if (ctx.out.code.back().op != operation::ret) {
+            if (ctx.out.code.size() == 0 || ctx.out.code.back().op != operation::ret) {
                 if (is_ctor) ctx.add(operation::ret).operand(ctx.get_var("this"));
                 else if (is_dtor || f->signature.return_type->size == 0) ctx.add(operation::ret);
                 else ctx.log()->err(ec::c_missing_return_value, n->ref, f->name.c_str());

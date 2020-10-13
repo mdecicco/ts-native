@@ -134,7 +134,7 @@ namespace gjs {
             printf("node_type: '%s',\n", type_names[u32(type)]);
 
             tab(indent);
-            printf("source: { line: %d, col: %d, file: '%s' },\n", ref.line + 1, ref.col, ref.filename.c_str());
+            printf("source: { line: %d, col: %d, module: '%s' },\n", ref.line + 1, ref.col, ref.module.c_str());
 
             if (type == node_type::variable_declaration) {
                 tab(indent);

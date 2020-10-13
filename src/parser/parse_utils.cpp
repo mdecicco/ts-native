@@ -3,8 +3,8 @@
 using namespace std;
 
 namespace gjs {
-    parse_exception::parse_exception(const std::string& _file, const string& _text, const string& _lineText, u32 _line, u32 _col) {
-        file = _file;
+    parse_exception::parse_exception(const std::string& _module, const string& _text, const string& _lineText, u32 _line, u32 _col) {
+        module = _module;
         text = _text;
         lineText = _lineText;
         line = _line;
@@ -174,7 +174,7 @@ namespace gjs {
         token out;
         out.line = m_line;
         out.col = m_col;
-        out.file = file;
+        out.module = module;
         bool is_alnum = false;
         bool is_num = false;
         bool found_decimal = false;
@@ -200,7 +200,7 @@ namespace gjs {
             if (c == '.' && is_num) {
                 if (found_decimal) {
                     throw parse_exception(
-                        file,
+                        module,
                         "Invalid numerical constant",
                         lines[m_line],
                         m_line,
@@ -230,7 +230,7 @@ namespace gjs {
             if (expected) {
                 if (kw.length() > 0) {
                     throw parse_exception(
-                        file,
+                        module,
                         format("Expected '%s'", kw.c_str()),
                         lines[ident.line],
                         ident.line,
@@ -238,7 +238,7 @@ namespace gjs {
                     );
                 } else {
                     throw parse_exception(
-                        file,
+                        module,
                         "Expected keyword",
                         lines[ident.line],
                         ident.line,
@@ -250,7 +250,7 @@ namespace gjs {
             return token();
         }
 
-        token out = { m_line, m_col, "", file };
+        token out = { m_line, m_col, "", module };
 
         u64 offset = 0;
 
@@ -274,7 +274,7 @@ namespace gjs {
             if (!longest_kw && expected) {
                 if (!expected) return token();
                 throw parse_exception(
-                    file,
+                    module,
                     "Expected keyword",
                     lines[m_line],
                     m_line,
@@ -293,7 +293,7 @@ namespace gjs {
                 if (!expected) return out;
                 // 0 - 9
                 throw parse_exception(
-                    file,
+                    module,
                     "Expected keyword, found numerical constant",
                     lines[m_line],
                     m_line,
@@ -304,7 +304,7 @@ namespace gjs {
             if (c == '\'' || c == '"' && out.text.length() == 0) {
                 if (!expected) return out;
                 throw parse_exception(
-                    file,
+                    module,
                     "Expected keyword, found string constant",
                     lines[m_line],
                     m_line,
@@ -328,7 +328,7 @@ namespace gjs {
                 if (out.text.length() == 0) {
                     if (!expected) return out;
                     throw parse_exception(
-                        file,
+                        module,
                         "Expected keyword, found something else",
                         lines[m_line],
                         m_line,
@@ -341,7 +341,7 @@ namespace gjs {
         if (!is_keyword(out.text)) {
             if (!expected) return token();
             throw parse_exception(
-                file,
+                module,
                 "Expected keyword, found identifier",
                 lines[m_line],
                 m_line,
@@ -352,7 +352,7 @@ namespace gjs {
         if (out.text != kw && kw.length() > 0) {
             if (!expected) return token();
             throw parse_exception(
-                file,
+                module,
                 format("Expected keyword '%s', found '%s'", kw.c_str(), out.text.c_str()),
                 lines[m_line],
                 m_line,
@@ -376,7 +376,7 @@ namespace gjs {
             if (expected) {
                 if (op.length() > 0) {
                     throw parse_exception(
-                        file,
+                        module,
                         format("Expected '%s'", op.c_str()),
                         lines[ident.line],
                         ident.line,
@@ -384,7 +384,7 @@ namespace gjs {
                     );
                 } else {
                     throw parse_exception(
-                        file,
+                        module,
                         "Expected operator",
                         lines[ident.line],
                         ident.line,
@@ -396,7 +396,7 @@ namespace gjs {
             return token();
         }
 
-        token out = { m_line, m_col, "", file };
+        token out = { m_line, m_col, "", module };
 
         size_t offset = 0;
 
@@ -420,7 +420,7 @@ namespace gjs {
             if (!longest_kw && expected) {
                 if (!expected) return token();
                 throw parse_exception(
-                    file,
+                    module,
                     "Expected operator",
                     lines[m_line],
                     m_line,
@@ -439,7 +439,7 @@ namespace gjs {
                 if (!expected) return out;
                 // 0 - 9
                 throw parse_exception(
-                    file,
+                    module,
                     "Expected operator, found numerical constant",
                     lines[m_line],
                     m_line,
@@ -450,7 +450,7 @@ namespace gjs {
             if (c == '\'' || c == '"' && out.text.length() == 0) {
                 if (!expected) return out;
                 throw parse_exception(
-                    file,
+                    module,
                     "Expected operator, found string constant",
                     lines[m_line],
                     m_line,
@@ -474,7 +474,7 @@ namespace gjs {
                 if (out.text.length() == 0) {
                     if (!expected) return out;
                     throw parse_exception(
-                        file,
+                        module,
                         "Expected operator, found something else",
                         lines[m_line],
                         m_line,
@@ -487,7 +487,7 @@ namespace gjs {
         if (!is_operator(out.text)) {
             if (!expected) return token();
             throw parse_exception(
-                file,
+                module,
                 "Expected operator, found identifier",
                 lines[m_line],
                 m_line,
@@ -498,7 +498,7 @@ namespace gjs {
         if (out.text != op && op.length() > 0) {
             if (!expected) return token();
             throw parse_exception(
-                file,
+                module,
                 format("Expected operator '%s', found '%s'", op.c_str(), out.text.c_str()),
                 lines[m_line],
                 m_line,
@@ -514,7 +514,7 @@ namespace gjs {
 
     tokenizer::token tokenizer::identifier(bool expected, const string& identifier) {
         whitespace();
-        token out = { m_line, m_col, "", file };
+        token out = { m_line, m_col, "", module };
 
         size_t offset = 0;
 
@@ -524,7 +524,7 @@ namespace gjs {
                 if (!expected) return out;
                 // 0 - 9
                 throw parse_exception(
-                    file,
+                    module,
                     "Expected identifier, found numerical constant",
                     lines[m_line],
                     m_line,
@@ -535,7 +535,7 @@ namespace gjs {
             if (c == '\'' || c == '"' && out.text.length() == 0) {
                 if (!expected) return out;
                 throw parse_exception(
-                    file,
+                    module,
                     "Expected identifier, found string constant",
                     lines[m_line],
                     m_line,
@@ -555,7 +555,7 @@ namespace gjs {
                 if (out.text.length() == 0) {
                     if (!expected) return out;
                     throw parse_exception(
-                        file,
+                        module,
                         "Expected identifier, found something else",
                         lines[m_line],
                         m_line,
@@ -568,7 +568,7 @@ namespace gjs {
         if (is_keyword(out.text)) {
             if (!expected) return token();
             throw parse_exception(
-                file,
+                module,
                 "Expected identifier, found keyword",
                 lines[m_line],
                 m_line,
@@ -579,7 +579,7 @@ namespace gjs {
         if (out.text != identifier && identifier.length() > 0) {
             if (!expected) return token();
             throw parse_exception(
-                file,
+                module,
                 format("Expected identifier '%s', found '%s'", identifier.c_str(), out.text.c_str()),
                 lines[m_line],
                 m_line,
@@ -595,7 +595,7 @@ namespace gjs {
 
     tokenizer::token tokenizer::character(char c, bool expected) {
         whitespace();
-        token out = { m_line, m_col, "", file };
+        token out = { m_line, m_col, "", module };
 
         if (m_input[m_idx] == c) {
             out.text = c;
@@ -605,7 +605,7 @@ namespace gjs {
             if (!expected) return out;
             string found = thing();
             throw parse_exception(
-                file,
+                module,
                 format("Expected '%c', found \"%s\"", c, found.c_str()),
                 lines[m_line],
                 m_line,
@@ -622,7 +622,7 @@ namespace gjs {
 
         u8 p_level = 0;
         std::stack<token> parens;
-        token out = { m_line, m_col, "", file };
+        token out = { m_line, m_col, "", module };
         token quote;
         bool lastWasNewline = false;
 
@@ -689,7 +689,7 @@ namespace gjs {
         if (quote) {
             if (!expected) commit_state();
             throw parse_exception(
-                file,
+                module,
                 "Encountered unexpected end of file while parsing string constant",
                 lines[quote.line],
                 quote.line,
@@ -700,7 +700,7 @@ namespace gjs {
         if (parens.size() > 0) {
             if (!expected) commit_state();
             throw parse_exception(
-                file,
+                module,
                 "Encountered unexpected end of file while parsing expression",
                 lines[parens.top().line],
                 parens.top().line,
@@ -710,7 +710,7 @@ namespace gjs {
 
         if (expected && !out) {
             throw parse_exception(
-                file,
+                module,
                 "Expected expression",
                 lines[out.line],
                 out.line,
@@ -725,7 +725,7 @@ namespace gjs {
 
     tokenizer::token tokenizer::string_constant(bool expected, bool strip_quotes, bool allow_empty) {
         whitespace();
-        token out = { m_line, m_col, "", file };
+        token out = { m_line, m_col, "", module };
 
         token bt = character('\'', expected);
         if (!bt) return token();
@@ -762,7 +762,7 @@ namespace gjs {
 
         if (!foundEnd) {
             throw parse_exception(
-                file,
+                module,
                 "Encountered unexpected end of file while parsing string constant",
                 lines[bt.line],
                 bt.line,
@@ -772,7 +772,7 @@ namespace gjs {
 
         if (!allow_empty && out.text.length() == 0) {
             throw parse_exception(
-                file,
+                module,
                 "String should not be empty",
                 lines[bt.line],
                 bt.line,
@@ -785,12 +785,15 @@ namespace gjs {
 
     tokenizer::token tokenizer::number_constant(bool expected) {
         whitespace();
-        token out = { m_line, m_col, "", file };
+        token out = { m_line, m_col, "", module };
 
         bool isNeg = false;
         bool hasDecimal = false;
         bool is_f32 = false;
         size_t offset = 0;
+        size_t restore_idx = m_idx;
+        u32 restore_col = m_col;
+        u32 restore_line = m_line;
 
         while (!at_end()) {
             char c = m_input[m_idx + offset];
@@ -799,20 +802,13 @@ namespace gjs {
                 isNeg = true;
                 out.text += c;
                 offset++;
-            } else if (c == '.') {
+            } else if (c == '.' && !hasDecimal) {
                 if (out.text.length() == 0) break;
-                if (hasDecimal) {
-                    if (!expected) return token();
-                    throw parse_exception(
-                        file,
-                        "Invalid numerical constant",
-                        lines[m_line],
-                        m_line,
-                        m_col
-                    );
-                }
                 hasDecimal = true;
                 out.text += c;
+                restore_idx = m_idx + offset;
+                restore_col = m_col + offset;
+                restore_line = m_line;
                 offset++;
             } else if (c >= 48 && c <= 57) {
                 out.text += c;
@@ -825,7 +821,7 @@ namespace gjs {
                 if (out.text.length() == 0) {
                     if (!expected) return token();
                     throw parse_exception(
-                        file,
+                        module,
                         format("Expected numerical constant, found '%s'", thing().c_str()),
                         lines[m_line],
                         m_line,
@@ -839,6 +835,14 @@ namespace gjs {
         m_idx += offset;
         m_col += (u32)offset;
 
+        if (out.text.length() > 0 && out.text.back() == '.') {
+            // numbers ending with a decimal are not valid decimals
+            m_idx = restore_idx;
+            m_col = restore_col;
+            m_line = restore_line;
+            out.text.pop_back();
+        }
+
         return out;
     }
     
@@ -846,7 +850,7 @@ namespace gjs {
         whitespace();
         if (m_idx + 1ull >= m_input.size()) return token();
         if (m_input[m_idx] != '/' && m_input[m_idx + 1ull] != '/') return token();
-        token out = { m_line, m_col, "", file };
+        token out = { m_line, m_col, "", module };
         while (!at_end(false)) {
             if (m_input[m_idx] == '\n' || m_input[m_idx] == '\r') break;
             out.text += m_input[m_idx];
@@ -860,7 +864,7 @@ namespace gjs {
         whitespace();
         if (m_idx + 1ull >= m_input.size()) return token();
         if (m_input[m_idx] != '/' && m_input[m_idx + 1ull] != '*') return token();
-        token out = { m_line, m_col, "", file };
+        token out = { m_line, m_col, "", module };
         bool lastWasNewLine = false;
         while (!at_end(false)) {
             if (m_idx + 1ull >= m_input.size()) break;

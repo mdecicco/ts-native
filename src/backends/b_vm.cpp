@@ -15,7 +15,7 @@ namespace gjs {
     {
         if (ctx->is_executing()) {
             source_ref info = ctx->map()->get((address)ctx->state()->registers[(integer)vm_register::ip]);
-            file = info.filename;
+            module = info.module;
             lineText = info.line_text;
             line = info.line;
             col = info.col;
@@ -162,7 +162,7 @@ namespace gjs {
 
             if (i.op != op::param) {
                 if (o1.is_spilled()) {
-                    if (!compile::is_assignment(i.op)) {
+                    if (!compile::is_assignment(i)) {
                         r1 = vmr::v0;
                         if (t1->is_floating_point) r1 = vmr::f13;
 

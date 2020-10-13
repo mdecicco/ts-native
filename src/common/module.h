@@ -71,7 +71,7 @@ namespace gjs {
         protected:
             friend class pipeline;
             friend class script_context;
-            script_module(script_context* ctx, const std::string& file);
+            script_module(script_context* ctx, const std::string& name);
             void add(script_function* func);
 
             std::string m_name;

@@ -67,7 +67,7 @@ namespace gjs {
                 if (ignore) continue;
             }
 
-            bool do_calc = is_assignment(m_in.code[i].op);
+            bool do_calc = is_assignment(m_in.code[i]);
             do_calc = do_calc && m_in.code[i].operands[0].valid();
             do_calc = do_calc && !m_in.code[i].operands[0].is_spilled();
             do_calc = do_calc && !m_in.code[i].operands[0].is_arg();
@@ -105,8 +105,8 @@ namespace gjs {
                 }
 
                 if (o == 3) continue;
-                if (o > 0 || !is_assignment(m_in.code[i1].op)) l.end = i1;
-                else if (o == 0 && is_assignment(m_in.code[i1].op)) break;
+                if (o > 0 || !is_assignment(m_in.code[i1])) l.end = i1;
+                else if (o == 0 && is_assignment(m_in.code[i1])) break;
             }
             for (u64 i1 = i + 1;i1 <= to;i1++) {
                 if (fidx == 0) {

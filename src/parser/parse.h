@@ -45,6 +45,6 @@ namespace gjs {
 
         ast* any(context& ctx);
 
-        ast* parse(script_context* env, const std::string& file, const std::vector<lex::token>& tokens);
+        ast* parse(script_context* env, const std::string& module, const std::vector<lex::token>& tokens);
     };
 };

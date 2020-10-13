@@ -38,52 +38,66 @@ namespace gjs {
     }
 
 
-    pipeline::pipeline(script_context* ctx) : m_ctx(ctx), m_depth(0) {
+    pipeline::pipeline(script_context* ctx) : m_ctx(ctx) {
     }
 
     pipeline::~pipeline() {
     }
 
-    script_module* pipeline::compile(const std::string& file, const std::string& code, backend* generator) {
-        if (m_depth == 0) {
+    script_module* pipeline::compile(const std::string& module, const std::string& code, backend* generator) {
+        bool is_entry = m_importStack.size() == 0;
+        if (is_entry) {
             m_log.errors.clear();
             m_log.warnings.clear();
+            m_importStack.push_back({ source_ref("[internal]", "", 0, 0), module });
         }
-        m_depth++;
+
+        bool cyclic = false;
+        for (u32 i = 0;i < m_importStack.size() - 1 && !cyclic;i++) cyclic = m_importStack[i].second == module;
+
+        if (cyclic) {
+            std::string path;
+            for (u32 i = 1;i < m_importStack.size();i++) {
+                auto& src = m_importStack[i].first;
+                path += format("> %s\n> %5d | %s\n", src.module.c_str(), src.line, src.line_text.c_str());
+            }
+
+            throw error::exception(error::ecode::p_cyclic_imports, m_importStack.back().first, path.c_str());
+        }
 
         parse::ast* tree = nullptr;
 
         try {
             std::vector<lex::token> tokens;
-            lex::tokenize(code, file, tokens);
+            lex::tokenize(code, module, tokens);
 
-            tree = parse::parse(m_ctx, file, tokens);
+            tree = parse::parse(m_ctx, module, tokens);
             for (u8 i = 0;i < m_ast_steps.size();i++) {
                 m_ast_steps[i](m_ctx, tree);
             }
         } catch (error::exception& e) {
-            m_depth--;
+            if (is_entry) m_importStack.pop_back();
             if (tree) delete tree;
             throw e;
         } catch (std::exception& e) {
-            m_depth--;
+            if (is_entry) m_importStack.pop_back();
             if (tree) delete tree;
             throw e;
         }
 
         compilation_output out(generator->gp_count(), generator->fp_count());
-        out.mod = new script_module(m_ctx, file);
+        out.mod = new script_module(m_ctx, module);
 
         try {
             compile::compile(m_ctx, tree, out);
             delete tree;
         } catch (error::exception& e) {
-            m_depth--;
+            if (is_entry) m_importStack.pop_back();
             delete tree;
             delete out.mod;
             throw e;
         } catch (std::exception& e) {
-            m_depth--;
+            if (is_entry) m_importStack.pop_back();
             delete tree;
             throw e;
         }
@@ -97,7 +111,7 @@ namespace gjs {
         else {
             try {
                 for (u8 i = 0;i < m_ir_steps.size();i++) {
-                    m_ir_steps[i](m_ctx, out);
+                   m_ir_steps[i](m_ctx, out);
                 }
 
                 for (u16 i = 0;i < out.funcs.size();i++) {
@@ -125,7 +139,7 @@ namespace gjs {
                 }
                 out.funcs.clear();
 
-                m_depth--;
+                if (is_entry) m_importStack.pop_back();
                 delete out.mod;
                 throw e;
             } catch (std::exception& e) {
@@ -134,14 +148,22 @@ namespace gjs {
                 }
                 out.funcs.clear();
 
-                m_depth--;
+                if (is_entry) m_importStack.pop_back();
                 delete out.mod;
                 throw e;
             }
         }
 
-        m_depth--;
+        if (is_entry) m_importStack.pop_back();
         return m_log.errors.size() == 0 ? out.mod : nullptr;
+    }
+
+    void pipeline::push_import(const source_ref& ref, const std::string& imported) {
+        m_importStack.push_back({ ref, imported });
+    }
+
+    void pipeline::pop_import() {
+        m_importStack.pop_back();
     }
 
     void pipeline::add_ir_step(ir_step_func step) {

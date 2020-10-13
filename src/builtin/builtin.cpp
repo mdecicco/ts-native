@@ -19,129 +19,69 @@ namespace gjs {
     script_context* current_ctx() {
         return ctx;
     }
-    u32 script_print(const std::string& str);
+    u32 script_print(const script_string& str);
+
+    template <typename T>
+    script_string to_fixed(T self, u8 digits) {
+        char fmt[8] = { 0 };
+        char out[128] = { 0 };
+        snprintf(fmt, 7, "\%%.%df", digits);
+        i32 out_count = snprintf(out, 127, fmt, double(self));
+        return script_string(out, out_count);
+    }
+
+    template <typename T>
+    bind::pseudo_class<T>& bind_number_methods(bind::pseudo_class<T>& tp) {
+        tp.method("toFixed", to_fixed<T>);
+        return tp;
+    }
+
     void init_context(script_context* ctx) {
-        script_type* tp = nullptr;
+        auto str = ctx->bind<script_string>("string");
 
-        tp = nullptr;
-        tp = ctx->global()->types()->add("i64", typeid(i64).name());
-        tp->owner = ctx->global();
-        tp->is_host = true;
-        tp->is_primitive = true;
-        tp->is_builtin = true;
-        tp->size = sizeof(i64);
+        auto nt0 = ctx->bind<i64>("i64");
+        auto nt1 = ctx->bind<u64>("u64");
+        auto nt2 = ctx->bind<i32>("i32");
+        auto nt3 = ctx->bind<u32>("u32");
+        auto nt4 = ctx->bind<i16>("i16");
+        auto nt5 = ctx->bind<u16>("u16");
+        auto nt6 = ctx->bind<i8>("i8");
+        auto nt7 = ctx->bind<u8>("u8");
+        auto nt8 = ctx->bind<f32>("f32");
+        auto nt9 = ctx->bind<f64>("f64");
 
-        tp = nullptr;
-        tp = ctx->global()->types()->add("u64", typeid(u64).name());
-        tp->owner = ctx->global();
-        tp->is_host = true;
-        tp->is_primitive = true;
-        tp->is_unsigned = true;
-        tp->is_builtin = true;
-        tp->size = sizeof(u64);
+        bind_number_methods(nt0).finalize();
+        bind_number_methods(nt1).finalize();
+        bind_number_methods(nt2).finalize();
+        bind_number_methods(nt3).finalize();
+        bind_number_methods(nt4).finalize();
+        bind_number_methods(nt5).finalize();
+        bind_number_methods(nt6).finalize();
+        bind_number_methods(nt7).finalize();
+        bind_number_methods(nt8).finalize();
+        bind_number_methods(nt9).finalize();
 
-        tp = nullptr;
-        tp = ctx->global()->types()->add("i32", typeid(i32).name());
-        tp->owner = ctx->global();
-        tp->is_host = true;
-        tp->is_primitive = true;
-        tp->is_builtin = true;
-        tp->size = sizeof(i32);
-
-        tp = nullptr;
-        tp = ctx->global()->types()->add("u32", typeid(u32).name());
-        tp->owner = ctx->global();
-        tp->is_host = true;
-        tp->is_primitive = true;
-        tp->is_unsigned = true;
-        tp->is_builtin = true;
-        tp->size = sizeof(u32);
-
-        tp = nullptr;
-        tp = ctx->global()->types()->add("i16", typeid(i16).name());
-        tp->owner = ctx->global();
-        tp->is_host = true;
-        tp->is_primitive = true;
-        tp->is_builtin = true;
-        tp->size = sizeof(i16);
-
-        tp = nullptr;
-        tp = ctx->global()->types()->add("u16", typeid(u16).name());
-        tp->owner = ctx->global();
-        tp->is_host = true;
-        tp->is_primitive = true;
-        tp->is_unsigned = true;
-        tp->is_builtin = true;
-        tp->size = sizeof(u16);
-
-        tp = nullptr;
-        tp = ctx->global()->types()->add("i8", typeid(i8).name());
-        tp->owner = ctx->global();
-        tp->is_host = true;
-        tp->is_primitive = true;
-        tp->is_builtin = true;
-        tp->size = sizeof(i8);
-
-        tp = nullptr;
-        tp = ctx->global()->types()->add("u8", typeid(u8).name());
-        tp->owner = ctx->global();
-        tp->is_host = true;
-        tp->is_primitive = true;
-        tp->is_unsigned = true;
-        tp->is_builtin = true;
-        tp->size = sizeof(u8);
+        ctx->bind<bool>("bool").finalize();
 
         if (typeid(char) != typeid(i8)) {
-            tp = nullptr;
-            tp = ctx->global()->types()->add("___char", typeid(char).name());
-            tp->owner = ctx->global();
-            tp->is_host = true;
-            tp->is_primitive = true;
-            tp->is_builtin = true;
-            tp->size = sizeof(char);
+            ctx->bind<char>("___char").finalize();
         }
 
-        tp = ctx->global()->types()->add("f32", typeid(f32).name());
-        tp->owner = ctx->global();
-        tp->is_host = true;
-        tp->is_primitive = true;
-        tp->is_floating_point = true;
-        tp->is_builtin = true;
-        tp->size = sizeof(f32);
+        ctx->bind<void>("void").finalize();
 
-        tp = ctx->global()->types()->add("f64", typeid(f64).name());
-        tp->owner = ctx->global();
-        tp->is_host = true;
-        tp->is_primitive = true;
-        tp->is_floating_point = true;
-        tp->is_builtin = true;
-        tp->size = sizeof(f64);
-
-        tp = ctx->global()->types()->add("bool", typeid(bool).name());
-        tp->owner = ctx->global();
-        tp->is_host = true;
-        tp->is_primitive = true;
-        tp->is_builtin = true;
-        tp->size = sizeof(bool);
-
-        tp = ctx->global()->types()->add("void", "void");
-        tp->owner = ctx->global();
-        tp->is_host = true;
-        tp->is_builtin = true;
-        tp->size = 0;
-
-        tp = ctx->global()->types()->add("error_type", "error_type");
-        tp->owner = ctx->global();
-        tp->is_host = true;
-        tp->is_builtin = true;
-        tp->size = 0;
-
+        script_type* tp = nullptr;
         tp = ctx->global()->types()->add("data", "void*");
         tp->owner = ctx->global();
         tp->is_host = true;
         tp->is_builtin = true;
         tp->size = sizeof(void*);
         tp->is_unsigned = true;
+
+        tp = ctx->global()->types()->add("error_type", "error_type");
+        tp->owner = ctx->global();
+        tp->is_host = true;
+        tp->is_builtin = true;
+        tp->size = 0;
 
         tp = ctx->bind<subtype_t>("subtype").finalize();
         tp->owner = ctx->global();
@@ -151,7 +91,6 @@ namespace gjs {
         tp->size = sizeof(std::string);
         tp->owner = ctx->global();
 
-        auto str = ctx->bind<script_string>("string");
         str.constructor();
         str.constructor<void*, u32>();
         str.constructor<const script_string&>();
@@ -228,7 +167,7 @@ namespace gjs {
         ctx->bind(script_print, "print");
     }
 
-    u32 script_print(const std::string& str) {
+    u32 script_print(const script_string& str) {
         return printf(str.c_str());
     }
 

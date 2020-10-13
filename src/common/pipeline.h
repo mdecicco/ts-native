@@ -1,6 +1,8 @@
 #pragma once
 #include <vector>
 #include <string>
+#include <stack>
+
 #include <common/types.h>
 #include <common/compile_log.h>
 #include <compiler/tac.h>
@@ -63,7 +65,14 @@ namespace gjs {
              *
              * Returns the compiled module or null
              */
-            script_module* compile(const std::string& file, const std::string& code, backend* generator);
+            script_module* compile(const std::string& module, const std::string& code, backend* generator);
+
+            /*
+             * When a module is loaded, the path/name is pushed to the stack
+             * to prevent circular imports
+             */
+            void push_import(const source_ref& ref, const std::string& imported);
+            void pop_import();
 
             /*
              * Takes IR code as a parameter, and modifies it in some way.
@@ -81,8 +90,8 @@ namespace gjs {
             script_context* m_ctx;
             std::vector<ir_step_func> m_ir_steps;
             std::vector<ast_step_func> m_ast_steps;
+            std::vector<std::pair<source_ref, std::string>> m_importStack;
             compile_log m_log;
-            u8 m_depth;
     };
 };
 

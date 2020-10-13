@@ -80,7 +80,7 @@ namespace gjs {
             term
         };
 
-        bool is_assignment(operation op);
+        bool is_assignment(const tac_instruction& i);
 
         struct tac_instruction {
             public:

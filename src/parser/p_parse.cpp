@@ -38,7 +38,7 @@ namespace gjs {
             n->src(t);
             n->set(t.text);
 
-            if (ctx.match({ "." })) {
+            if (ctx.match({ "." }) && !ctx.is_typename(t.text)) {
                 ctx.consume();
                 n->rvalue = identifier(ctx);
                 std::string tn = *n->rvalue;
@@ -232,13 +232,13 @@ namespace gjs {
             return r;
         }
 
-        ast* parse(script_context* env, const std::string& file, const std::vector<lex::token>& tokens) {
+        ast* parse(script_context* env, const std::string& module, const std::vector<lex::token>& tokens) {
             context ctx(env);
             ctx.tokens = tokens;
 
             ctx.root = new ast();
             ctx.root->type = nt::root;
-            ctx.root->ref.filename = file;
+            ctx.root->ref.module = module;
             ctx.path.push(ctx.root);
 
             ast* node = nullptr;

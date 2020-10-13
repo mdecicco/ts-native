@@ -24,6 +24,7 @@ namespace gjs {
             "Expected import path",
             "Expected import path or import list",
             "Failed to resolve module '%s'",
+            "Detected cyclic import:\n%s",
             "", // end parse errors
             "", // compile errors
             "No source code to compile",

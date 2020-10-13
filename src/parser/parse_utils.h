@@ -15,7 +15,7 @@ namespace gjs {
                 u32 line = 0;
                 u32 col = 0;
                 std::string text = "";
-                std::string file = "";
+                std::string module = "";
 
                 operator bool() const { return text.length() != 0; }
                 inline const bool operator == (const token& rhs) const { return text == rhs.text; }
@@ -56,7 +56,7 @@ namespace gjs {
             token block_comment();
 
             std::vector<std::string> lines;
-            std::string file;
+            std::string module;
 
         protected:
             std::vector<std::string> m_keywords;
@@ -75,13 +75,13 @@ namespace gjs {
 
     class parse_exception : public std::exception {
         public:
-            parse_exception(const std::string& text, const std::string& file, const std::string& lineText, u32 line, u32 col);
-            parse_exception(const std::string& text, const tokenizer& t, const tokenizer::token& tk) : parse_exception(t.file, text, t.lines[tk.line], tk.line, tk.col) { }
-            parse_exception(const std::string& text, const tokenizer& t) : parse_exception(t.file, text, t.line_str(), t.line(), t.col()) { }
+            parse_exception(const std::string& text, const std::string& module, const std::string& lineText, u32 line, u32 col);
+            parse_exception(const std::string& text, const tokenizer& t, const tokenizer::token& tk) : parse_exception(t.module, text, t.lines[tk.line], tk.line, tk.col) { }
+            parse_exception(const std::string& text, const tokenizer& t) : parse_exception(t.module, text, t.line_str(), t.line(), t.col()) { }
             ~parse_exception();
 
             virtual const char* what() { return text.c_str(); }
-            std::string file;
+            std::string module;
             std::string text;
             std::string lineText;
             u32 line;

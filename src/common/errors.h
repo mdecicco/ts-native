@@ -25,6 +25,7 @@ namespace gjs {
             p_expected_import_path,
             p_malformed_import,
             p_failed_to_resolve_module,
+            p_cyclic_imports,
             __parse_error_end,
             __compile_error_start,
             c_no_code,

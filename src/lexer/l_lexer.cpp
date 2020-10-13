@@ -4,7 +4,7 @@
 
 namespace gjs {
     namespace lex {
-        void tokenize(const std::string& source, const std::string& file, std::vector<token>& out) {
+        void tokenize(const std::string& source, const std::string& module, std::vector<token>& out) {
             tokenizer t(source);
             t.specify_keyword("if");
             t.specify_keyword("else");
@@ -64,7 +64,7 @@ namespace gjs {
                     out.push_back({
                         tok.text,
                         token_type::identifier,
-                        source_ref(file, t.lines[tok.line], tok.line, tok.col)
+                        source_ref(module, t.lines[tok.line], tok.line, tok.col)
                     });
                     continue;
                 }
@@ -74,7 +74,7 @@ namespace gjs {
                     out.push_back({
                         tok.text,
                         token_type::operation,
-                        source_ref(file, t.lines[tok.line], tok.line, tok.col)
+                        source_ref(module, t.lines[tok.line], tok.line, tok.col)
                     });
                     continue;
                 }
@@ -84,7 +84,7 @@ namespace gjs {
                     out.push_back({
                         tok.text,
                         token_type::keyword,
-                        source_ref(file, t.lines[tok.line], tok.line, tok.col)
+                        source_ref(module, t.lines[tok.line], tok.line, tok.col)
                     });
                     continue;
                 }
@@ -94,7 +94,7 @@ namespace gjs {
                     out.push_back({
                         tok.text,
                         token_type::string_literal,
-                        source_ref(file, t.lines[tok.line], tok.line, tok.col)
+                        source_ref(module, t.lines[tok.line], tok.line, tok.col)
                     });
                     continue;
                 }
@@ -105,13 +105,13 @@ namespace gjs {
                         out.push_back({
                             tok.text,
                             token_type::decimal_literal,
-                            source_ref(file, t.lines[tok.line], tok.line, tok.col)
+                            source_ref(module, t.lines[tok.line], tok.line, tok.col)
                         });
                     } else {
                         out.push_back({
                             tok.text,
                             token_type::integer_literal,
-                            source_ref(file, t.lines[tok.line], tok.line, tok.col)
+                            source_ref(module, t.lines[tok.line], tok.line, tok.col)
                         });
                     }
                     continue;
@@ -122,7 +122,7 @@ namespace gjs {
                     out.push_back({
                         tok.text,
                         token_type::operation,
-                        source_ref(file, t.lines[tok.line], tok.line, tok.col)
+                        source_ref(module, t.lines[tok.line], tok.line, tok.col)
                     });
                     continue;
                 }
@@ -132,7 +132,7 @@ namespace gjs {
                     out.push_back({
                         tok.text,
                         token_type::operation,
-                        source_ref(file, t.lines[tok.line], tok.line, tok.col)
+                        source_ref(module, t.lines[tok.line], tok.line, tok.col)
                     });
                     continue;
                 }
@@ -142,7 +142,7 @@ namespace gjs {
                     out.push_back({
                         tok.text,
                         token_type::semicolon,
-                        source_ref(file, t.lines[tok.line], tok.line, tok.col)
+                        source_ref(module, t.lines[tok.line], tok.line, tok.col)
                     });
                     continue;
                 }
@@ -152,7 +152,7 @@ namespace gjs {
                     out.push_back({
                         tok.text,
                         token_type::open_parenth,
-                        source_ref(file, t.lines[tok.line], tok.line, tok.col)
+                        source_ref(module, t.lines[tok.line], tok.line, tok.col)
                     });
                     continue;
                 }
@@ -162,7 +162,7 @@ namespace gjs {
                     out.push_back({
                         tok.text,
                         token_type::close_parenth,
-                        source_ref(file, t.lines[tok.line], tok.line, tok.col)
+                        source_ref(module, t.lines[tok.line], tok.line, tok.col)
                     });
                     continue;
                 }
@@ -172,7 +172,7 @@ namespace gjs {
                     out.push_back({
                         tok.text,
                         token_type::open_bracket,
-                        source_ref(file, t.lines[tok.line], tok.line, tok.col)
+                        source_ref(module, t.lines[tok.line], tok.line, tok.col)
                     });
                     continue;
                 }
@@ -182,7 +182,7 @@ namespace gjs {
                     out.push_back({
                         tok.text,
                         token_type::close_bracket,
-                        source_ref(file, t.lines[tok.line], tok.line, tok.col)
+                        source_ref(module, t.lines[tok.line], tok.line, tok.col)
                     });
                     continue;
                 }
@@ -192,7 +192,7 @@ namespace gjs {
                     out.push_back({
                         tok.text,
                         token_type::open_block,
-                        source_ref(file, t.lines[tok.line], tok.line, tok.col)
+                        source_ref(module, t.lines[tok.line], tok.line, tok.col)
                     });
                     continue;
                 }
@@ -202,7 +202,7 @@ namespace gjs {
                     out.push_back({
                         tok.text,
                         token_type::close_block,
-                        source_ref(file, t.lines[tok.line], tok.line, tok.col)
+                        source_ref(module, t.lines[tok.line], tok.line, tok.col)
                     });
                     continue;
                 }
@@ -212,7 +212,7 @@ namespace gjs {
                     out.push_back({
                         tok.text,
                         token_type::question_mark,
-                        source_ref(file, t.lines[tok.line], tok.line, tok.col)
+                        source_ref(module, t.lines[tok.line], tok.line, tok.col)
                     });
                     continue;
                 }
@@ -222,7 +222,7 @@ namespace gjs {
                     out.push_back({
                         tok.text,
                         token_type::colon,
-                        source_ref(file, t.lines[tok.line], tok.line, tok.col)
+                        source_ref(module, t.lines[tok.line], tok.line, tok.col)
                     });
                     continue;
                 }
@@ -232,7 +232,7 @@ namespace gjs {
                     out.push_back({
                         tok.text,
                         token_type::member_accessor,
-                        source_ref(file, t.lines[tok.line], tok.line, tok.col)
+                        source_ref(module, t.lines[tok.line], tok.line, tok.col)
                     });
                     continue;
                 }
@@ -242,7 +242,7 @@ namespace gjs {
                     out.push_back({
                         tok.text,
                         token_type::comma,
-                        source_ref(file, t.lines[tok.line], tok.line, tok.col)
+                        source_ref(module, t.lines[tok.line], tok.line, tok.col)
                     });
                     continue;
                 }

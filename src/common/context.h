@@ -20,12 +20,24 @@ namespace gjs {
             ~script_context();
 
             template <class Cls>
-            bind::wrap_class<Cls>& bind(const std::string& name) {
+            std::enable_if_t<std::is_class_v<Cls>, bind::wrap_class<Cls>&> bind(const std::string& name) {
                 // as long as wrap_class::finalize is called, this will be deleted when it should be
                 bind::wrap_class<Cls>* out = new bind::wrap_class<Cls>(m_global->types(), name);
                 out->type->owner = m_global;
                 return *out;
             }
+
+            template <class prim>
+            std::enable_if_t<!std::is_class_v<prim>, bind::pseudo_class<prim>&> bind(const std::string& name) {
+                // as long as pseudo_class::finalize is called, this will be deleted when it should be
+                bind::pseudo_class<prim>* out = new bind::pseudo_class<prim>(m_global->types(), name);
+                out->type->owner = m_global;
+                out->type->is_unsigned = std::is_unsigned_v<prim>;
+                out->type->is_builtin = true;
+                out->type->is_floating_point = std::is_floating_point_v<prim>;
+                return *out;
+            }
+
 
             template <typename Ret, typename... Args>
             script_function* bind(Ret(*func)(Args...), const std::string& name) {
@@ -47,9 +59,12 @@ namespace gjs {
             inline DCCallVM* call_vm() { return m_host_call_vm; }
             inline io_interface* io() { return m_io; }
 
+            script_module* resolve(const std::string& module_path);
             script_module* resolve(const std::string& rel_path, const std::string& module_path);
+            std::string module_name(const std::string& module_path);
+            std::string module_name(const std::string& rel_path, const std::string& module_path);
 
-            script_module* add_code(const std::string& filename, const std::string& code);
+            script_module* add_code(const std::string& module, const std::string& code);
 
             /*
             * Call function

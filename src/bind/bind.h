@@ -40,6 +40,10 @@ namespace gjs {
             std::vector<bool> arg_is_ptr;
             bool is_static_method;
 
+            // whether or not to pass this obj when the method is static
+            // (Useful for artificially extending types)
+            bool pass_this;
+
             bool ret_is_ptr;
             u64 address;
 
@@ -310,6 +314,7 @@ namespace gjs {
         struct wrap_class : wrapped_class {
             wrap_class(type_manager* tpm, const std::string& name) : wrapped_class(name, typeid(remove_all<Cls>::type).name(), sizeof(remove_all<Cls>::type)), types(tpm) {
                 type = tpm->add(name, typeid(remove_all<Cls>::type).name());
+                type->size = size;
                 type->is_host = true;
             }
 
@@ -328,18 +333,21 @@ namespace gjs {
                 return *this;
             }
 
+            // non-const methods
             template <typename Ret, typename... Args>
             wrap_class& method(const std::string& _name, Ret(Cls::*func)(Args...)) {
                 methods.push_back(wrap(types, name + "::" + _name, func));
                 return *this;
             }
 
+            // const methods
             template <typename Ret, typename... Args>
             wrap_class& method(const std::string& _name, Ret(Cls::*func)(Args...) const) {
                 methods.push_back(wrap(types, name + "::" + _name, func));
                 return *this;
             }
 
+            // static methods
             template <typename Ret, typename... Args>
             wrap_class& method(const std::string& _name, Ret(*func)(Args...)) {
                 methods.push_back(wrap(types, name + "::" + _name, func));
@@ -347,6 +355,16 @@ namespace gjs {
                 return *this;
             }
 
+            // static method which can have 'this' obj passed to it
+            template <typename Ret, typename... Args>
+            wrap_class& method(const std::string& _name, Ret(*func)(Args...), bool pass_this) {
+                methods.push_back(wrap(types, name + "::" + _name, func));
+                methods[methods.size() - 1]->is_static_method = true;
+                methods[methods.size() - 1]->pass_this = pass_this;
+                return *this;
+            }
+
+            // normal member
             template <typename T>
             wrap_class& prop(const std::string& _name, T Cls::*member, u8 flags = property_flags::pf_none) {
                 if (properties.find(_name) != properties.end()) {
@@ -362,6 +380,7 @@ namespace gjs {
                 return *this;
             }
 
+            // static member
             template <typename T>
             wrap_class& prop(const std::string& _name, T *member, u8 flags = property_flags::pf_none) {
                 if (properties.find(_name) != properties.end()) {
@@ -376,6 +395,7 @@ namespace gjs {
                 return *this;
             }
 
+            // getter, setter member
             template <typename T>
             wrap_class& prop(const std::string& _name, T(Cls::*getter)(), T(Cls::*setter)(T), u8 flags = property_flags::pf_none) {
                 if (properties.find(_name) != properties.end()) {
@@ -396,6 +416,7 @@ namespace gjs {
                 return *this;
             }
 
+            // const getter, setter member
             template <typename T>
             wrap_class& prop(const std::string& _name, T(Cls::*getter)() const, T(Cls::*setter)(T), u8 flags = property_flags::pf_none) {
                 if (properties.find(_name) != properties.end()) {
@@ -416,7 +437,7 @@ namespace gjs {
                 return *this;
             }
 
-
+            // read only member with getter
             template <typename T>
             wrap_class& prop(const std::string& _name, T(Cls::*getter)(), u8 flags = property_flags::pf_none) {
                 if (properties.find(_name) != properties.end()) {
@@ -437,7 +458,7 @@ namespace gjs {
                 return *this;
             }
 
-
+            // read only member with const getter
             template <typename T>
             wrap_class& prop(const std::string& _name, T(Cls::*getter)() const, u8 flags = property_flags::pf_none) {
                 if (properties.find(_name) != properties.end()) {
@@ -455,6 +476,31 @@ namespace gjs {
                     0,
                     property_flags::pf_read_only | flags
                 );
+                return *this;
+            }
+
+            script_type* finalize() {
+                return types->finalize_class(this);
+            }
+
+            type_manager* types;
+        };
+
+        template <typename prim>
+        struct pseudo_class : wrapped_class {
+            pseudo_class(type_manager* tpm, const std::string& name) : wrapped_class(name, typeid(remove_all<prim>::type).name(), 0), types(tpm) {
+                type = tpm->add(name, typeid(remove_all<prim>::type).name());
+                if constexpr (!std::is_same_v<void, prim>) size = sizeof(prim);
+                type->size = size;
+                type->is_host = true;
+                type->is_primitive = true;
+            }
+
+            // static methods
+            template <typename Ret, typename... Args>
+            pseudo_class& method(const std::string& _name, Ret(*func)(Args...)) {
+                methods.push_back(wrap(types, name + "::" + _name, func));
+                methods[methods.size() - 1]->is_static_method = true;
                 return *this;
             }
 
