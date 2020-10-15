@@ -57,7 +57,11 @@ namespace gjs {
             * If a function is overloaded, this function must be used
             */
             template <typename Ret, typename...Args>
-            script_function* function(const std::string& name);
+            script_function* function(const std::string& name) {
+                if (m_funcs.count(func->name) == 0) return nullptr;
+
+                return function_search<Ret, Args...>(m_ctx, name, m_funcs[func->name]);
+            }
 
             std::vector<std::string> function_names() const;
 
@@ -67,6 +71,7 @@ namespace gjs {
             inline const std::vector<script_function*>& functions() const { return m_functions; }
             inline type_manager* types() const { return m_types; }
             inline script_buffer* data() { return m_data; }
+            inline script_context* context() const { return m_ctx; }
 
         protected:
             friend class pipeline;
@@ -79,7 +84,6 @@ namespace gjs {
             script_function* m_init;
             std::vector<local_var> m_locals;
 
-
             std::vector<script_function*> m_functions;
             robin_hood::unordered_map<std::string, std::vector<u32>> m_func_map;
             robin_hood::unordered_map<std::string, u16> m_local_map;
@@ -87,43 +91,4 @@ namespace gjs {
             script_context* m_ctx;
             script_buffer* m_data;
     };
-
-    template <typename Ret, typename...Args>
-    script_function* script_module::function(const std::string& name) {
-        if (m_funcs.count(func->name) == 0) return nullptr;
-
-        script_type* ret = m_types->get<Ret>();
-        if (!ret) return nullptr;
-
-        constexpr u8 ac = std::tuple_size<std::tuple<Args...>>::value;
-        if constexpr (ac > 0) {
-            script_type* arg_types[ac] = { m_types->get<Args>()... };
-
-            for (u8 i = 0;i < ac;i++) {
-                if (!arg_types[i]) return nullptr;
-            }
-
-            std::vector<script_function*>& funcs = m_funcs[func->name];
-            for (u8 i = 0;i < funcs.size();i++) {
-                bool matches = funcs[i]->signature.return_type->id() == ret->id();
-                if (!matches) continue;
-
-                if (funcs[i]->signature.arg_types.size() != arg_types.size()) continue;
-
-                matches = true;
-                for (u8 a = 0;a < funcs[i]->signature.arg_types.size() && matches;a++) {
-                    matches = (funcs[i]->signature.arg_types[a]->id() == arg_types[a]->id());
-                }
-
-                if (matches) return funcs[i];
-            }
-        } else {
-            std::vector<script_function*>& funcs = m_funcs[func->name];
-            for (u8 i = 0;i < funcs.size();i++) {
-                if (funcs[i]->signature.arg_types.size() != 0) continue;
-                if (funcs[i]->signature.return_type->id() == ret->id()) return funcs[i];
-            }
-        }
-        return nullptr;
-    }
 };

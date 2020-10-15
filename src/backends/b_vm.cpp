@@ -3,8 +3,8 @@
 #include <compiler/tac.h>
 #include <common/script_type.h>
 #include <common/script_function.h>
-#include <common/context.h>
-#include <common/module.h>
+#include <common/script_context.h>
+#include <common/script_module.h>
 #include <bind/bind.h>
 
 namespace gjs {

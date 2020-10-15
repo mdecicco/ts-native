@@ -4,8 +4,8 @@
 #include <builtin/script_array.h>
 #include <builtin/script_string.h>
 #include <builtin/script_buffer.h>
-#include <common/context.h>
-#include <common/module.h>
+#include <common/script_context.h>
+#include <common/script_module.h>
 #include <bind/bind.h>
 
 namespace gjs {
@@ -70,7 +70,7 @@ namespace gjs {
         ctx->bind<void>("void").finalize();
 
         script_type* tp = nullptr;
-        tp = ctx->global()->types()->add("data", "void*");
+        tp = ctx->global()->types()->add("data", typeid(void*).name());
         tp->owner = ctx->global();
         tp->is_host = true;
         tp->is_builtin = true;

@@ -63,6 +63,10 @@ namespace gjs {
             r_buffer_offset_out_of_range,
             r_buffer_read_out_of_range,
             r_buffer_overflow,
+            r_invalid_object_constructor,
+            r_invalid_object_property,
+            r_invalid_object_method,
+            r_unbound_type,
             __runtime_error_end
         };
 

@@ -2,11 +2,11 @@
 #include <compiler/context.h>
 #include <compiler/function.h>
 #include <parser/ast.h>
-#include <common/context.h>
+#include <common/script_context.h>
 #include <common/script_type.h>
 #include <common/script_function.h>
 #include <common/errors.h>
-#include <common/module.h>
+#include <common/script_module.h>
 #include <vm/register.h>
 #include <builtin/script_buffer.h>
 
@@ -225,7 +225,7 @@ namespace gjs {
         }
 
         script_type* class_declaration(context& ctx, parse::ast* n) {
-            if (ctx.identifier_in_use(*n->identifier) && !(n->is_subtype && ctx.subtype_replacement)) {
+            if (ctx.type(*n->identifier, false) && !ctx.compiling_deferred) {
                 ctx.log()->err(ec::c_identifier_in_use, n->ref, std::string(*n->identifier).c_str());
                 return nullptr;
             }
@@ -333,7 +333,7 @@ namespace gjs {
         }
 
         script_type* format_declaration(context& ctx, parse::ast* n) {
-            if (ctx.identifier_in_use(*n->identifier)) {
+            if (ctx.type(*n->identifier, false) && !ctx.compiling_deferred) {
                 ctx.log()->err(ec::c_identifier_in_use, n->ref, std::string(*n->identifier).c_str());
                 return nullptr;
             }
@@ -460,11 +460,14 @@ namespace gjs {
                     n = n->next;
                 }
 
+                ctx.compiling_deferred = true;
                 for (u32 i = 0;i < ctx.deferred.size();i++) {
                     ctx.subtype_replacement = ctx.deferred[i].subtype_replacement;
                     any(ctx, ctx.deferred[i].node);
                     ctx.subtype_replacement = nullptr;
                 }
+
+                ctx.compiling_deferred = false;
             } catch (const error::exception &e) {
                 delete ctx.new_types;
                 for (u32 i = 0;i < ctx.new_functions.size();i++) delete ctx.new_functions[i];

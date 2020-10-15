@@ -57,6 +57,7 @@ namespace gjs {
             std::vector<parse::ast*> subtype_types;
             std::vector<import*> imports;
             script_type* subtype_replacement;
+            bool compiling_deferred;
 
 
             context(compilation_output& out);

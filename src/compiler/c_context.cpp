@@ -1,14 +1,14 @@
 #include <compiler/context.h>
 #include <compiler/function.h>
 #include <parser/ast.h>
-#include <common/context.h>
+#include <common/script_context.h>
 #include <common/script_type.h>
 #include <common/script_function.h>
 #include <common/errors.h>
 #include <common/warnings.h>
 #include <compiler/compile.h>
 #include <builtin/script_buffer.h>
-#include <common/module.h>
+#include <common/script_module.h>
 
 namespace gjs {
     using exc = error::exception;
@@ -23,6 +23,7 @@ namespace gjs {
             new_types = nullptr;
             subtype_replacement = nullptr;
             compiling_function = false;
+            compiling_deferred = false;
         }
 
         var context::imm(u64 u) {

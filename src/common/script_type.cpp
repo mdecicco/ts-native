@@ -121,4 +121,16 @@ namespace gjs {
     script_type::~script_type() {
         if (m_wrapped) delete m_wrapped;
     }
+
+    script_function* script_type::method(const std::string& _name, script_type* ret, const std::vector<script_type*>& arg_types) {
+        return function_search(_name, methods, ret, arg_types);
+    }
+
+    script_type::property* script_type::prop(const std::string& _name) {
+        for (u16 i = 0;i < properties.size();i++) {
+            if (properties[i].name == _name) return &properties[i];
+        }
+
+        return nullptr;
+    }
 };

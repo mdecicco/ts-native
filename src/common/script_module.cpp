@@ -1,11 +1,11 @@
-#include <common/module.h>
+#include <common/script_module.h>
 #include <builtin/script_buffer.h>
 #include <util/util.h>
 
 #include <common/script_type.h>
 #include <common/script_function.h>
 #include <backends/backend.h>
-#include <common/context.h>
+#include <common/script_context.h>
 
 namespace gjs {
     script_module::script_module(script_context* ctx, const std::string& name) : m_ctx(ctx), m_data(nullptr), m_init(nullptr) {

@@ -7,7 +7,7 @@
 #include <common/compile_log.h>
 #include <bind/bind.h>
 #include <common/script_type.h>
-#include <common/module.h>
+#include <common/script_module.h>
 #include <builtin/script_buffer.h>
 
 namespace gjs {

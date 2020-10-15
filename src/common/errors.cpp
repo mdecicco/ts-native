@@ -62,6 +62,10 @@ namespace gjs {
             "Buffer offset %llu is out of range (size: %llu)",
             "Cannot read %llu bytes from buffer (%llu bytes remain from current position)",
             "Cannot write %llu bytes to buffer (%llu bytes remain from current position)",
+            "Cannot construct object of type '%s' with given argument list",
+            "Object of type '%s' has no property named '%s'",
+            "Object of type '%s' has no method that matches the signature '%s'",
+            "Type '%s' has not been bound",
             "" // end runtime errors
         };
 

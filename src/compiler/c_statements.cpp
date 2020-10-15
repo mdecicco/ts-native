@@ -6,8 +6,8 @@
 #include <common/script_function.h>
 #include <common/compile_log.h>
 #include <common/errors.h>
-#include <common/context.h>
-#include <common/module.h>
+#include <common/script_context.h>
+#include <common/script_module.h>
 
 namespace gjs {
     using ec = error::ecode;

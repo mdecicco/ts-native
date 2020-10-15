@@ -1,6 +1,7 @@
 #pragma once
 #include <util/template_utils.hpp>
 #include <common/types.h>
+#include <common/errors.h>
 
 #include <string>
 #include <vector>
@@ -27,8 +28,15 @@ namespace gjs {
             script_type* get(u32 id);
 
             template <typename T>
-            script_type* get() {
-                return get(base_type_name<T>());
+            script_type* get(bool do_throw = false) {
+                if constexpr (std::is_same_v<T, void*>) {
+                    script_type* tp = get(typeid(void*).name());
+                    if (do_throw && !tp) throw error::runtime_exception(error::ecode::r_unbound_type, typeid(remove_all<T>).name());
+                    return tp;
+                }
+                script_type* tp = get(base_type_name<T>());
+                if (do_throw && !tp) throw error::runtime_exception(error::ecode::r_unbound_type, typeid(remove_all<T>).name());
+                return tp;
             }
 
             script_type* add(const std::string& name, const std::string& internal_name);
@@ -66,6 +74,14 @@ namespace gjs {
                 script_function* setter;
             };
 
+            template <typename Ret, typename...Args>
+            script_function* method(const std::string& _name) {
+                return function_search<Ret, Args...>(owner->context(), name + "::" + _name, methods);
+            }
+            script_function* method(const std::string& name, script_type* ret, const std::vector<script_type*>& arg_types);
+
+            property* prop(const std::string& name);
+
             script_module* owner;
             script_type* base_type;
             script_type* sub_type;
@@ -79,6 +95,7 @@ namespace gjs {
             friend class type_manager;
             bind::wrapped_class* m_wrapped;
             u32 m_id;
+
             script_type();
             ~script_type();
     };

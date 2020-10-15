@@ -3,6 +3,7 @@
 #include <common/source_map.h>
 #include <util/util.h>
 #include <common/pipeline.h>
+#include <common/script_object.h>
 
 #include <util/robin_hood.h>
 #include <string>
@@ -13,6 +14,7 @@ namespace gjs {
     class type_manager;
     class script_function;
     class script_module;
+    //class script_object;
     class io_interface;
     class script_context {
         public:
@@ -89,16 +91,26 @@ namespace gjs {
     template <typename Ret, typename... Args>
     void script_context::call(script_function* func, Ret* result, Args... args) {
         // validate signature
-        script_type* ret = m_global->types()->get<Ret>();
+        script_type* ret = nullptr;
+
+        if constexpr (std::is_same_v<Ret, void>) ret = m_global->types()->get<void>();
+        else ret = arg_type(this, result);
+
         if (!ret) {
             // exception
             return;
         }
 
+        void* dest = (void*)result;
+        if constexpr (std::is_same_v<remove_all<Ret>::type, script_object>) {
+            if constexpr (std::is_pointer_v<Ret>) dest = (void*)&(*result)->m_self;
+            else dest = (void*)&result->m_self;
+        }
+
         constexpr u8 ac = std::tuple_size<std::tuple<Args...>>::value;
         bool valid_call = true;
         if constexpr (ac > 0) {
-            script_type* arg_types[ac] = { m_global->types()->get<Args>()... };
+            script_type* arg_types[ac] = { arg_type(this, args)... };
 
             for (u8 i = 0;i < ac;i++) {
                 if (!arg_types[i]) {
@@ -124,18 +136,8 @@ namespace gjs {
                 return;
             }
 
-            void* vargs[] = {
-                std::is_class_v<Args> ?
-                // Pass non-pointer struct/class values as pointers to those values
-                // The only way that functions accepting these types could be bound
-                // is if the argument type is a pointer or a reference (which is
-                // basically a pointer)
-                (void*)&args
-                : 
-                // Otherwise, cast the value to void*
-                *reinterpret_cast<void**>(&args)...
-            };
-            m_backend->call(func, (void*)result, vargs);
+            void* vargs[] = { to_arg(args)... };
+            m_backend->call(func, dest, vargs);
         } else {
             if (func->signature.arg_types.size() != 0) valid_call = false;
             else valid_call = (func->signature.return_type->id() == ret->id());
@@ -145,7 +147,7 @@ namespace gjs {
                 return;
             }
 
-            m_backend->call(func, (void*)result, nullptr);
+            m_backend->call(func, dest, nullptr);
         }
     }
 };

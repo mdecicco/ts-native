@@ -2,8 +2,8 @@
 #include <parser/ast.h>
 #include <parser/context.h>
 #include <common/errors.h>
-#include <common/context.h>
-#include <common/module.h>
+#include <common/script_context.h>
+#include <common/script_module.h>
 #include <common/script_type.h>
 
 namespace gjs {

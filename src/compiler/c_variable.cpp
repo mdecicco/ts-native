@@ -5,10 +5,10 @@
 #include <parser/ast.h>
 #include <common/errors.h>
 #include <common/warnings.h>
-#include <common/context.h>
+#include <common/script_context.h>
 #include <common/script_type.h>
 #include <common/script_function.h>
-#include <common/module.h>
+#include <common/script_module.h>
 #include <util/robin_hood.h>
 
 namespace gjs {

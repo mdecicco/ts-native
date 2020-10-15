@@ -5,6 +5,8 @@
 
 namespace gjs {
     class script_context;
+    class script_function;
+    class script_type;
     class vm_backend;
     struct compilation_output;
 
@@ -21,6 +23,8 @@ namespace gjs {
     inline u32 extract_left_u32(u64 joined) { return ((u32*)&joined)[1]; }
 
     inline u32 extract_right_u32(u64 joined) { return ((u32*)&joined)[0]; }
+
+    script_function* function_search(const std::string& name, const std::vector<script_function*>& source, script_type* ret, const std::vector<script_type*>& arg_types);
 
     void print_log(script_context* ctx);
 

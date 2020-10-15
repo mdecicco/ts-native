@@ -1,6 +1,6 @@
 #include <common/script_function.h>
 #include <common/script_type.h>
-#include <common/context.h>
+#include <common/script_context.h>
 #include <vm/register.h>
 #include <bind/bind.h>
 #include <util/util.h>
@@ -31,9 +31,9 @@ namespace gjs {
         for (u8 i = 0;i < wrapped->arg_types.size();i++) {
             script_type* atp = nullptr;
             if (std::string(wrapped->arg_types[i].name()) == "void" && wrapped->arg_is_ptr[i]) {
-                atp = mgr->get("void*"); // some object or primitive pointer
+                atp = mgr->get<void*>(); // some object or primitive pointer
             } else if (tp && i == 1 && tp->requires_subtype && is_ctor) {
-                atp = mgr->get("void*"); // script_type*
+                atp = mgr->get<void*>(); // script_type*
             } else if (tp && i == 0) {
                 atp = tp; // script_type*
             } else atp = mgr->get(wrapped->arg_types[i].name());
@@ -57,7 +57,7 @@ namespace gjs {
         }
 
         if (std::string(wrapped->return_type.name()) == "void" && wrapped->ret_is_ptr) {
-            signature.return_type = mgr->get("void*");
+            signature.return_type = mgr->get<void*>();
         } else signature.return_type = mgr->get(wrapped->return_type.name());
 
         if (!signature.return_type) {

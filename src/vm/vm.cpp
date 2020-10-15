@@ -2,10 +2,10 @@
 #include <vm/allocator.h>
 #include <stdarg.h>
 #include <string.h>
-#include <common/context.h>
+#include <common/script_context.h>
 #include <common/script_function.h>
 #include <common/script_type.h>
-#include <common/module.h>
+#include <common/script_module.h>
 #include <builtin/script_buffer.h>
 #include <backends/vm.h>
 

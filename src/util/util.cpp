@@ -1,10 +1,10 @@
 #include <stdarg.h>
 #include <util/util.h>
-#include <common/context.h>
+#include <common/script_context.h>
 #include <backends/vm.h>
 #include <common/script_function.h>
 #include <common/script_type.h>
-#include <common/module.h>
+#include <common/script_module.h>
 #include <common/errors.h>
 #include <stdio.h>
 using namespace std;
@@ -75,6 +75,24 @@ namespace gjs {
         u32 h = 0;
         for (u32 i = 0;i < str.length();i++) h = 37 * h + str[i];
         return h + (h >> 5);
+    }
+
+    script_function* function_search(const std::string& name, const std::vector<script_function*>& source, script_type* ret, const std::vector<script_type*>& arg_types) {
+        for (u8 i = 0;i < source.size();i++) {
+            bool matches = ret ? source[i]->signature.return_type->id() == ret->id() : true;
+            if (!matches) continue;
+
+            if (source[i]->signature.arg_types.size() != arg_types.size()) continue;
+
+            matches = true;
+            for (u8 a = 0;a < source[i]->signature.arg_types.size() && matches;a++) {
+                matches = (source[i]->signature.arg_types[a]->id() == arg_types[a]->id());
+            }
+
+            if (matches) return source[i];
+        }
+
+        return nullptr;
     }
 
     void print_log(script_context* ctx) {

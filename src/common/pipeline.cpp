@@ -1,8 +1,8 @@
 #include <common/pipeline.h>
 #include <backends/backend.h>
-#include <common/context.h>
+#include <common/script_context.h>
 #include <common/errors.h>
-#include <common/module.h>
+#include <common/script_module.h>
 #include <common/script_function.h>
 #include <backends/register_allocator.h>
 
