@@ -2,6 +2,8 @@
 #include <common/types.h>
 #include <common/source_ref.h>
 #include <util/robin_hood.h>
+#include <util/template_utils.hpp>
+
 #include <string>
 #include <vector>
 
@@ -58,9 +60,9 @@ namespace gjs {
             */
             template <typename Ret, typename...Args>
             script_function* function(const std::string& name) {
-                if (m_funcs.count(func->name) == 0) return nullptr;
+                if (m_func_map.count(name) == 0) return nullptr;
 
-                return function_search<Ret, Args...>(m_ctx, name, m_funcs[func->name]);
+                return function_search<Ret, Args...>(m_ctx, name, function_overloads(name));
             }
 
             std::vector<std::string> function_names() const;

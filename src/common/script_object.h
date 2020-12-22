@@ -1,12 +1,27 @@
 #pragma once
 #include <common/types.h>
+#include <common/script_type.h>
 #include <util/template_utils.hpp>
 
 namespace gjs {
-    class script_type;
     class script_function;
     class script_context;
     class script_module;
+    class script_object;
+    
+    template <typename T>
+    struct property_accessor {
+        const script_object* obj;
+        script_type::property* prop;
+
+        inline T& ref();
+        inline T get() const;
+        inline T set(const T& rhs);
+
+        inline operator T&() { return ref(); }
+        inline operator T() const { return get(); }
+        inline T operator = (const T& rhs) { return set(rhs); }
+    };
 
     class script_object {
         public:
@@ -44,31 +59,18 @@ namespace gjs {
             }
 
             template <typename T>
-            T& prop(const std::string& name) {
-                auto p = m_type->prop(name);
+            property_accessor<T> prop(const std::string& name) const {
+                script_type::property* p = m_type->prop(name);
                 if (!p) {
                     throw error::runtime_exception(error::ecode::r_invalid_object_property, m_type->name.c_str(), name.c_str());
                 }
 
-                // todo: object properties, reference objects
-
-                return *(T*)(m_self + p->offset);
-            }
-
-            template <typename T>
-            const T& prop(const std::string& name) const {
-                auto p = m_type->prop(name);
-                if (!p) {
-                    throw error::runtime_exception(error::ecode::r_invalid_object_property, m_type->name.c_str(), name.c_str());
-                }
-
-                // todo: object properties, reference objects
-
-                return *(T*)(m_self + p->offset);
+                return { this, p };
             }
 
             inline void* self() const { return (void*)m_self; }
             inline script_type* type() const { return m_type; }
+            inline script_context* context() const { return m_ctx; }
         protected:
             friend class script_context;
             script_context* m_ctx;
@@ -76,4 +78,51 @@ namespace gjs {
             script_module* m_mod;
             u8* m_self;
     };
+
+    template <typename T>
+    inline T& property_accessor<T>::ref() {
+        // todo: objects
+
+        if (prop->flags & bind::pf_read_only || prop->flags & bind::pf_write_only) {
+            throw error::runtime_exception(error::ecode::r_cannot_ref_restricted_object_property, prop->name.c_str(), obj->type()->name.c_str());
+        }
+
+        if (prop->getter || prop->setter) {
+            throw error::runtime_exception(error::ecode::r_cannot_ref_object_accessor_property, prop->name.c_str(), obj->type()->name.c_str());
+        }
+
+        return *(T*)(((u8*)obj->self()) + prop->offset);
+    }
+
+    template <typename T>
+    inline T property_accessor<T>::get() const {
+        // todo: objects
+
+        if (!(prop->flags & bind::pf_write_only) && !prop->getter && !prop->setter) {
+            return *(T*)(((u8*)obj->self()) + prop->offset);
+        }
+
+        if (prop->getter) {
+            u8 r[sizeof(T)];
+            obj->context()->call<T>(prop->getter, (T*)r, obj);
+            return *(T*)r;
+        }
+
+        throw error::runtime_exception(error::ecode::r_cannot_read_object_property, prop->name.c_str(), obj->type()->name.c_str());
+    }
+
+    template <typename T>
+    inline T property_accessor<T>::set(const T& rhs) {
+        if (!(prop->flags & bind::pf_read_only) && !prop->getter && !prop->setter) {
+            return (*(T*)(((u8*)obj->self()) + prop->offset)) = rhs;
+        }
+
+        if (prop->setter) {
+            u8 r[sizeof(T)];
+            obj->context()->call<T>(prop->setter, (T*)r, obj, rhs);
+            return *(T*)r;
+        }
+
+        throw error::runtime_exception(error::ecode::r_cannot_write_object_property, prop->name.c_str(), obj->type()->name.c_str());
+    }
 };

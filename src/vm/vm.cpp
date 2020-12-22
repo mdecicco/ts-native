@@ -7,7 +7,7 @@
 #include <common/script_type.h>
 #include <common/script_module.h>
 #include <builtin/script_buffer.h>
-#include <backends/vm.h>
+#include <backends/b_vm.h>
 
 #include <asmjit/asmjit.h>
 using namespace asmjit;

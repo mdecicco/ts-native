@@ -16,7 +16,7 @@
 #include <common/script_object.h>
 
 #include <backends/backend.h>
-#include <backends/vm.h>
+#include <backends/b_vm.h>
 
 #include <vm/allocator.h>
 

@@ -1,15 +1,20 @@
 cmake_minimum_required(VERSION 3.10)
 project(gjs)
 
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
 set(
     include_dirs
     ${CMAKE_CURRENT_SOURCE_DIR}/src
-    ${CMAKE_CURRENT_SOURCE_DIR}/deps/asmjit/src
     ${CMAKE_CURRENT_SOURCE_DIR}/deps/dyncall/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/deps/llvm/include
 )
 set(
     library_dirs
     ${CMAKE_CURRENT_SOURCE_DIR}/deps/dyncall/lib
+    ${CMAKE_CURRENT_SOURCE_DIR}/deps/llvm/lib/x64/Debug
 )
 include_directories(${include_dirs})
 link_directories(${library_dirs})
@@ -79,5 +84,59 @@ ENDMACRO(SOURCE_GROUP_BY_FOLDER)
 
 SOURCE_GROUP_BY_FOLDER(gjs)
 
-target_link_libraries(gjs asmjit dyncall_s)
+target_link_libraries(gjs
+    dyncall_s
+    LLVMCore
+    LLVMOrcJIT
+    LLVMSupport
+    LLVMAnalysis
+    LLVMBinaryFormat
+    LLVMCodeGen
+    LLVMDWARFLinker
+    LLVMExecutionEngine
+    LLVMExtensions
+    LLVMFileCheck
+    LLVMFuzzMutate
+    LLVMInterfaceStub
+    LLVMIRReader
+    LLVMLineEditor
+    LLVMLinker
+    LLVMLTO
+    LLVMMC
+    lLVMMCA
+    LLVMObject
+    LLVMObjectYAML
+    LLVMOption
+    LLVMPasses
+    LLVMProfileData
+    LLVMRemarks
+    LLVMTarget
+    LLVMTextAPI
+    LLVMXRay
+    LLVMOrcShared
+    LLVMJITLink
+    LLVMBitReader
+    LLVMBitWriter
+    LLVMBitstreamReader
+    LLVMOrcTargetProcess
+    LLVMRuntimeDyld
+    LLVMTransformUtils
+    LLVMMCParser
+    LLVMDemangle
+    LLVMX86AsmParser
+    LLVMX86CodeGen
+    LLVMX86Disassembler
+    LLVMX86Info
+    LLVMX86Desc
+    LLVMCFGuard
+    LLVMGlobalISel
+    LLVMSelectionDAG
+    LLVMASMPrinter
+    LLVMDebugInfoCodeView
+    LLVMDebugInfoDWARF
+    LLVMDebugInfoMSF
+    LLVMMCParser
+    LLVMScalarOpts
+    LLVMMCDisassembler
+)
 add_custom_command(TARGET gjs COMMAND robocopy ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/include *.h -MIR)

@@ -32,7 +32,8 @@ namespace gjs {
     namespace bind {
         struct wrapped_function {
             wrapped_function(std::type_index ret, std::vector<std::type_index> args, const std::string& _name)
-            : return_type(ret), arg_types(args), name(_name), is_static_method(false), address(0), ret_is_ptr(false) { }
+            : return_type(ret), arg_types(args), name(_name), is_static_method(false), func_ptr(nullptr), ret_is_ptr(false),
+              srv_wrapper_func(nullptr), call_method_func(nullptr), pass_this(false) { }
 
             std::string name;
             std::type_index return_type;
@@ -45,7 +46,16 @@ namespace gjs {
             bool pass_this;
 
             bool ret_is_ptr;
-            u64 address;
+
+            // address of the host function to be called
+            void* func_ptr;
+
+            // class method: return value pointer, call_method_func, func_ptr, self, function args...
+            // global function: return value pointer, func_ptr, function args...
+            void* srv_wrapper_func;
+
+            // func_ptr, self, method args...
+            void* call_method_func;
 
             virtual void call(DCCallVM* call, void* ret, void** args) = 0;
         };
@@ -79,6 +89,12 @@ namespace gjs {
             size_t size;
         };
 
+        // call wrapper for functions which return structs by value
+        template <typename Ret, typename... Args>
+        void srv_wrapper(Ret* out, Ret (*f)(Args...), Args... args) {
+            new (out) Ret(f(args...));
+        }
+
         // Call class method on object
         // Only visible to class methods with non-void return
         template <typename Ret, typename Cls, typename... Args>
@@ -103,7 +119,7 @@ namespace gjs {
 
         template <typename Ret, typename Cls, typename... Args>
         typename std::enable_if<std::is_same<Ret, void>::value, Ret>::type
-        call_const_class_method(Ret(Cls::*method)(Args...), Cls* self, Args... args) {
+        call_const_class_method(Ret(Cls::*method)(Args...) const, Cls* self, Args... args) {
             (*self.*method)(args...);
         }
 
@@ -117,8 +133,7 @@ namespace gjs {
                     typeid(remove_all<Ret>::type),
                     { typeid(remove_all<Args>::type)... },
                     name
-                ),
-                original_func(f)
+                )
             {
                 if (!tpm->get<Ret>()) {
                     throw bind_exception(format("Return type '%s' of function '%s' has not been bound yet", base_type_name<Ret>(), name.c_str()));
@@ -126,7 +141,12 @@ namespace gjs {
                 // describe the function for the wrapped_function interface
                 ret_is_ptr = std::is_reference_v<Ret> || std::is_pointer_v<Ret>;
                 arg_is_ptr = { (std::is_reference_v<Args> || std::is_pointer_v<Args>)... };
-                address = u64(reinterpret_cast<void*>(f));
+                func_ptr = *reinterpret_cast<void**>(&f);
+
+                if constexpr (std::is_class_v<Ret>) {
+                    auto srv = srv_wrapper<Ret, Args...>;
+                    srv_wrapper_func = reinterpret_cast<void*>(srv);
+                }
 
                 bool sbv_args[] = { std::is_class_v<Args>..., false };
                 bool bt_args[] = { (!std::is_same_v<Args, script_type*> && tpm->get<Args>() == nullptr)..., false };
@@ -150,16 +170,16 @@ namespace gjs {
             }
 
             virtual void call(DCCallVM* call, void* ret, void** args);
-
-            func_type original_func;
         };
 
         template <typename Ret, typename Cls, typename... Args>
         struct class_method : wrapped_function {
             public:
                 typedef Ret (Cls::*method_type)(Args...);
-                typedef Ret (*func_type)(method_type, Cls*, Args...);
                 typedef std::tuple_size<std::tuple<Args...>> ac;
+                typedef Ret (*func_type)(method_type, Cls*, Args...);
+
+                func_type wrapper;
                 
                 class_method(type_manager* tpm, method_type f, const std::string& name) :
                     wrapped_function(
@@ -167,7 +187,7 @@ namespace gjs {
                         { typeid(remove_all<Cls>::type), typeid(remove_all<Args>::type)... },
                         name
                     ),
-                    original_func(call_class_method<Ret, Cls, Args...>)
+                    wrapper(call_class_method<Ret, Cls, Args...>)
                 {
                     if (!tpm->get<Cls>()) {
                         throw bind_exception(format("Binding method '%s' of class '%s' that has not been bound yet", name.c_str(), typeid(remove_all<Cls>::type).name()));
@@ -176,10 +196,16 @@ namespace gjs {
                         throw bind_exception(format("Return type '%s' of method '%s' of class '%s' has not been bound yet", base_type_name<Ret>(), name.c_str(), typeid(remove_all<Cls>::type).name()));
                     }
 
+                    call_method_func = wrapper;
+                    if constexpr (std::is_class_v<Ret>) {
+                        auto srv = srv_wrapper<Ret, method_type, Cls*, Args...>;
+                        srv_wrapper_func = reinterpret_cast<void*>(srv);
+                    }
+
                     // describe the function for the wrapped_function interface
                     ret_is_ptr = std::is_reference_v<Ret> || std::is_pointer_v<Ret>;
                     arg_is_ptr = { true, (std::is_reference_v<Args> || std::is_pointer_v<Args>)... };
-                    address = *(u64*)reinterpret_cast<void*>(&f);
+                    func_ptr = *reinterpret_cast<void**>(&f);
 
                     bool sbv_args[] = { std::is_class_v<Args>..., false };
                     bool bt_args[] = { (!std::is_same_v<Args, script_type*> && tpm->get<Args>() == nullptr)..., false };
@@ -203,16 +229,16 @@ namespace gjs {
                 }
 
                 virtual void call(DCCallVM* call, void* ret, void** args);
-
-                func_type original_func;
         };
 
         template <typename Ret, typename Cls, typename... Args>
         struct const_class_method : wrapped_function {
             public:
                 typedef Ret (Cls::*method_type)(Args...) const;
-                typedef Ret (*func_type)(method_type, Cls*, Args...);
                 typedef std::tuple_size<std::tuple<Args...>> ac;
+                typedef Ret (*func_type)(method_type, Cls*, Args...);
+
+                func_type wrapper;
                 
                 const_class_method(type_manager* tpm, method_type f, const std::string& name) :
                     wrapped_function(
@@ -220,7 +246,7 @@ namespace gjs {
                         { typeid(remove_all<Cls>::type), typeid(remove_all<Args>::type)... },
                         name
                     ),
-                    original_func(call_const_class_method<Ret, Cls, Args...>)
+                    wrapper(call_const_class_method<Ret, Cls, Args...>)
                 {
                     if (!tpm->get<Cls>()) {
                         throw bind_exception(format("Binding method '%s' of class '%s' that has not been bound yet", name.c_str(), typeid(remove_all<Cls>::type).name()));
@@ -229,10 +255,16 @@ namespace gjs {
                         throw bind_exception(format("Return type '%s' of method '%s' of class '%s' has not been bound yet", base_type_name<Ret>(), name.c_str(), typeid(remove_all<Cls>::type).name()));
                     }
 
+                    call_method_func = wrapper;
+                    if constexpr (std::is_class_v<Ret>) {
+                        auto srv = srv_wrapper<Ret, method_type, Cls*, Args...>;
+                        srv_wrapper_func = reinterpret_cast<void*>(srv);
+                    };
+
                     // describe the function for the wrapped_function interface
                     ret_is_ptr = std::is_reference_v<Ret> || std::is_pointer_v<Ret>;
                     arg_is_ptr = { true, (std::is_reference_v<Args> || std::is_pointer_v<Args>)... };
-                    address = *(u64*)reinterpret_cast<void*>(&f);
+                    func_ptr = *reinterpret_cast<void**>(&f);
 
                     bool sbv_args[] = { std::is_class_v<Args>..., false };
                     bool bt_args[] = { (!std::is_same_v<Args, script_type*> && tpm->get<Args>() == nullptr)..., false };
@@ -256,8 +288,6 @@ namespace gjs {
                 }
 
                 virtual void call(DCCallVM* call, void* ret, void** args);
-
-                func_type original_func;
         };
 
         /*
@@ -576,14 +606,8 @@ namespace gjs {
         
         template <> void do_call<void>(DCCallVM* call, void* ret, void* func);
 
-        template <typename Ret, typename... Args>
-        void srv_wrapper(Ret* out, Ret (*f)(Args...), Args... args) {
-            new (out) Ret(f(args...));
-        }
-
         /*
          * Call helpers for VM
-         * todo: move DCCallVM to script_context
          */
         template <typename Ret, typename... Args>
         void global_function<Ret, Args...>::call(DCCallVM* call, void* ret, void** args) {
@@ -594,22 +618,22 @@ namespace gjs {
 
             if constexpr (argc > 0) {
                 if constexpr (std::is_class_v<Ret>) {
-                    void* _args[argc + 2] = { ret, original_func };
+                    void* _args[argc + 2] = { ret, func_ptr };
                     for (u8 a = 0;a < argc;a++) _args[a + 2] = args[a];
                     _pass_arg_wrapper<Ret*, void*, Args...>(0, call, _args);
                 } else _pass_arg_wrapper<Args...>(0, call, args);
             } else if constexpr (std::is_class_v<Ret>) {
                 dcArgPointer(call, ret);
-                dcArgPointer(call, (void*)original_func);
+                dcArgPointer(call, (void*)address);
             }
 
 
             if constexpr (std::is_pointer_v<Ret> || std::is_reference_v<Ret>) {
-                do_call<remove_all<Ret>*>(call, (remove_all<Ret>**)ret, original_func);
+                do_call<remove_all<Ret>*>(call, (remove_all<Ret>**)ret, func_ptr);
             } else if constexpr (std::is_class_v<Ret>) {
-                do_call<void>(call, nullptr, srv_wrapper<Ret, Args...>);
+                do_call<void>(call, nullptr, srv_wrapper_func);
             } else {
-                do_call<Ret>(call, (Ret*)ret, original_func);
+                do_call<Ret>(call, (Ret*)ret, func_ptr);
             }
         }
         
@@ -621,23 +645,23 @@ namespace gjs {
             constexpr int argc = std::tuple_size_v<std::tuple<Args...>>;
 
             if constexpr (std::is_class_v<Ret>) {
-                void* _args[argc + 4] = { ret, original_func, (void*)address };
+                void* _args[argc + 4] = { ret, call_method_func, func_ptr };
                 for (u8 a = 0;a < argc + 1;a++) _args[a + 3] = args[a];
-                // return value, original_func, method pointer, this obj
+                // return value, call_method_func, func_ptr, this obj
                 _pass_arg_wrapper<Ret*, void*, void*, void*, Args...>(0, call, _args);
             } else {
-                void* _args[argc + 2] = { (void*)address };
+                void* _args[argc + 2] = { func_ptr };
                 for (u8 a = 0;a < argc + 1;a++) _args[a + 1] = args[a];
-                // method pointer, this obj
+                // func_ptr, this obj
                 _pass_arg_wrapper<void*, void*, Args...>(0, call, _args);
             }
 
             if constexpr (std::is_pointer_v<Ret> || std::is_reference_v<Ret>) {
-                do_call<remove_all<Ret>*>(call, (remove_all<Ret>**)ret, original_func);
+                do_call<remove_all<Ret>*>(call, (remove_all<Ret>**)ret, call_method_func);
             } else if constexpr (std::is_class_v<Ret>) {
-                do_call<void>(call, nullptr, srv_wrapper<Ret, void*, void*, Args...>);
+                do_call<void>(call, nullptr, srv_wrapper_func);
             } else {
-                do_call<Ret>(call, (Ret*)ret, original_func);
+                do_call<Ret>(call, (Ret*)ret, call_method_func);
             }
         }
 
@@ -649,23 +673,23 @@ namespace gjs {
             constexpr int argc = std::tuple_size_v<std::tuple<Args...>>;
 
             if constexpr (std::is_class_v<Ret>) {
-                void* _args[argc + 4] = { ret, original_func, (void*)address };
+                void* _args[argc + 4] = { ret, call_method_func, func_ptr };
                 for (u8 a = 0;a < argc + 1;a++) _args[a + 3] = args[a];
-                // return value, original_func, method pointer, this obj
+                // return value, call_method_func, func_ptr, this obj
                 _pass_arg_wrapper<Ret*, void*, void*, void*, Args...>(0, call, _args);
             } else {
-                void* _args[argc + 2] = { (void*)address };
+                void* _args[argc + 2] = { func_ptr };
                 for (u8 a = 0;a < argc + 1;a++) _args[a + 1] = args[a];
-                // method pointer, this obj
+                // func_ptr, this obj
                 _pass_arg_wrapper<void*, void*, Args...>(0, call, _args);
             }
 
             if constexpr (std::is_pointer_v<Ret> || std::is_reference_v<Ret>) {
-                do_call<remove_all<Ret>*>(call, (remove_all<Ret>**)ret, original_func);
+                do_call<remove_all<Ret>*>(call, (remove_all<Ret>**)ret, call_method_func);
             } else if constexpr (std::is_class_v<Ret>) {
-                do_call<void>(call, nullptr, srv_wrapper<Ret, void*, void*, Args...>);
+                do_call<void>(call, nullptr, srv_wrapper_func);
             } else {
-                do_call<Ret>(call, (Ret*)ret, original_func);
+                do_call<Ret>(call, (Ret*)ret, call_method_func);
             }
         }
     };

@@ -1,4 +1,4 @@
-#include <backends/vm.h>
+#include <backends/b_vm.h>
 #include <backends/register_allocator.h>
 #include <compiler/tac.h>
 #include <common/script_type.h>
@@ -812,7 +812,7 @@ namespace gjs {
 
                     // do the call
                     jmap[m_instructions.size()] = i.callee;
-                    if (i.callee->is_host) m_instructions += encode(vmi::jal).operand(i.callee->access.wrapped->address);
+                    if (i.callee->is_host) m_instructions += encode(vmi::jal).operand((u64)i.callee->access.wrapped->func_ptr);
                     else m_instructions += encode(vmi::jal).operand(i.callee->access.entry);
                     m_map.append(i.src);
 
@@ -1009,6 +1009,10 @@ namespace gjs {
         // f13, f14, f15 used for
         // loading spilled values
         return 13;
+    }
+    
+    bool vm_backend::perform_register_allocation() const {
+        return true;
     }
 
     void vm_backend::call(script_function* func, void* ret, void** args) {

@@ -4,7 +4,7 @@
 #include <common/script_module.h>
 #include <common/io.h>
 #include <backends/backend.h>
-#include <backends/vm.h>
+#include <backends/b_vm.h>
 #include <vm/allocator.h>
 
 #include <bind/bind.h>
@@ -31,6 +31,7 @@ namespace gjs {
         m_backend->m_ctx = this;
 
         init_context(this);
+        m_backend->init();
     }
 
     script_context::~script_context() {
@@ -51,7 +52,7 @@ namespace gjs {
 
     void script_context::add(script_function* func) {
         u64 addr = 0;
-        if (func->is_host) addr = func->access.wrapped->address;
+        if (func->is_host) addr = (u64)func->access.wrapped->func_ptr;
         else addr = func->access.entry;
 
         if (m_funcs_by_addr.count(addr) > 0) {

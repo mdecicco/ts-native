@@ -114,11 +114,13 @@ namespace gjs {
                    m_ir_steps[i](m_ctx, out);
                 }
 
-                for (u16 i = 0;i < out.funcs.size();i++) {
-                    if (!out.funcs[i].func) continue;
-                    out.funcs[i].regs.m_gpc = generator->gp_count();
-                    out.funcs[i].regs.m_fpc = generator->fp_count();
-                    out.funcs[i].regs.process(i);
+                if (generator->perform_register_allocation()) {
+                    for (u16 i = 0;i < out.funcs.size();i++) {
+                        if (!out.funcs[i].func) continue;
+                        out.funcs[i].regs.m_gpc = generator->gp_count();
+                        out.funcs[i].regs.m_fpc = generator->fp_count();
+                        out.funcs[i].regs.process(i);
+                    }
                 }
 
                 generator->generate(out);

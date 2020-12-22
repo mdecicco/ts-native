@@ -23,7 +23,10 @@ SOURCE_GROUP("src" FILES ${playground_src})
 
 add_executable(playground ${playground_src})
 
-target_link_libraries(playground gjs)
+target_link_libraries(
+    playground
+    gjs
+)
 
 set_target_properties(playground PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY_DEBUG   ${CMAKE_CURRENT_SOURCE_DIR}/bin 

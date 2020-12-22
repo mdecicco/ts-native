@@ -65,6 +65,10 @@ namespace gjs {
             "Cannot construct object of type '%s' with given argument list",
             "Object of type '%s' has no property named '%s'",
             "Object of type '%s' has no method that matches the signature '%s'",
+            "Cannot read from property '%s' of type '%s'",
+            "Cannot write to property '%s' of type '%s'",
+            "Cannot get direct reference to limited-access property '%s' of type '%s'",
+            "Cannot get direct reference to property '%s' of type '%s' which uses property accessor functions",
             "Type '%s' has not been bound",
             "" // end runtime errors
         };

@@ -1,6 +1,6 @@
 #include <vm/instruction.h>
 #include <vm/instruction_encoder.h>
-#include <backends/vm.h>
+#include <backends/b_vm.h>
 #include <vm/register.h>
 #include <util/util.h>
 #include <assert.h>

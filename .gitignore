@@ -17,3 +17,5 @@ x64/
 *.pdb
 include
 lib
+deps/llvm
+deps/*.rar

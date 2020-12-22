@@ -66,6 +66,10 @@ namespace gjs {
             r_invalid_object_constructor,
             r_invalid_object_property,
             r_invalid_object_method,
+            r_cannot_read_object_property,
+            r_cannot_write_object_property,
+            r_cannot_ref_restricted_object_property,
+            r_cannot_ref_object_accessor_property,
             r_unbound_type,
             __runtime_error_end
         };

@@ -26,7 +26,7 @@ namespace gjs {
         signature.returns_pointer = wrapped->ret_is_ptr;
         name = wrapped->name;
         signature.is_subtype_obj_ctor = tp && tp->requires_subtype && is_ctor;
-        is_static = false;
+        is_static = wrapped->is_static_method;
         owner = nullptr;
         for (u8 i = 0;i < wrapped->arg_types.size();i++) {
             script_type* atp = nullptr;

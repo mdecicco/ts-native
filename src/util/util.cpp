@@ -1,7 +1,7 @@
 #include <stdarg.h>
 #include <util/util.h>
 #include <common/script_context.h>
-#include <backends/vm.h>
+#include <backends/b_vm.h>
 #include <common/script_function.h>
 #include <common/script_type.h>
 #include <common/script_module.h>

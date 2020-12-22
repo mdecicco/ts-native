@@ -14,6 +14,7 @@ namespace gjs {
     using exc = error::exception;
     using ec = error::ecode;
     using nt = parse::ast::node_type;
+    using ot = parse::ast::operation_type;
     using namespace parse;
 
     namespace compile {
@@ -61,13 +62,12 @@ namespace gjs {
         }
 
         void construct_in_memory(context& ctx, const var& obj, const std::vector<var>& args) {
-            obj.operator_eq(
-                call(
-                    ctx,
-                    ctx.function("alloc", ctx.type("data"), { ctx.type("u32") }),
-                    { ctx.imm((u64)obj.size()) }
-                )
+            var mem = call(
+                ctx,
+                ctx.function("alloc", ctx.type("data"), { ctx.type("u32") }),
+                { ctx.imm((u64)obj.size()) }
             );
+            ctx.add(operation::eq).operand(obj).operand(mem);
 
             std::vector<script_type*> arg_types = { obj.type() }; // this obj
             script_type* ret_tp = obj.type();
@@ -203,8 +203,13 @@ namespace gjs {
                 if (n->initializer) {
                     if (!tp->is_primitive) {
                         ctx.push_node(n->data_type);
-                        v.raise_stack_flag();
-                        construct_on_stack(ctx, v, { expression(ctx, n->initializer->body) });
+                        if (n->initializer->body->type == nt::operation && n->initializer->body->op == ot::newObj) {
+                            var val = expression(ctx, n->initializer->body);
+                            ctx.add(operation::eq).operand(v).operand(val);
+                        } else {
+                            v.raise_stack_flag();
+                            construct_on_stack(ctx, v, { expression(ctx, n->initializer->body) });
+                        }
                         ctx.pop_node();
                     } else {
                         var val = expression(ctx, n->initializer->body);
@@ -511,6 +516,7 @@ namespace gjs {
                 throw exc(ec::c_compile_finished_with_errors, input->ref);
             }
 
+            out.types = ctx.new_types->all();
             out.mod->types()->merge(ctx.new_types);
              
             delete ctx.new_types;

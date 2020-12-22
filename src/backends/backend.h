@@ -22,6 +22,12 @@ namespace gjs {
             // number of FP registers (see register_allocaor file for details)
             virtual u16 fp_count() const = 0;
 
+            // whether or not to perform the register allocation step
+            virtual bool perform_register_allocation() const = 0;
+
+            // called by script_context after it has been constructed
+            virtual void init();
+
         protected:
             friend class script_context;
             /*

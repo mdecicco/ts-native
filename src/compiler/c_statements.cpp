@@ -88,6 +88,7 @@ namespace gjs {
                 } else if (f->signature.return_type->size == 0) {
                     ctx.log()->err(ec::c_no_void_return_val, n->ref);
                 } else {
+                    // todo: handle returning stack objects
                     var rv = expression(ctx, n->body).convert(f->signature.return_type);
                     ctx.add(operation::ret).operand(rv);
                 }
