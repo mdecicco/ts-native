@@ -25,11 +25,10 @@ void print_i32(i32 i) {
 int test_llvm(int argc, char *argv[]) {
     win64_backend be(argc, argv);
     script_context ctx(&be);
+    be.commit_bindings();
+
     be.log_ir(true);
     ctx.compiler()->add_ir_step(debug_ir_step);
-
-    ctx.bind(print_i32, "print_i32");
-    be.commit_bindings();
 
     script_module* mod = ctx.add_code("x86_test",
         "i32 t(i32 y) {\n"
@@ -62,13 +61,14 @@ int test_llvm(int argc, char *argv[]) {
 
 // https://www.notion.so/3ccc9d8dba114bf8acfbbe238cb729e3?v=1a0dff3b20ba4f678bc7f5866665c4df
 int main(int arg_count, const char** args) {
-    return test_llvm(arg_count, const_cast<char**>(args));
+    test_llvm(arg_count, const_cast<char**>(args));
 
     std::string dir = "";
     auto dp = split(args[0], "/\\");
     for (u16 i = 0;i < dp.size() - 1;i++) dir += dp[i] + "/";
 
-    script_context ctx;
+    win64_backend be(arg_count, const_cast<char**>(args));
+    script_context ctx(&be);
     ctx.io()->set_cwd(dir);
 
     // ctx.compiler()->add_ir_step(debug_ir_step);
@@ -78,6 +78,8 @@ int main(int arg_count, const char** args) {
         .constructor()
         .prop("x", &test::x)//, &test::get_x, &test::set_x)
     .finalize();
+
+    be.commit_bindings();
 
     // printf("------------IR code-------------\n");
 
@@ -113,7 +115,7 @@ int main(int arg_count, const char** args) {
 
 
     printf("------------VM code-------------\n");
-    print_code((vm_backend*)ctx.generator());
+    //print_code((vm_backend*)ctx.generator());
 
     printf("-------------result-------------\n");
     // ((vm_backend*)ctx.generator())->log_instructions(true);

@@ -395,12 +395,12 @@ namespace gjs {
 
     win64_backend::win64_backend(int argc, char* argv[]) : m_log_ir(false) {
         // Initialize LLVM.
-        m_llvm_init = new InitLLVM(argc, argv);
+        //m_llvm_init = new InitLLVM(argc, argv);
 
         InitializeNativeTarget();
         InitializeNativeTargetAsmPrinter();
         InitializeNativeTargetAsmParser();
-
+        
         m_llvm = std::make_unique<LLVMContext>();
         auto jit = LLJITBuilder().create();
         if (!jit) {
@@ -411,7 +411,8 @@ namespace gjs {
     }
 
     win64_backend::~win64_backend() {
-        delete m_llvm_init;
+        // delete m_llvm_init;
+        // todo: figure out how to _actually_ release all of llvm's resources
     }
 
     #ifdef _MSC_VER
@@ -504,11 +505,7 @@ namespace gjs {
             g.cur_function_idx = f;
             g.cur_instr_idx = in.funcs[f].begin;
             g.cur_block_idx = 0;
-
-            if (g.builder) {
-                delete g.builder;
-                g.builder = nullptr;
-            }
+            g.builder = nullptr;
 
             generate_function(g);
         }
@@ -631,6 +628,9 @@ namespace gjs {
                 pp.phi->addIncoming(g.blocks[b].var_map[pp.regId], g.blocks[b].block);
             }
         }
+
+        delete g.builder;
+        g.builder = nullptr;
     }
 
     void win64_backend::gen_instruction(w64_gen_ctx& g) {
