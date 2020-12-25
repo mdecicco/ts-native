@@ -15,12 +15,14 @@ namespace llvm {
 };
 
 namespace gjs {
+    struct w64_gen_ctx;
     class win64_backend : public backend {
         public:
             win64_backend(int argc, char* argv[]);
             ~win64_backend();
 
             virtual void init();
+            void commit_bindings();
 
             virtual void generate(compilation_output& in);
             virtual u16 gp_count() const { return 0; }
@@ -30,8 +32,9 @@ namespace gjs {
             void log_ir(bool do_log_ir);
 
         protected:
-            void generate_function(compilation_output& in, const compilation_output::func_def& f, llvm::Module* m);
-            void add_bindings_to_module(llvm::Module* m);
+            void generate_function(w64_gen_ctx& ctx);
+            void gen_instruction(w64_gen_ctx& ctx);
+            void add_bindings_to_module(w64_gen_ctx& ctx);
             virtual void call(script_function* func, void* ret, void** args);
             std::string internal_func_name(script_function* func);
 

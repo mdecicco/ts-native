@@ -1,4 +1,5 @@
 #include <compiler/tac.h>
+#include <compiler/context.h>
 #include <common/script_function.h>
 #include <common/script_type.h>
 
@@ -70,7 +71,9 @@ namespace gjs {
             "cvt",
             "branch",
             "jump",
-            "term"
+            "term",
+            "meta_branch",
+            "meta_for_loop"
         };
 
         bool is_assignment(const tac_instruction& i) {
@@ -140,7 +143,9 @@ namespace gjs {
                 false,   // cvt
                 false,   // branch
                 false,   // jump
-                false    // term
+                false,   // term
+                false,   // meta_branch
+                false    // meta_for_loop
             };
 
             return s_is_assignment[u32(i.op)] && !(i.op == operation::call && i.callee->signature.returns_on_stack);
@@ -184,6 +189,34 @@ namespace gjs {
             }
             for (u8 i = 0;i < op_idx;i++) out += " " + operands[i].to_string();
             return out;
+        }
+
+        tac_wrapper::tac_wrapper() : ctx(nullptr), addr(0), is_global(false) {
+        }
+
+        tac_wrapper::tac_wrapper(context* _ctx, u64 _addr, bool _is_global) : ctx(_ctx), addr(_addr), is_global(_is_global) {
+            
+        }
+
+        tac_wrapper& tac_wrapper::operand(const var& v) {
+            tac_instruction& i = is_global ? ctx->global_code[addr] : ctx->out.code[addr];
+            i.operand(v);
+            return *this;
+        }
+
+        tac_wrapper& tac_wrapper::func(script_function* f) {
+            tac_instruction& i = is_global ? ctx->global_code[addr] : ctx->out.code[addr];
+            i.func(f);
+            return *this;
+        }
+
+        std::string tac_wrapper::to_string() const {
+            tac_instruction& i = is_global ? ctx->global_code[addr] : ctx->out.code[addr];
+            return i.to_string();
+        }
+
+        tac_wrapper::operator bool() {
+            return ctx != nullptr;
         }
     };
 };

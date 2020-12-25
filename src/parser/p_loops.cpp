@@ -49,7 +49,10 @@ namespace gjs {
 
             if (!ctx.match({ tt::semicolon })) {
                 // todo: multi-declaration, separated by commas
-                r->initializer = variable_declaration(ctx);
+
+                if (ctx.match({ tt::identifier }) && ctx.is_typename(ctx.current())) r->initializer = variable_declaration(ctx);
+                else r->initializer = expression(ctx);
+
                 if (!ctx.match({ tt::semicolon })) throw exc(ec::p_expected_char, ctx.current().src, ';');
                 ctx.consume();
             } else ctx.consume();

@@ -131,25 +131,36 @@ namespace gjs {
 
         void if_statement(context& ctx, parse::ast* n) {
             ctx.push_node(n);
-            ctx.ensure_code_ref();
             var cond = expression(ctx, n->condition);
-            tac_instruction& branch = ctx.add(operation::branch).operand(cond);
+            auto meta = ctx.add(operation::meta_branch);
+            auto branch = ctx.add(operation::branch).operand(cond);
 
             ctx.push_block();
             any(ctx, n->body);
             ctx.pop_block();
 
+            // truth body end
+            meta.operand(ctx.imm((u64)ctx.code_sz()));
+            auto jmp = ctx.add(operation::jump);
+
             if (n->else_body) {
-                ctx.ensure_code_ref();
-                tac_instruction& jmp = ctx.add(operation::jump); // jump past else block if the condition evaluates to true, after executing the truth condition
-                branch.operand(ctx.imm((u64)ctx.code_sz())); // jump to here from branch if the condition evaluates to false
+                branch.operand(ctx.imm((u64)ctx.code_sz()));
                 ctx.push_block();
                 any(ctx, n->else_body);
                 ctx.pop_block();
-                jmp.operand(ctx.imm((u64)ctx.code_sz()));
+
+                // false body end
+                meta.operand(ctx.imm((u64)ctx.code_sz()));
+                ctx.add(operation::jump).operand(ctx.imm((u64)ctx.code_sz()));
             } else {
+                // no false body
+                meta.operand(ctx.imm((u64)0));
                 branch.operand(ctx.imm((u64)ctx.code_sz()));
             }
+            jmp.operand(ctx.imm((u64)ctx.code_sz()));
+
+            // join address
+            meta.operand(ctx.imm((u64)ctx.code_sz()));
             ctx.pop_node();
         }
     };

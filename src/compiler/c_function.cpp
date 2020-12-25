@@ -259,10 +259,9 @@ namespace gjs {
                 }
             }
 
-            tac_instruction* stack_ret = nullptr;
+            tac_wrapper stack_ret;
             if (func->signature.returns_on_stack) {
-                ctx.ensure_code_ref();
-                stack_ret = &ctx.add(operation::stack_alloc);
+                stack_ret = ctx.add(operation::stack_alloc);
             }
             for (u8 i = 0;i < args.size();i++) ctx.add(operation::param).operand(c_args[i]);
             
@@ -281,7 +280,7 @@ namespace gjs {
                     } else if (func->signature.returns_on_stack) {
                         var ret = ctx.empty_var(this_tp->sub_type);
                         ret.raise_stack_flag();
-                        stack_ret->operand(ret).operand(ctx.imm((u64)this_tp->sub_type->size));
+                        stack_ret.operand(ret).operand(ctx.imm((u64)this_tp->sub_type->size));
                         ctx.add(operation::call).operand(ret).func(func);
                         return ret;
                     } else {
@@ -309,7 +308,7 @@ namespace gjs {
                 } else if (func->signature.returns_on_stack) {
                     var ret = ctx.empty_var(func->signature.return_type);
                     ret.raise_stack_flag();
-                    stack_ret->operand(ret).operand(ctx.imm((u64)func->signature.return_type->size));
+                    stack_ret.operand(ret).operand(ctx.imm((u64)func->signature.return_type->size));
                     ctx.add(operation::call).operand(ret).func(func);
                     return ret;
                 } else {

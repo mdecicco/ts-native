@@ -559,30 +559,15 @@ namespace gjs {
             return nullptr;
         }
 
-        tac_instruction& context::add(operation op) {
+        tac_wrapper context::add(operation op) {
             if (!compiling_function) {
                 // global code
                 global_code.push_back(tac_instruction(op, node()->ref));
-                return global_code.back();
+                return tac_wrapper(this, global_code.size() - 1, true);
             }
 
             out.code.push_back(tac_instruction(op, node()->ref));
-            return out.code.back();
-        }
-
-        void context::ensure_code_ref() {
-            if (!compiling_function) {
-                if (i64(global_code.size()) >= i64(global_code.capacity()) - 32) {
-                    // prevent vector resizing before some instruction is fully defined
-                    global_code.reserve(global_code.capacity() + 32);
-                }
-                return;
-            }
-
-            if (i64(out.code.size()) >= i64(out.code.capacity()) - 32) {
-                // prevent vector resizing before some instruction is fully defined
-                out.code.reserve(out.code.capacity() + 32);
-            }
+            return tac_wrapper(this, out.code.size() - 1, false);
         }
 
         u64 context::code_sz() const {
@@ -609,6 +594,9 @@ namespace gjs {
         }
 
         void context::pop_block() {
+            bool lastIsRet = out.code.size() > 0 && out.code.back().op == operation::ret;
+            u64 postRet = code_sz();
+
             if (block_stack.back()) {
                 script_function* f = block_stack.back()->func;
                 if (f) {
@@ -664,6 +652,14 @@ namespace gjs {
                         }
                     }
                 }
+            }
+
+            if (lastIsRet && postRet != code_sz()) {
+                // extra code was automatically added when popping the last block,
+                // return statement must be moved to be at the end
+                auto ret = out.code[postRet - 1];
+                out.code.erase(out.code.begin() + (postRet - 1));
+                out.code.push_back(ret);
             }
         }
 

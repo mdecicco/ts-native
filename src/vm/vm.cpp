@@ -9,9 +9,6 @@
 #include <builtin/script_buffer.h>
 #include <backends/b_vm.h>
 
-#include <asmjit/asmjit.h>
-using namespace asmjit;
-
 namespace gjs {
     char* fmt(vm_allocator* alloc, const char* fmt, ...) {
         u64 sz = strlen(fmt) + 1024;

@@ -98,8 +98,7 @@ namespace gjs {
             // returns current function if compilation is currently nested within a function
             script_function* current_function();
 
-            tac_instruction& add(operation op);
-            void ensure_code_ref();
+            tac_wrapper add(operation op);
             u64 code_sz() const;
             void push_node(parse::ast* node);
             void pop_node();

@@ -74,10 +74,27 @@ namespace gjs {
             ret,
             cvt,
 
-            // if op[0] is true: continue else jump to op[1]
+            // if op[0] is true: continue, else jump to op[1]
             branch,
             jump,
-            term
+            term,
+
+
+            // The following instructions are not required to be used in execution,
+            // they just provide extra information about control flow
+
+            // inserted just before the branch instruction
+            // operands: 
+            //   op[0] = end of true case block
+            //   op[1] = end of false case block, or 0
+            //   op[2] = post-branch address
+            meta_branch,
+
+            // inserted at the top of a loop
+            // operands:
+            //   op[0] = loop branch address
+            //   op[1] = loop end address
+            meta_for_loop
         };
 
         bool is_assignment(const tac_instruction& i);
@@ -100,6 +117,24 @@ namespace gjs {
 
             protected:
                 u8 op_idx;
+        };
+
+        struct context;
+        struct tac_wrapper {
+            public:
+                tac_wrapper();
+                tac_wrapper(context* ctx, u64 addr, bool is_global);
+
+                tac_wrapper& operand(const var& v);
+                tac_wrapper& func(script_function* f);
+                std::string to_string() const;
+
+                operator bool();
+
+            protected:
+                bool is_global;
+                context* ctx;
+                u64 addr;
         };
     };
 };

@@ -18,28 +18,31 @@ class test {
         f32 x;
 };
 
+void print_i32(i32 i) {
+    printf("%d\n", i);
+}
+
 int test_llvm(int argc, char *argv[]) {
     win64_backend be(argc, argv);
     script_context ctx(&be);
     be.log_ir(true);
     ctx.compiler()->add_ir_step(debug_ir_step);
 
+    ctx.bind(print_i32, "print_i32");
+    be.commit_bindings();
+
     script_module* mod = ctx.add_code("x86_test",
-        "u32 b = 12;\n"
-        "b += 500;\n"
-        "class obj {\n"
-        "constructor(f32 e) {\n"
-        "this.x = e;\n"
-        "}\n"
-        "f32 x;\n"
-        "};\n"
-        "i32 t() {\n"
-        "   i32 a = 1;\n"
-        "   a += 5;\n"
-        "   obj z = new obj(a);\n"
-        "   a += z.x;\n"
-        "   print('test ' + z.x.toFixed(2));\n"
-        "   return a + b;\n"
+        "i32 t(i32 y) {\n"
+        "   i32 a;\n"
+        "   i32 s = y;\n"
+        "   for (a = 0;a <= 10;a++) {\n"
+        "       s += a;\n"
+        "   }\n"
+        "   print_i32(s);\n"
+        "   if (s > 5) a = 5;\n"
+        "   else a = 2;\n"
+        "   s = a;\n"
+        "   return s;\n"
         "}\n"
     );
 
@@ -50,9 +53,9 @@ int test_llvm(int argc, char *argv[]) {
 
     mod->init();
 
-    script_function* f = mod->function<i32>("t");
+    script_function* f = mod->function("t");
     i32 b = 0;
-    ctx.call(f, &b);
+    ctx.call(f, &b, -50);
 
     return 0;
 }

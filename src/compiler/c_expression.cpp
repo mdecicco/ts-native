@@ -255,14 +255,24 @@ namespace gjs {
                 }
                 case nt::conditional: {
                     ctx.push_node(n);
-                    auto& b = ctx.add(operation::branch).operand(expression_inner(ctx, n->condition));
+                    var cond = expression_inner(ctx, n->condition);
+                    auto& meta = ctx.add(operation::meta_branch);
+                    auto& b = ctx.add(operation::branch).operand(cond);
+
                     var tmp = expression_inner(ctx, n->lvalue);
                     var result = ctx.empty_var(tmp.type());
                     result.operator_eq(tmp);
                     auto& j = ctx.add(operation::jump);
+                    // truth body end
+                    meta.operand(ctx.imm((u64)ctx.code_sz()));
                     b.operand(ctx.imm(ctx.code_sz()));
+
                     result.operator_eq(expression_inner(ctx, n->rvalue));
                     j.operand(ctx.imm(ctx.code_sz()));
+                    // false body end
+                    meta.operand(ctx.imm(ctx.code_sz()));
+                    // join address
+                    meta.operand(ctx.imm(ctx.code_sz()));
                     
                     ctx.pop_node();
                     return result;
