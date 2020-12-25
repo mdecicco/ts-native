@@ -414,6 +414,12 @@ namespace gjs {
         delete m_llvm_init;
     }
 
+    #ifdef _MSC_VER
+    extern "C" {
+        void __chkstk();
+    };
+    #endif
+
     void win64_backend::init() {
         auto& DL = m_jit->getDataLayout();
         auto& ES = m_jit->getExecutionSession();
@@ -422,7 +428,10 @@ namespace gjs {
         auto mdata = &bind::call_class_method<void*, script_buffer, void* (script_buffer::*)(u64), script_buffer*, u64>;
         SymbolMap symbols;
         symbols[ES.intern("__mdata")] = { pointerToJITTargetAddress(mdata), JITSymbolFlags::Exported | JITSymbolFlags::Absolute };
-
+        
+        #ifdef _MSC_VER
+        symbols[ES.intern("__chkstk")] = { pointerToJITTargetAddress(&__chkstk), JITSymbolFlags::Exported | JITSymbolFlags::Absolute };
+        #endif
 
         lib.define(absoluteSymbols(symbols));
     }

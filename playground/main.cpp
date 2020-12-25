@@ -38,7 +38,7 @@ int test_llvm(int argc, char *argv[]) {
         "   for (a = 0;a <= 10;a++) {\n"
         "       s += a;\n"
         "   }\n"
-        "   print_i32(s);\n"
+        "   print(s.toFixed(0));\n"
         "   if (s > 5) a = 5;\n"
         "   else a = 2;\n"
         "   s = a;\n"
