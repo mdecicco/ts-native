@@ -9,6 +9,7 @@
 #include <llvm/IR/Function.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Module.h>
+#include <llvm/ExecutionEngine/Orc/ThreadSafeModule.h>
 #include <llvm/ExecutionEngine/Orc/LLJIT.h>
 #include <llvm/Support/InitLLVM.h>
 #include <llvm/Support/TargetSelect.h>
@@ -351,7 +352,8 @@ namespace gjs {
 
                 b.begin = b.end = c = joinAddr;
                 c--;
-            } else if (i.op == op::meta_for_loop) {
+            }
+            else if (i.op == op::meta_for_loop) {
                 if (b.end > start) {
                     b.end--;
                     b.fallthrough = true;
@@ -376,7 +378,8 @@ namespace gjs {
 
                 b.begin = b.end = c = endAddr + 1;
                 c--;
-            } else if (i.op == op::meta_while_loop) {
+            }
+            else if (i.op == op::meta_while_loop) {
                 if (b.end > start) {
                     b.end--;
                     b.fallthrough = true;
@@ -401,7 +404,8 @@ namespace gjs {
 
                 b.begin = b.end = c = endAddr + 1;
                 c--;
-            } else if (i.op == op::meta_do_while_loop) {
+            }
+            else if (i.op == op::meta_do_while_loop) {
                 if (b.end > start) {
                     b.end--;
                     b.fallthrough = true;
@@ -425,7 +429,8 @@ namespace gjs {
 
                 b.begin = b.end = c = branchAddr + 2;
                 c--;
-            } else if (i.op == op::ret || i.op == op::jump) {
+            }
+            else if (i.op == op::ret || i.op == op::jump) {
                 blocks.push_back(b);
                 b.begin = b.end = c;
             }
@@ -485,34 +490,52 @@ namespace gjs {
         return phis;
     }
 
+    
+    // class made just to keep LLVM includes out of the header file
+    class llvm_data {
+        public:
+            llvm_data() {
+                //m_llvm_init = new InitLLVM(argc, argv);
+
+                InitializeNativeTarget();
+                InitializeNativeTargetAsmPrinter();
+                InitializeNativeTargetAsmParser();
+
+                tsc = std::make_unique<LLVMContext>();
+                auto jitb = LLJITBuilder().create();
+                if (!jitb) {
+                    // exception
+                }
+
+                jit = std::move(jitb.get());
+            }
+
+            ~llvm_data() {
+                // delete m_llvm_init;
+                // todo: figure out how to _actually_ release all of llvm's resources
+            }
+
+            LLVMContext* ctx() { return tsc.getContext(); }
+
+            //InitLLVM* m_llvm_init;
+            ThreadSafeContext tsc;
+            std::unique_ptr<LLJIT> jit;
+            robin_hood::unordered_map<std::string, ThreadSafeModule> modules;
+            robin_hood::unordered_map<u64, Type*> types;
+    };
 
 
-    win64_backend::win64_backend(int argc, char* argv[]) : m_log_ir(false) {
-        // Initialize LLVM.
-        //m_llvm_init = new InitLLVM(argc, argv);
-
-        InitializeNativeTarget();
-        InitializeNativeTargetAsmPrinter();
-        InitializeNativeTargetAsmParser();
-        
-        m_llvm = std::make_unique<LLVMContext>();
-        auto jit = LLJITBuilder().create();
-        if (!jit) {
-            // exception
-        }
-
-        m_jit = std::move(jit.get());
+    win64_backend::win64_backend() : m_log_ir(false), m_llvm(new llvm_data()) {
     }
 
     win64_backend::~win64_backend() {
-        // delete m_llvm_init;
-        // todo: figure out how to _actually_ release all of llvm's resources
+        delete m_llvm;
     }
 
     void win64_backend::init() {
-        auto& DL = m_jit->getDataLayout();
-        auto& ES = m_jit->getExecutionSession();
-        auto& lib = m_jit->getMainJITDylib();
+        auto& DL = m_llvm->jit->getDataLayout();
+        auto& ES = m_llvm->jit->getExecutionSession();
+        auto& lib = m_llvm->jit->getMainJITDylib();
 
         auto mdata = &bind::call_class_method<void*, script_buffer, void* (script_buffer::*)(u64), script_buffer*, u64>;
         SymbolMap symbols;
@@ -526,9 +549,9 @@ namespace gjs {
     }
 
     void win64_backend::commit_bindings() {
-        auto& DL = m_jit->getDataLayout();
-        auto& ES = m_jit->getExecutionSession();
-        auto& lib = m_jit->getMainJITDylib();
+        auto& DL = m_llvm->jit->getDataLayout();
+        auto& ES = m_llvm->jit->getExecutionSession();
+        auto& lib = m_llvm->jit->getMainJITDylib();
 
         SymbolMap symbols;
         auto global_funcs = m_ctx->global()->functions();
@@ -548,8 +571,8 @@ namespace gjs {
     }
 
     void win64_backend::generate(compilation_output& in) {
-        std::unique_ptr<Module> mod = std::make_unique<Module>(in.mod->name(), *m_llvm.getContext());
-        w64_gen_ctx g = { m_llvm.getContext(), mod.get(), nullptr, nullptr, in, 0, 0, 0, {}, {}, {} };
+        std::unique_ptr<Module> mod = std::make_unique<Module>(in.mod->name(), *m_llvm->ctx());
+        w64_gen_ctx g = { m_llvm->ctx(), mod.get(), nullptr, nullptr, in, 0, 0, 0, {}, {}, {} };
 
         add_bindings_to_module(g);
 
@@ -600,15 +623,11 @@ namespace gjs {
         }
 
         // compile
-        m_jit->addIRModule(ThreadSafeModule(std::move(mod), m_llvm));
+        m_llvm->jit->addIRModule(ThreadSafeModule(std::move(mod), m_llvm->tsc));
         for (u16 f = 0;f < in.funcs.size();f++) {
             if (!in.funcs[f].func) continue;
-            in.funcs[f].func->access.entry = m_jit->lookup(internal_func_name(in.funcs[f].func))->getAddress();
+            in.funcs[f].func->access.entry = m_llvm->jit->lookup(internal_func_name(in.funcs[f].func))->getAddress();
         }
-    }
-
-    bool win64_backend::perform_register_allocation() const {
-        return false;
     }
 
     void win64_backend::log_ir(bool do_log) {
@@ -619,12 +638,12 @@ namespace gjs {
         using op = compile::operation;
         using var = compile::var;
 
-        LLVMContext* ctx = m_llvm.getContext();
+        LLVMContext* ctx = m_llvm->ctx();
 
         gen_blocks(g.input.code, g.cur_instr_idx, g.input.funcs[g.cur_function_idx].end, g.blocks, g.links);
 
         for (u32 b = 0;b < g.blocks.size();b++) {
-            g.blocks[b].block = BasicBlock::Create(*m_llvm.getContext(), format("L%d", b), g.target);
+            g.blocks[b].block = BasicBlock::Create(*ctx, format("L%d", b), g.target);
         }
         
         g.builder = new IRBuilder<>(g.blocks[0].block);
@@ -1049,7 +1068,7 @@ namespace gjs {
     }
 
     void win64_backend::add_bindings_to_module(w64_gen_ctx& g) {
-        LLVMContext& ctx = *m_llvm.getContext();
+        LLVMContext& ctx = *m_llvm->ctx();
         Function* mdata = Function::Create(
             FunctionType::get(
                 Type::getInt64Ty(ctx),

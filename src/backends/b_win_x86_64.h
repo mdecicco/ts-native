@@ -2,23 +2,12 @@
 #include <backends/backend.h>
 #include <util/robin_hood.h>
 
-#include <llvm/ExecutionEngine/Orc/ThreadSafeModule.h>
-
-namespace llvm {
-    class Module;
-    class Type;
-    class InitLLVM;
-
-    namespace orc {
-        class LLJIT;
-    };
-};
-
 namespace gjs {
     struct w64_gen_ctx;
+    class llvm_data;
     class win64_backend : public backend {
         public:
-            win64_backend(int argc, char* argv[]);
+            win64_backend();
             ~win64_backend();
 
             virtual void init();
@@ -27,7 +16,7 @@ namespace gjs {
             virtual void generate(compilation_output& in);
             virtual u16 gp_count() const { return 0; }
             virtual u16 fp_count() const { return 0; }
-            virtual bool perform_register_allocation() const;
+            virtual bool perform_register_allocation() const { return false; }
 
             void log_ir(bool do_log_ir);
 
@@ -38,11 +27,7 @@ namespace gjs {
             virtual void call(script_function* func, void* ret, void** args);
             std::string internal_func_name(script_function* func);
 
-            llvm::InitLLVM* m_llvm_init;
-            llvm::orc::ThreadSafeContext m_llvm;
-            std::unique_ptr<llvm::orc::LLJIT> m_jit;
-            robin_hood::unordered_map<std::string, llvm::orc::ThreadSafeModule> m_modules;
-            robin_hood::unordered_map<u64, llvm::Type*> m_types;
+            llvm_data* m_llvm;
 
             bool m_log_ir;
     };

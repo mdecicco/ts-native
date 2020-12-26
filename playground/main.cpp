@@ -23,7 +23,7 @@ void print_i32(i32 i) {
 }
 
 int test_llvm(int argc, char *argv[]) {
-    win64_backend be(argc, argv);
+    win64_backend be;
     script_context ctx(&be);
     be.commit_bindings();
 
@@ -39,8 +39,8 @@ int test_llvm(int argc, char *argv[]) {
         "   }\n"
         "   print(s.toFixed(0));\n"
         "   if (s > 5) a = 32;\n"
-        "   s = a;\n"
-        "   return s;\n"
+        "   while (s < 10) s++;\n"
+        "   return y < 0 ? a : s;\n"
         "}\n"
     );
 
@@ -53,7 +53,7 @@ int test_llvm(int argc, char *argv[]) {
 
     script_function* f = mod->function("t");
     i32 b = 0;
-    ctx.call(f, &b, -50);
+    ctx.call(f, &b, 49);
 
     return 0;
 }
@@ -66,7 +66,7 @@ int main(int arg_count, const char** args) {
     auto dp = split(args[0], "/\\");
     for (u16 i = 0;i < dp.size() - 1;i++) dir += dp[i] + "/";
 
-    win64_backend be(arg_count, const_cast<char**>(args));
+    win64_backend be;
     script_context ctx(&be);
     ctx.io()->set_cwd(dir);
 

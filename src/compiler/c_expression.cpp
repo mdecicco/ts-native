@@ -259,19 +259,25 @@ namespace gjs {
                     auto& meta = ctx.add(operation::meta_if_branch);
                     auto& b = ctx.add(operation::branch).operand(cond);
 
-                    var tmp = expression_inner(ctx, n->lvalue);
-                    var result = ctx.empty_var(tmp.type());
-                    result.operator_eq(tmp);
+                    // truth body begin
+                    var tmp0 = expression_inner(ctx, n->lvalue);
+                    var result = ctx.empty_var(tmp0.type());
+                    result.operator_eq(tmp0);
+                    meta.operand(ctx.imm((u64)ctx.code_sz()));
                     auto& j = ctx.add(operation::jump);
                     // truth body end
-                    meta.operand(ctx.imm((u64)ctx.code_sz()));
+
                     b.operand(ctx.imm(ctx.code_sz()));
 
-                    result.operator_eq(expression_inner(ctx, n->rvalue));
-                    j.operand(ctx.imm(ctx.code_sz()));
-                    // false body end
+                    // false body begin
+                    var tmp1 = expression_inner(ctx, n->rvalue);
+                    result.operator_eq(tmp1);
                     meta.operand(ctx.imm(ctx.code_sz()));
+                    ctx.add(operation::jump).operand(ctx.imm(ctx.code_sz()));
+                    // false body end
+
                     // join address
+                    j.operand(ctx.imm(ctx.code_sz()));
                     meta.operand(ctx.imm(ctx.code_sz()));
                     
                     ctx.pop_node();

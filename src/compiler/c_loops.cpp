@@ -53,9 +53,9 @@ namespace gjs {
             any(ctx, n->body);
             ctx.pop_block();
 
+            m.operand(ctx.imm((u64)ctx.code_sz()));
             ctx.add(operation::jump).operand(ctx.imm(cond_addr));
             b.operand(ctx.imm((u64)ctx.code_sz()));
-            m.operand(ctx.imm((u64)ctx.code_sz()));
 
             ctx.pop_node();
         }
