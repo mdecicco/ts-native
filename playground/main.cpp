@@ -30,17 +30,22 @@ int test_llvm(int argc, char *argv[]) {
     be.log_ir(true);
     ctx.compiler()->add_ir_step(debug_ir_step);
 
+    script_module* mod1 = ctx.add_code("x86_import_test",
+        "i32 balls(i32 y) {\n"
+        "   return y + 10;\n"
+        "}\n"
+    );
+    
+    if (!mod1) {
+        print_log(&ctx);
+        return -1;
+    }
+    mod1->init();
+
     script_module* mod = ctx.add_code("x86_test",
+        "import { balls as ball_func } from 'x86_import_test';\n"
         "i32 t(i32 y) {\n"
-        "   i32 a;\n"
-        "   i32 s = y;\n"
-        "   for (a = 0;a <= 10;a++) {\n"
-        "       s += a;\n"
-        "   }\n"
-        "   print(s.toFixed(0));\n"
-        "   if (s > 5) a = 32;\n"
-        "   while (s < 10) s++;\n"
-        "   return y < 0 ? a : s;\n"
+        "   return ball_func(y);\n"
         "}\n"
     );
 

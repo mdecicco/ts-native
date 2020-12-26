@@ -1080,38 +1080,51 @@ namespace gjs {
             "__mdata",
             g.mod
         );
+
+        std::vector<script_function*> used_functions;
+        robin_hood::unordered_node_set<script_function*> added;
+        for (u64 c = 0;c < g.input.code.size();c++) {
+            if (g.input.code[c].op == compile::operation::call) {
+                if (g.input.code[c].callee->owner == g.input.mod) continue;
+                if (!added.count(g.input.code[c].callee)) {
+                    added.insert(g.input.code[c].callee);
+                    used_functions.push_back(g.input.code[c].callee);
+                }
+            }
+        }
         
-        auto global_funcs = m_ctx->global()->functions();
-        for (u32 f = 0;f < global_funcs.size();f++) {
-            script_function* func = global_funcs[f];
+        for (u32 f = 0;f < used_functions.size();f++) {
+            script_function* func = used_functions[f];
             std::vector<Type*> params;
 
-            Type* ret = llvm_type(global_funcs[f]->signature.return_type, g);
+            Type* ret = llvm_type(used_functions[f]->signature.return_type, g);
 
-            if (func->access.wrapped->srv_wrapper_func) {
-                if (func->is_method_of && !func->is_static) {
-                    // return value pointer, call_method_func, func_ptr, params...
+            if (func->is_host) {
+                if (func->access.wrapped->srv_wrapper_func) {
+                    if (func->is_method_of && !func->is_static) {
+                        // return value pointer, call_method_func, func_ptr, params...
+                        params.push_back(Type::getInt64Ty(ctx));
+                        params.push_back(Type::getInt64Ty(ctx));
+                        params.push_back(Type::getInt64Ty(ctx));
+                        ret = Type::getVoidTy(ctx);
+                    } else {
+                        // return value pointer, func_ptr, params...
+                        params.push_back(Type::getInt64Ty(ctx));
+                        params.push_back(Type::getInt64Ty(ctx));
+                        ret = Type::getVoidTy(ctx);
+                    }
+                } else if (func->access.wrapped->call_method_func) {
+                    // func_ptr, params...
                     params.push_back(Type::getInt64Ty(ctx));
-                    params.push_back(Type::getInt64Ty(ctx));
-                    params.push_back(Type::getInt64Ty(ctx));
-                    ret = Type::getVoidTy(ctx);
-                } else {
-                    // return value pointer, func_ptr, params...
-                    params.push_back(Type::getInt64Ty(ctx));
-                    params.push_back(Type::getInt64Ty(ctx));
-                    ret = Type::getVoidTy(ctx);
                 }
-            } else if (func->access.wrapped->call_method_func) {
-                // func_ptr, params...
-                params.push_back(Type::getInt64Ty(ctx));
             }
 
-            for (u8 a = 0;a < global_funcs[f]->signature.arg_types.size();a++) {
-                params.push_back(llvm_type(global_funcs[f]->signature.arg_types[a], g));
+            for (u8 a = 0;a < used_functions[f]->signature.arg_types.size();a++) {
+                params.push_back(llvm_type(used_functions[f]->signature.arg_types[a], g));
             }
 
             FunctionType* sig = FunctionType::get(ret, params, false);
-            Function::Create(sig, GlobalValue::LinkageTypes::ExternalLinkage, 0, internal_func_name(global_funcs[f]), g.mod);
+            Function::Create(sig, GlobalValue::LinkageTypes::ExternalLinkage, 0, internal_func_name(used_functions[f]), g.mod);
         }
     }
 
