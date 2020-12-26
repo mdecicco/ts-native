@@ -8,26 +8,48 @@
 namespace gjs {
     script_function::script_function(script_context* ctx, const std::string _name, address addr) {
         m_ctx = ctx;
+
         name = _name;
-        access.entry = addr;
         is_host = false;
-        signature.return_type = nullptr;
-        signature.returns_on_stack = false;
-        signature.is_subtype_obj_ctor = false;
-        is_method_of = nullptr;
         is_static = false;
+        is_method_of = nullptr;
+
+        signature.return_type = nullptr;
+        signature.return_loc = vm_register::register_count;
+        signature.returns_on_stack = false;
+        signature.is_thiscall = false;
+        signature.returns_pointer = false;
+        signature.is_subtype_obj_ctor = false;
+
+        access.entry = addr;
+
         owner = nullptr;
     }
 
     script_function::script_function(type_manager* mgr, script_type* tp, bind::wrapped_function* wrapped, bool is_ctor, bool is_dtor) {
-        is_method_of = tp;
         m_ctx = mgr->m_ctx;
-        signature.return_loc = vm_register::v0;
-        signature.returns_pointer = wrapped->ret_is_ptr;
+
         name = wrapped->name;
-        signature.is_subtype_obj_ctor = tp && tp->requires_subtype && is_ctor;
+        is_host = true;
         is_static = wrapped->is_static_method;
-        owner = nullptr;
+        is_method_of = tp;
+
+        // return type
+        if (std::string(wrapped->return_type.name()) == "void" && wrapped->ret_is_ptr) {
+            signature.return_type = mgr->get<void*>();
+        } else signature.return_type = mgr->get(wrapped->return_type.name());
+
+        if (!signature.return_type) {
+            throw bind_exception(format("Return value of function '%s' is of type '%s' that has not been bound yet", name.c_str(), wrapped->return_type.name()));
+        }
+
+        signature.return_loc = vm_register::v0;
+        signature.returns_on_stack = !wrapped->ret_is_ptr && !signature.return_type->is_primitive && signature.return_type->size != 0;
+        signature.is_thiscall = tp && !wrapped->is_static_method;
+        signature.returns_pointer = wrapped->ret_is_ptr;
+        signature.is_subtype_obj_ctor = tp && tp->requires_subtype && is_ctor;
+
+        // args
         for (u8 i = 0;i < wrapped->arg_types.size();i++) {
             script_type* atp = nullptr;
             if (std::string(wrapped->arg_types[i].name()) == "void" && wrapped->arg_is_ptr[i]) {
@@ -56,18 +78,10 @@ namespace gjs {
             else signature.arg_locs.push_back(vm_register(integer(last_a) + 1));
         }
 
-        if (std::string(wrapped->return_type.name()) == "void" && wrapped->ret_is_ptr) {
-            signature.return_type = mgr->get<void*>();
-        } else signature.return_type = mgr->get(wrapped->return_type.name());
-
-        if (!signature.return_type) {
-            throw bind_exception(format("Return value of function '%s' is of type '%s' that has not been bound yet", name.c_str(), wrapped->return_type.name()));
-        }
-
-        signature.returns_on_stack = !signature.return_type->is_primitive && !signature.returns_pointer && signature.return_type->size != 0;
-
-        signature.is_thiscall = tp && !wrapped->is_static_method;
         access.wrapped = wrapped;
+
+        owner = nullptr;
+
         mgr->m_ctx->add(this);
     }
 
