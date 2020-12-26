@@ -83,18 +83,33 @@ namespace gjs {
             // The following instructions are not required to be used in execution,
             // they just provide extra information about control flow
 
-            // inserted just before the branch instruction
+            // inserted just before the branch instruction for an if statement
             // operands: 
             //   op[0] = end of true case block
             //   op[1] = end of false case block, or 0
             //   op[2] = post-branch address
-            meta_branch,
+            meta_if_branch,
 
-            // inserted at the top of a loop
+            // inserted at the top of a for loop
             // operands:
             //   op[0] = loop branch address
             //   op[1] = loop end address
-            meta_for_loop
+            meta_for_loop,
+
+            // inserted at the top of a while loop
+            // operands:
+            //   op[0] = loop branch address
+            //   op[1] = loop end address
+            meta_while_loop,
+
+            // inserted at the top of a do...while loop
+            //   note:
+            //     do...while loops will always have a jump
+            //     instruction immediately following the
+            //     branch (jumps to the top, not out)
+            // operands:
+            //   op[0] = loop branch address
+            meta_do_while_loop
         };
 
         bool is_assignment(const tac_instruction& i);

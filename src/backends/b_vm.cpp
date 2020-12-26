@@ -995,8 +995,10 @@ namespace gjs {
                     m_map.append(i.src);
                     break;
                 }
-                case op::meta_branch: break;
+                case op::meta_if_branch: break;
                 case op::meta_for_loop: break;
+                case op::meta_while_loop: break;
+                case op::meta_do_while_loop: break;
             }
         }
 

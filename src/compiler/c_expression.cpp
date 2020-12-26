@@ -256,7 +256,7 @@ namespace gjs {
                 case nt::conditional: {
                     ctx.push_node(n);
                     var cond = expression_inner(ctx, n->condition);
-                    auto& meta = ctx.add(operation::meta_branch);
+                    auto& meta = ctx.add(operation::meta_if_branch);
                     auto& b = ctx.add(operation::branch).operand(cond);
 
                     var tmp = expression_inner(ctx, n->lvalue);

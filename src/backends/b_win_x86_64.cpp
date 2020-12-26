@@ -16,7 +16,21 @@
 using namespace llvm;
 using namespace orc;
 
+#ifdef _MSC_VER
+extern "C" {
+    // not sure why this isn't linked automatically by LLVM
+    void __chkstk();
+};
+#endif
+
 namespace gjs {
+    // forward declarations
+    Value* find_value (w64_gen_ctx& ctx, u32 block, u64 regId, robin_hood::unordered_node_set<u32>& checked);
+
+    void block_compile_order (w64_gen_ctx& ctx, u32 blockId, robin_hood::unordered_node_set<u32>& added, std::vector<u32>& out);
+
+
+    // structs
     struct reg_usage_info {
         u64 first_non_assignment_use_addr;
         u64 first_assignment_addr;
@@ -28,6 +42,7 @@ namespace gjs {
     struct pending_phi {
         u64 regId;
         PHINode* phi;
+        BasicBlock* when_from;
     };
 
     struct ir_block {
@@ -45,10 +60,6 @@ namespace gjs {
         u64 to;
     };
 
-    Value* find_value (w64_gen_ctx& ctx, u32 block, u64 regId, robin_hood::unordered_node_set<u32>& checked);
-
-    void block_compile_order (w64_gen_ctx& ctx, u32 blockId, robin_hood::unordered_node_set<u32>& added, std::vector<u32>& out);
-
     struct w64_gen_ctx {
         llvm::LLVMContext* ctx;
         llvm::Module* mod;
@@ -62,15 +73,21 @@ namespace gjs {
         std::vector<ir_block_link> links;
         std::vector<llvm::Value*> call_params;
 
+        // look up value of a virtual register
+        // traverses the block graph upwards starting from
+        // cur_block_idx to find one that has a value for the register
+        // returns null if it's not found
         Value* get(u64 regId) {
             robin_hood::unordered_node_set<u32> checked;
             return find_value(*this, cur_block_idx, regId, checked);
         }
 
+        // 'assign' a value to a virtual register
         void set(u64 regId, Value* v) {
             blocks[cur_block_idx].var_map[regId] = v;
         }
 
+        // get info about a block's usage of a register
         reg_usage_info reg_usage(u32 blockId, u64 regId) {
             reg_usage_info out = { 0, 0, true, false };
 
@@ -179,6 +196,7 @@ namespace gjs {
             return regIds.size();
         }
 
+        // returns true if block 'from' should flow into block 'to'
         bool is_linked(u32 from, u32 to) {
             for (u32 l = 0;l < links.size();l++) {
                 if (links[l].from == from && links[l].to == to) return true;
@@ -186,81 +204,24 @@ namespace gjs {
             return false;
         }
 
-        // get phi sources going into a given block for a given register
-        std::vector<u32> get_phi_sources(u32 blockId, u64 regId) {
-            auto this_usage = reg_usage(blockId, regId);
-            // if it assigns the register before using it (or doesn't use it at all), any previous value doesn't matter (no phi node needed)
-            if (this_usage.assigned && this_usage.first_assignment_addr < this_usage.first_non_assignment_use_addr) return {};
-
-            std::vector<u32> sources;
-
-            // get list of parent blocks that assign a value to regId
-            for (u32 i = 0;i < links.size();i++) {
-                if (links[i].to == blockId && reg_usage(links[i].from, regId).assigned) {
-                    sources.push_back(links[i].from);
-                }
-            }
-
-            // if any subsequent block links back to blockId and assigns regId, and
-            // if regId was previously assigned, blockId needs a phi node for regId
-            //   note:
-            //      phi node can be omitted if no code after the subsequent block
-            //      uses regId
-            /*
-            bool previouslyAssigned = false;
-            for (u32 c = input.funcs[cur_function_idx].begin;c < blocks[blockId].begin;c++) {
-                if (compile::is_assignment(input.code[c]) && input.code[c].operands[0].reg_id() == regId) {
-                    previouslyAssigned = true;
-                }
-            }
-            for (u32 sb = 0;sb < blocks.size();sb++) {
-                if (is_linked(blockId, sb) && is_linked(sb, blockId)) {
-                    
-                }
-            }*/
-
-            // if only one parent block assigns a value to regId, no phi node is needed
-            if (sources.size() == 1) sources.clear();
-
-            return sources;
-        }
-
+        // get the order which blocks should (probably) be compiled in
         void block_order (std::vector<u32>& order) {
             robin_hood::unordered_node_set<u32> added;
             block_compile_order(*this, 0, added, order);
         }
     };
 
-    void block_compile_order (w64_gen_ctx& ctx, u32 blockId, robin_hood::unordered_node_set<u32>& added, std::vector<u32>& out) {
-        if (added.count(blockId) == 0) {
-            added.insert(blockId);
-            out.push_back(blockId);
-        }
-
-        for (u32 i = 0;i < ctx.links.size();i++) {
-            if (ctx.links[i].from == blockId && added.count(ctx.links[i].to) == 0) {
-                block_compile_order(ctx, ctx.links[i].to, added, out);
-            }
-        }
-    }
-
-    Value* find_value(w64_gen_ctx& ctx, u32 blockId, u64 regId, robin_hood::unordered_node_set<u32>& checked) {
-        auto it = ctx.blocks[blockId].var_map.find(regId);
-        if (it != ctx.blocks[blockId].var_map.end()) return it->second;
-
-        checked.insert(blockId);
-
-        for (u32 i = 0;i < ctx.links.size();i++) {
-            if (ctx.links[i].to == blockId && !checked.count(ctx.links[i].from)) {
-                Value* v = find_value(ctx, ctx.links[i].from, regId, checked);
-                if (v) return v;
-            }
-        }
-
-        return nullptr;
-    }
+    struct phi_def {
+        // type of value
+        Type* valueType;
+        // blockId to select the value from
+        u32 value_source;
+        // select the value when control passes from this blockId
+        u32 when_from;
+    };
 
 
+    // codegen helper functions
     Type* llvm_type(script_type* tp, w64_gen_ctx& g) {
         if (tp->is_primitive) {
             if (tp->is_floating_point) {
@@ -312,6 +273,36 @@ namespace gjs {
     }
 
 
+    // code flow graph helper functions
+    void block_compile_order (w64_gen_ctx& ctx, u32 blockId, robin_hood::unordered_node_set<u32>& added, std::vector<u32>& out) {
+        if (added.count(blockId) == 0) {
+            added.insert(blockId);
+            out.push_back(blockId);
+        }
+
+        for (u32 i = 0;i < ctx.links.size();i++) {
+            if (ctx.links[i].from == blockId && added.count(ctx.links[i].to) == 0) {
+                block_compile_order(ctx, ctx.links[i].to, added, out);
+            }
+        }
+    }
+
+    Value* find_value(w64_gen_ctx& ctx, u32 blockId, u64 regId, robin_hood::unordered_node_set<u32>& checked) {
+        auto it = ctx.blocks[blockId].var_map.find(regId);
+        if (it != ctx.blocks[blockId].var_map.end()) return it->second;
+
+        checked.insert(blockId);
+
+        for (u32 i = 0;i < ctx.links.size();i++) {
+            if (ctx.links[i].to == blockId && !checked.count(ctx.links[i].from)) {
+                Value* v = find_value(ctx, ctx.links[i].from, regId, checked);
+                if (v) return v;
+            }
+        }
+
+        return nullptr;
+    }
+
     void add_link(const ir_block_link& l, std::vector<ir_block_link>& links) {
         for (u32 i = 0;i < links.size();i++) {
             if (links[i].from == l.from && links[i].to == l.to) return;
@@ -328,7 +319,7 @@ namespace gjs {
             const compile::tac_instruction& i = code[c];
             b.end = c;
 
-            if (i.op == op::meta_branch) {
+            if (i.op == op::meta_if_branch) {
                 // end current block
                 b.end++; // end on the branch instruction
                 blocks.push_back(b);
@@ -361,18 +352,20 @@ namespace gjs {
                 b.begin = b.end = c = joinAddr;
                 c--;
             } else if (i.op == op::meta_for_loop) {
-                b.end--;
-                b.fallthrough = true;
-                blocks.push_back(b);
-                b.begin = b.end = c;
-                b.fallthrough = false;
+                if (b.end > start) {
+                    b.end--;
+                    b.fallthrough = true;
+                    blocks.push_back(b);
+                    b.begin = b.end = c;
+                    b.fallthrough = false;
+                }
 
                 u64 branchAddr = i.operands[0].imm_u();
                 u64 endAddr = i.operands[1].imm_u();
                 u32 entryBlock = blocks.size();
 
                 // cond/branch
-                add_link({ blocks.size() - 1, entryBlock }, links); // parent -> cond/branch
+                if (b.end > start) add_link({ blocks.size() - 1, entryBlock }, links); // parent -> cond/branch
                 gen_blocks(code, c + 1, branchAddr, blocks, links);
                 add_link({ entryBlock, blocks.size() }, links); // cond/branch -> body
 
@@ -383,7 +376,56 @@ namespace gjs {
 
                 b.begin = b.end = c = endAddr + 1;
                 c--;
-            } else if (i.op == op::ret) {
+            } else if (i.op == op::meta_while_loop) {
+                if (b.end > start) {
+                    b.end--;
+                    b.fallthrough = true;
+                    blocks.push_back(b);
+                    b.begin = b.end = c;
+                    b.fallthrough = false;
+                }
+
+                u64 branchAddr = i.operands[0].imm_u();
+                u64 endAddr = i.operands[1].imm_u();
+                u32 entryBlock = blocks.size();
+
+                // cond/branch
+                if (b.end > start) add_link({ blocks.size() - 1, entryBlock }, links); // parent -> cond/branch
+                gen_blocks(code, c + 1, branchAddr, blocks, links);
+                add_link({ entryBlock, blocks.size() }, links); // cond/branch -> body
+
+                // body
+                gen_blocks(code, branchAddr + 1, endAddr, blocks, links);
+                add_link({ blocks.size() - 1, entryBlock }, links); // body -> cond/branch
+                add_link({ entryBlock, blocks.size() }, links); // cond/branch -> post-loop
+
+                b.begin = b.end = c = endAddr + 1;
+                c--;
+            } else if (i.op == op::meta_do_while_loop) {
+                if (b.end > start) {
+                    b.end--;
+                    b.fallthrough = true;
+                    blocks.push_back(b);
+                    b.begin = b.end = c;
+                    b.fallthrough = false;
+                }
+
+                u64 branchAddr = i.operands[0].imm_u();
+                u32 entryBlock = blocks.size();
+
+                // body
+                if (b.end > start) add_link({ blocks.size() - 1, entryBlock }, links); // parent -> body
+                gen_blocks(code, c + 1, branchAddr, blocks, links);
+                add_link({ blocks.size() - 1, blocks.size() }, links); // body -> jump
+                add_link({ blocks.size() - 1, blocks.size() + 1 }, links); // body -> post-loop
+
+                // jump
+                gen_blocks(code, branchAddr + 1, branchAddr + 1, blocks, links);
+                add_link({ blocks.size() - 1, entryBlock }, links); // jump -> body
+
+                b.begin = b.end = c = branchAddr + 2;
+                c--;
+            } else if (i.op == op::ret || i.op == op::jump) {
                 blocks.push_back(b);
                 b.begin = b.end = c;
             }
@@ -391,6 +433,58 @@ namespace gjs {
 
         if (b.end > b.begin) blocks.push_back(b);
     }
+
+    u32 nearest_assigning(w64_gen_ctx& g, u32 blockId, u64 regId, robin_hood::unordered_node_set<u32>& checked) {
+        if (g.blocks[blockId].var_map.count(regId) || g.reg_usage(blockId, regId).assigned) return blockId;
+        else checked.insert(blockId);
+
+        for (u32 b = 0;b < g.blocks.size();b++) {
+            if (g.is_linked(b, blockId) && !checked.count(b)) {
+                u32 result = nearest_assigning(g, b, regId, checked);
+                if (result != u32(-1)) return result;
+            }
+        }
+
+        return u32(-1);
+    }
+
+    robin_hood::unordered_map<u64, std::vector<phi_def>> gen_phis(w64_gen_ctx& g, u32 blockId) {
+        std::vector<u32> parents;
+        for (u32 b = 0;b < g.blocks.size();b++) {
+            if (g.is_linked(b, blockId)) parents.push_back(b);
+        }
+
+        robin_hood::unordered_map<u64, std::vector<phi_def>> phis;
+        if (parents.size() > 1) {
+            // case 1:
+            // multiple parents which assign a register that is used by blockId,
+            // or have descendents that assign said register
+
+            std::vector<const compile::var*> regs;
+            g.potential_phi_regs(blockId, regs);
+
+            // for each register/parent pair,
+            // determine nearest parent block which assigns it
+            for (u32 r = 0;r < regs.size();r++) {
+                for (u32 p = 0;p < parents.size();p++) {
+                    robin_hood::unordered_node_set<u32> checked;
+                    u32 result = nearest_assigning(g, parents[p], regs[r]->reg_id(), checked);
+                    if (result != u32(-1)) {
+                        phis[regs[r]->reg_id()].push_back({
+                            llvm_type(regs[r]->type(), g),
+                            result,
+                            parents[p]
+                        });
+                    }
+                }
+
+                if (phis[regs[r]->reg_id()].size() == 1) phis.erase(regs[r]->reg_id());
+            }
+        }
+
+        return phis;
+    }
+
 
 
     win64_backend::win64_backend(int argc, char* argv[]) : m_log_ir(false) {
@@ -414,12 +508,6 @@ namespace gjs {
         // delete m_llvm_init;
         // todo: figure out how to _actually_ release all of llvm's resources
     }
-
-    #ifdef _MSC_VER
-    extern "C" {
-        void __chkstk();
-    };
-    #endif
 
     void win64_backend::init() {
         auto& DL = m_jit->getDataLayout();
@@ -465,20 +553,6 @@ namespace gjs {
 
         add_bindings_to_module(g);
 
-        // build class types
-        /*
-        for (u16 t = 0;t < in.types.size();t++) {
-            std::vector<Type*> fields;
-            for (u16 f = 0;f < in.types[t]->properties.size();f++) {
-                fields.push_back(llvm_type(in.types[t]->properties[f].type, m_llvm.getContext(), m_types));
-            }
-
-            Type* tp = StructType::create(*m_llvm.getContext(), fields, in.types[t]->name, true);
-            m_types[join_u32(in.mod->id(), in.types[t]->id())] = tp;
-        }
-        */
-
-
         // forward declare
         for (u16 f = 0;f < in.funcs.size();f++) {
             if (!in.funcs[f].func) continue;
@@ -494,6 +568,10 @@ namespace gjs {
                 internal_func_name(in.funcs[f].func),
                 mod.get()
             );
+
+            for (u8 a = 0;a < in.funcs[f].func->signature.arg_types.size();a++) {
+                func->getArg(a)->setName(format("param_%d", a));
+            }
         }
 
         // translate gjs IR to llvm IR
@@ -505,7 +583,6 @@ namespace gjs {
             g.cur_function_idx = f;
             g.cur_instr_idx = in.funcs[f].begin;
             g.cur_block_idx = 0;
-            g.builder = nullptr;
 
             generate_function(g);
         }
@@ -547,36 +624,6 @@ namespace gjs {
         gen_blocks(g.input.code, g.cur_instr_idx, g.input.funcs[g.cur_function_idx].end, g.blocks, g.links);
 
         for (u32 b = 0;b < g.blocks.size();b++) {
-            /*
-            std::vector<u32> bin, bout;
-            for (u32 l = 0;l < g.links.size();l++) {
-                if (g.links[l].from == b) bout.push_back(g.links[l].to);
-                if (g.links[l].to == b) bin.push_back(g.links[l].from);
-            }
-            printf("block[%.2d][ %.2d -> %.2d ]: in (", b, g.blocks[b].begin, g.blocks[b].end);
-            for (u32 i = 0;i < bin.size();i++) {
-                if (i > 0) printf(", ");
-                printf("%d", bin[i]);
-            }
-            printf(") out (");
-            for (u32 i = 0;i < bout.size();i++) {
-                if (i > 0) printf(", ");
-                printf("%d", bout[i]);
-            }
-            printf(")\n");
-
-            std::vector<const var*> maybePhiRegs;
-            g.potential_phi_regs(b, maybePhiRegs);
-            for (u32 pr = 0;pr < maybePhiRegs.size();pr++) {
-                std::vector<u32> sources = g.get_phi_sources(b, maybePhiRegs[pr]->reg_id());
-                if (sources.size() > 0) printf("   block[%d] phi %s <- [ ", b, maybePhiRegs[pr]->to_string().c_str());
-                for (u32 s = 0;s < sources.size();s++) {
-                    if (s > 0) printf(", ");
-                    printf("%d", sources[s]);
-                }
-                if (sources.size() > 0) printf(" ]\n");
-            }
-            */
             g.blocks[b].block = BasicBlock::Create(*m_llvm.getContext(), format("L%d", b), g.target);
         }
         
@@ -590,23 +637,20 @@ namespace gjs {
             g.cur_block_idx = b;
             g.builder->SetInsertPoint(g.blocks[b].block);
 
-            // determine phi nodes
-            std::vector<const var*> maybePhiRegs;
-            g.potential_phi_regs(b, maybePhiRegs);
-            for (u32 pr = 0;pr < maybePhiRegs.size();pr++) {
-                std::vector<u32> sources = g.get_phi_sources(b, maybePhiRegs[pr]->reg_id());
-                if (sources.size() > 0) {
-                    PHINode* phi = g.builder->CreatePHI(llvm_type(maybePhiRegs[pr]->type(), g), sources.size());
-                    for (u32 s = 0;s < sources.size();s++) {
-                        if (g.blocks[sources[s]].compiled) {
-                            phi->addIncoming(g.blocks[sources[s]].var_map[maybePhiRegs[pr]->reg_id()], g.blocks[sources[s]].block);
-                        } else {
-                            g.blocks[sources[s]].pending_phis.push_back({ maybePhiRegs[pr]->reg_id(), phi });
-                        }
+            // generate phi nodes
+            auto phis = gen_phis(g, b);
+            for (auto it = phis.begin();it != phis.end();++it) {
+                u64 regId = it->first;
+                std::vector<phi_def>& incoming = it->second;
+                PHINode* phi = g.builder->CreatePHI(incoming[0].valueType, incoming.size());
+                for (u32 p = 0;p < incoming.size();p++) {
+                    if (g.blocks[incoming[p].value_source].compiled) {
+                        phi->addIncoming(g.blocks[incoming[p].value_source].var_map[regId], g.blocks[incoming[p].when_from].block);
+                    } else {
+                        g.blocks[incoming[p].value_source].pending_phis.push_back({ regId, phi, g.blocks[incoming[p].when_from].block }); 
                     }
-
-                    g.set(maybePhiRegs[pr]->reg_id(), phi);
                 }
+                g.set(regId, phi);
             }
 
             // generate code
@@ -620,13 +664,13 @@ namespace gjs {
                 g.builder->CreateBr(g.blocks[b + 1].block);
             }
 
-            g.blocks[b].compiled = true;
-
             // add incoming values to any pending phi nodes
             for (u32 i = 0;i < g.blocks[b].pending_phis.size();i++) {
                 auto& pp = g.blocks[b].pending_phis[i];
-                pp.phi->addIncoming(g.blocks[b].var_map[pp.regId], g.blocks[b].block);
+                pp.phi->addIncoming(g.blocks[b].var_map[pp.regId], pp.when_from);
             }
+
+            g.blocks[b].compiled = true;
         }
 
         delete g.builder;
@@ -867,9 +911,6 @@ namespace gjs {
             }
             case op::eq: {
                 g.set(o1.reg_id(), v2);
-                if (!v1 && o1.name().length()) {
-                    g.get(o1.reg_id())->setName(o1.name());
-                }
                 break;
             }
             case op::neg: {
@@ -1000,8 +1041,10 @@ namespace gjs {
                 }
                 break;
             }
-            case op::meta_branch: break;
+            case op::meta_if_branch: break;
             case op::meta_for_loop: break;
+            case op::meta_while_loop: break;
+            case op::meta_do_while_loop: break;
         }
     }
 

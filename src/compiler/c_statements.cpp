@@ -132,7 +132,7 @@ namespace gjs {
         void if_statement(context& ctx, parse::ast* n) {
             ctx.push_node(n);
             var cond = expression(ctx, n->condition);
-            auto meta = ctx.add(operation::meta_branch);
+            auto meta = ctx.add(operation::meta_if_branch);
             auto branch = ctx.add(operation::branch).operand(cond);
 
             ctx.push_block();

@@ -43,9 +43,10 @@ namespace gjs {
 
         void while_loop(context& ctx, parse::ast* n) {
             ctx.push_node(n);
-            
+            auto m = ctx.add(operation::meta_while_loop);
             u64 cond_addr = ctx.code_sz();
             var cond = expression(ctx, n->condition);
+            m.operand(ctx.imm((u64)ctx.code_sz()));
             auto b = ctx.add(operation::branch).operand(cond);
 
             ctx.push_block();
@@ -54,6 +55,7 @@ namespace gjs {
 
             ctx.add(operation::jump).operand(ctx.imm(cond_addr));
             b.operand(ctx.imm((u64)ctx.code_sz()));
+            m.operand(ctx.imm((u64)ctx.code_sz()));
 
             ctx.pop_node();
         }
@@ -61,6 +63,7 @@ namespace gjs {
         void do_while_loop(context& ctx, parse::ast* n) {
             ctx.push_node(n);
 
+            auto m = ctx.add(operation::meta_do_while_loop);
             u64 start_addr = ctx.code_sz();
 
             ctx.push_block();
@@ -68,6 +71,7 @@ namespace gjs {
             ctx.pop_block();
 
             var cond = expression(ctx, n->condition);
+            m.operand(ctx.imm((u64)ctx.code_sz()));
             auto b = ctx.add(operation::branch).operand(cond);
 
             ctx.add(operation::jump).operand(ctx.imm(start_addr));

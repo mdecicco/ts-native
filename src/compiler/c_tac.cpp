@@ -72,8 +72,10 @@ namespace gjs {
             "branch",
             "jump",
             "term",
-            "meta_branch",
-            "meta_for_loop"
+            "meta_if_branch",
+            "meta_for_loop",
+            "meta_while_loop",
+            "meta_do_while_loop"
         };
 
         bool is_assignment(const tac_instruction& i) {
@@ -144,8 +146,10 @@ namespace gjs {
                 false,   // branch
                 false,   // jump
                 false,   // term
-                false,   // meta_branch
-                false    // meta_for_loop
+                false,   // meta_if_branch
+                false,   // meta_for_loop
+                false,   // meta_while_loop
+                false    // meta_do_while_loop
             };
 
             return s_is_assignment[u32(i.op)] && !(i.op == operation::call && i.callee->signature.returns_on_stack);
