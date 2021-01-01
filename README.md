@@ -10,22 +10,19 @@
     - [VM](https://github.com/mdecicco/gjs/tree/master/src/vm)
 
 ## Setup
-`git clone --recurse-submodules https://github.com/mdecicco/gjs.git`
+1. `git clone --recurse-submodules https://github.com/mdecicco/gjs.git`
+2. If building for a 64-bit architecture then do the following when configuring with CMake
+    - In the "Specify generator for this project" window
+        - Enter `host=x64` in the 'argument to -T' input (or just pass `-Thost=x64` if using the command line)
+3. Then before generating the project, set `LLVM_TARGETS_TO_BUILD` to either `'all'` or one or more of the following
+    - `X86`
+    - `PowerPC` (untested)
+    - `AArch64` (untested)
+    - `ARM` (untested)
+    - `Mips` (untested)
+    - `SystemZ` (untested)
 
-If building for a 64-bit architecture then do the following when configuring with CMake:
-
-In the "Specify generator for this project" window, enter "host=x64" in the 'argument to -T' input (or just pass -Thost=x64 if using the command line)
-
-
-Then before generating the project, set `LLVM_TARGETS_TO_BUILD` to either `'all'` or one or more of the following:
-- `X86`
-- `PowerPC` (untested)
-- `AArch64` (untested)
-- `ARM` (untested)
-- `Mips` (untested)
-- `SystemZ` (untested)
-
-This is (presumably) for enabling JIT compilation support for the selected architecture(s)
+    This is (presumably) for enabling JIT compilation support for the selected architecture(s)
 
 ## Goals
 - To produce a scripting language for games and hobby projects
