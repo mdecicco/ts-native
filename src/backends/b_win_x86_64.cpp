@@ -525,6 +525,7 @@ namespace gjs {
     };
 
 
+    // backend logic
     win64_backend::win64_backend() : m_log_ir(false), m_llvm(new llvm_data()) {
     }
 

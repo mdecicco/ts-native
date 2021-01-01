@@ -9,14 +9,6 @@
     - [Util](https://github.com/mdecicco/gjs/tree/master/src/util)
     - [VM](https://github.com/mdecicco/gjs/tree/master/src/vm)
 
-## Setup
-Currently, the only setup requirement other than cloning this repository is to download the separate LLVM libraries (too big for the repo) and install them to `gjs/deps`.
-Just download [This Archive (432 MB compressed, 4.4 GB uncompressed)](https://www.mediafire.com/file/kicmp6mui2ka5dg/gjs.llvm.vs2019.rar/file) and extract the `llvm` folder to `gjs/deps` once you clone the repo.
-
-Alternatively, you could extract only the libs for the build configuration you intend to use (maintaining the directory structure).
-
-In the future, I'd like to find a convenient way to have LLVM as a submodule, with all the CMake config variables correctly set by default. It's just that LLVM is massive and takes hours to compile and I'd like to avoid forcing LLVM to recompile when the gjs project needs to be rebuilt/regenerated.
-
 ## Goals
 - To produce a scripting language for games and hobby projects
 - Be as similar in syntax and core functionality to JS as possible
@@ -39,8 +31,14 @@ In the future, I'd like to find a convenient way to have LLVM as a submodule, wi
 ## Will I finish this
 - Probably not, I have like 5 projects that I usually abandon for months (or years) at a time
 
+## Supported backends
+- VM (software): Should be used while debugging code
+- x86_64: JIT Compiles code to native 64 bit x86 code for better performance
 
-### To complement this lack of information, here's this example for now
+
+<details>
+  <summary>An example</summary>
+
 #### The following script code:
 ```
 void it() {
@@ -293,3 +291,5 @@ Destruct foo
 ```
 
 Pretty neat
+
+</details>
