@@ -21,6 +21,7 @@ Then before generating the project, set `LLVM_TARGETS_TO_BUILD` to either `'all'
 - `ARM` (untested)
 - `Mips` (untested)
 - `SystemZ` (untested)
+
 This is (presumably) for enabling JIT compilation support for the selected architecture(s)
 
 ## Goals
