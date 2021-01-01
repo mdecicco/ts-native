@@ -661,15 +661,17 @@ namespace gjs {
             for (auto it = phis.begin();it != phis.end();++it) {
                 u64 regId = it->first;
                 std::vector<phi_def>& incoming = it->second;
-                PHINode* phi = g.builder->CreatePHI(incoming[0].valueType, incoming.size());
-                for (u32 p = 0;p < incoming.size();p++) {
-                    if (g.blocks[incoming[p].value_source].compiled) {
-                        phi->addIncoming(g.blocks[incoming[p].value_source].var_map[regId], g.blocks[incoming[p].when_from].block);
-                    } else {
-                        g.blocks[incoming[p].value_source].pending_phis.push_back({ regId, phi, g.blocks[incoming[p].when_from].block }); 
+                if (incoming.size()) {
+                    PHINode* phi = g.builder->CreatePHI(incoming[0].valueType, incoming.size());
+                    for (u32 p = 0;p < incoming.size();p++) {
+                        if (g.blocks[incoming[p].value_source].compiled) {
+                            phi->addIncoming(g.blocks[incoming[p].value_source].var_map[regId], g.blocks[incoming[p].when_from].block);
+                        } else {
+                            g.blocks[incoming[p].value_source].pending_phis.push_back({ regId, phi, g.blocks[incoming[p].when_from].block }); 
+                        }
                     }
+                    g.set(regId, phi);
                 }
-                g.set(regId, phi);
             }
 
             // generate code
