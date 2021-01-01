@@ -37,10 +37,15 @@ In the future, I'd like to find a convenient way to have LLVM as a submodule, wi
 - To know everything about the tool so that I can use it to its full potential and modify it to improve that potential if necessary
 
 ## Will I finish this
-- Probably not, I have like 5 projects that I usually abandon for months (or years) at a time
+- Probably not, I have like 5 projects that I usually abandon for months (or years) at a
 
+## Supported backends
+- VM (software): Should be used while debugging code
+- x86_64: JIT Compiles code to native 64 bit x86 code for better performance
 
-### To complement this lack of information, here's this example for now
+<details>
+  <summary>An example</summary>
+
 #### The following script code:
 ```
 void it() {
@@ -293,3 +298,5 @@ Destruct foo
 ```
 
 Pretty neat
+
+</details>
