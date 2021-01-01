@@ -9,8 +9,8 @@ set(
     include_dirs
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/deps/dyncall/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/deps/llvm/llvm/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/build/deps/llvm/llvm/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/deps/llvm/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/build/deps/llvm/include
 )
 set(
     library_dirs
