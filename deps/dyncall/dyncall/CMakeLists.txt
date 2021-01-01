@@ -38,6 +38,7 @@ add_library(dyncall_s STATIC ${ASM_SRC}
   dyncall_callvm_base.c
   dyncall_callf.c
 )
+set_target_properties(dyncall_s PROPERTIES FOLDER "dyncall")
 
 install(TARGETS dyncall_s ARCHIVE DESTINATION lib )
 

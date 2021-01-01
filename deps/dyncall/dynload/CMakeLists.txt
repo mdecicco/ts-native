@@ -19,6 +19,7 @@
 #
 
 add_library(dynload_s STATIC dynload.c dynload_syms.c)
+set_target_properties(dynload_s PROPERTIES FOLDER "dyncall")
 install(TARGETS dynload_s ARCHIVE DESTINATION lib)
 install(FILES dynload.h DESTINATION include)
 

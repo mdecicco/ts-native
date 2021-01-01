@@ -37,6 +37,7 @@ add_library(dyncallback_s STATIC ${ASM_SRC}
   dyncall_args.c
   dyncall_callback.c
 )
+set_target_properties(dyncallback_s PROPERTIES FOLDER "dyncall")
 
 install(TARGETS dyncallback_s ARCHIVE DESTINATION lib )
 
