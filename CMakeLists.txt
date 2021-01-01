@@ -9,12 +9,12 @@ set(
     include_dirs
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/deps/dyncall/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/deps/llvm/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/deps/llvm/llvm/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/build/deps/llvm/llvm/include
 )
 set(
     library_dirs
     ${CMAKE_CURRENT_SOURCE_DIR}/deps/dyncall/lib
-    ${CMAKE_CURRENT_SOURCE_DIR}/deps/llvm/lib/x64/Debug
 )
 include_directories(${include_dirs})
 link_directories(${library_dirs})
@@ -95,15 +95,12 @@ target_link_libraries(gjs
     LLVMDWARFLinker
     LLVMExecutionEngine
     LLVMExtensions
-    LLVMFileCheck
     LLVMFuzzMutate
-    LLVMInterfaceStub
     LLVMIRReader
     LLVMLineEditor
     LLVMLinker
     LLVMLTO
     LLVMMC
-    lLVMMCA
     LLVMObject
     LLVMObjectYAML
     LLVMOption
@@ -113,12 +110,10 @@ target_link_libraries(gjs
     LLVMTarget
     LLVMTextAPI
     LLVMXRay
-    LLVMOrcShared
     LLVMJITLink
     LLVMBitReader
     LLVMBitWriter
     LLVMBitstreamReader
-    LLVMOrcTargetProcess
     LLVMRuntimeDyld
     LLVMTransformUtils
     LLVMMCParser
@@ -131,7 +126,6 @@ target_link_libraries(gjs
     LLVMCFGuard
     LLVMGlobalISel
     LLVMSelectionDAG
-    LLVMASMPrinter
     LLVMDebugInfoCodeView
     LLVMDebugInfoDWARF
     LLVMDebugInfoMSF
