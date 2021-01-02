@@ -22,7 +22,7 @@
     - `Mips` (untested)
     - `SystemZ` (untested)
 
-    This is (presumably) for enabling JIT compilation support for the selected architecture(s)
+    This is (presumably) for enabling JIT compilation support for the selected architecture(s). The more you select, the older you'll be when the compilation finishes.
 
 ## Goals
 - To produce a scripting language for games and hobby projects
