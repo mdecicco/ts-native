@@ -15,6 +15,5 @@ x64/
 *.exe
 *.ilk
 *.pdb
-include
 lib
 deps/*.rar

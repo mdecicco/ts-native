@@ -4,13 +4,36 @@
 
 using namespace gjs;
 
+void remove_unused_regs_pass (script_context* ctx, compilation_output& in) {
+    u64 csz = in.code.size();
+    for (u64 c = 0;c < in.code.size() || c == u64(-1);c++) {
+        if (compile::is_assignment(in.code[c]) && in.code[c].op != compile::operation::call) {
+            u32 assigned_reg = in.code[c].operands[0].reg_id();
+
+            bool used = false;
+            for (u64 c1 = c + 1;c1 < in.code.size() && !used;c1++) {
+                auto& i = in.code[c1];
+                for (u8 o = 0;o < 3 && !used;o++) {
+                    used = i.operands[o].valid() && !i.operands[o].is_imm() && i.operands[o].reg_id() == assigned_reg;
+                }
+            }
+
+            if (!used) {
+                in.erase(c);
+                c--;
+            }
+        }
+    }
+
+    if (csz > in.code.size()) remove_unused_regs_pass(ctx, in);
+}
+
 int main(int arg_count, const char** args) {
     win64_backend be;
     script_context ctx(&be);
 
     be.commit_bindings();
-    be.log_ir(true);
-    ctx.compiler()->add_ir_step(debug_ir_step);
+    //be.log_ir(true);
     ctx.io()->set_cwd_from_args(arg_count, args);
 
     script_module* mod = ctx.resolve("test");
@@ -28,6 +51,12 @@ int main(int arg_count, const char** args) {
     };
 
     f1* y = (f1*)mod->local_ptr("y");
+
+
+    //ctx.compiler()->add_ir_step(remove_unused_regs_pass);
+    //ctx.compiler()->add_ir_step(debug_ir_step);
+    script_module* b = ctx.add_code("test1", "import 'test' as t; print(t.y.a.c.toFixed(2));");
+    if (b) b->init();
 
     /*
     script_function* f = mod->function<i32>("main");

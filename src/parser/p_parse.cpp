@@ -161,19 +161,21 @@ namespace gjs {
                 else if (ctx.match({ "delete" })) r = delete_statement(ctx);
                 else if (ctx.match({ "return" })) r = return_statement(ctx);
                 else if (ctx.match({ "import" })) r = import_statement(ctx);
+                else if (ctx.match({ "enum" })) r = enum_declaration(ctx);
                 else {
                     throw exc(ec::p_unexpected_token, ctx.current().src, ctx.current().text.c_str());
                 }
 
                 bool semicolon_optional = false;
                 if (r->type == nt::function_declaration) semicolon_optional = true;
-                if (r->type == nt::format_declaration) semicolon_optional = true;
-                if (r->type == nt::class_declaration) semicolon_optional = true;
-                if (r->type == nt::if_statement) semicolon_optional = true;
-                if (r->type == nt::for_loop) semicolon_optional = true;
-                if (r->type == nt::while_loop) semicolon_optional = true;
-                if (r->type == nt::do_while_loop) semicolon_optional = true;
-                if (r->type == nt::empty) semicolon_optional = true;
+                else if (r->type == nt::format_declaration) semicolon_optional = true;
+                else if (r->type == nt::class_declaration) semicolon_optional = true;
+                else if (r->type == nt::if_statement) semicolon_optional = true;
+                else if (r->type == nt::for_loop) semicolon_optional = true;
+                else if (r->type == nt::while_loop) semicolon_optional = true;
+                else if (r->type == nt::do_while_loop) semicolon_optional = true;
+                else if (r->type == nt::enum_declaration) semicolon_optional = true;
+                else if (r->type == nt::empty) semicolon_optional = true;
 
                 if (!semicolon_optional) {
                     if (!ctx.match({ tt::semicolon })) throw exc(ec::p_expected_char, ctx.current().src, ';');

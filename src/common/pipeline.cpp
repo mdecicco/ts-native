@@ -24,6 +24,11 @@ namespace gjs {
                 if (code[i].operands[0].imm_u() >= addr) code[i].operands[0].m_imm.u++;
             }
         }
+
+        for (u16 f = 0;f < funcs.size();f++) {
+            if (funcs[f].begin > addr) funcs[f].begin++;
+            if (funcs[f].end >= addr) funcs[f].end++;
+        }
     }
 
     void compilation_output::erase(u64 addr) {
@@ -34,6 +39,11 @@ namespace gjs {
             } else if (code[i].op == compile::operation::jump) {
                 if (code[i].operands[0].imm_u() > addr) code[i].operands[0].m_imm.u--;
             }
+        }
+
+        for (u16 f = 0;f < funcs.size();f++) {
+            if (funcs[f].begin > addr) funcs[f].begin--;
+            if (funcs[f].end >= addr) funcs[f].end--;
         }
     }
 
@@ -95,15 +105,24 @@ namespace gjs {
         } catch (error::exception& e) {
             if (is_entry) m_importStack.pop_back();
             delete tree;
+            for (u16 i = 0;i < out.enums.size();i++) delete out.enums[i];
+            for (u16 i = 0;i < out.funcs.size();i++) {
+                delete out.funcs[i].func;
+            }
             delete out.mod;
             throw e;
         } catch (std::exception& e) {
             if (is_entry) m_importStack.pop_back();
             delete tree;
+            for (u16 i = 0;i < out.enums.size();i++) delete out.enums[i];
+            for (u16 i = 0;i < out.funcs.size();i++) {
+                delete out.funcs[i].func;
+            }
             throw e;
         }
 
         if (m_log.errors.size() > 0) {
+            for (u16 i = 0;i < out.enums.size();i++) delete out.enums[i];
             for (u16 i = 0;i < out.funcs.size();i++) {
                 delete out.funcs[i].func;
             }
@@ -130,13 +149,16 @@ namespace gjs {
                     out.mod->m_init = out.funcs[0].func;
 
                     for (u16 i = 1;i < out.funcs.size();i++) out.mod->add(out.funcs[i].func);
+                    for (u16 i = 0;i < out.enums.size();i++) out.mod->m_enums.push_back(out.enums[i]);
                     m_ctx->add(out.mod);
                 } else {
+                    for (u16 i = 0;i < out.enums.size();i++) delete out.enums[i];
                     for (u16 i = 0;i < out.funcs.size();i++) {
                         delete out.funcs[i].func;
                     }
                 }
             } catch (error::exception& e) {
+                for (u16 i = 0;i < out.enums.size();i++) delete out.enums[i];
                 for (u16 i = 0;i < out.funcs.size();i++) {
                     delete out.funcs[i].func;
                 }
@@ -146,6 +168,7 @@ namespace gjs {
                 delete out.mod;
                 throw e;
             } catch (std::exception& e) {
+                for (u16 i = 0;i < out.enums.size();i++) delete out.enums[i];
                 for (u16 i = 0;i < out.funcs.size();i++) {
                     delete out.funcs[i].func;
                 }

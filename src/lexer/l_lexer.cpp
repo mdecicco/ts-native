@@ -27,6 +27,7 @@ namespace gjs {
             t.specify_keyword("destructor");
             t.specify_keyword("operator");
             t.specify_keyword("import");
+            t.specify_keyword("enum");
             t.specify_operator("++");
             t.specify_operator("--");
             t.specify_operator("+");

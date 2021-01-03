@@ -238,5 +238,48 @@ namespace gjs {
 
             return c;
         };
+
+        ast* enum_declaration(context& ctx) {
+            if (!ctx.match({ "enum" })) {
+                throw exc(ec::p_expected_specific_keyword, ctx.current(), "enum");
+            }
+
+            ast* c = new ast();
+            c->type = nt::enum_declaration;
+            c->src(ctx.current());
+            ctx.consume();
+            c->identifier = identifier(ctx);
+
+            if (!ctx.match({ tt::open_block })) throw exc(ec::p_expected_char, ctx.current(), '{');
+            ctx.consume();
+
+            bool expect_end = false;
+            while (!ctx.at_end() && !ctx.match({ tt::close_block }) && !expect_end) {
+                ast* v = new ast();
+                v->type = nt::enum_value;
+                v->src(ctx.current());
+                v->identifier = identifier(ctx);
+
+                if (ctx.match({ "=" })) {
+                    ctx.consume();
+                    v->body = expression(ctx);
+                }
+
+                if (ctx.match({ tt::comma })) ctx.consume();
+                else expect_end = true;
+
+                if (!c->body) c->body = v;
+                else {
+                    ast* n = c->body;
+                    while (n->next) n = n->next;
+                    n->next = v;
+                }
+            }
+
+            if (!ctx.match({ tt::close_block })) throw exc(ec::p_expected_x, ctx.current(), "'}' or ','");
+            ctx.consume();
+
+            return c;
+        }
     };
 };

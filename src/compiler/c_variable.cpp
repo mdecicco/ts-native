@@ -218,7 +218,13 @@ namespace gjs {
                             m_ctx->add(operation::load).operand(ret).operand(m_ctx->imm(p.offset));
                         } else {
                             m_ctx->add(operation::uadd).operand(ptr).operand(*this).operand(m_ctx->imm(p.offset));
-                            m_ctx->add(operation::load).operand(ret).operand(*this).operand(m_ctx->imm(p.offset));
+                            if (p.type->is_primitive) {
+                                // load value of primitive to ret
+                                m_ctx->add(operation::load).operand(ret).operand(*this).operand(m_ctx->imm(p.offset));
+                            } else {
+                                // get pointer to value in ret
+                                m_ctx->add(operation::uadd).operand(ret).operand(*this).operand(m_ctx->imm(p.offset));
+                            }
                         }
                         ret.set_mem_ptr(ptr);
 
@@ -697,11 +703,161 @@ namespace gjs {
             return o::null;
         }
 
+        inline double modf(double x, double y) { return ::modf(x, &y); }
+        var solve_imm_bin_op(context* ctx, const var& a, const var& b, ot op) {
+            union { f64 f; i64 i; } av;
+            union { f64 f; i64 i; } bv;
+            bool i[2] = { false, false };
+            if (a.type()->is_floating_point) {
+                if (a.type()->size == sizeof(f64)) av.f = a.imm_d();
+                else av.f = a.imm_f();
+                i[0] = true;
+            } else {
+                if (a.type()->is_unsigned) av.i = a.imm_u();
+                else av.i = a.imm_i();
+            }
+            if (b.type()->is_floating_point) {
+                if (b.type()->size == sizeof(f64)) bv.f = b.imm_d();
+                else bv.f = b.imm_f();
+                i[1] = true;
+            } else {
+                if (b.type()->is_unsigned) bv.i = b.imm_u();
+                else bv.i = b.imm_i();
+            }
+
+            switch (op) {
+                case ot::add: {
+                    if ( i[0] &&  i[1]) return ctx->imm(av.f + bv.f);
+                    if ( i[0] && !i[1]) return ctx->imm(av.f + bv.i);
+                    if (!i[0] &&  i[1]) return ctx->imm(av.i + bv.f);
+                    if (!i[0] && !i[1]) return ctx->imm(av.i + bv.i);
+                }
+                case ot::sub: {
+                    if ( i[0] &&  i[1]) return ctx->imm(av.f - bv.f);
+                    if ( i[0] && !i[1]) return ctx->imm(av.f - bv.i);
+                    if (!i[0] &&  i[1]) return ctx->imm(av.i - bv.f);
+                    if (!i[0] && !i[1]) return ctx->imm(av.i - bv.i);
+                }
+                case ot::mul: {
+                    if ( i[0] &&  i[1]) return ctx->imm(av.f * bv.f);
+                    if ( i[0] && !i[1]) return ctx->imm(av.f * bv.i);
+                    if (!i[0] &&  i[1]) return ctx->imm(av.i * bv.f);
+                    if (!i[0] && !i[1]) return ctx->imm(av.i * bv.i);
+                }
+                case ot::div: {
+                    if ( i[0] &&  i[1]) return ctx->imm(av.f / bv.f);
+                    if ( i[0] && !i[1]) return ctx->imm(av.f / bv.i);
+                    if (!i[0] &&  i[1]) return ctx->imm(av.i / bv.f);
+                    if (!i[0] && !i[1]) return ctx->imm(av.i / bv.i);
+                }
+                case ot::mod: {
+                    if ( i[0] &&  i[1]) return ctx->imm(modf(av.f, bv.f));
+                    if ( i[0] && !i[1]) return ctx->imm(modf(av.f, bv.f));
+                    if (!i[0] &&  i[1]) return ctx->imm(modf(av.i, bv.f));
+                    if (!i[0] && !i[1]) return ctx->imm(av.i % bv.i);
+                }
+                case ot::shiftLeft: {
+                    if ( i[0] &&  i[1]) return ctx->imm((i64)av.f << (i64)bv.f);
+                    if ( i[0] && !i[1]) return ctx->imm((i64)av.f << bv.i);
+                    if (!i[0] &&  i[1]) return ctx->imm(av.i << (i64)bv.f);
+                    if (!i[0] && !i[1]) return ctx->imm(av.i << bv.i);
+                }
+                case ot::shiftRight: {
+                    if ( i[0] &&  i[1]) return ctx->imm((i64)av.f >> (i64)bv.f);
+                    if ( i[0] && !i[1]) return ctx->imm((i64)av.f >> bv.i);
+                    if (!i[0] &&  i[1]) return ctx->imm(av.i >> (i64)bv.f);
+                    if (!i[0] && !i[1]) return ctx->imm(av.i >> bv.i);
+                }
+                case ot::land: {
+                    // 0 == 0.0f, !0 == !0.0f
+                    return ctx->imm(i64(av.i && bv.i));
+                }
+                case ot::lor: {
+                    // 0 == 0.0f, !0 == !0.0f
+                    return ctx->imm(i64(av.i || bv.i));
+                }
+                case ot::band: {
+                    if (!i[0] && !i[1]) return ctx->imm(av.i & bv.i);
+                    else {
+                        i64 x = av.i & bv.i;
+                        return ctx->imm(*(f64*)&x);
+                    }
+                }
+                case ot::bor: {
+                    if (!i[0] && !i[1]) return ctx->imm(av.i | bv.i);
+                    else {
+                        i64 x = av.i | bv.i;
+                        return ctx->imm(*(f64*)&x);
+                    }
+                }
+                case ot::bxor: {
+                    if (!i[0] && !i[1]) return ctx->imm(av.i ^ bv.i);
+                    else {
+                        i64 x = av.i ^ bv.i;
+                        return ctx->imm(*(f64*)&x);
+                    }
+                }
+                case ot::less: {
+                    if ( i[0] &&  i[1]) return ctx->imm(i64(av.f < bv.f));
+                    if ( i[0] && !i[1]) return ctx->imm(i64(av.f < f64(bv.i)));
+                    if (!i[0] &&  i[1]) return ctx->imm(i64(f64(av.i) < bv.f));
+                    if (!i[0] && !i[1]) return ctx->imm(i64(av.i < bv.i));
+                }
+                case ot::greater: {
+                    if ( i[0] &&  i[1]) return ctx->imm(i64(av.f > bv.f));
+                    if ( i[0] && !i[1]) return ctx->imm(i64(av.f > f64(bv.i)));
+                    if (!i[0] &&  i[1]) return ctx->imm(i64(f64(av.i) > bv.f));
+                    if (!i[0] && !i[1]) return ctx->imm(i64(av.i > bv.i));
+                }
+                case ot::lessEq: {
+                    if ( i[0] &&  i[1]) return ctx->imm(i64(av.f <= bv.f));
+                    if ( i[0] && !i[1]) return ctx->imm(i64(av.f <= f64(bv.i)));
+                    if (!i[0] &&  i[1]) return ctx->imm(i64(f64(av.i) <= bv.f));
+                    if (!i[0] && !i[1]) return ctx->imm(i64(av.i <= bv.i));
+                }
+                case ot::greaterEq: {
+                    if ( i[0] &&  i[1]) return ctx->imm(i64(av.f >= bv.f));
+                    if ( i[0] && !i[1]) return ctx->imm(i64(av.f >= f64(bv.i)));
+                    if (!i[0] &&  i[1]) return ctx->imm(i64(f64(av.i) >= bv.f));
+                    if (!i[0] && !i[1]) return ctx->imm(i64(av.i >= bv.i));
+                }
+                case ot::notEq: {
+                    if ( i[0] &&  i[1]) return ctx->imm(i64(av.f != bv.f));
+                    if ( i[0] && !i[1]) return ctx->imm(i64(av.f != f64(bv.i)));
+                    if (!i[0] &&  i[1]) return ctx->imm(i64(f64(av.i) != bv.f));
+                    if (!i[0] && !i[1]) return ctx->imm(i64(av.i != bv.i));
+                }
+                case ot::isEq: {
+                    if ( i[0] &&  i[1]) return ctx->imm(i64(av.f == bv.f));
+                    if ( i[0] && !i[1]) return ctx->imm(i64(av.f == f64(bv.i)));
+                    if (!i[0] &&  i[1]) return ctx->imm(i64(f64(av.i) == bv.f));
+                    if (!i[0] && !i[1]) return ctx->imm(i64(av.i == bv.i));
+                }
+                case ot::addEq:
+                case ot::subEq:
+                case ot::mulEq:
+                case ot::divEq:
+                case ot::modEq:
+                case ot::shiftLeftEq:
+                case ot::shiftRightEq:
+                case ot::landEq:
+                case ot::lorEq:
+                case ot::bandEq:
+                case ot::borEq:
+                case ot::bxorEq: {
+                    ctx->log()->err(ec::c_no_assign_literal, ctx->node()->ref);
+                    return ctx->error_var();
+                }
+            }
+        }
+
         var do_bin_op(context* ctx, const var& a, const var& b, ot _op) {
             if (a.flag(bind::pf_write_only) || b.flag(bind::pf_write_only)) {
                 ctx->log()->err(ec::c_no_read_write_only, ctx->node()->ref);
                 return ctx->error_var();
             }
+
+            if (a.is_imm() && b.is_imm()) return solve_imm_bin_op(ctx, a, b, _op);
 
             operation op = get_op(_op, a.type());
             if ((u8)op) {
@@ -925,6 +1081,8 @@ namespace gjs {
         }
 
         var var::operator ! () const {
+            if (is_imm()) return m_ctx->imm(i64(m_imm.u == 0));
+
             if (m_type->is_primitive) {
                 return do_bin_op(m_ctx, *this, m_ctx->imm(i64(0)), ot::isEq);
             }
@@ -935,6 +1093,16 @@ namespace gjs {
         }
 
         var var::operator - () const {
+            if (is_imm()) {
+                if (m_type->is_floating_point) {
+                    if (m_type->size == sizeof(f64)) return m_ctx->imm(-m_imm.d);
+                    else return m_ctx->imm(-m_imm.f);
+                } else {
+                    if (m_type->is_unsigned) return m_ctx->imm(-i64(m_imm.u));
+                    else return m_ctx->imm(-m_imm.i);
+                }
+            }
+
             if (m_type->is_primitive) {
                 if (m_flags & bind::pf_write_only) {
                     m_ctx->log()->err(ec::c_no_read_write_only, m_ctx->node()->ref);
@@ -952,6 +1120,11 @@ namespace gjs {
         }
 
         var var::operator_eq (const var& rhs) const {
+            if (is_imm()) {
+                m_ctx->log()->err(ec::c_no_assign_literal, m_ctx->node()->ref);
+                return m_ctx->error_var();
+            }
+
             if (m_flags & bind::pf_read_only) {
                 m_ctx->log()->err(ec::c_no_assign_read_only, m_ctx->node()->ref);
                 return *this;

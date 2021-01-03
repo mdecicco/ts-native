@@ -8,6 +8,7 @@
 #include <gjs/bind/bind.h>
 #include <gjs/common/script_type.h>
 #include <gjs/common/script_module.h>
+#include <gjs/common/script_enum.h>
 #include <gjs/builtin/script_buffer.h>
 
 namespace gjs {
@@ -119,10 +120,11 @@ namespace gjs {
                         return ret;
                     }
 
-                    // check if lvalue refers to a module alias
                     if (n->lvalue->type == nt::identifier) {
                         std::string name = *n->lvalue;
+
                         for (u16 i = 0;i < ctx.imports.size();i++) {
+                            // check if lvalue refers to a module alias
                             if (ctx.imports[i]->alias == name) {
                                 std::string pname = *n->rvalue;
                                 const script_module::local_var* v = nullptr;
@@ -150,6 +152,43 @@ namespace gjs {
                                     }
 
                                     return ret;
+                                }
+                            }
+                            // check if lvalue refers to an imported enum
+                            else if (ctx.imports[i]->alias.length() == 0) {
+                                std::string vname = *n->rvalue;
+                                for (u16 s = 0;s < ctx.imports[i]->symbols.size();s++) {
+                                    auto& sym = ctx.imports[i]->symbols[s];
+
+                                    if (sym.alias.length() == 0 && sym.name == name && sym.is_enum) {
+                                        if (sym.enum_->has(vname)) return ctx.imm(sym.enum_->value(vname));
+                                    } else if (sym.alias == name && sym.is_enum) {
+                                        if (sym.enum_->has(vname)) return ctx.imm(sym.enum_->value(vname));
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // check if lvalue refers to an aliased module's enum
+                    if (n->lvalue->type == nt::operation && n->lvalue->op == ot::member && n->rvalue->type == nt::identifier) {
+                        if (n->lvalue->lvalue->type == nt::identifier && n->lvalue->rvalue->type == nt::identifier) {
+                            std::string llname = *n->lvalue->lvalue;
+                            std::string lrname = *n->lvalue->rvalue;
+                            std::string vname = *n->rvalue;
+
+                            for (u16 i = 0;i < ctx.imports.size();i++) {
+                                if (ctx.imports[i]->alias == llname) {
+                                    std::string vname = *n->rvalue;
+                                    for (u16 s = 0;s < ctx.imports[i]->symbols.size();s++) {
+                                        auto& sym = ctx.imports[i]->symbols[s];
+
+                                        if (sym.alias.length() == 0 && sym.name == lrname && sym.is_enum) {
+                                            if (sym.enum_->has(vname)) return ctx.imm(sym.enum_->value(vname));
+                                        } else if (sym.alias == lrname && sym.is_enum) {
+                                            if (sym.enum_->has(vname)) return ctx.imm(sym.enum_->value(vname));
+                                        }
+                                    }
                                 }
                             }
                         }

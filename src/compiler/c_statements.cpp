@@ -8,6 +8,7 @@
 #include <gjs/common/errors.h>
 #include <gjs/common/script_context.h>
 #include <gjs/common/script_module.h>
+#include <gjs/common/script_enum.h>
 
 namespace gjs {
     using ec = error::ecode;
@@ -21,19 +22,23 @@ namespace gjs {
             im->alias = as;
             
             if (n->body->next) {
+                // specific symbols
                 parse::ast* i = n->body->next;
                 while (i) {
                     std::string symbol = *i;
                     std::string alias = i->identifier ? std::string(*i->identifier) : "";
                     script_type* tp = im->mod->types()->get(hash(symbol));
+                    script_enum* en = im->mod->get_enum(symbol);
 
                     if (tp) {
-                        im->symbols.push_back({ symbol, alias, tp, false, false, true });
+                        im->symbols.push_back({ symbol, alias, tp, nullptr, false, false, true, false });
                     } else if (im->mod->has_local(symbol)) {
                         auto& l = im->mod->local(symbol);
-                        im->symbols.push_back({ symbol, alias, l.type, true, false, false });
+                        im->symbols.push_back({ symbol, alias, l.type, nullptr, true, false, false, false });
                     } else if (im->mod->has_function(symbol)) {
-                        im->symbols.push_back({ symbol, alias, nullptr, false, true, false });
+                        im->symbols.push_back({ symbol, alias, nullptr, nullptr, false, true, false, false });
+                    } else if (en) {
+                        im->symbols.push_back({ symbol, alias, nullptr, en, false, false, false, true });
                     } else {
                         ctx.log()->err(ec::c_symbol_not_found_in_module, i->ref, symbol.c_str(), from.c_str());
                     }
@@ -41,14 +46,18 @@ namespace gjs {
                     i = i->next;
                 }
             } else {
+                // all symbols
                 const auto& types = im->mod->types()->all();
-                for (u16 i = 0;i < types.size();i++) im->symbols.push_back({ types[i]->name, "", types[i], false, false, true });
+                for (u16 i = 0;i < types.size();i++) im->symbols.push_back({ types[i]->name, "", types[i], nullptr, false, false, true, false });
 
                 auto functions = im->mod->function_names();
-                for (u16 i = 0;i < functions.size();i++) im->symbols.push_back({ functions[i], "", nullptr, false, true, false });
+                for (u16 i = 0;i < functions.size();i++) im->symbols.push_back({ functions[i], "", nullptr, nullptr, false, true, false, false });
 
                 const auto& locals = im->mod->locals();
-                for (u16 i = 0;i < locals.size();i++) im->symbols.push_back({ locals[i].name, "", locals[i].type, true, false, false });
+                for (u16 i = 0;i < locals.size();i++) im->symbols.push_back({ locals[i].name, "", locals[i].type, nullptr, true, false, false, false });
+
+                const auto& enums = im->mod->enums();
+                for (u16 i = 0;i < enums.size();i++) im->symbols.push_back({ enums[i]->name(), "", nullptr, enums[i], false, false, false, true });
             }
 
             ctx.imports.push_back(im);

@@ -1,11 +1,12 @@
 #include <gjs/common/script_module.h>
-#include <gjs/builtin/script_buffer.h>
-#include <gjs/util/util.h>
-
 #include <gjs/common/script_type.h>
 #include <gjs/common/script_function.h>
-#include <gjs/backends/backend.h>
 #include <gjs/common/script_context.h>
+#include <gjs/common/script_enum.h>
+
+#include <gjs/builtin/script_buffer.h>
+#include <gjs/util/util.h>
+#include <gjs/backends/backend.h>
 
 namespace gjs {
     script_module::script_module(script_context* ctx, const std::string& name) : m_ctx(ctx), m_data(nullptr), m_init(nullptr) {
@@ -77,6 +78,12 @@ namespace gjs {
             out.push_back(i->getFirst());
         }
         return out;
+    }
+
+    script_enum* script_module::get_enum(const std::string& name) const {
+        for (u32 i = 0;i < m_enums.size();i++) {
+            if (m_enums[i]->name() == name) return m_enums[i];
+        }
     }
 
     void script_module::add(script_function* func) {

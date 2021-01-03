@@ -57,6 +57,9 @@ namespace gjs {
             "Unexpected 'subtype' while instantiating variable of type '%s', which is not a subtype class or format",
             "The special 'subtype' type can not be used outside the context of a subtype class",
             "Symbol '%s' was not found in module '%s'",
+            "Enum value must be an integer-type constant expression",
+            "Enum value '%s' has already been declared in '%s'",
+            "Can not assign a value to a literal",
             "Compilation finished with errors",
             "", // end compile errors
             "", // start runtime errors
@@ -71,6 +74,7 @@ namespace gjs {
             "Cannot get direct reference to limited-access property '%s' of type '%s'",
             "Cannot get direct reference to property '%s' of type '%s' which uses property accessor functions",
             "Type '%s' has not been bound",
+            "Enum '%s' has no value named '%s'",
             "" // end runtime errors
         };
 

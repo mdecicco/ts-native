@@ -5,8 +5,9 @@
 #include <gjs/common/script_context.h>
 #include <gjs/common/script_type.h>
 #include <gjs/common/script_function.h>
-#include <gjs/common/errors.h>
 #include <gjs/common/script_module.h>
+#include <gjs/common/script_enum.h>
+#include <gjs/common/errors.h>
 #include <gjs/vm/register.h>
 #include <gjs/builtin/script_buffer.h>
 
@@ -336,6 +337,44 @@ namespace gjs {
             return tp;
         }
 
+        void enum_declaration(context& ctx, parse::ast* n) {
+            // todo: check for name collision
+            script_enum* e = new script_enum(*n->identifier);
+            ctx.new_enums.push_back(e);
+
+            parse::ast* v = n->body;
+            i64 val = 0;
+            i64 val_asc = 0;
+            while (v) {
+                std::string vname = *v->identifier;
+
+                if (e->has(vname)) {
+                    ctx.log()->err(ec::c_duplicate_enum_value_name, v->body->ref, vname.c_str(), e->name().c_str());
+                    continue;
+                }
+
+                if (v->body) {
+                    var ev = expression(ctx, v->body);
+                    if (!ev.is_imm()) ctx.log()->err(ec::c_invalid_enum_value_expr, v->body->ref);
+                    else {
+                        if (ev.type()->is_floating_point) {
+                            if (ev.type()->size == sizeof(f64)) val = ev.imm_d();
+                            else val = ev.imm_f();
+                        } else {
+                            if (ev.type()->is_unsigned) val = ev.imm_u();
+                            else val = ev.imm_i();
+                        }
+                        if (!val_asc) val_asc = val;
+                    }
+                } else val = val_asc;
+
+                e->set(vname, val);
+                
+                val_asc++;
+                v = v->next;
+            }
+        }
+
         void any(context& ctx, ast* n) {
             switch(n->type) {
                 case nt::empty: break;
@@ -343,6 +382,7 @@ namespace gjs {
                 case nt::function_declaration: { function_declaration(ctx, n); break; }
                 case nt::class_declaration: { class_declaration(ctx, n); break; }
                 case nt::format_declaration: { format_declaration(ctx, n); break; }
+                case nt::enum_declaration: { enum_declaration(ctx, n); break; }
                 case nt::if_statement: { if_statement(ctx, n); break; }
                 case nt::for_loop: { for_loop(ctx, n); break; }
                 case nt::while_loop: { while_loop(ctx, n); break; }
@@ -381,13 +421,16 @@ namespace gjs {
             im->alias = "";
 
             const auto& types = im->mod->types()->all();
-            for (u16 i = 0;i < types.size();i++) im->symbols.push_back({ types[i]->name, "", types[i], false, false, true });
+            for (u16 i = 0;i < types.size();i++) im->symbols.push_back({ types[i]->name, "", types[i], nullptr, false, false, true, false });
 
             auto functions = im->mod->function_names();
-            for (u16 i = 0;i < functions.size();i++) im->symbols.push_back({ functions[i], "", nullptr, false, true, false });
+            for (u16 i = 0;i < functions.size();i++) im->symbols.push_back({ functions[i], "", nullptr, nullptr, false, true, false, false });
 
             const auto& locals = im->mod->locals();
-            for (u16 i = 0;i < locals.size();i++) im->symbols.push_back({ locals[i].name, "", locals[i].type, true, false, false });
+            for (u16 i = 0;i < locals.size();i++) im->symbols.push_back({ locals[i].name, "", locals[i].type, nullptr, true, false, false, false });
+
+            const auto& enums = im->mod->enums();
+            for (u16 i = 0;i < enums.size();i++) im->symbols.push_back({ enums[i]->name(), "", nullptr, enums[i], false, false, false, true });
             
             ctx.imports.push_back(im);
         }
@@ -431,11 +474,13 @@ namespace gjs {
             } catch (const error::exception &e) {
                 delete ctx.new_types;
                 for (u32 i = 0;i < ctx.new_functions.size();i++) delete ctx.new_functions[i];
+                for (u32 i = 0;i < ctx.new_enums.size();i++) delete ctx.new_enums[i];
                 ctx.out.funcs.clear();
                 throw e;
             } catch (const std::exception &e) {
                 delete ctx.new_types;
                 for (u32 i = 0;i < ctx.new_functions.size();i++) delete ctx.new_functions[i];
+                for (u32 i = 0;i < ctx.new_enums.size();i++) delete ctx.new_enums[i];
                 ctx.out.funcs.clear();
                 throw e;
             }
@@ -461,16 +506,19 @@ namespace gjs {
 
             if (ctx.log()->errors.size() > 0) {
                 delete ctx.new_types;
-                
+
                 for (u32 i = 0;i < ctx.new_functions.size();i++) {
                     if (ctx.new_functions[i]) delete ctx.new_functions[i];
                 }
+
+                for (u32 i = 0;i < ctx.new_enums.size();i++) delete ctx.new_enums[i];
 
                 ctx.out.funcs.clear();
 
                 throw exc(ec::c_compile_finished_with_errors, input->ref);
             }
 
+            out.enums = ctx.new_enums;
             out.types = ctx.new_types->all();
             out.mod->types()->merge(ctx.new_types);
              
