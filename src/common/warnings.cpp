@@ -1,4 +1,4 @@
-#include <common/warnings.h>
+#include <gjs/common/warnings.h>
 #include <stdarg.h>
 
 namespace gjs {

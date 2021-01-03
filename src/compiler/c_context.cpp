@@ -1,14 +1,14 @@
-#include <compiler/context.h>
-#include <compiler/function.h>
-#include <parser/ast.h>
-#include <common/script_context.h>
-#include <common/script_type.h>
-#include <common/script_function.h>
-#include <common/errors.h>
-#include <common/warnings.h>
-#include <compiler/compile.h>
-#include <builtin/script_buffer.h>
-#include <common/script_module.h>
+#include <gjs/compiler/context.h>
+#include <gjs/compiler/function.h>
+#include <gjs/parser/ast.h>
+#include <gjs/common/script_context.h>
+#include <gjs/common/script_type.h>
+#include <gjs/common/script_function.h>
+#include <gjs/common/errors.h>
+#include <gjs/common/warnings.h>
+#include <gjs/compiler/compile.h>
+#include <gjs/builtin/script_buffer.h>
+#include <gjs/common/script_module.h>
 
 namespace gjs {
     using exc = error::exception;
@@ -149,6 +149,19 @@ namespace gjs {
 
             log()->err(ec::c_undefined_identifier, node()->ref, name.c_str());
             return error_var();
+        }
+        
+        void context::promote_var(var& v, const std::string& name) {
+            if (v.name().length() > 0) {
+                // exception, programming error
+            }
+
+            v.m_name = name;
+            block_stack[block_stack.size() - 1]->named_vars.push_back(v);
+        }
+
+        var context::force_cast_var(const var& v, script_type* as) {
+            return var(this, v.reg_id(), as);
         }
 
         script_function* context::function(const std::string& name, script_type* ret, const std::vector<script_type*>& args) {
@@ -338,7 +351,6 @@ namespace gjs {
             }
             return nullptr;
         }
-
 
         script_function* context::find_func(const std::string& from_aliased_import, const std::string& name, script_type* ret, const std::vector<script_type*>& args) {
             std::vector<script_function*> all;
@@ -603,6 +615,7 @@ namespace gjs {
                     for (u16 i = 0;i < out.funcs.size();i++) {
                         if (out.funcs[i].func == f) {
                             out.funcs[i].end = code_sz() - 1;
+                            break;
                         }
                     }
                     compiling_function = false;

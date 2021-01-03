@@ -1,5 +1,5 @@
-#include <common/errors.h>
-#include <builtin/builtin.h>
+#include <gjs/common/errors.h>
+#include <gjs/builtin/builtin.h>
 #include <stdarg.h>
 
 namespace gjs {
@@ -12,6 +12,7 @@ namespace gjs {
             "Unexpected identifier '%s'",
             "Expected type identifier",
             "Expected '%c'",
+            "Expected %s",
             "Unexpected token '%s'",
             "Expected keyword '%s'",
             "Unexpected keyword '%s'",

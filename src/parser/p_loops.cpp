@@ -1,7 +1,7 @@
-#include <parser/parse.h>
-#include <parser/ast.h>
-#include <parser/context.h>
-#include <common/errors.h>
+#include <gjs/parser/parse.h>
+#include <gjs/parser/ast.h>
+#include <gjs/parser/context.h>
+#include <gjs/common/errors.h>
 
 namespace gjs {
     using tt = lex::token_type;

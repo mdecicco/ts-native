@@ -1,8 +1,8 @@
-#include <vm/instruction.h>
-#include <vm/instruction_encoder.h>
-#include <backends/b_vm.h>
-#include <vm/register.h>
-#include <util/util.h>
+#include <gjs/vm/instruction.h>
+#include <gjs/vm/instruction_encoder.h>
+#include <gjs/backends/b_vm.h>
+#include <gjs/vm/register.h>
+#include <gjs/util/util.h>
 #include <assert.h>
 
 namespace gjs {

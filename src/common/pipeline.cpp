@@ -1,15 +1,15 @@
-#include <common/pipeline.h>
-#include <backends/backend.h>
-#include <common/script_context.h>
-#include <common/errors.h>
-#include <common/script_module.h>
-#include <common/script_function.h>
-#include <backends/register_allocator.h>
+#include <gjs/common/pipeline.h>
+#include <gjs/backends/backend.h>
+#include <gjs/common/script_context.h>
+#include <gjs/common/errors.h>
+#include <gjs/common/script_module.h>
+#include <gjs/common/script_function.h>
+#include <gjs/backends/register_allocator.h>
 
-#include <compiler/compile.h>
-#include <lexer/lexer.h>
-#include <parser/parse.h>
-#include <parser/ast.h>
+#include <gjs/compiler/compile.h>
+#include <gjs/lexer/lexer.h>
+#include <gjs/parser/parse.h>
+#include <gjs/parser/ast.h>
 
 namespace gjs {
     compilation_output::compilation_output(u16 gpN, u16 fpN) : mod(nullptr) {
@@ -47,6 +47,7 @@ namespace gjs {
     script_module* pipeline::compile(const std::string& module, const std::string& code, backend* generator) {
         bool is_entry = m_importStack.size() == 0;
         if (is_entry) {
+            m_log.files.clear();
             m_log.errors.clear();
             m_log.warnings.clear();
             m_importStack.push_back({ source_ref("[internal]", "", 0, 0), module });
@@ -69,7 +70,7 @@ namespace gjs {
 
         try {
             std::vector<lex::token> tokens;
-            lex::tokenize(code, module, tokens);
+            lex::tokenize(code, module, tokens, m_log.files[module] = log_file());
 
             tree = parse::parse(m_ctx, module, tokens);
             for (u8 i = 0;i < m_ast_steps.size();i++) {

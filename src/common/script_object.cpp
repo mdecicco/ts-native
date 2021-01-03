@@ -1,9 +1,9 @@
-#include <common/script_object.h>
-#include <common/script_type.h>
-#include <common/script_function.h>
-#include <common/script_module.h>
-#include <backends/backend.h>
-#include <common/script_context.h>
+#include <gjs/common/script_object.h>
+#include <gjs/common/script_type.h>
+#include <gjs/common/script_function.h>
+#include <gjs/common/script_module.h>
+#include <gjs/backends/backend.h>
+#include <gjs/common/script_context.h>
 
 namespace gjs {
     script_object::~script_object() {

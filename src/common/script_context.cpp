@@ -1,15 +1,15 @@
-#include <common/script_context.h>
-#include <common/script_function.h>
-#include <common/script_type.h>
-#include <common/script_module.h>
-#include <common/io.h>
-#include <backends/backend.h>
-#include <backends/b_vm.h>
-#include <vm/allocator.h>
+#include <gjs/common/script_context.h>
+#include <gjs/common/script_function.h>
+#include <gjs/common/script_type.h>
+#include <gjs/common/script_module.h>
+#include <gjs/common/io.h>
+#include <gjs/backends/backend.h>
+#include <gjs/backends/b_vm.h>
+#include <gjs/vm/allocator.h>
 
-#include <bind/bind.h>
-#include <builtin/builtin.h>
-#include <common/errors.h>
+#include <gjs/bind/bind.h>
+#include <gjs/builtin/builtin.h>
+#include <gjs/common/errors.h>
 
 #include <filesystem>
 

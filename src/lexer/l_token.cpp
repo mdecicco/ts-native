@@ -1,4 +1,4 @@
-#include <lexer/token.h>
+#include <gjs/lexer/token.h>
 
 namespace gjs {
     namespace lex {

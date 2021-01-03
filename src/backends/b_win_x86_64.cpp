@@ -1,10 +1,10 @@
-#include <backends/b_win_x86_64.h>
-#include <common/script_module.h>
-#include <common/script_function.h>
-#include <common/script_type.h>
-#include <common/script_context.h>
-#include <builtin/script_buffer.h>
-#include <util/util.h>
+#include <gjs/backends/b_win_x86_64.h>
+#include <gjs/common/script_module.h>
+#include <gjs/common/script_function.h>
+#include <gjs/common/script_type.h>
+#include <gjs/common/script_context.h>
+#include <gjs/builtin/script_buffer.h>
+#include <gjs/util/util.h>
 
 #include <llvm/IR/Function.h>
 #include <llvm/IR/IRBuilder.h>

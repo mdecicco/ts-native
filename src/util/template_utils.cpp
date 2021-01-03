@@ -1,6 +1,6 @@
-#include <util/template_utils.hpp>
-#include <common/script_type.h>
-#include <common/types.h>
+#include <gjs/util/template_utils.hpp>
+#include <gjs/common/script_type.h>
+#include <gjs/common/types.h>
 
 namespace gjs {
     func_signature::func_signature(const std::string& _name, script_type* ret, const std::vector<script_type*>& _arg_types)

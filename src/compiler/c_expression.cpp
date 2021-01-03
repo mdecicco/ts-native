@@ -1,14 +1,14 @@
-#include <compiler/context.h>
-#include <compiler/compile.h>
-#include <compiler/function.h>
-#include <parser/ast.h>
-#include <common/errors.h>
-#include <common/warnings.h>
-#include <common/compile_log.h>
-#include <bind/bind.h>
-#include <common/script_type.h>
-#include <common/script_module.h>
-#include <builtin/script_buffer.h>
+#include <gjs/compiler/context.h>
+#include <gjs/compiler/compile.h>
+#include <gjs/compiler/function.h>
+#include <gjs/parser/ast.h>
+#include <gjs/common/errors.h>
+#include <gjs/common/warnings.h>
+#include <gjs/common/compile_log.h>
+#include <gjs/bind/bind.h>
+#include <gjs/common/script_type.h>
+#include <gjs/common/script_module.h>
+#include <gjs/builtin/script_buffer.h>
 
 namespace gjs {
     using namespace parse;
@@ -162,35 +162,79 @@ namespace gjs {
                     ctx.push_node(n);
                     script_type* tp = ctx.type(n->data_type);
                     var obj = ctx.empty_var(tp);
+                    if (n->body) {
+                        // new format
+                        construct_in_memory(ctx, obj, {});
 
-                    std::vector<var> args;
+                        ast* field = n->body->body;
+                        var ptr = ctx.empty_var(ctx.type("u64"));
+                        while (field) {
+                            auto info = tp->prop(*field->identifier);
+                            ctx.add(operation::uadd).operand(ptr).operand(obj).operand(ctx.imm(info->offset));
+                            var val = expression_inner(ctx, field);
+                            if (info->type->is_primitive) {
+                                var vc = val.convert(info->type);
+                                ctx.add(operation::store).operand(ptr).operand(vc);
+                            }
+                            else construct_in_place(ctx, ctx.force_cast_var(ptr, info->type), { val });
 
-                    ast* a = n->arguments;
-                    while (a) {
-                        var arg = expression_inner(ctx, a);
-                        args.push_back(arg);
-                        a = a->next;
+                            field = field->next;
+                        }
+                    } else {
+                        // new class
+                        std::vector<var> args;
+
+                        ast* a = n->arguments;
+                        while (a) {
+                            var arg = expression_inner(ctx, a);
+                            args.push_back(arg);
+                            a = a->next;
+                        }
+
+                        construct_in_memory(ctx, obj, args);
                     }
 
-                    construct_in_memory(ctx, obj, args);
                     ctx.pop_node();
                     return obj;
                     break;
                 }
                 case ot::stackObj: {
                     ctx.push_node(n->data_type);
-                    var obj = ctx.empty_var(ctx.type(n->data_type));
-                    std::vector<var> args;
+                    script_type* tp = ctx.type(n->data_type);
+                    var obj = ctx.empty_var(tp);
 
-                    ast* a = n->arguments;
-                    while (a) {
-                        var arg = expression_inner(ctx, a);
-                        args.push_back(arg);
-                        a = a->next;
+                    if (n->body) {
+                        // stack format
+                        construct_on_stack(ctx, obj, {});
+
+                        ast* field = n->body->body;
+                        var ptr = ctx.empty_var(ctx.type("u64"));
+                        while (field) {
+                            auto info = tp->prop(*field->identifier);
+                            ctx.add(operation::uadd).operand(ptr).operand(obj).operand(ctx.imm(info->offset));
+                            var val = expression_inner(ctx, field->initializer);
+                            if (info->type->is_primitive) {
+                                var vc = val.convert(info->type);
+                                ctx.add(operation::store).operand(ptr).operand(vc);
+                            }
+                            else construct_in_place(ctx, ctx.force_cast_var(ptr, info->type), { val });
+
+                            field = field->next;
+                        }
+                    } else {
+                        // stack class
+                        std::vector<var> args;
+
+                        ast* a = n->arguments;
+                        while (a) {
+                            var arg = expression_inner(ctx, a);
+                            args.push_back(arg);
+                            a = a->next;
+                        }
+
+                        obj.raise_stack_flag();
+                        construct_on_stack(ctx, obj, args);
                     }
-
-                    obj.raise_stack_flag();
-                    construct_on_stack(ctx, obj, args);
 
                     ctx.pop_node();
 

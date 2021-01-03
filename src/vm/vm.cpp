@@ -1,13 +1,13 @@
-#include <vm/vm.h>
-#include <vm/allocator.h>
+#include <gjs/vm/vm.h>
+#include <gjs/vm/allocator.h>
 #include <stdarg.h>
 #include <string.h>
-#include <common/script_context.h>
-#include <common/script_function.h>
-#include <common/script_type.h>
-#include <common/script_module.h>
-#include <builtin/script_buffer.h>
-#include <backends/b_vm.h>
+#include <gjs/common/script_context.h>
+#include <gjs/common/script_function.h>
+#include <gjs/common/script_type.h>
+#include <gjs/common/script_module.h>
+#include <gjs/builtin/script_buffer.h>
+#include <gjs/backends/b_vm.h>
 
 namespace gjs {
     char* fmt(vm_allocator* alloc, const char* fmt, ...) {

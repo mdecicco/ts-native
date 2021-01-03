@@ -1,11 +1,14 @@
-#include <lexer/token.h>
-#include <lexer/lexer.h>
-#include <parser/parse_utils.h>
+#include <gjs/lexer/token.h>
+#include <gjs/lexer/lexer.h>
+#include <gjs/parser/parse_utils.h>
+#include <gjs/common/compile_log.h>
 
 namespace gjs {
     namespace lex {
-        void tokenize(const std::string& source, const std::string& module, std::vector<token>& out) {
+        void tokenize(const std::string& source, const std::string& module, std::vector<token>& out, log_file& out_file) {
             tokenizer t(source);
+            out_file.lines = t.lines;
+
             t.specify_keyword("if");
             t.specify_keyword("else");
             t.specify_keyword("while");
@@ -249,6 +252,14 @@ namespace gjs {
 
                 tok = t.any_token();
                 if (tok) throw parse_exception(format("Unknown token '%s'", tok.text.c_str()), t, tok);
+            }
+
+            if (t.lines.size()) {
+                out.push_back({
+                    "",
+                    token_type::eof,
+                    source_ref(module, t.lines[t.lines.size() - 1], t.lines.size() - 1, t.lines[t.lines.size() - 1].length())
+                });
             }
         }
     };

@@ -1,7 +1,7 @@
-#include <parser/parse.h>
-#include <parser/ast.h>
-#include <parser/context.h>
-#include <common/errors.h>
+#include <gjs/parser/parse.h>
+#include <gjs/parser/ast.h>
+#include <gjs/parser/context.h>
+#include <gjs/common/errors.h>
 
 namespace gjs {
     using tt = lex::token_type;
@@ -35,6 +35,7 @@ namespace gjs {
         ast* parse_boolean(const token& tok);
         ast* parse_number(const token& tok);
         ast* parse_string(const token& tok);
+        ast* parse_format_expr(context& ctx);
         void set_node_src(ast* node, const token& tok) { node->src(tok); }
 
 
@@ -443,6 +444,12 @@ namespace gjs {
                 op->op = op::stackObj;
                 op->data_type = n;
 
+                op->body = parse_format_expr(ctx);
+                if (op->body) {
+                    set_node_src(op, cur);
+                    return op;
+                }
+
                 if (ctx.match({ tt::open_parenth })) {
                     ctx.consume();
 
@@ -507,6 +514,12 @@ namespace gjs {
                 op->data_type = parse_type_identifier(ctx, ctx.current());
 
                 if (!op->data_type) throw exc(ec::p_expected_type_identifier, ctx.current().src);
+
+                op->body = parse_format_expr(ctx);
+                if (op->body) {
+                    set_node_src(op, cur);
+                    return op;
+                }
                 
                 if (ctx.match({ tt::open_parenth })) {
                     ctx.consume();
@@ -637,6 +650,55 @@ namespace gjs {
                 set_node_src(node, tok);
                 return node;
             }
+            return nullptr;
+        }
+
+        ast* parse_format_expr(context& ctx) {
+            token cur = ctx.current();
+            if (ctx.match({ tt::open_parenth, tt::open_block, tt::identifier, tt::colon })) {
+                ctx.consume(); // (
+                ctx.consume(); // {
+
+                ast* n = new ast();
+                n->type = nt::format_expression;
+
+                bool expects_field = true;
+                // todo: throw error on duplicate identifier
+                while (!ctx.match({ tt::close_block }) && !ctx.at_end()) {
+                    if (!expects_field) throw exc(ec::p_expected_char, ctx.current().src, ';');
+
+                    ast* prop = new ast();
+                    prop->type = nt::format_property;
+                    set_node_src(prop, ctx.current());
+
+                    prop->identifier = identifier(ctx);
+
+                    if (!ctx.match({ tt::colon })) throw exc(ec::p_expected_char, ctx.current().src, ':');
+                    ctx.consume();
+
+                    prop->initializer = expression(ctx);
+
+                    if (ctx.match({ tt::comma })) ctx.consume();
+                    else expects_field = false;
+
+                    if (!n->body) n->body = prop;
+                    else {
+                        ast* b = n->body;
+                        while (b->next) b = b->next;
+                        b->next = prop;
+                    }
+                }
+
+                if (!ctx.match({ tt::close_block })) throw exc(ec::p_expected_x, ctx.current().src, "',' or '}'");
+                ctx.consume();
+
+                if (!ctx.match({ tt::close_parenth })) throw exc(ec::p_expected_char, ctx.current().src, ')');
+                ctx.consume();
+
+                set_node_src(n, cur);
+                return n;
+            }
+
             return nullptr;
         }
     };

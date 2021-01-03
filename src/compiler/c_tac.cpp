@@ -1,7 +1,7 @@
-#include <compiler/tac.h>
-#include <compiler/context.h>
-#include <common/script_function.h>
-#include <common/script_type.h>
+#include <gjs/compiler/tac.h>
+#include <gjs/compiler/context.h>
+#include <gjs/common/script_function.h>
+#include <gjs/common/script_type.h>
 
 namespace gjs {
     namespace compile {

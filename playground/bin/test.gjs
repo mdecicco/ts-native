@@ -1,44 +1,17 @@
-class test<subtype> {
-    constructor(subtype _x) {
-        this.x = _x;
-        this.y = _x;
-        this.z = _x;
-    }
-    constructor(test<subtype> t) {
-        this.x = t.x;
-        this.y = t.y;
-        this.z = t.z;
-    }
-
-    void print() {
-        print_f32(166, this.x);
-        print_f32(616, this.x);
-        print_f32(661, this.x);
-    }
-
-    subtype x;
-    subtype y;
-    subtype z;
+format f0 {
+	i32 a,
+	i32 b,
+	i32 c
 };
 
-void it() {
-    array<f32> x;
-    x.push(1.23f);
-    x.push(x[0]);
-    x[0] = 4.56f;
+format f1 {
+	f0 a,
+	f0 b,
+	f0 c
+};
 
-    if (x.length > 0) {
-        x.push(5.55f);
-    }
-
-    for(u8 i = 0;i < 10;i++) {
-        x.push(i);
-    }
-
-    test<f32> ayy = test<f32>(1.23f);
-    ayy.print();
-
-    for(u8 i = 0;i < x.length;i++) {
-        print_f32(i, x[i]);
-    }
-}
+f1 y = f1({
+	a: f0({ a: 1, b: 2, c: 3 }),
+	b: f0({ a: 4, b: 5, c: 6 }),
+	c: f0({ a: 7, b: 8, c: 9 })
+});

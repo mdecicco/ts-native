@@ -14,14 +14,17 @@ link_directories(${library_dirs})
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
-file(GLOB_RECURSE playground_src
+file(GLOB playground_src
     "./*.h"
     "./*.hpp"
     "./*.cpp"
 )
-SOURCE_GROUP("src" FILES ${playground_src})
+file(GLOB playground_scripts "bin/*.gjs")
 
-add_executable(playground ${playground_src})
+SOURCE_GROUP("src" FILES ${playground_src})
+SOURCE_GROUP("scripts" FILES ${playground_scripts})
+
+add_executable(playground ${playground_src} ${playground_scripts})
 
 target_link_libraries(
     playground

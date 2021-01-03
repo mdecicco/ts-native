@@ -1,4 +1,4 @@
-#include <bind/bind.h>
+#include <gjs/bind/bind.h>
 
 namespace gjs {
     namespace bind {

@@ -1,6 +1,6 @@
-#include <common/compile_log.h>
-#include <common/errors.h>
-#include <common/warnings.h>
+#include <gjs/common/compile_log.h>
+#include <gjs/common/errors.h>
+#include <gjs/common/warnings.h>
 #include <stdarg.h>
 
 namespace gjs {

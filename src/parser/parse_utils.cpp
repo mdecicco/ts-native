@@ -1,4 +1,4 @@
-#include <parser/parse_utils.h>
+#include <gjs/parser/parse_utils.h>
 #include <stdarg.h>
 using namespace std;
 
@@ -19,7 +19,7 @@ namespace gjs {
         m_col = 0;
         m_idx = 0;
 
-        lines = get_lines(input, "\n\r");
+        lines = get_lines(input);
     }
 
     tokenizer::~tokenizer() {
@@ -141,6 +141,7 @@ namespace gjs {
             m_idx++;
             m_line++;
             m_col = 0;
+            if (m_idx < m_input.size() && m_input[m_idx] == '\n') m_idx++;
             return true;
         }
 

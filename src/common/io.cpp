@@ -1,4 +1,4 @@
-#include <common/io.h>
+#include <gjs/common/io.h>
 #ifdef _WIN32
 #include <direct.h>
 #define getcwd _getcwd
@@ -9,10 +9,18 @@
 #define chdir chdir
 #endif
 
+#include <filesystem>
+
 namespace gjs {
     file_interface::file_interface(io_interface* io) : m_owner(io) { }
 
     dir_entry::dir_entry() : is_dir(false) { }
+
+
+    void io_interface::set_cwd_from_args(i32 argc, const char** argv) {
+        std::string p = std::filesystem::path(argv[0]).remove_filename().string();
+        set_cwd(p);
+    }
 
 
     basic_io_interface::basic_io_interface() {

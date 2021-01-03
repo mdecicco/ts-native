@@ -1,5 +1,5 @@
-#include <vm/instruction_array.h>
-#include <vm/allocator.h>
+#include <gjs/vm/instruction_array.h>
+#include <gjs/vm/allocator.h>
 #include <string.h>
 
 #define RESIZE_AMOUNT 32

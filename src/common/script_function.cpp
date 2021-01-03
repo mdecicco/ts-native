@@ -1,9 +1,9 @@
-#include <common/script_function.h>
-#include <common/script_type.h>
-#include <common/script_context.h>
-#include <vm/register.h>
-#include <bind/bind.h>
-#include <util/util.h>
+#include <gjs/common/script_function.h>
+#include <gjs/common/script_type.h>
+#include <gjs/common/script_context.h>
+#include <gjs/vm/register.h>
+#include <gjs/bind/bind.h>
+#include <gjs/util/util.h>
 
 namespace gjs {
     script_function::script_function(script_context* ctx, const std::string _name, address addr) {

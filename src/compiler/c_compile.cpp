@@ -1,14 +1,14 @@
-#include <compiler/compile.h>
-#include <compiler/context.h>
-#include <compiler/function.h>
-#include <parser/ast.h>
-#include <common/script_context.h>
-#include <common/script_type.h>
-#include <common/script_function.h>
-#include <common/errors.h>
-#include <common/script_module.h>
-#include <vm/register.h>
-#include <builtin/script_buffer.h>
+#include <gjs/compiler/compile.h>
+#include <gjs/compiler/context.h>
+#include <gjs/compiler/function.h>
+#include <gjs/parser/ast.h>
+#include <gjs/common/script_context.h>
+#include <gjs/common/script_type.h>
+#include <gjs/common/script_function.h>
+#include <gjs/common/errors.h>
+#include <gjs/common/script_module.h>
+#include <gjs/vm/register.h>
+#include <gjs/builtin/script_buffer.h>
 
 namespace gjs {
     using exc = error::exception;
@@ -21,44 +21,7 @@ namespace gjs {
         void construct_on_stack(context& ctx, const var& obj, const std::vector<var>& args) {
             ctx.add(operation::stack_alloc).operand(obj).operand(ctx.imm(obj.size()));
 
-            std::vector<script_type*> arg_types = { obj.type() }; // this obj
-            script_type* ret_tp = obj.type();
-            if (obj.type()->base_type && obj.type()->is_host) {
-                ret_tp = obj.type()->base_type;
-                arg_types.push_back(ctx.type("data")); // subtype id
-            }
-
-            std::vector<var> c_args = { obj };
-            if (obj.type()->sub_type && obj.type()->is_host) {
-                // second parameter should be moduletype id. This should
-                // only happen for host calls, script subtype calls
-                // should be compiled as if all occurrences of 'subtype'
-                // are the subtype used by the related instantiation
-                u64 moduletype = join_u32(obj.type()->owner->id(), obj.type()->sub_type->id());
-                c_args.push_back(ctx.imm(moduletype));
-            }
-
-            if (args.size() > 0) {
-                for (u8 a = 0;a < args.size();a++) {
-                    arg_types.push_back(args[a].type());
-                    c_args.push_back(args[a]);
-                }
-
-                script_function* f = obj.method("constructor", ret_tp, arg_types);
-                if (f) call(ctx, f, c_args);
-            } else {
-                if (obj.has_unambiguous_method("constructor", ret_tp, arg_types)) {
-                    // Default constructor
-                    script_function* f = obj.method("constructor", ret_tp, arg_types);
-                    if (f) call(ctx, f, c_args);
-                } else {
-                    if (obj.has_any_method("constructor")) {
-                        ctx.log()->err(ec::c_no_default_constructor, ctx.node()->ref, obj.type()->name.c_str());
-                    } else {
-                        // No construction necessary
-                    }
-                }
-            }
+            construct_in_place(ctx, obj, args);
         }
 
         void construct_in_memory(context& ctx, const var& obj, const std::vector<var>& args) {
@@ -69,6 +32,10 @@ namespace gjs {
             );
             ctx.add(operation::eq).operand(obj).operand(mem);
 
+            construct_in_place(ctx, obj, args);
+        }
+
+        void construct_in_place(context& ctx, const var& obj, const std::vector<var>& args) {
             std::vector<script_type*> arg_types = { obj.type() }; // this obj
             script_type* ret_tp = obj.type();
             if (obj.type()->base_type && obj.type()->is_host) {
@@ -92,8 +59,28 @@ namespace gjs {
                     c_args.push_back(args[a]);
                 }
 
-                script_function* f = obj.method("constructor", ret_tp, arg_types);
-                if (f) call(ctx, f, c_args);
+                if (args.size() == 1 && args[0].type() == obj.type()) {
+                    // constructor only required if not POD
+                    if (obj.has_unambiguous_method("constructor", ret_tp, arg_types)) {
+                        // may be pod, but use the constructor anyway
+                        script_function* f = obj.method("constructor", ret_tp, arg_types);
+                        if (f) call(ctx, f, c_args);
+                    } else if (ret_tp->is_pod) {
+                        // no constructor, but is copyable
+                        var mem = call(
+                            ctx,
+                            ctx.function("memcopy", ctx.type("void"), { ctx.type("data"), ctx.type("data"), ctx.type("u64") }),
+                            { obj, args[0], ctx.imm((u64)obj.size()) }
+                        );
+                    } else {
+                        // trigger function not found error
+                        obj.method("constructor", ret_tp, arg_types);
+                    }
+                } else {
+                    // constructor required
+                    script_function* f = obj.method("constructor", ret_tp, arg_types);
+                    if (f) call(ctx, f, c_args);
+                }
             } else {
                 if (obj.has_unambiguous_method("constructor", ret_tp, arg_types)) {
                     // Default constructor
@@ -112,46 +99,8 @@ namespace gjs {
         u64 construct_in_module_memory(context& ctx, const var& obj, const std::vector<var>& args) {
             u64 offset = ctx.out.mod->data()->position();
             ctx.add(operation::module_data).operand(obj).operand(ctx.imm((u64)ctx.out.mod->id())).operand(ctx.imm(offset));
-
-            std::vector<script_type*> arg_types = { obj.type() }; // this obj
-            script_type* ret_tp = obj.type();
-            if (obj.type()->base_type && obj.type()->is_host) {
-                ret_tp = obj.type()->base_type;
-                arg_types.push_back(ctx.type("data")); // subtype id
-            }
-            ctx.out.mod->data()->position(offset + ret_tp->size);
-
-            std::vector<var> c_args = { obj };
-            if (obj.type()->sub_type && obj.type()->is_host) {
-                // second parameter should be type id. This should
-                // only happen for host calls, script subtype calls
-                // should be compiled as if all occurrences of 'subtype'
-                // are the subtype used by the related instantiation
-                u64 moduletype = join_u32(obj.type()->owner->id(), obj.type()->sub_type->id());
-                c_args.push_back(ctx.imm(moduletype));
-            }
-
-            if (args.size() > 0) {
-                for (u8 a = 0;a < args.size();a++) {
-                    arg_types.push_back(args[a].type());
-                    c_args.push_back(args[a]);
-                }
-
-                script_function* f = obj.method("constructor", ret_tp, arg_types);
-                if (f) call(ctx, f, c_args);
-            } else {
-                if (obj.has_unambiguous_method("constructor", ret_tp, arg_types)) {
-                    // Default constructor
-                    script_function* f = obj.method("constructor", ret_tp, arg_types);
-                    if (f) call(ctx, f, c_args);
-                } else {
-                    if (obj.has_any_method("constructor")) {
-                        ctx.log()->err(ec::c_no_default_constructor, ctx.node()->ref, obj.type()->name.c_str());
-                    } else {
-                        // No construction necessary
-                    }
-                }
-            }
+            
+            construct_in_place(ctx, obj, args);
 
             return offset;
         }
@@ -161,7 +110,7 @@ namespace gjs {
             script_type* tp = ctx.type(n->data_type);
             ctx.pop_node();
             ctx.push_node(n->identifier);
-            var& v = ctx.empty_var(tp, *n->identifier);
+            var v = ctx.empty_var(tp, *n->identifier);
             ctx.pop_node();
 
             if (!ctx.compiling_function) {
@@ -208,7 +157,8 @@ namespace gjs {
                             ctx.add(operation::eq).operand(v).operand(val);
                         } else {
                             v.raise_stack_flag();
-                            construct_on_stack(ctx, v, { expression(ctx, n->initializer->body) });
+                            var val = expression(ctx, n->initializer->body);
+                            ctx.add(operation::eq).operand(v).operand(val);
                         }
                         ctx.pop_node();
                     } else {
@@ -251,6 +201,7 @@ namespace gjs {
 
             ctx.push_node(n);
             script_type* tp = ctx.new_types->add(name, name);
+            tp->is_pod = true;
             tp->owner = ctx.out.mod;
 
             std::vector<parse::ast*> methods;
@@ -264,6 +215,7 @@ namespace gjs {
                     case nt::class_property: {
                         std::string name = *cn->identifier;
                         script_type* p_tp = ctx.type(cn->data_type);
+                        if (!p_tp->is_pod) tp->is_pod = false;
                         u8 flags = 0;
                         if (cn->is_static) flags |= bind::pf_static;
                         if (cn->is_const) flags |= bind::pf_read_only;
@@ -354,6 +306,7 @@ namespace gjs {
             std::string name = n->is_subtype ? std::string(*n->identifier) + "<" + ctx.subtype_replacement->name + ">" : *n->identifier;
 
             script_type* tp = ctx.new_types->add(name, name);
+            tp->is_pod = true;
             tp->owner = ctx.out.mod;
 
             parse::ast* cn = n->body;
@@ -363,6 +316,7 @@ namespace gjs {
                         std::string name = *cn->identifier;
                         script_type* p_tp = ctx.type(cn->data_type);
                         u8 flags = 0;
+                        if (!p_tp->is_pod) tp->is_pod = false;
                         if (cn->is_static) flags |= bind::pf_static;
                         if (cn->is_const) flags |= bind::pf_read_only;
 
@@ -403,6 +357,7 @@ namespace gjs {
                 case nt::conditional:
                 case nt::constant:
                 case nt::identifier:
+                case nt::format_expression:
                 case nt::operation: { expression(ctx, n); break; }
                 default: {
                     throw exc(ec::c_invalid_node, n->ref);

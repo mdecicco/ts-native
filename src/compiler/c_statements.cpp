@@ -1,13 +1,13 @@
-#include <compiler/context.h>
-#include <compiler/compile.h>
-#include <compiler/function.h>
-#include <parser/ast.h>
-#include <common/script_type.h>
-#include <common/script_function.h>
-#include <common/compile_log.h>
-#include <common/errors.h>
-#include <common/script_context.h>
-#include <common/script_module.h>
+#include <gjs/compiler/context.h>
+#include <gjs/compiler/compile.h>
+#include <gjs/compiler/function.h>
+#include <gjs/parser/ast.h>
+#include <gjs/common/script_type.h>
+#include <gjs/common/script_function.h>
+#include <gjs/common/compile_log.h>
+#include <gjs/common/errors.h>
+#include <gjs/common/script_context.h>
+#include <gjs/common/script_module.h>
 
 namespace gjs {
     using ec = error::ecode;

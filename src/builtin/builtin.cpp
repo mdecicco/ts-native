@@ -1,12 +1,12 @@
-#include <common/script_function.h>
-#include <common/script_type.h>
-#include <builtin/builtin.h>
-#include <builtin/script_array.h>
-#include <builtin/script_string.h>
-#include <builtin/script_buffer.h>
-#include <common/script_context.h>
-#include <common/script_module.h>
-#include <bind/bind.h>
+#include <gjs/common/script_function.h>
+#include <gjs/common/script_type.h>
+#include <gjs/builtin/builtin.h>
+#include <gjs/builtin/script_array.h>
+#include <gjs/builtin/script_string.h>
+#include <gjs/builtin/script_buffer.h>
+#include <gjs/common/script_context.h>
+#include <gjs/common/script_module.h>
+#include <gjs/bind/bind.h>
 
 namespace gjs {
     // todo: thread_id:ctx map
@@ -76,6 +76,7 @@ namespace gjs {
         tp->is_builtin = true;
         tp->size = sizeof(void*);
         tp->is_unsigned = true;
+        tp->is_pod = true;
 
         tp = ctx->global()->types()->add("error_type", "error_type");
         tp->owner = ctx->global();

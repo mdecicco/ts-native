@@ -1,4 +1,4 @@
-#include <vm/allocator.h>
+#include <gjs/vm/allocator.h>
 #include <stdlib.h>
 
 namespace gjs {

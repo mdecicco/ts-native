@@ -1,4 +1,4 @@
-#include <backends/backend.h>
+#include <gjs/backends/backend.h>
 
 namespace gjs {
     backend::backend() : m_ctx(nullptr) {

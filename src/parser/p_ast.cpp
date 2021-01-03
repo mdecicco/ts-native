@@ -1,5 +1,5 @@
-#include <lexer/token.h>
-#include <parser/ast.h>
+#include <gjs/lexer/token.h>
+#include <gjs/parser/ast.h>
 
 namespace gjs {
     namespace parse {
@@ -30,6 +30,7 @@ namespace gjs {
             "type_identifier",
             "operation",
             "scoped_block",
+            "format_expression",
             "context_type",
             "context_function"
         };

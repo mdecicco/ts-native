@@ -1,7 +1,7 @@
-#include <common/script_function.h>
-#include <common/script_type.h>
-#include <util/util.h>
-#include <bind/bind.h>
+#include <gjs/common/script_function.h>
+#include <gjs/common/script_type.h>
+#include <gjs/util/util.h>
+#include <gjs/bind/bind.h>
 
 namespace gjs {
     type_manager::type_manager(script_context* ctx) : m_ctx(ctx) {
@@ -105,6 +105,7 @@ namespace gjs {
     script_type::script_type() {
         m_id = 0;
         size = 0;
+        is_pod = false;
         is_primitive = false;
         is_floating_point = false;
         is_unsigned = false;

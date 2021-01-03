@@ -1,4 +1,4 @@
-#include <backends/stack.h>
+#include <gjs/backends/stack.h>
 #include <assert.h>
 
 namespace gjs {

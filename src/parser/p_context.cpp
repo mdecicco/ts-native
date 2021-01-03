@@ -1,7 +1,7 @@
-#include <parser/context.h>
-#include <common/script_context.h>
-#include <common/script_type.h>
-#include <common/script_module.h>
+#include <gjs/parser/context.h>
+#include <gjs/common/script_context.h>
+#include <gjs/common/script_type.h>
+#include <gjs/common/script_module.h>
 
 namespace gjs {
     namespace parse {

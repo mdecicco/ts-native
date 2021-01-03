@@ -1,15 +1,15 @@
-#include <compiler/variable.h>
-#include <compiler/context.h>
-#include <compiler/function.h>
-#include <compiler/compile.h>
-#include <parser/ast.h>
-#include <common/errors.h>
-#include <common/warnings.h>
-#include <common/script_context.h>
-#include <common/script_type.h>
-#include <common/script_function.h>
-#include <common/script_module.h>
-#include <util/robin_hood.h>
+#include <gjs/compiler/variable.h>
+#include <gjs/compiler/context.h>
+#include <gjs/compiler/function.h>
+#include <gjs/compiler/compile.h>
+#include <gjs/parser/ast.h>
+#include <gjs/common/errors.h>
+#include <gjs/common/warnings.h>
+#include <gjs/common/script_context.h>
+#include <gjs/common/script_type.h>
+#include <gjs/common/script_function.h>
+#include <gjs/common/script_module.h>
+#include <gjs/util/robin_hood.h>
 
 namespace gjs {
     using exc = error::exception;

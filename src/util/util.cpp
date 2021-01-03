@@ -1,11 +1,11 @@
 #include <stdarg.h>
-#include <util/util.h>
-#include <common/script_context.h>
-#include <backends/b_vm.h>
-#include <common/script_function.h>
-#include <common/script_type.h>
-#include <common/script_module.h>
-#include <common/errors.h>
+#include <gjs/util/util.h>
+#include <gjs/common/script_context.h>
+#include <gjs/backends/b_vm.h>
+#include <gjs/common/script_function.h>
+#include <gjs/common/script_type.h>
+#include <gjs/common/script_module.h>
+#include <gjs/common/errors.h>
 #include <stdio.h>
 using namespace std;
 
@@ -38,23 +38,24 @@ namespace gjs {
         return out;
     }
 
-    vector<string> get_lines(const string& str, const string& delimiters) {
+    vector<string> get_lines(const string& str) {
         vector<string> out;
 
         string cur;
-        bool lastWasDelim = false;
         for(size_t i = 0;i < str.length();i++) {
-            bool isDelim = false;
-            for(unsigned char d = 0;d < delimiters.length() && !isDelim;d++) {
-                isDelim = str[i] == delimiters[d];
-            }
-
-            if (isDelim) {
+            if (str[i] == '\n') {
                 out.push_back(cur);
-                cur = "";
+                cur.clear();
+                // handle \n\r line endings
+                if (i + 1 < str.length() && str[i + 1] == '\r') i++;
+                continue;
+            } else if (str[i] == '\r') {
+                out.push_back(cur);
+                cur.clear();
+                // handle \r\n line endings
+                if (i + 1 < str.length() && str[i + 1] == '\n') i++;
                 continue;
             }
-
             cur += str[i];
         }
 
@@ -95,9 +96,10 @@ namespace gjs {
         return nullptr;
     }
 
-    void print_log(script_context* ctx) {
+    void print_log(script_context* ctx, u32 context_line_count) {
         for (u8 i = 0;i < ctx->compiler()->log()->errors.size();i++) {
             compile_message& m = ctx->compiler()->log()->errors[i];
+            log_file& f = ctx->compiler()->log()->files[m.src.module];
 
             // useless
             if (m.code.e == error::ecode::c_compile_finished_with_errors) continue;
@@ -114,9 +116,19 @@ namespace gjs {
                 }
             }
             if (wscount > m.src.col) wscount = m.src.col;
-            printf("%5d | %s\n", m.src.line, ln.c_str());
+
+            for (i32 l = i32(m.src.line) - i32(context_line_count);l < m.src.line;l++) {
+                if (l < 0) continue;
+                printf("%5d | %s\n", l + 1, f.lines[l].c_str());
+            }
+
+            printf("%5d | %s\n", m.src.line + 1, ln.c_str());
             for (u32 i = 0;i < m.src.col - wscount;i++) printf(" ");
             printf("        ^\n");
+
+            for (i32 l = i32(m.src.line) + 1;l < m.src.line + i32(context_line_count) + 1 && l < f.lines.size();l++) {
+                printf("%5d | %s\n", l + 1, f.lines[l].c_str());
+            }
         }
 
         for (u8 i = 0;i < ctx->compiler()->log()->warnings.size();i++) {
@@ -133,7 +145,7 @@ namespace gjs {
                 }
             }
             if (wscount > m.src.col) wscount = m.src.col;
-            printf("%5d | %s\n", m.src.line, ln.c_str());
+            printf("%5d | %s\n", m.src.line + 1, ln.c_str());
             for (u32 i = 0;i < m.src.col - wscount;i++) printf(" ");
             printf("        ^\n");
         }

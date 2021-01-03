@@ -1,11 +1,11 @@
-#include <common/script_module.h>
-#include <builtin/script_buffer.h>
-#include <util/util.h>
+#include <gjs/common/script_module.h>
+#include <gjs/builtin/script_buffer.h>
+#include <gjs/util/util.h>
 
-#include <common/script_type.h>
-#include <common/script_function.h>
-#include <backends/backend.h>
-#include <common/script_context.h>
+#include <gjs/common/script_type.h>
+#include <gjs/common/script_function.h>
+#include <gjs/backends/backend.h>
+#include <gjs/common/script_context.h>
 
 namespace gjs {
     script_module::script_module(script_context* ctx, const std::string& name) : m_ctx(ctx), m_data(nullptr), m_init(nullptr) {
@@ -41,6 +41,12 @@ namespace gjs {
         auto it = m_local_map.find(name);
         if (it == m_local_map.end()) return invalid;
         return m_locals[it->getSecond()];
+    }
+
+    void* script_module::local_ptr(const std::string& name) const {
+        auto it = m_local_map.find(name);
+        if (it == m_local_map.end()) return nullptr;
+        return m_data->data(m_locals[it->getSecond()].offset);
     }
 
     bool script_module::has_function(const std::string& name) {

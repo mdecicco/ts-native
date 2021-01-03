@@ -1,6 +1,6 @@
-#include <compiler/context.h>
-#include <compiler/compile.h>
-#include <parser/ast.h>
+#include <gjs/compiler/context.h>
+#include <gjs/compiler/compile.h>
+#include <gjs/parser/ast.h>
 
 namespace gjs {
     namespace compile {

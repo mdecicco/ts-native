@@ -1,5 +1,5 @@
-#include <builtin/script_string.h>
-#include <builtin/builtin.h>
+#include <gjs/builtin/script_string.h>
+#include <gjs/builtin/builtin.h>
 
 namespace gjs {
     script_string::script_string() : m_data(nullptr), m_len(0), m_capacity(32) {

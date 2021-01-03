@@ -1,4 +1,4 @@
-#include <common/source_map.h>
+#include <gjs/common/source_map.h>
 using namespace std;
 
 namespace gjs {

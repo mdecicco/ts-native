@@ -1,7 +1,7 @@
-#include <parser/parse.h>
-#include <parser/context.h>
-#include <parser/ast.h>
-#include <common/errors.h>
+#include <gjs/parser/parse.h>
+#include <gjs/parser/context.h>
+#include <gjs/parser/ast.h>
+#include <gjs/common/errors.h>
 
 namespace gjs {
     using tt = lex::token_type;
@@ -204,6 +204,7 @@ namespace gjs {
             }
             
             if (!ctx.match({ tt::open_block })) throw exc(ec::p_expected_char, ctx.current(), '{');
+            ctx.consume();
 
             bool expect_end = false;
             while (!ctx.at_end() && !ctx.match({ tt::close_block })) {
@@ -216,8 +217,6 @@ namespace gjs {
                 p->data_type = type_identifier(ctx);
                 p->ref = p->data_type->ref;
 
-                if (!ctx.match({ tt::colon })) throw exc(ec::p_expected_char, ctx.current(), ':');
-                ctx.consume();
                 p->identifier = identifier(ctx);
 
                 if (!c->body) c->body = p;
@@ -237,7 +236,7 @@ namespace gjs {
 
             ctx.consume();
 
-            return nullptr;
+            return c;
         };
     };
 };

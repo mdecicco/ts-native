@@ -1,4 +1,4 @@
-#include <vm/vm_state.h>
+#include <gjs/vm/vm_state.h>
 
 namespace gjs {
     vm_memory::vm_memory(u32 size) : m_size(size) {

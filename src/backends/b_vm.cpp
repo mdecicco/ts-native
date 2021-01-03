@@ -1,11 +1,11 @@
-#include <backends/b_vm.h>
-#include <backends/register_allocator.h>
-#include <compiler/tac.h>
-#include <common/script_type.h>
-#include <common/script_function.h>
-#include <common/script_context.h>
-#include <common/script_module.h>
-#include <bind/bind.h>
+#include <gjs/backends/b_vm.h>
+#include <gjs/backends/register_allocator.h>
+#include <gjs/compiler/tac.h>
+#include <gjs/common/script_type.h>
+#include <gjs/common/script_function.h>
+#include <gjs/common/script_context.h>
+#include <gjs/common/script_module.h>
+#include <gjs/bind/bind.h>
 
 namespace gjs {
     #define is_fpr(x) ((x >= vmr::f0 && x <= vmr::f15) || (x >= vmr::fa0 && x <= vmr::fa7))

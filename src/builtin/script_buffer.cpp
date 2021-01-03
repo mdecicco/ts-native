@@ -1,7 +1,7 @@
-#include <builtin/script_buffer.h>
-#include <builtin/builtin.h>
-#include <builtin/script_string.h>
-#include <common/errors.h>
+#include <gjs/builtin/script_buffer.h>
+#include <gjs/builtin/builtin.h>
+#include <gjs/builtin/script_string.h>
+#include <gjs/common/errors.h>
 
 using namespace gjs::error;
 

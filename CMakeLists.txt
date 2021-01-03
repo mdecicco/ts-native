@@ -7,7 +7,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 set(
     include_dirs
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/deps/dyncall/include
     ${CMAKE_CURRENT_SOURCE_DIR}/deps/llvm/include
     ${CMAKE_CURRENT_SOURCE_DIR}/build/deps/llvm/include
@@ -19,70 +19,43 @@ set(
 include_directories(${include_dirs})
 link_directories(${library_dirs})
 
-add_subdirectory("./deps")
-add_subdirectory("./tests")
-add_subdirectory("./playground")
+set (all_sources "")
+macro(add_sources group dir)
+    set(_all "")
 
-file(GLOB_RECURSE gjs_src
-    "src/*.h"
-    "src/*.hpp"
-    "src/*.cpp"
-    "src/compiler/*.h"
-    "src/compiler/*.hpp"
-    "src/compiler/*.cpp"
-    "src/lexer/*.h"
-    "src/lexer/*.hpp"
-    "src/lexer/*.cpp"
-    "src/parser/*.h"
-    "src/parser/*.hpp"
-    "src/parser/*.cpp"
-    "src/vm/*.h"
-    "src/vm/*.hpp"
-    "src/vm/*.cpp"
-    "src/backends/*.h"
-    "src/backends/*.hpp"
-    "src/backends/*.cpp"
-    "src/util/*.h"
-    "src/util/*.hpp"
-    "src/util/*.cpp"
-    "src/bind/*.h"
-    "src/bind/*.hpp"
-    "src/bind/*.cpp"
-    "src/builtin/*.h"
-    "src/builtin/*.hpp"
-    "src/builtin/*.cpp"
-    "src/common/*.h"
-    "src/common/*.hpp"
-    "src/common/*.cpp"
-)
+    file(GLOB _inc "include/gjs/${dir}/*.h" "include/gjs/${dir}/*.hpp")
+    list(APPEND _all ${_inc})
+
+    file(GLOB _src "src/${dir}/*.cpp")
+    list(APPEND _all ${_src})
+
+    list(APPEND all_sources ${_all})
+    source_group(${group} FILES ${_all})
+
+    unset(_inc)
+    unset(_src)
+    unset(_all)
+endmacro(add_sources)
+
+add_sources("src"           ".")
+add_sources("src/compiler"  "compiler")
+add_sources("src/lexer"     "lexer")
+add_sources("src/parser"    "parser")
+add_sources("src/util"      "util")
+add_sources("src/vm"        "vm")
+add_sources("src/common"    "common")
+add_sources("src/builtin"   "builtin")
+add_sources("src/bind"      "bind")
+add_sources("src/backends"  "backends")
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/lib)
 
-add_library(gjs ${gjs_src})
+add_library(gjs ${all_sources})
 
-MACRO(SOURCE_GROUP_BY_FOLDER target)
-  SET(SOURCE_GROUP_DELIMITER "/")
-  SET(last_dir "")
-  SET(files "")
-  FOREACH(file ${${target}_src})
-    file(RELATIVE_PATH relative_file "${PROJECT_SOURCE_DIR}" ${file})
-    GET_FILENAME_COMPONENT(dir "${relative_file}" PATH)
-    IF (NOT "${dir}" STREQUAL "${last_dir}")
-      IF (files)
-        SOURCE_GROUP("${last_dir}" FILES ${files})
-      ENDIF (files)
-      SET(files "")
-    ENDIF (NOT "${dir}" STREQUAL "${last_dir}")
-    SET(files ${files} ${file})
-    SET(last_dir "${dir}")
-  ENDFOREACH(file)
-  IF (files)
-    SOURCE_GROUP("${last_dir}" FILES ${files})
-  ENDIF (files)
-ENDMACRO(SOURCE_GROUP_BY_FOLDER)
-
-SOURCE_GROUP_BY_FOLDER(gjs)
+add_subdirectory("./deps")
+add_subdirectory("./tests")
+add_subdirectory("./playground")
 
 target_link_libraries(gjs
     dyncall_s
@@ -133,4 +106,3 @@ target_link_libraries(gjs
     LLVMScalarOpts
     LLVMMCDisassembler
 )
-add_custom_command(TARGET gjs COMMAND robocopy ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/include *.h -MIR)

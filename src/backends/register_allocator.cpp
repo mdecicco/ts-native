@@ -1,8 +1,8 @@
-#include <backends/register_allocator.h>
-#include <compiler/tac.h>
-#include <common/script_type.h>
-#include <common/script_function.h>
-#include <common/pipeline.h>
+#include <gjs/backends/register_allocator.h>
+#include <gjs/compiler/tac.h>
+#include <gjs/common/script_type.h>
+#include <gjs/common/script_function.h>
+#include <gjs/common/pipeline.h>
 
 namespace gjs {
     using namespace compile;

@@ -1,7 +1,7 @@
-#include <parser/parse.h>
-#include <parser/context.h>
-#include <parser/ast.h>
-#include <common/errors.h>
+#include <gjs/parser/parse.h>
+#include <gjs/parser/context.h>
+#include <gjs/parser/ast.h>
+#include <gjs/common/errors.h>
 
 namespace gjs {
     using tt = lex::token_type;
@@ -126,6 +126,11 @@ namespace gjs {
         }
 
         ast* any(context& ctx) {
+            if (ctx.match({ tt::eof })) {
+                ctx.consume();
+                return nullptr;
+            }
+
             if (ctx.match({ tt::semicolon })) {
                 ast* r = new ast();
                 r->type = nt::empty;
