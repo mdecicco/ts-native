@@ -26,7 +26,7 @@ namespace gjs {
             bool is_dtor = false;
 
             script_type* method_of = ctx.class_tp();
-            if (method_of) {
+            if (method_of && !n->is_static) {
                 arg_types.push_back(method_of);
                 arg_names.push_back("this");
 
@@ -73,7 +73,10 @@ namespace gjs {
                 f->signature.return_type = ret;
                 f->signature.return_loc = vm_register::v0;
                 f->is_method_of = method_of;
+                f->is_static = n->is_static;
                 f->access.entry = 0;
+
+                ctx.symbols.set(fname, f);
                 
                 for (u8 i = 0;i < arg_types.size();i++) {
                     f->arg(arg_types[i]);
@@ -101,6 +104,10 @@ namespace gjs {
                 f->owner = ctx.out.mod;
                 f->signature.return_type = ret;
                 f->is_method_of = method_of;
+                f->is_static = n->is_static;
+
+                ctx.symbols.set(fname, f);
+
                 ctx.new_functions.push_back(f);
                 ctx.push_block(f);
 
@@ -127,106 +134,110 @@ namespace gjs {
             return f;
         }
 
-        var evaluate_member(context& ctx, ast* n) {
-            if (n->lvalue->type == nt::identifier) {
-                return ctx.get_var(*n->lvalue);
-            }
-            return ctx.error_var();
+        inline bool is_member_accessor(ast* n) {
+            return n->type == nt::operation && n->op == ot::member;
         }
 
-        var function_call(context& ctx, ast* n) {
-            // callee could be either an identifier or a member operation that ultimately refers to a function
-            if (n->callee->type == nt::operation && n->callee->op == ot::member) {
-                if (n->callee->lvalue->type == nt::type_identifier) {
-                    ctx.push_node(n->callee->lvalue);
-                    script_type* t = ctx.type(n->callee->lvalue);
-                    ctx.pop_node();
+        inline bool is_identifier(ast* n) {
+            return n->type == nt::identifier;
+        }
 
-                    var dummy = ctx.dummy_var(t);
-                    std::vector<var> args;
-                    std::vector<script_type*> arg_types;
-                    ast* a = n->arguments;
-                    while (a) {
-                        var arg = expression(ctx, a);
-                        args.push_back(arg);
-                        arg_types.push_back(arg.type());
-                        a = a->next;
-                    }
-                    script_function* func = dummy.method(*n->callee->rvalue, nullptr, arg_types);
-                    if (func) return call(ctx, func, args);
-                } else {
-                    if (n->callee->lvalue->type == nt::identifier) {
-                        std::string name = *n->callee->lvalue;
-                        // check if lvalue refers to an aliased import
-                        for (u16 i = 0;i < ctx.imports.size();i++) {
-                            if (ctx.imports[i]->alias == name) {
-                                std::string fname = *n->callee->rvalue;
-                                bool is_imported = false;
-                                for (u16 s = 0;s < ctx.imports[i]->symbols.size() && !is_imported;s++) {
-                                    auto& sym = ctx.imports[i]->symbols[s];
-                                    if (sym.alias.length() == 0 && sym.name == fname && sym.is_func) is_imported = true;
-                                    else if (sym.alias == fname && sym.is_func) is_imported = true;
-                                }
+        struct call_info {
+            script_function* callee;
+            std::vector<var> args;
+            std::vector<script_type*> arg_types;
+            var this_obj;
+        };
 
-                                if (is_imported) {
-                                    std::vector<var> args = { };
-                                    std::vector<script_type*> arg_types = { };
+        bool resolve_function(context& ctx, ast* call, call_info& out) {
+            ast* callee = call->callee;
+            std::vector<script_function*> funcs;
+            bool was_ambiguous = false;
 
-                                    ast* a = n->arguments;
-                                    while (a) {
-                                        var arg = expression(ctx, a);
-                                        args.push_back(arg);
-                                        arg_types.push_back(arg.type());
-                                        a = a->next;
-                                    }
-                                    script_function* func = ctx.function(name, fname, nullptr, arg_types);
-                                    if (func) return call(ctx, func, args);
+            // possibilities:
+            // [module].[function]
+            // [module].[type].[static function]
+            // [type].[static function]
+            // [expression | var].[function]
+            // [function]
 
-                                    ctx.push_node(n->callee);
-                                    var ret = ctx.error_var();
-                                    ctx.pop_node();
-                                    return ret;
-                                }
+            if (is_member_accessor(callee)) {
+                ast* left = callee->lvalue;
+                ast* right = callee->rvalue;
+                std::string func_name = *right;
+                
+                if (is_member_accessor(left)) {
+                    ast* lleft = left->lvalue;
+                    ast* lright = left->rvalue;
+
+                    if (is_identifier(lleft) && is_identifier(lright)) {
+                        std::string mod_name = *lleft;
+                        std::string type_name = *lright;
+
+                        symbol_table* mod = ctx.symbols.get_module(*lleft);
+                        if (mod) {
+                            symbol_table* type = mod->get_type(*lright);
+                            if (type) {
+                                // [module].[type].[static function]
+                                out.callee = type->get_func(type->type->name + "::" + func_name, nullptr, out.arg_types);
+                                return out.callee != nullptr;
                             }
                         }
                     }
-
-                    var obj = expression(ctx, n->callee->lvalue);
-
-                    std::vector<var> args = { obj };
-                    std::vector<script_type*> arg_types = { };
-
-                    if (obj.type()->sub_type && obj.type()->is_host) {
-                        // Host subtype classes will expect 'this' to be
-                        // the base type, not including the subtype
-                        arg_types.push_back(obj.type()->base_type);
-                    } else {
-                        // 'this'
-                        arg_types.push_back(obj.type());
+                } else if (is_identifier(left)) {
+                    // [type].[static function]
+                    symbol_table* type = ctx.symbols.get_type(*left);
+                    if (type) {
+                        out.callee = type->get_func(type->type->name + "::" + func_name, nullptr, out.arg_types);
+                        return out.callee != nullptr;
                     }
 
-                    ast* a = n->arguments;
-                    while (a) {
-                        var arg = expression(ctx, a);
-                        args.push_back(arg);
-                        arg_types.push_back(arg.type());
-                        a = a->next;
+                    // [module].[function]
+                    symbol_table* mod = ctx.symbols.get_module(*left);
+                    if (mod) {
+                        out.callee = mod->get_func(func_name, nullptr, out.arg_types);
+                        return out.callee != nullptr;
                     }
-                    script_function* func = obj.method(*n->callee->rvalue, nullptr, arg_types);
-                    if (func) return call(ctx, func, args);
+                } else if (left->type == nt::type_identifier) {
+                    script_type* type = ctx.type(left);
+                    if (type) {
+                        var dummy = ctx.dummy_var(type);
+                        out.callee = dummy.method(func_name, nullptr, out.arg_types);
+                        return out.callee != nullptr;
+                    }
                 }
-            } else if (n->callee->type == nt::identifier) {
-                std::vector<var> args;
-                std::vector<script_type*> arg_types;
-                ast* a = n->arguments;
-                while (a) {
-                    var arg = expression(ctx, a);
-                    args.push_back(arg);
-                    arg_types.push_back(arg.type());
-                    a = a->next;
+
+                // [expression | var].[method]
+                var expr = expression(ctx, left);
+                if (expr.type()->name != "error_type") {
+                    out.args.insert(out.args.begin(), expr);
+                    out.arg_types.insert(out.arg_types.begin(), expr.type());
+                    out.callee = expr.method(func_name, nullptr, out.arg_types);
+                    out.this_obj = expr;
+                    return out.callee != nullptr;
                 }
-                script_function* func = ctx.function(*n->callee, nullptr, arg_types);
-                if (func) return call(ctx, func, args);
+            } else if (is_identifier(callee)) {
+                // [function]
+                out.callee = ctx.symbols.get_func(*callee, nullptr, out.arg_types);
+                return out.callee != nullptr;
+            }
+
+            return false;
+        }
+
+        var function_call(context& ctx, ast* n) {
+            call_info cinfo = { nullptr, {}, {}, ctx.error_var() };
+
+            ast* a = n->arguments;
+            while (a) {
+                var arg = expression(ctx, a);
+                cinfo.args.push_back(arg);
+                cinfo.arg_types.push_back(arg.type());
+                a = a->next;
+            }
+
+            if (resolve_function(ctx, n, cinfo)) {
+                return call(ctx, cinfo.callee, cinfo.args);
             }
 
             ctx.push_node(n->callee);

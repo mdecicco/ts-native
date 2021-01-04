@@ -22,6 +22,7 @@ namespace gjs {
                 script_type* type;
                 std::string name;
                 source_ref ref;
+                script_module* owner;
             };
             ~script_module();
 
@@ -97,5 +98,6 @@ namespace gjs {
             type_manager* m_types;
             script_context* m_ctx;
             script_buffer* m_data;
+            bool m_initialized;
     };
 };

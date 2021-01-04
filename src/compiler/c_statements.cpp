@@ -15,30 +15,31 @@ namespace gjs {
     namespace compile {
         void import_statement(context& ctx, parse::ast* n) {
             std::string from = *n->body;
-            std::string as = n->identifier ? std::string(*n->identifier) : "";
 
-            context::import* im = new context::import;
-            im->mod = ctx.env->module(from);
-            im->alias = as;
+            script_module* mod = ctx.env->module(from);
+            mod->init();
             
             if (n->body->next) {
                 // specific symbols
                 parse::ast* i = n->body->next;
                 while (i) {
                     std::string symbol = *i;
-                    std::string alias = i->identifier ? std::string(*i->identifier) : "";
-                    script_type* tp = im->mod->types()->get(hash(symbol));
-                    script_enum* en = im->mod->get_enum(symbol);
+                    std::string name = i->identifier ? std::string(*i->identifier) : symbol;
+                    script_type* tp = mod->types()->get(hash(symbol));
+                    script_enum* en = mod->get_enum(symbol);
 
-                    if (tp) {
-                        im->symbols.push_back({ symbol, alias, tp, nullptr, false, false, true, false });
-                    } else if (im->mod->has_local(symbol)) {
-                        auto& l = im->mod->local(symbol);
-                        im->symbols.push_back({ symbol, alias, l.type, nullptr, true, false, false, false });
-                    } else if (im->mod->has_function(symbol)) {
-                        im->symbols.push_back({ symbol, alias, nullptr, nullptr, false, true, false, false });
-                    } else if (en) {
-                        im->symbols.push_back({ symbol, alias, nullptr, en, false, false, false, true });
+                    if (tp) ctx.symbols.set(name, tp);
+                    else if (mod->has_local(symbol)) ctx.symbols.set(name, &mod->local(symbol));
+                    else if (en) ctx.symbols.set(name, en);
+                    else if (mod->has_function(symbol)) {
+                        auto funcs = mod->function_overloads(symbol);
+                        u32 c = 0;
+                        for (u32 f = 0;f < funcs.size();f++) {
+                            if (funcs[f]->is_method_of) continue;
+                            c++;
+                            ctx.symbols.set(name, funcs[f]);
+                        }
+                        if (!c) ctx.log()->err(ec::c_symbol_not_found_in_module, i->ref, symbol.c_str(), from.c_str());
                     } else {
                         ctx.log()->err(ec::c_symbol_not_found_in_module, i->ref, symbol.c_str(), from.c_str());
                     }
@@ -47,20 +48,22 @@ namespace gjs {
                 }
             } else {
                 // all symbols
-                const auto& types = im->mod->types()->all();
-                for (u16 i = 0;i < types.size();i++) im->symbols.push_back({ types[i]->name, "", types[i], nullptr, false, false, true, false });
+                std::string name = n->identifier ? std::string(*n->identifier) : from;
+                symbol_table* st = ctx.symbols.nest(name);
+                st->module = mod;
 
-                auto functions = im->mod->function_names();
-                for (u16 i = 0;i < functions.size();i++) im->symbols.push_back({ functions[i], "", nullptr, nullptr, false, true, false, false });
+                const auto& types = mod->types()->all();
+                for (u16 i = 0;i < types.size();i++) st->set(types[i]->name, types[i]);
 
-                const auto& locals = im->mod->locals();
-                for (u16 i = 0;i < locals.size();i++) im->symbols.push_back({ locals[i].name, "", locals[i].type, nullptr, true, false, false, false });
+                const auto& locals = mod->locals();
+                for (u16 i = 0;i < locals.size();i++) st->set(locals[i].name, &locals[i]);
 
-                const auto& enums = im->mod->enums();
-                for (u16 i = 0;i < enums.size();i++) im->symbols.push_back({ enums[i]->name(), "", nullptr, enums[i], false, false, false, true });
+                const auto& enums = mod->enums();
+                for (u16 i = 0;i < enums.size();i++) st->set(enums[i]->name(), enums[i]);
+
+                auto functions = mod->functions();
+                for (u16 i = 0;i < functions.size();i++) st->set(functions[i]->name, functions[i]);
             }
-
-            ctx.imports.push_back(im);
         }
 
         void return_statement(context& ctx, parse::ast* n) {

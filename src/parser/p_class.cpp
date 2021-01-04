@@ -115,6 +115,14 @@ namespace gjs {
                 }
                 
                 if (ctx.match({ "static" })) {
+                    if (ctx.pattern({ tt::any, tt::identifier, tt::identifier, tt::open_parenth })) {
+                        ctx.consume();
+                        ast* f = function_declaration(ctx);
+                        f->is_static = true;
+                        add_to_body(f);
+                        continue;
+                    }
+
                     ast* decl = new ast();
                     decl->type = nt::class_property;
                     decl->src(ctx.current());

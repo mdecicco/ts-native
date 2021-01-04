@@ -53,9 +53,7 @@ namespace gjs {
 
         var operation(context& ctx, ast* n) {
             switch (n->op) {
-                case ot::invalid: {
-                    break;
-                }
+                case ot::invalid:        break;
                 case ot::add:            return expression_inner(ctx, n->lvalue) + expression_inner(ctx, n->rvalue);
                 case ot::sub:            return expression_inner(ctx, n->lvalue) - expression_inner(ctx, n->rvalue);
                 case ot::mul:            return expression_inner(ctx, n->lvalue) * expression_inner(ctx, n->rvalue);

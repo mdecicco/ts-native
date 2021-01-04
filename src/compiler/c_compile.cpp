@@ -149,6 +149,8 @@ namespace gjs {
                         v.set_mem_ptr(ptr);
                     }
                 }
+
+                ctx.symbols.set(v.name(), &ctx.out.mod->local(v.name()));
             } else {
                 if (n->initializer) {
                     if (!tp->is_primitive) {
@@ -204,6 +206,7 @@ namespace gjs {
             script_type* tp = ctx.new_types->add(name, name);
             tp->is_pod = true;
             tp->owner = ctx.out.mod;
+            ctx.symbols.set(name, tp);
 
             std::vector<parse::ast*> methods;
             parse::ast* cn = n->body;
@@ -262,6 +265,7 @@ namespace gjs {
             ctx.pop_node();
 
             ctx.deferred.push_back({ n, ctx.subtype_replacement });
+            ctx.symbols.set(name, tp);
 
             return tp;
         }
@@ -334,6 +338,7 @@ namespace gjs {
             }
             ctx.pop_node();
 
+            ctx.symbols.set(name, tp);
             return tp;
         }
 
@@ -373,6 +378,8 @@ namespace gjs {
                 val_asc++;
                 v = v->next;
             }
+
+            ctx.symbols.set(e->name(), e);
         }
 
         void any(context& ctx, ast* n) {
@@ -416,23 +423,27 @@ namespace gjs {
         }
 
         void import_globals(context& ctx) {
-            context::import* im = new context::import;
-            im->mod = ctx.env->global();
-            im->alias = "";
+            script_module* mod = ctx.env->global();
 
-            const auto& types = im->mod->types()->all();
-            for (u16 i = 0;i < types.size();i++) im->symbols.push_back({ types[i]->name, "", types[i], nullptr, false, false, true, false });
+            const auto& types = mod->types()->all();
+            for (u16 i = 0;i < types.size();i++) {
+                ctx.symbols.set(types[i]->name, types[i]);
+            }
 
-            auto functions = im->mod->function_names();
-            for (u16 i = 0;i < functions.size();i++) im->symbols.push_back({ functions[i], "", nullptr, nullptr, false, true, false, false });
+            auto functions = mod->functions();
+            for (u16 i = 0;i < functions.size();i++) {
+                ctx.symbols.set(functions[i]->name, functions[i]);
+            }
 
-            const auto& locals = im->mod->locals();
-            for (u16 i = 0;i < locals.size();i++) im->symbols.push_back({ locals[i].name, "", locals[i].type, nullptr, true, false, false, false });
+            auto locals = mod->locals();
+            for (u16 i = 0;i < locals.size();i++) {
+                ctx.symbols.set(locals[i].name, &locals[i]);
+            }
 
-            const auto& enums = im->mod->enums();
-            for (u16 i = 0;i < enums.size();i++) im->symbols.push_back({ enums[i]->name(), "", nullptr, enums[i], false, false, false, true });
-            
-            ctx.imports.push_back(im);
+            const auto& enums = mod->enums();
+            for (u16 i = 0;i < enums.size();i++) {
+                ctx.symbols.set(enums[i]->name(), enums[i]);
+            }
         }
 
         void compile(script_context* env, ast* input, compilation_output& out) {

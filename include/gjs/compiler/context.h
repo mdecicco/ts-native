@@ -2,6 +2,7 @@
 #include <gjs/compiler/variable.h>
 #include <gjs/compiler/tac.h>
 #include <gjs/common/pipeline.h>
+#include <gjs/compiler/symbol_table.h>
 
 namespace gjs {
     class script_context;
@@ -17,7 +18,7 @@ namespace gjs {
         struct context {
             struct block_context {
                 script_function* func = nullptr;
-                std::vector<var> named_vars;
+                std::list<var> named_vars;
                 std::vector<var> stack_objs;
                 u32 start = 0;
                 u32 end = 0;
@@ -64,8 +65,12 @@ namespace gjs {
             bool compiling_deferred;
             std::vector<script_type*> expr_tp_hint;
 
+            symbol_table symbols;
+
 
             context(compilation_output& out);
+            ~context();
+
             var imm(u64 u);
             var imm(i64 i);
             var imm(f32 f);

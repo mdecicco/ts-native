@@ -18,6 +18,10 @@ namespace gjs {
             bool has(const std::string& value_name) const;
             i64 value(const std::string& value_name) const;
 
+            const robin_hood::unordered_map<std::string, i64>& values() const {
+                return m_values;
+            }
+
         protected:
             friend class pipeline;
             friend class script_context;

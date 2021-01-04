@@ -1,3 +1,5 @@
+import 'test1' as t;
+
 format f0 {
 	i32 a,
 	i32 b,
@@ -24,3 +26,12 @@ enum test_enum {
 	e,
 	f
 };
+
+t.test();
+t.some.ayy();
+
+t.some x;
+x.x = 5;
+x.test();
+
+t.z.test();
