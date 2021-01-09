@@ -33,7 +33,7 @@ int main(int arg_count, const char** args) {
     script_context ctx(&be);
 
     be.commit_bindings();
-    //be.log_ir(true);
+    be.log_ir(true);
     ctx.io()->set_cwd_from_args(arg_count, args);
 
     script_module* mod = ctx.resolve("test");
@@ -51,12 +51,11 @@ int main(int arg_count, const char** args) {
     };
 
     f1* y = (f1*)mod->local_ptr("y");
+    i32* x = (i32*)mod->local_ptr("x");
 
 
     //ctx.compiler()->add_ir_step(remove_unused_regs_pass);
     //ctx.compiler()->add_ir_step(debug_ir_step);
-    script_module* b = ctx.add_code("test1", "import 'test' as t; print(t.y.a.c.toFixed(2));");
-    if (b) b->init();
 
     /*
     script_function* f = mod->function<i32>("main");

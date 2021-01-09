@@ -51,11 +51,158 @@ namespace gjs {
 
         var expression_inner(context& ctx, ast* n);
 
+        var eval_member_op(context& ctx, ast* n) {
+            // [type].[static var]
+            // [module].[type].[static var]
+            // [module].[global var]
+            // [module].[enum].[name]
+            // [enum].[name]
+            // [expression | var].[property]
+
+            if (n->lvalue->type == nt::type_identifier) {
+                // [type].[static var]
+                ctx.push_node(n->lvalue);
+                script_type* tp = ctx.type(n->lvalue);
+                ctx.pop_node();
+                std::string pname = *n->rvalue;
+                ctx.push_node(n->rvalue);
+                var dummy = ctx.dummy_var(tp);
+                var ret = dummy.prop(pname);
+                ctx.pop_node();
+
+                // Checks if it has the property after because var::prop
+                // will log an error about the property not existing, which
+                // is desired. But if it doesn't exist, it is not desired
+                // to log a second error about a non-existent property not
+                // being static.
+                if (dummy.has_prop(pname) && !ret.flag(bind::pf_static)) {
+                    ctx.log()->err(ec::c_class_property_not_static, n->rvalue->ref, tp->name.c_str(), pname.c_str());
+                }
+                return ret;
+            }
+
+            if (n->lvalue->type == nt::identifier) {
+                std::string name = *n->lvalue;
+
+                symbol_table* mod = ctx.symbols.get_module(name);
+                if (mod) {
+                    std::string vname = *n->rvalue;
+                    symbol_list* syms = mod->get(vname);
+                    if (syms) {
+                        for (symbol& sym : syms->symbols) {
+                            if (sym.sym_type() == symbol::st_modulevar) {
+                                // [module].[global var]
+                                const script_module::local_var* v = sym.get_modulevar();
+                                var ret = ctx.empty_var(v->type);
+                                ret.set_code_ref(v->ref);
+                                ctx.push_node(n);
+                                if (v->type->is_primitive) {
+                                    var ptr = ctx.empty_var(ctx.type("data"));
+                                    ctx.add(operation::module_data).operand(ptr).operand(ctx.imm((u64)mod->module->id())).operand(ctx.imm(v->offset));
+                                    ret.set_mem_ptr(ptr);
+                                    ctx.add(operation::load).operand(ret).operand(ptr);
+                                } else {
+                                    ctx.add(operation::module_data).operand(ret).operand(ctx.imm((u64)mod->module->id())).operand(ctx.imm(v->offset));
+                                }
+                                ctx.pop_node();
+
+                                return ret;
+                            }
+                        }
+                    }
+                }
+
+                symbol_table* _enum = ctx.symbols.get_enum(name);
+                if (_enum) {
+                    std::string vname = *n->rvalue;
+                    // there should only be one of these, but I'll do it this way for semantics
+                    symbol_list* syms = _enum->get(vname);
+                    if (syms) {
+                        for (symbol& sym : syms->symbols) {
+                            if (sym.sym_type() == symbol::st_var) {
+                                // [enum].[name]
+                                return *sym.get_var();
+                            }
+                        }
+                    }
+                }
+
+                symbol_list* any = ctx.symbols.get(name);
+                if (!any || any->symbols.size() == 0) {
+                    if (_enum) {
+                        ctx.log()->err(ec::c_no_such_enum_value, n->lvalue->ref, name.c_str(), std::string(*n->rvalue).c_str());
+                    } else if (mod) {
+                        symbol_list* syms = mod->get(*n->rvalue);
+                        if (syms) {
+                            symbol& last = syms->symbols.back();
+                            switch (last.sym_type()) {
+                                case symbol::st_enum: {
+                                    ctx.log()->err(ec::c_enum_is_not_value, n->lvalue->ref);
+                                    break;
+                                }
+                                case symbol::st_function: {
+                                    ctx.log()->err(ec::c_func_is_not_value, n->lvalue->ref);
+                                    break;
+                                }
+                                case symbol::st_type: {
+                                    ctx.log()->err(ec::c_type_is_not_value, n->lvalue->ref);
+                                    break;
+                                }
+                            }
+                        }
+                        else ctx.log()->err(ec::c_symbol_not_found_in_module, n->lvalue->ref, std::string(*n->rvalue).c_str(), name.c_str());
+                    }
+                    return ctx.error_var();
+                }
+            }
+
+            if (n->lvalue->type == nt::operation && n->lvalue->op == ot::member) {
+                if (n->lvalue->lvalue->type == nt::identifier) {
+                    std::string llname = *n->lvalue->lvalue;
+                    std::string lrname = *n->lvalue->rvalue;
+                    std::string vname = *n->rvalue;
+
+                    symbol_table* mod = ctx.symbols.get_module(llname);
+                    if (mod) {
+                        symbol_table* tbl = mod->get_type(lrname);
+                        if (tbl) {
+                            script_type* tp = tbl->type;
+                            ctx.push_node(n->rvalue);
+                            var dummy = ctx.dummy_var(tp);
+                            if (dummy.has_prop(vname)) {
+                                // [module].[type].[static var]
+                                var ret = dummy.prop(vname);
+                                ctx.pop_node();
+                                return ret;
+                            }
+                            ctx.pop_node();
+                        }
+
+                        tbl = mod->get_enum(lrname);
+                        if (tbl) {
+                            symbol_list* syms = tbl->get(vname);
+                            for (symbol& sym : syms->symbols) {
+                                if (sym.sym_type() == symbol::st_var) {
+                                    // [module].[enum].[name]
+                                    return *sym.get_var();
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // [expression | var].[property]
+            ctx.push_node(n->rvalue);
+            var expr = expression_inner(ctx, n->lvalue);
+            var ret = expr.prop(*n->rvalue);
+            ctx.pop_node();
+            return ret;
+        }
+
         var operation(context& ctx, ast* n) {
             switch (n->op) {
-                case ot::invalid: {
-                    break;
-                }
+                case ot::invalid:        break;
                 case ot::add:            return expression_inner(ctx, n->lvalue) + expression_inner(ctx, n->rvalue);
                 case ot::sub:            return expression_inner(ctx, n->lvalue) - expression_inner(ctx, n->rvalue);
                 case ot::mul:            return expression_inner(ctx, n->lvalue) * expression_inner(ctx, n->rvalue);
@@ -94,109 +241,7 @@ namespace gjs {
                 case ot::preDec:         return --expression_inner(ctx, n->rvalue);
                 case ot::postInc:        return expression_inner(ctx, n->lvalue)++;
                 case ot::postDec:        return expression_inner(ctx, n->lvalue)--;
-                case ot::member: {
-                    // note: function_call compiler will handle the case when rvalue
-                    // is an identifier that references a class method
-                    // another note: function_call compiler will handle the case when
-                    // lvalue is a module alias and rvalue is a function name 
-                    if (n->lvalue->type == nt::type_identifier) {
-                        ctx.push_node(n->lvalue);
-                        script_type* tp = ctx.type(n->lvalue);
-                        ctx.pop_node();
-                        std::string pname = *n->rvalue;
-                        ctx.push_node(n->rvalue);
-                        var dummy = ctx.dummy_var(tp);
-                        var ret = dummy.prop(pname);
-                        ctx.pop_node();
-
-                        // Checks if it has the property after because var::prop
-                        // will log an error about the property not existing, which
-                        // is desired. But if it doesn't exist, it is not desired
-                        // to log a second error about a non-existent property not
-                        // being static.
-                        if (dummy.has_prop(pname) && !ret.flag(bind::pf_static)) {
-                            ctx.log()->err(ec::c_class_property_not_static, n->rvalue->ref, tp->name.c_str(), pname.c_str());
-                        }
-                        return ret;
-                    }
-
-                    if (n->lvalue->type == nt::identifier) {
-                        std::string name = *n->lvalue;
-
-                        for (u16 i = 0;i < ctx.imports.size();i++) {
-                            // check if lvalue refers to a module alias
-                            if (ctx.imports[i]->alias == name) {
-                                std::string pname = *n->rvalue;
-                                const script_module::local_var* v = nullptr;
-                                for (u16 s = 0;s < ctx.imports[i]->symbols.size();s++) {
-                                    auto& sym = ctx.imports[i]->symbols[s];
-
-                                    if (sym.alias.length() == 0 && sym.name == pname && sym.is_local) {
-                                        v = &ctx.imports[i]->mod->local(pname);
-                                    } else if (sym.alias == pname && sym.is_local) {
-                                        v = &ctx.imports[i]->mod->local(sym.name);
-                                    }
-                                }
-
-                                if (v) {
-                                    var ret = ctx.empty_var(v->type);
-                                    ret.set_code_ref(v->ref);
-
-                                    if (v->type->is_primitive) {
-                                        var ptr = ctx.empty_var(ctx.type("data"));
-                                        ctx.add(operation::module_data).operand(ptr).operand(ctx.imm((u64)ctx.imports[i]->mod->id())).operand(ctx.imm(v->offset));
-                                        ret.set_mem_ptr(ptr);
-                                        ctx.add(operation::load).operand(ret).operand(ptr);
-                                    } else {
-                                        ctx.add(operation::module_data).operand(ret).operand(ctx.imm((u64)ctx.imports[i]->mod->id())).operand(ctx.imm(v->offset));
-                                    }
-
-                                    return ret;
-                                }
-                            }
-                            // check if lvalue refers to an imported enum
-                            else if (ctx.imports[i]->alias.length() == 0) {
-                                std::string vname = *n->rvalue;
-                                for (u16 s = 0;s < ctx.imports[i]->symbols.size();s++) {
-                                    auto& sym = ctx.imports[i]->symbols[s];
-
-                                    if (sym.alias.length() == 0 && sym.name == name && sym.is_enum) {
-                                        if (sym.enum_->has(vname)) return ctx.imm(sym.enum_->value(vname));
-                                    } else if (sym.alias == name && sym.is_enum) {
-                                        if (sym.enum_->has(vname)) return ctx.imm(sym.enum_->value(vname));
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // check if lvalue refers to an aliased module's enum
-                    if (n->lvalue->type == nt::operation && n->lvalue->op == ot::member && n->rvalue->type == nt::identifier) {
-                        if (n->lvalue->lvalue->type == nt::identifier && n->lvalue->rvalue->type == nt::identifier) {
-                            std::string llname = *n->lvalue->lvalue;
-                            std::string lrname = *n->lvalue->rvalue;
-                            std::string vname = *n->rvalue;
-
-                            for (u16 i = 0;i < ctx.imports.size();i++) {
-                                if (ctx.imports[i]->alias == llname) {
-                                    std::string vname = *n->rvalue;
-                                    for (u16 s = 0;s < ctx.imports[i]->symbols.size();s++) {
-                                        auto& sym = ctx.imports[i]->symbols[s];
-
-                                        if (sym.alias.length() == 0 && sym.name == lrname && sym.is_enum) {
-                                            if (sym.enum_->has(vname)) return ctx.imm(sym.enum_->value(vname));
-                                        } else if (sym.alias == lrname && sym.is_enum) {
-                                            if (sym.enum_->has(vname)) return ctx.imm(sym.enum_->value(vname));
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    return expression_inner(ctx, n->lvalue).prop(*n->rvalue);
-                    break;
-                }
+                case ot::member:         return eval_member_op(ctx, n);
                 case ot::newObj: {
                     ctx.push_node(n);
                     script_type* tp = ctx.type(n->data_type);
@@ -278,7 +323,6 @@ namespace gjs {
                     ctx.pop_node();
 
                     return obj;
-                    break;
                 }
             }
 

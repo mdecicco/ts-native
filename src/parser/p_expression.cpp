@@ -436,8 +436,9 @@ namespace gjs {
             token cur = ctx.current();
             n = parse_type_identifier(ctx, ctx.current(), false);
             if (n) {
-                // could be referring to a static method or property
-                if (ctx.match({ tt::member_accessor })) return n;
+                if (ctx.match({ tt::member_accessor })) {
+                    return n;
+                }
 
                 ast* op = new ast();
                 op->type = nt::operation;
@@ -565,26 +566,6 @@ namespace gjs {
                     ast* n = type_identifier(ctx);
                     set_node_src(n, tok);
                     return n;
-                } else {
-                    if (ctx.match({ tok.text, "." }) && ctx.tokens.size() > ctx.cur_token + 2) {
-                        token& ni = ctx.tokens[ctx.cur_token + 2];
-                        if (ni.type == tt::identifier) {
-                            bool is_type = false;
-                            for (u16 m = 0;m < ctx.named_imports.size() && !is_type;m++) {
-                                if (ctx.named_imports[m].first == tok.text) {
-                                    for (u16 i = 0;i < ctx.named_imports[m].second.size() && !is_type;i++) {
-                                        is_type = ctx.named_imports[m].second[i] == ni.text;
-                                    }
-                                }
-                            }
-                            
-                            if (is_type) {
-                                ast* n = type_identifier(ctx);
-                                set_node_src(n, tok);
-                                return n;
-                            }
-                        }
-                    }
                 }
             }
 
@@ -655,7 +636,7 @@ namespace gjs {
 
         ast* parse_format_expr(context& ctx) {
             token cur = ctx.current();
-            if (ctx.match({ tt::open_parenth, tt::open_block, tt::identifier, tt::colon })) {
+            if (ctx.pattern({ tt::open_parenth, tt::open_block, tt::identifier, tt::colon })) {
                 ctx.consume(); // (
                 ctx.consume(); // {
 

@@ -214,8 +214,27 @@ namespace gjs {
                         var ptr = m_ctx->empty_var(m_ctx->type("u64"));
                         var ret = m_ctx->empty_var(p.type);
                         if (p.flags & bind::pf_static) {
-                            m_ctx->add(operation::eq).operand(ptr).operand(m_ctx->imm(p.offset));
-                            m_ctx->add(operation::load).operand(ret).operand(m_ctx->imm(p.offset));
+                            if (p.type->is_host) {
+                                // offset points to absolute memory location
+                                m_ctx->add(operation::eq).operand(ptr).operand(m_ctx->imm(p.offset));
+                                if (p.type->is_primitive) {
+                                    // load value of primitive to ret
+                                    m_ctx->add(operation::load).operand(ret).operand(m_ctx->imm(p.offset));
+                                } else {
+                                    // get pointer to value in ret
+                                    m_ctx->add(operation::eq).operand(ret).operand(m_ctx->imm(p.offset));
+                                }
+                            } else {
+                                // offset points to module memory location
+                                m_ctx->add(operation::module_data).operand(ptr).operand(m_ctx->imm(u64(p.type->owner->id()))).operand(m_ctx->imm(p.offset));
+                                if (p.type->is_primitive) {
+                                    // load value of primitive to ret
+                                    m_ctx->add(operation::load).operand(ret).operand(ptr);
+                                } else {
+                                    // get pointer to value in ret
+                                    m_ctx->add(operation::eq).operand(ret).operand(ptr);
+                                }
+                            }
                         } else {
                             m_ctx->add(operation::uadd).operand(ptr).operand(*this).operand(m_ctx->imm(p.offset));
                             if (p.type->is_primitive) {
@@ -223,7 +242,7 @@ namespace gjs {
                                 m_ctx->add(operation::load).operand(ret).operand(*this).operand(m_ctx->imm(p.offset));
                             } else {
                                 // get pointer to value in ret
-                                m_ctx->add(operation::uadd).operand(ret).operand(*this).operand(m_ctx->imm(p.offset));
+                                m_ctx->add(operation::eq).operand(ret).operand(ptr);
                             }
                         }
                         ret.set_mem_ptr(ptr);

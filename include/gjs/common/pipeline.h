@@ -41,6 +41,9 @@ namespace gjs {
         // by address changes. Also adjusts function boundaries
         void insert(u64 address, const compile::tac_instruction& i);
         void erase(u64 address);
+
+        static void insert(compilation_output::ir_code& code, u64 address, const compile::tac_instruction& i);
+        static void erase(compilation_output::ir_code& code, u64 address);
     };
 
 

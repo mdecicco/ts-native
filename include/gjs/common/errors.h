@@ -62,7 +62,11 @@ namespace gjs {
             c_symbol_not_found_in_module,
             c_invalid_enum_value_expr,
             c_duplicate_enum_value_name,
+            c_no_such_enum_value,
             c_no_assign_literal,
+            c_type_is_not_value,
+            c_enum_is_not_value,
+            c_func_is_not_value,
             c_compile_finished_with_errors,
             __compile_error_end,
 

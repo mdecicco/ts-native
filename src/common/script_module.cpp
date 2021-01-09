@@ -14,6 +14,7 @@ namespace gjs {
         m_name = name;
         m_id = hash(m_name);
         m_data = new script_buffer();
+        m_initialized = false;
     }
 
     script_module::~script_module() {
@@ -23,14 +24,15 @@ namespace gjs {
     }
 
     void script_module::init() {
-        if (!m_init) return;
+        if (!m_init || m_initialized) return;
+        m_initialized = true;
         m_ctx->call<void>(m_init, nullptr);
     }
 
     void script_module::define_local(const std::string& name, u64 offset, script_type* type, const source_ref& ref) {
         if (has_local(name)) return;
         m_local_map[name] = (u16)m_locals.size();
-        m_locals.push_back({ offset, type, name, ref });
+        m_locals.push_back({ offset, type, name, ref, this });
     }
 
     bool script_module::has_local(const std::string& name) const {

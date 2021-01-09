@@ -2,6 +2,7 @@
 #include <gjs/compiler/variable.h>
 #include <gjs/compiler/tac.h>
 #include <gjs/common/pipeline.h>
+#include <gjs/compiler/symbol_table.h>
 
 namespace gjs {
     class script_context;
@@ -17,7 +18,7 @@ namespace gjs {
         struct context {
             struct block_context {
                 script_function* func = nullptr;
-                std::vector<var> named_vars;
+                std::list<var> named_vars;
                 std::vector<var> stack_objs;
                 u32 start = 0;
                 u32 end = 0;
@@ -28,23 +29,6 @@ namespace gjs {
                 script_type* subtype_replacement = 0;
             };
 
-            struct import {
-                struct symbol {
-                    std::string name;
-                    std::string alias;
-                    script_type* type;
-                    script_enum* enum_;
-                    bool is_local;
-                    bool is_func;
-                    bool is_type;
-                    bool is_enum;
-                };
-
-                script_module* mod;
-                std::string alias;
-                std::vector<symbol> symbols;
-            };
-
             // todo: comments
             script_context* env;
             parse::ast* input;
@@ -52,20 +36,26 @@ namespace gjs {
             std::vector<script_function*> new_functions;
             std::vector<script_enum*> new_enums;
             compilation_output& out;
-            bool compiling_function;
-            std::vector<tac_instruction> global_code;
+            compilation_output::ir_code global_code;
             u32 next_reg_id;
             std::vector<parse::ast*> node_stack;
             std::vector<block_context*> block_stack;
             std::vector<deferred_node> deferred;
             std::vector<parse::ast*> subtype_types;
-            std::vector<import*> imports;
             script_type* subtype_replacement;
+            bool compiling_function;
             bool compiling_deferred;
+            bool compiling_static;
+            u64 global_statics_end;
+            var error_v;
             std::vector<script_type*> expr_tp_hint;
 
+            symbol_table symbols;
 
-            context(compilation_output& out);
+
+            context(compilation_output& out, script_context* env);
+            ~context();
+
             var imm(u64 u);
             var imm(i64 i);
             var imm(f32 f);
@@ -92,9 +82,6 @@ namespace gjs {
 
             // use only when searching for a forward declaration or to determine if an identical function exists (does not log errors)
             script_function* find_func(const std::string& from_aliased_import, const std::string& name, script_type* ret, const std::vector<script_type*>& args);
-
-            // use to determine if an identifier is in use
-            bool identifier_in_use(const std::string& name);
 
             script_type* type(const std::string& name, bool do_throw = true);
             script_type* type(parse::ast* type_identifier);
