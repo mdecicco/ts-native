@@ -16,14 +16,7 @@ namespace gjs {
     }
 
     void compilation_output::insert(u64 addr, const compile::tac_instruction& i) {
-        code.insert(code.begin() + addr, i);
-        for (u32 i = 0;i < code.size();i++) {
-            if (code[i].op == compile::operation::branch) {
-                if (code[i].operands[1].imm_u() >= addr) code[i].operands[1].m_imm.u++;
-            } else if (code[i].op == compile::operation::jump) {
-                if (code[i].operands[0].imm_u() >= addr) code[i].operands[0].m_imm.u++;
-            }
-        }
+        compilation_output::insert(code, addr, i);
 
         for (u16 f = 0;f < funcs.size();f++) {
             if (funcs[f].begin > addr) funcs[f].begin++;
@@ -32,6 +25,26 @@ namespace gjs {
     }
 
     void compilation_output::erase(u64 addr) {
+        compilation_output::erase(code, addr);
+
+        for (u16 f = 0;f < funcs.size();f++) {
+            if (funcs[f].begin > addr) funcs[f].begin--;
+            if (funcs[f].end >= addr) funcs[f].end--;
+        }
+    }
+
+    void compilation_output::insert(compilation_output::ir_code& code, u64 addr, const compile::tac_instruction& i) {
+        code.insert(code.begin() + addr, i);
+        for (u32 i = 0;i < code.size();i++) {
+            if (code[i].op == compile::operation::branch) {
+                if (code[i].operands[1].imm_u() >= addr) code[i].operands[1].m_imm.u++;
+            } else if (code[i].op == compile::operation::jump) {
+                if (code[i].operands[0].imm_u() >= addr) code[i].operands[0].m_imm.u++;
+            }
+        }
+    }
+
+    void compilation_output::erase(compilation_output::ir_code& code, u64 addr) {
         code.erase(code.begin() + addr);
         for (u32 i = 0;i < code.size();i++) {
             if (code[i].op == compile::operation::branch) {
@@ -39,11 +52,6 @@ namespace gjs {
             } else if (code[i].op == compile::operation::jump) {
                 if (code[i].operands[0].imm_u() > addr) code[i].operands[0].m_imm.u--;
             }
-        }
-
-        for (u16 f = 0;f < funcs.size();f++) {
-            if (funcs[f].begin > addr) funcs[f].begin--;
-            if (funcs[f].end >= addr) funcs[f].end--;
         }
     }
 

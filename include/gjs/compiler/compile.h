@@ -20,7 +20,8 @@ namespace gjs {
 
         void construct_in_place(context& ctx, const var& obj, const std::vector<var>& args);
 
-        void variable_declaration(context& ctx, parse::ast* n);
+        // returns module memory offset if global (or static), otherwise UINT64_MAX
+        u64 variable_declaration(context& ctx, parse::ast* n);
 
         script_function* function_declaration(context& ctx, parse::ast* n);
 

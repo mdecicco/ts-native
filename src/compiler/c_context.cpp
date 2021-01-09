@@ -16,14 +16,18 @@ namespace gjs {
     using wc = warning::wcode;
 
     namespace compile {
-        context::context(compilation_output& _out) : out(_out), symbols(this) {
+        context::context(compilation_output& _out, script_context* _env) : out(_out), symbols(this), env(_env) {
             next_reg_id = 0;
-            env = nullptr;
             input = nullptr;
             new_types = nullptr;
             subtype_replacement = nullptr;
             compiling_function = false;
             compiling_deferred = false;
+            compiling_static = false;
+            global_statics_end = 0;
+            error_v = var();
+            error_v.m_type = env->global()->types()->get("error_type");
+            error_v.m_ctx = this;
         }
 
         context::~context() {
@@ -86,8 +90,7 @@ namespace gjs {
         }
 
         var& context::error_var() {
-            static var dv = dummy_var(type("error_type"));
-            return dv;
+            return error_v;
         }
 
         var& context::get_var(const std::string& name) {
@@ -160,41 +163,6 @@ namespace gjs {
             symbol_table* mod = symbols.get_module(from_aliased_import);
             if (!mod) return nullptr;
             return mod->get_func_strict(name, ret, args, false);
-        }
-
-        bool context::identifier_in_use(const std::string& name) {
-            for (u16 i = 0;i < imports.size();i++) {
-                if (imports[i]->alias == name) return true;
-
-                for (u16 s = 0;s < imports[i]->symbols.size();s++) {
-                    auto& sym = imports[i]->symbols[s];
-                    if (sym.alias.length() == 0 && sym.name == name) return true;
-                    if (sym.alias == name) return true;
-                }
-            }
-
-            script_type* t = new_types->get(name);
-            if (t) return true;
-
-            for (u16 i = 0;i < subtype_types.size();i++) {
-                if (std::string(*subtype_types[i]->identifier) == name) return true;
-            }
-
-            for (u16 f = 0;f < new_functions.size();f++) {
-                if (new_functions[f]->name == name) return true;
-            }
-
-            for (u8 i = (u8)block_stack.size() - 1;i > 0;i--) {
-                for (auto v = block_stack[i]->named_vars.begin();v != block_stack[i]->named_vars.end();v++) {
-                    if (v->name() == name) return true;
-                }
-
-                // don't check beyond the most recent function block
-                // (function compilation can be nested, if a subtype class has to be compiled and that subtype has methods)
-                if (block_stack[i]->func) break;
-            }
-
-            return false;
         }
 
         script_type* context::type(const std::string& name, bool do_throw) {
@@ -337,8 +305,13 @@ namespace gjs {
         tac_wrapper context::add(operation op) {
             if (!compiling_function) {
                 // global code
-                global_code.push_back(tac_instruction(op, node()->ref));
-                return tac_wrapper(this, global_code.size() - 1, true);
+                if (compiling_static) {
+                    compilation_output::insert(global_code, global_statics_end, tac_instruction(op, node()->ref));
+                    return tac_wrapper(this, global_statics_end++, true);
+                } else {
+                    global_code.push_back(tac_instruction(op, node()->ref));
+                    return tac_wrapper(this, global_code.size() - 1, true);
+                }
             }
 
             out.code.push_back(tac_instruction(op, node()->ref));

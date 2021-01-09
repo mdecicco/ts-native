@@ -106,24 +106,27 @@ namespace gjs {
             return offset;
         }
 
-        void variable_declaration(context& ctx, parse::ast* n) {
+        u64 variable_declaration(context& ctx, parse::ast* n) {
             ctx.push_node(n->data_type);
             script_type* tp = ctx.type(n->data_type);
             ctx.pop_node();
             ctx.push_node(n->identifier);
-            var v = ctx.empty_var(tp, *n->identifier);
+            std::string vname = n->type == nt::class_property ? ctx.class_tp()->name + "::" + std::string(*n->identifier) : *n->identifier;
+            var v = ctx.empty_var(tp, vname);
             ctx.pop_node();
 
+            u64 off = u64(-1);
             if (!ctx.compiling_function) {
                 if (n->initializer) {
                     if (!tp->is_primitive) {
                         ctx.push_node(n->data_type);
-                        u64 off = construct_in_module_memory(ctx, v, { expression(ctx, n->initializer->body) });
+                        off = construct_in_module_memory(ctx, v, { expression(ctx, n->initializer->body) });
                         ctx.pop_node();
-                        ctx.out.mod->define_local(*n->identifier, off, tp, n->data_type->ref);
+                        ctx.out.mod->define_local(vname, off, tp, n->data_type->ref);
+                        ctx.out.mod->data()->position(off + tp->size);
                     } else {
-                        u64 off = ctx.out.mod->data()->position();
-                        ctx.out.mod->define_local(*n->identifier, off, tp, n->data_type->ref);
+                        off = ctx.out.mod->data()->position();
+                        ctx.out.mod->define_local(vname, off, tp, n->data_type->ref);
                         ctx.out.mod->data()->position(off + tp->size);
 
                         var ptr = ctx.empty_var(ctx.type("data"));
@@ -136,12 +139,13 @@ namespace gjs {
                 } else {
                     if (!tp->is_primitive) {
                         ctx.push_node(n->data_type);
-                        u64 off = construct_in_module_memory(ctx, v, {});
+                        off = construct_in_module_memory(ctx, v, {});
                         ctx.pop_node();
-                        ctx.out.mod->define_local(*n->identifier, off, tp, n->data_type->ref);
+                        ctx.out.mod->define_local(vname, off, tp, n->data_type->ref);
+                        ctx.out.mod->data()->position(off + tp->size);
                     } else {
-                        u64 off = ctx.out.mod->data()->position();
-                        ctx.out.mod->define_local(*n->identifier, off, tp, n->data_type->ref);
+                        off = ctx.out.mod->data()->position();
+                        ctx.out.mod->define_local(vname, off, tp, n->data_type->ref);
                         ctx.out.mod->data()->position(off + tp->size);
 
                         var ptr = ctx.empty_var(ctx.type("data"));
@@ -180,6 +184,8 @@ namespace gjs {
 
             if (n->is_const) v.raise_flag(bind::pf_read_only);
             if (n->is_static) v.raise_flag(bind::pf_static);
+
+            return off;
         }
 
         script_type* class_declaration(context& ctx, parse::ast* n) {
@@ -219,14 +225,24 @@ namespace gjs {
                     case nt::class_property: {
                         std::string name = *cn->identifier;
                         script_type* p_tp = ctx.type(cn->data_type);
-                        if (!p_tp->is_pod) tp->is_pod = false;
                         u8 flags = 0;
-                        if (cn->is_static) flags |= bind::pf_static;
+                        u64 offset = tp->size;
+                        if (cn->is_static) {
+                            flags |= bind::pf_static;
+                            ctx.compiling_static = true;
+                            bool prevCompFunc = ctx.compiling_function;
+                            ctx.compiling_function = false;
+                            offset = variable_declaration(ctx, cn);
+                            ctx.compiling_function = prevCompFunc;
+                            ctx.compiling_static = false;
+                        } else {
+                            if (!p_tp->is_pod) tp->is_pod = false;
+                            tp->size += p_tp->size;
+                        }
                         if (cn->is_const) flags |= bind::pf_read_only;
 
-                        tp->properties.push_back({ flags, name, p_tp, tp->size, nullptr, nullptr });
+                        tp->properties.push_back({ flags, name, p_tp, offset, nullptr, nullptr });
 
-                        tp->size += p_tp->size;
                         break;
                     }
                     default: {
@@ -451,8 +467,7 @@ namespace gjs {
                 throw exc(ec::c_no_code, input ? input->ref : source_ref("[unknown]", "", 0, 0));
             }
 
-            context ctx(out);
-            ctx.env = env;
+            context ctx(out, env);
             ctx.input = input;
             ctx.new_types = new type_manager(env);
             ctx.push_node(input->body);

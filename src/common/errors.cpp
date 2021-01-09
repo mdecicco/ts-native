@@ -59,7 +59,11 @@ namespace gjs {
             "Symbol '%s' was not found in module '%s'",
             "Enum value must be an integer-type constant expression",
             "Enum value '%s' has already been declared in '%s'",
+            "Enum '%s' has no value named '%s'",
             "Can not assign a value to a literal",
+            "Types cannot be used as values",
+            "Enum types cannot be used as values",
+            "Functions cannot be used as values",
             "Compilation finished with errors",
             "", // end compile errors
             "", // start runtime errors

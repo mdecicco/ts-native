@@ -33,5 +33,3 @@ t.some.ayy();
 t.some x;
 x.x = 5;
 x.test();
-
-t.z.test();

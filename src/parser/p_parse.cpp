@@ -189,17 +189,24 @@ namespace gjs {
 
 
             token t = ctx.current();
-            if (ctx.is_typename(t.text)) {
+            if (ctx.is_typename()) {
                 // one of three things:
                 // - Expression starting with static class property or method
                 // - Function declaration and/or definition
                 // - Variable declaration
-                if (ctx.cur_token + 1 < ctx.tokens.size() && ctx.tokens[ctx.cur_token + 1] == tt::member_accessor) {
+                ctx.backup();
+                ast* dummy = type_identifier(ctx);
+                delete dummy;
+
+                if (ctx.match({ tt::member_accessor })) {
+                    ctx.restore();
                     r = expression(ctx);
                 } else {
-                    if (ctx.cur_token + 2 < ctx.tokens.size() && ctx.tokens[ctx.cur_token + 2] == tt::open_parenth) {
+                    if (ctx.pattern({ tt::identifier, tt::open_parenth })) {
+                        ctx.restore();
                         r = function_declaration(ctx);
                     } else {
+                        ctx.restore();
                         r = variable_declaration(ctx);
                     }
                 }
