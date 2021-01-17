@@ -67,9 +67,12 @@ namespace gjs {
             ctx->bind<char>("___char").finalize();
         }
 
-        ctx->bind<void>("void").finalize();
-
         script_type* tp = nullptr;
+        tp = ctx->global()->types()->add("void", typeid(void).name());
+        tp->owner = ctx->global();
+        tp->is_host = true;
+        tp->is_builtin = true;
+
         tp = ctx->global()->types()->add("data", typeid(void*).name());
         tp->owner = ctx->global();
         tp->is_host = true;
@@ -117,7 +120,7 @@ namespace gjs {
         tp->is_builtin = true;
 
         auto arr = ctx->bind<script_array>("array");
-        arr.constructor<script_type*>();
+        arr.constructor<u64>();
         arr.method("push", &script_array::push);
         arr.method("operator []", &script_array::operator[]);
         arr.prop("length", &script_array::length);

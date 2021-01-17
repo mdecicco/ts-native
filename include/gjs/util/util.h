@@ -31,5 +31,7 @@ namespace gjs {
     void print_code(vm_backend* ctx);
 
     void debug_ir_step(script_context* ctx, compilation_output& in);
+
+    script_type* resolve_moduletype(u64 moduletype);
 };
 

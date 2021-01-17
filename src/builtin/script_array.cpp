@@ -1,8 +1,11 @@
 #include <gjs/builtin/script_array.h>
+#include <gjs/builtin/builtin.h>
 #include <gjs/common/script_type.h>
+#include <gjs/util/util.h>
 
 namespace gjs {
-    script_array::script_array(script_type* type) : m_size(0), m_count(0), m_capacity(0), m_type(type), m_data(nullptr) {
+    script_array::script_array(u64 moduletype) : m_size(0), m_count(0), m_capacity(0), m_type(nullptr), m_data(nullptr) {
+        m_type = resolve_moduletype(moduletype);
     }
 
     script_array::~script_array() {

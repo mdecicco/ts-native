@@ -367,7 +367,7 @@ namespace gjs {
                         // only destruct objects if this isn't the global scope
                         // global objects will be destructed with the module
                         if (v.type()->destructor && block_stack.size() > 1) {
-                            call(*this, v.type()->destructor, { v });
+                            call(*this, v.type()->destructor, {}, &v);
                         }
 
                         add(operation::stack_free).operand(v);
@@ -440,7 +440,7 @@ namespace gjs {
                             continue;
                         }
                         if (v.type()->destructor) {
-                            call(*this, v.type()->destructor, { v });
+                            call(*this, v.type()->destructor, {}, &v);
                         }
 
                         add(operation::stack_free).operand(v);

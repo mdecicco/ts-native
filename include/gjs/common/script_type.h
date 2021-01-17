@@ -10,6 +10,7 @@
 namespace gjs {
     namespace bind {
         struct wrapped_class;
+        typedef void (*pass_ret_func)(void* /*dest*/, void* /*src*/, size_t /*size*/);
     };
 
     class script_context;
@@ -64,6 +65,7 @@ namespace gjs {
             bool is_floating_point;
             bool is_builtin;
             bool is_host;
+            bool is_trivially_copyable;
             bool requires_subtype;
 
             struct property {
@@ -89,6 +91,7 @@ namespace gjs {
             std::vector<property> properties;
             script_function* destructor;
             std::vector<script_function*> methods;
+            bind::pass_ret_func pass_ret;
 
             inline u32 id() const { return m_id; }
 

@@ -2,6 +2,10 @@
 
 namespace gjs {
     namespace bind {
+        void trivial_copy(void* dest, void* src, size_t sz) {
+            memcpy(dest, src, sz);
+        }
+
         wrapped_class::~wrapped_class() {
             for (auto i = properties.begin();i != properties.end();++i) {
                 delete i->getSecond();

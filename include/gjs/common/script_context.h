@@ -22,7 +22,8 @@ namespace gjs {
             ~script_context();
 
             template <class Cls>
-            std::enable_if_t<std::is_class_v<Cls>, bind::wrap_class<Cls>&> bind(const std::string& name) {
+            std::enable_if_t<std::is_class_v<Cls>, bind::wrap_class<Cls>&>
+            bind(const std::string& name) {
                 // as long as wrap_class::finalize is called, this will be deleted when it should be
                 bind::wrap_class<Cls>* out = new bind::wrap_class<Cls>(m_global->types(), name);
                 out->type->owner = m_global;
@@ -30,7 +31,8 @@ namespace gjs {
             }
 
             template <class prim>
-            std::enable_if_t<!std::is_class_v<prim>, bind::pseudo_class<prim>&> bind(const std::string& name) {
+            std::enable_if_t<!std::is_class_v<prim> && !std::is_same_v<prim, void>, bind::pseudo_class<prim>&>
+            bind(const std::string& name) {
                 // as long as pseudo_class::finalize is called, this will be deleted when it should be
                 bind::pseudo_class<prim>* out = new bind::pseudo_class<prim>(m_global->types(), name);
                 out->type->owner = m_global;
@@ -71,8 +73,11 @@ namespace gjs {
             /*
             * Call function
             */
-            template <typename Ret, typename... Args>
-            void call(script_function* func, Ret* result, Args... args);
+            //template <typename Ret, typename... Args>
+            //void call(script_function* func, Ret* result, Args... args);
+            
+            template <typename... Args>
+            script_object call(script_function* func, Args... args);
 
         protected:
             robin_hood::unordered_map<std::string, script_module*> m_modules;
@@ -88,30 +93,34 @@ namespace gjs {
             bool m_owns_io;
     };
 
+    /*
     template <typename Ret, typename... Args>
     void script_context::call(script_function* func, Ret* result, Args... args) {
+        
+    }
+    */
+    template <typename... Args>
+    script_object script_context::call(script_function* func, Args... args) {
+        // todo:
+        // in scripts:
+        // 1. copy construct return value from returned object if non-primitive (dynamically allocate)
+        // 2. ensure locally new-ed objects are deleted and destructed
+        // 3. return pointer to copy constructed return value
+        // here:
+        // 1. wrap returned pointer in a script_object and return (done)
+        // 2. dynamically allocate space for primitives on a script_object
+        // 3. raise some flag on script object in private copy constructor that
+        //    gets called when returned, the flag should prevent destruction of
+        //    the object when the local script_object is destroyed post-return
+
+        // reconsider... non-pod objects really can't always be copied with memcpy. Even if the
+        // lifetimes are properly managed
+
         // validate signature
-        script_type* ret = nullptr;
-
-        if constexpr (std::is_same_v<Ret, void>) ret = m_global->types()->get<void>();
-        else ret = arg_type(this, result);
-
-        if (!ret) {
-            // exception
-            return;
-        }
-
-        void* dest = (void*)result;
-        if constexpr (std::is_same_v<remove_all<Ret>::type, script_object>) {
-            if constexpr (std::is_pointer_v<Ret>) dest = (void*)&(*result)->m_self;
-            else dest = (void*)&result->m_self;
-        }
-
         constexpr u8 ac = std::tuple_size<std::tuple<Args...>>::value;
         bool valid_call = true;
         if constexpr (ac > 0) {
             script_type* arg_types[ac] = { arg_type(this, args)... };
-
             for (u8 i = 0;i < ac;i++) {
                 if (!arg_types[i]) {
                     valid_call = false;
@@ -120,34 +129,46 @@ namespace gjs {
             }
 
             if (valid_call) {
-                valid_call = func->signature.return_type->id() == ret->id();
+                if (func->signature.arg_types.size() != ac) valid_call = false;
 
-                if (valid_call) {
-                    if (func->signature.arg_types.size() != ac) valid_call = false;
-
-                    for (u8 a = 0;a < func->signature.arg_types.size() && valid_call;a++) {
-                        valid_call = (func->signature.arg_types[a]->id() == arg_types[a]->id());
-                    }
+                for (u8 a = 0;a < func->signature.arg_types.size() && valid_call;a++) {
+                    valid_call = (func->signature.arg_types[a]->id() == arg_types[a]->id());
                 }
             }
 
             if (!valid_call) {
                 // exception
-                return;
+                return script_object(this);
             }
 
             void* vargs[] = { to_arg(args)... };
-            m_backend->call(func, dest, vargs);
+            script_object out = script_object(this, nullptr, func->signature.return_type, nullptr);
+            if (func->signature.return_type->size > 0) {
+                out.m_self = new u8[func->signature.return_type->size];
+                out.m_owns_ptr = true;
+            }
+            m_backend->call(func, out.m_self, vargs);
+            // todo: reference counting or private ownership stealing copy constructor
+            return out;
         } else {
             if (func->signature.arg_types.size() != 0) valid_call = false;
             else valid_call = (func->signature.return_type->id() == ret->id());
 
             if (!valid_call) {
                 // exception
-                return;
+                return script_object(this);
             }
 
-            m_backend->call(func, dest, nullptr);
+            script_object out = script_object(this, nullptr, func->signature.return_type, nullptr);
+            if (func->signature.return_type->size > 0) {
+                out.m_self = new u8[func->signature.return_type->size];
+                out.m_owns_ptr = true;
+            }
+            m_backend->call(func, out.m_self, nullptr);
+            // todo: reference counting or private ownership stealing copy constructor
+            return out;
         }
+
+        return script_object(this);
     }
 };

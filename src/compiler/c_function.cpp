@@ -6,6 +6,7 @@
 #include <gjs/common/errors.h>
 #include <gjs/common/script_function.h>
 #include <gjs/common/script_type.h>
+#include <gjs/util/util.h>
 #include <gjs/vm/register.h>
 #include <gjs/bind/bind.h>
 
@@ -27,9 +28,6 @@ namespace gjs {
 
             script_type* method_of = ctx.class_tp();
             if (method_of && !n->is_static) {
-                arg_types.push_back(method_of);
-                arg_names.push_back("this");
-
                 if (is_ctor = (std::string(*n->identifier) == "constructor")) ret = method_of;
                 else if (is_dtor = (std::string(*n->identifier) == "destructor")) ret = ctx.type("void");
                 else {
@@ -71,7 +69,8 @@ namespace gjs {
                 f = new script_function(ctx.env, fname, 0);
                 f->owner = ctx.out.mod;
                 f->signature.return_type = ret;
-                f->signature.return_loc = vm_register::v0;
+                f->signature.returns_pointer = is_ctor;
+                f->signature.returns_on_stack = !is_ctor && !ret->is_primitive && ret->size > 0;
                 f->is_method_of = method_of;
                 f->is_static = n->is_static;
                 f->access.entry = 0;
@@ -95,36 +94,63 @@ namespace gjs {
                 }
                 
                 ctx.push_block(f);
+
+                u32 base_idx = 0;
+                if (f->is_method_of) {
+                    // implicit 'this' argument
+                    var& self = ctx.empty_var(f->is_method_of, "this");
+                    self.set_arg_idx(base_idx++);
+                }
+
+                if (f->signature.returns_on_stack) {
+                    // implicit return pointer argument
+                    var& ret_ptr = ctx.empty_var(f->signature.return_type, "@ret");
+                    ret_ptr.set_arg_idx(base_idx++);
+                }
+
                 for (u8 i = 0;i < arg_types.size();i++) {
                     var& arg = ctx.empty_var(arg_types[i], arg_names[i]);
-                    arg.set_arg_idx(i);
+                    arg.set_arg_idx(base_idx + i);
                 }
             } else {
-                f = new script_function(ctx.env, fname, 0);
+                f = new script_function(ctx.env, fname, ctx.code_sz());
                 f->owner = ctx.out.mod;
                 f->signature.return_type = ret;
+                f->signature.returns_pointer = is_ctor;
+                f->signature.returns_on_stack = !is_ctor && !ret->is_primitive && ret->size > 0;
                 f->is_method_of = method_of;
                 f->is_static = n->is_static;
+                f->access.entry = 0;
 
                 ctx.symbols.set(fname, f);
 
                 ctx.new_functions.push_back(f);
                 ctx.push_block(f);
 
+                u32 base_idx = 0;
+                if (f->is_method_of) {
+                    // implicit 'this' argument
+                    var& self = ctx.empty_var(f->is_method_of, "this");
+                    self.set_arg_idx(base_idx++);
+                }
+
+                if (f->signature.returns_on_stack) {
+                    // implicit return pointer argument
+                    var& ret_ptr = ctx.empty_var(f->signature.return_type, "@ret");
+                    ret_ptr.set_arg_idx(base_idx++);
+                }
+
                 for (u8 i = 0;i < arg_types.size();i++) {
                     f->arg(arg_types[i]);
                     var& arg = ctx.empty_var(arg_types[i], arg_names[i]);
-                    arg.set_arg_idx(i);
+                    arg.set_arg_idx(base_idx + i);
                 }
             }
-
-            f->access.entry = ctx.code_sz();
 
             block(ctx, n->body);
 
             if (ctx.out.code.size() == 0 || ctx.out.code.back().op != operation::ret) {
-                if (is_ctor) ctx.add(operation::ret).operand(ctx.get_var("this"));
-                else if (is_dtor || f->signature.return_type->size == 0) ctx.add(operation::ret);
+                if (f->signature.return_type->size == 0) ctx.add(operation::ret);
                 else ctx.log()->err(ec::c_missing_return_value, n->ref, f->name.c_str());
             }
 
@@ -210,8 +236,6 @@ namespace gjs {
                 // [expression | var].[method]
                 var expr = expression(ctx, left);
                 if (expr.type()->name != "error_type") {
-                    out.args.insert(out.args.begin(), expr);
-                    out.arg_types.insert(out.arg_types.begin(), expr.type());
                     out.callee = expr.method(func_name, nullptr, out.arg_types);
                     out.this_obj = expr;
                     return out.callee != nullptr;
@@ -237,7 +261,8 @@ namespace gjs {
             }
 
             if (resolve_function(ctx, n, cinfo)) {
-                return call(ctx, cinfo.callee, cinfo.args);
+                var* self = cinfo.this_obj.type()->name == "error_type" ? nullptr : &cinfo.this_obj;
+                return call(ctx, cinfo.callee, cinfo.args, self);
             }
 
             ctx.push_node(n->callee);
@@ -257,79 +282,79 @@ namespace gjs {
             return o;
         }
 
-        var call(context& ctx, script_function* func, const std::vector<var>& args) {
-            std::vector<var> c_args;
-            for (u8 i = 0;i < args.size();i++) {
-                if (i == 1 && func->is_method_of && func->is_method_of->requires_subtype && func->name.find("constructor") != std::string::npos) {
-                    // don't try to convert moduletype id (u64) to subtype (data)
-                    c_args.push_back(args[i]);
-                } else if (func->signature.arg_types[i]->name == "subtype") {
-                    c_args.push_back(args[i].convert(args[0].type()->sub_type));
-                } else {
-                    c_args.push_back(args[i].convert(func->signature.arg_types[i]));
-                }
+        // todo: change the following
+        // public host call interface [script_context::call]
+        // function binding
+        var call(context& ctx, script_function* func, const std::vector<var>& args, const var* self) {
+            // get return value
+            script_type* rtp = func->signature.return_type;
+            if (rtp->name == "subtype") rtp = self->type()->sub_type;
+            var stack_ret = ctx.empty_var(rtp);
+
+            if (self) {
+                // 'this' always gets passed first
+                ctx.add(operation::param).operand(*self);
             }
 
-            tac_wrapper stack_ret;
+            if (func->signature.is_subtype_obj_ctor) {
+                // pass moduletype after 'this' to represent subtype
+                u64 moduletype = join_u32(self->type()->owner->id(), self->type()->sub_type->id());
+                ctx.add(operation::param).operand(ctx.imm(moduletype));
+            }
+
             if (func->signature.returns_on_stack) {
-                stack_ret = ctx.add(operation::stack_alloc);
+                // pass pointer to return value
+                ctx.add(operation::stack_alloc).operand(stack_ret).operand(ctx.imm((u64)rtp->size));
+                stack_ret.raise_stack_flag();
+                ctx.add(operation::param).operand(stack_ret);
             }
-            for (u8 i = 0;i < args.size();i++) ctx.add(operation::param).operand(c_args[i]);
-            
-            if (func->signature.return_type->name == "subtype") {
-                if (func->is_method_of) {
-                    script_type* this_tp = args[0].type();
 
-                    if (func->signature.returns_pointer) {
-                        var result = ctx.empty_var(ctx.type("data"));
-                        ctx.add(operation::call).operand(result).func(func);
-
-                        var ret = ctx.empty_var(this_tp->sub_type);
-                        ret.set_mem_ptr(result);
-                        ctx.add(operation::load).operand(ret).operand(result);
-                        return ret;
-                    } else if (func->signature.returns_on_stack) {
-                        var ret = ctx.empty_var(this_tp->sub_type);
-                        ret.raise_stack_flag();
-                        stack_ret.operand(ret).operand(ctx.imm((u64)this_tp->sub_type->size));
-                        ctx.add(operation::call).operand(ret).func(func);
-                        return ret;
-                    } else {
-                        var ret = ctx.empty_var(this_tp->sub_type);
-                        ctx.add(operation::call).operand(ret).func(func);
-                        return ret;
-                    }
+            // pass args
+            for (u8 i = 0;i < args.size();i++) {
+                if (func->signature.arg_types[i]->name == "subtype") {
+                    ctx.add(operation::param).operand(args[i].convert(self->type()->sub_type));
                 } else {
-                    // subtype functions (global functions) are not supported yet
-                    return ctx.error_var();
+                    ctx.add(operation::param).operand(args[i].convert(func->signature.arg_types[i]));
                 }
-            } else if (func->signature.return_type->size == 0) {
-                ctx.add(operation::call).func(func);
-                return ctx.empty_var(func->signature.return_type);
-            } else {
-                if (func->signature.returns_pointer) {
-                    var result = ctx.empty_var(ctx.type("data"));
-                    ctx.add(operation::call).operand(result).func(func);
+            }
 
+            // void return
+            if (rtp->size == 0) {
+                // no return
+                ctx.add(operation::call).func(func);
+                return ctx.empty_var(rtp);
+            }
+            
+            // pointer return
+            if (func->signature.returns_pointer) {
+                var result = ctx.empty_var(rtp);
+                ctx.add(operation::call).operand(result).func(func);
+
+                if (func->signature.return_type->is_primitive) {
+                    // load value from pointer
                     var ret = ctx.empty_var(func->signature.return_type);
                     ret.set_mem_ptr(result);
-                    if (func->signature.return_type->is_primitive) ctx.add(operation::load).operand(ret).operand(result);
-                    else ctx.add(operation::eq).operand(ret).operand(result);
+                    ctx.add(operation::load).operand(ret).operand(result);
                     return ret;
-                } else if (func->signature.returns_on_stack) {
-                    var ret = ctx.empty_var(func->signature.return_type);
-                    ret.raise_stack_flag();
-                    stack_ret.operand(ret).operand(ctx.imm((u64)func->signature.return_type->size));
-                    ctx.add(operation::call).operand(ret).func(func);
-                    return ret;
-                } else {
-                    var ret = ctx.empty_var(func->signature.return_type);
-                    ctx.add(operation::call).operand(ret).func(func);
-                    return ret;
+                }
+                else {
+                    // just return the pointer
+                    return result;
                 }
             }
 
-            return ctx.error_var();
+            // stack return
+            if (func->signature.returns_on_stack) {
+                // callee will construct return value in $stack_ret (or copy it to $stack_ret),
+                // which is passed as an argument
+                ctx.add(operation::call).func(func);
+                return stack_ret;
+            }
+
+            // basic return
+            var ret = ctx.empty_var(rtp);
+            ctx.add(operation::call).operand(ret).func(func);
+            return ret;
         }
     };
 };

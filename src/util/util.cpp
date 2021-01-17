@@ -219,4 +219,8 @@ namespace gjs {
             printf("%3.3d: %s\n", i, in.code[i].to_string().c_str());
         }
     }
+
+    script_type* resolve_moduletype(u64 moduletype) {
+        return current_ctx()->module(extract_left_u32(moduletype))->types()->get(extract_right_u32(moduletype));
+    }
 };

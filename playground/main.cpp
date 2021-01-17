@@ -50,8 +50,9 @@ int main(int arg_count, const char** args) {
         f0 a, b, c;
     };
 
-    f1* y = (f1*)mod->local_ptr("y");
-    i32* x = (i32*)mod->local_ptr("x");
+    //f1* y = mod->local("y");
+    //f0 a = mod->local("y").prop<f0>("a");
+    //i32* x = (i32*)mod->local_ptr("x");
 
 
     //ctx.compiler()->add_ir_step(remove_unused_regs_pass);

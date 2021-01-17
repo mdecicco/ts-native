@@ -31,6 +31,7 @@ namespace gjs {
         m_backend->m_ctx = this;
 
         init_context(this);
+
         m_backend->init();
     }
 

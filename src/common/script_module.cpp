@@ -3,6 +3,7 @@
 #include <gjs/common/script_function.h>
 #include <gjs/common/script_context.h>
 #include <gjs/common/script_enum.h>
+#include <gjs/common/script_object.h>
 
 #include <gjs/builtin/script_buffer.h>
 #include <gjs/util/util.h>
@@ -26,7 +27,7 @@ namespace gjs {
     void script_module::init() {
         if (!m_init || m_initialized) return;
         m_initialized = true;
-        m_ctx->call<void>(m_init, nullptr);
+        m_ctx->call(m_init, nullptr);
     }
 
     void script_module::define_local(const std::string& name, u64 offset, script_type* type, const source_ref& ref) {
@@ -39,11 +40,19 @@ namespace gjs {
         return m_local_map.count(name) > 0;
     }
 
-    const script_module::local_var& script_module::local(const std::string& name) const {
+    const script_module::local_var& script_module::local_info(const std::string& name) const {
         static script_module::local_var invalid = { u64(-1), nullptr, "" };
         auto it = m_local_map.find(name);
         if (it == m_local_map.end()) return invalid;
         return m_locals[it->getSecond()];
+    }
+
+    script_object script_module::local(const std::string& name) const {
+        static script_object invalid = script_object((script_context*)nullptr, (script_module*)nullptr, (script_type*)nullptr, (u8*)nullptr);
+        auto it = m_local_map.find(name);
+        if (it == m_local_map.end()) return invalid;
+        auto& l = m_locals[it->getSecond()];
+        return script_object(const_cast<script_context*>(m_ctx), const_cast<script_module*>(this), l.type, (u8*)m_data->data(l.offset));
     }
 
     void* script_module::local_ptr(const std::string& name) const {

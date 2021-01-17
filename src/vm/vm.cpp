@@ -788,17 +788,28 @@ namespace gjs {
             throw vm_exception(m_ctx, format("Function at 0x%lX not found", addr));
         }
 
+        u16 implicit_arg_count = 0;
+        if (f->is_method_of) implicit_arg_count++;
+        if (f->signature.is_subtype_obj_ctor) implicit_arg_count++;
+        if (f->signature.returns_on_stack) implicit_arg_count++;
+
         std::vector<void*> args;
         for (u8 a = 0;a < f->signature.arg_locs.size();a++) {
-            script_type* tp = f->signature.arg_types[a];
+            script_type* tp = a < implicit_arg_count ? nullptr : f->signature.arg_types[a];
             u64* reg = &(m_ctx->state()->registers[(u8)f->signature.arg_locs[a]]);
-            bool is_ptr = f->access.wrapped->arg_is_ptr[a];
+            bool is_ptr = a < implicit_arg_count ? false : f->access.wrapped->arg_is_ptr[a];
 
-            if (f->signature.is_subtype_obj_ctor && a == 1) {
-                // arg refers to a module/type id
-
-                script_type* tp = m_ctx->context()->module(extract_left_u32(*reg))->types()->get(extract_right_u32(*reg));
-                args.push_back(tp);
+            if (f->is_method_of && a == 0) {
+                // arg refers to 'this' object pointer
+                tp = f->is_method_of;
+                is_ptr = true;
+            } else if (f->signature.is_subtype_obj_ctor && a == 1) {
+                // arg refers to a moduletype id
+                tp = m_ctx->context()->global()->types()->get("u64");
+            } else if (f->signature.returns_on_stack && a == (implicit_arg_count - 1)) {
+                // arg refers to output pointer
+                // which is passed to 'call' function
+                // and not to the target function directly
                 continue;
             }
 
@@ -837,8 +848,8 @@ namespace gjs {
         void* ret_addr = nullptr;
         if (f->signature.return_type->size > 0) {
             if (f->signature.returns_on_stack) {
-                // return_loc register contains a pointer to a memory location within the stack
-                ret_addr = (void*)m_ctx->state()->registers[(u8)f->signature.return_loc];
+                // implicit return pointer argument register contains a pointer to a memory location within the stack
+                ret_addr = (void*)m_ctx->state()->registers[(u8)f->signature.arg_locs[implicit_arg_count - 1]];
             } else {
                 // return_loc register will directly contain the return value
                 ret_addr = &(m_ctx->state()->registers[(u8)f->signature.return_loc]);

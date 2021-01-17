@@ -65,7 +65,10 @@ namespace gjs {
         }
 
         script_type* t = it->getSecond();
+        t->is_pod = wrapped->is_pod;
         t->m_wrapped = wrapped;
+        t->is_trivially_copyable = wrapped->trivially_copyable;
+        t->pass_ret = wrapped->pass_ret;
         t->requires_subtype = wrapped->requires_subtype;
         t->size = (u32)wrapped->size;
         t->destructor = wrapped->dtor ? new script_function(this, t, wrapped->dtor, false, true) : nullptr;

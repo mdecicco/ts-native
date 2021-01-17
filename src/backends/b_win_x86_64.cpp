@@ -1141,30 +1141,39 @@ namespace gjs {
         dcMode(cvm, DC_CALL_C_DEFAULT);
         dcReset(cvm);
 
+        u8 argOff = 0;
+        if (func->is_method_of) {
+            dcArgPointer(cvm, args[argOff++]); // implicit 'this'
+        }
+
+        if (func->signature.returns_on_stack) {
+            dcArgPointer(cvm, ret); // implicit return value pointer
+        }
+
         for (u8 a = 0;a < func->signature.arg_types.size();a++) {
             script_type* tp = func->signature.arg_types[a];
             if (tp->is_primitive) {
                 if (tp->is_floating_point) {
-                    if (tp->size == sizeof(f64)) dcArgDouble(cvm, *(f64*)&args[a]);
-                    else dcArgFloat(cvm, *(f32*)&args[a]);
+                    if (tp->size == sizeof(f64)) dcArgDouble(cvm, *(f64*)&args[a + argOff]);
+                    else dcArgFloat(cvm, *(f32*)&args[a + argOff]);
                 } else {
                     switch (tp->size) {
                         case sizeof(i8): {
-                            if (tp->name == "bool") dcArgBool(cvm, *(bool*)&args[a]);
-                            else dcArgChar(cvm, *(i8*)&args[a]);
+                            if (tp->name == "bool") dcArgBool(cvm, *(bool*)&args[a + argOff]);
+                            else dcArgChar(cvm, *(i8*)&args[a + argOff]);
                             break;
                         }
-                        case sizeof(i16): { dcArgShort(cvm, *(i16*)&args[a]); break; }
+                        case sizeof(i16): { dcArgShort(cvm, *(i16*)&args[a + argOff]); break; }
                         case sizeof(i32): {
-                            if (tp->is_unsigned) dcArgLong(cvm, *(u32*)&args[a]);
-                            else dcArgInt(cvm, *(i32*)&args[a]);
+                            if (tp->is_unsigned) dcArgLong(cvm, *(u32*)&args[a + argOff]);
+                            else dcArgInt(cvm, *(i32*)&args[a + argOff]);
                             break;
                         }
-                        case sizeof(i64): { dcArgLongLong(cvm, *(i64*)&args[a]); break; }
+                        case sizeof(i64): { dcArgLongLong(cvm, *(i64*)&args[a + argOff]); break; }
                     }
                 }
             } else {
-                dcArgPointer(cvm, args[a]);
+                dcArgPointer(cvm, args[a + argOff]);
             }
         }
 
@@ -1190,7 +1199,7 @@ namespace gjs {
                     }
                 }
             } else {
-                // uh oh, returns a struct
+                dcCallVoid(cvm, f);
             }
         }
     }

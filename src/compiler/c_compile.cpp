@@ -37,36 +37,24 @@ namespace gjs {
         }
 
         void construct_in_place(context& ctx, const var& obj, const std::vector<var>& args) {
-            std::vector<script_type*> arg_types = { obj.type() }; // this obj
+            std::vector<script_type*> arg_types = { };
+            for (u8 a = 0;a < args.size();a++) {
+                arg_types.push_back(args[a].type());
+            }
+
             script_type* ret_tp = obj.type();
             if (obj.type()->base_type && obj.type()->is_host) {
                 ret_tp = obj.type()->base_type;
-                arg_types.push_back(ctx.type("data")); // subtype id
-            }
-
-            std::vector<var> c_args = { obj };
-            if (obj.type()->sub_type && obj.type()->is_host) {
-                // second parameter should be type id. This should
-                // only happen for host calls, script subtype calls
-                // should be compiled as if all occurrences of 'subtype'
-                // are the subtype used by the related instantiation
-                u64 moduletype = join_u32(obj.type()->owner->id(), obj.type()->sub_type->id());
-                c_args.push_back(ctx.imm(moduletype));
             }
 
             if (args.size() > 0) {
-                for (u8 a = 0;a < args.size();a++) {
-                    arg_types.push_back(args[a].type());
-                    c_args.push_back(args[a]);
-                }
-
                 if (args.size() == 1 && args[0].type() == obj.type()) {
                     // constructor only required if not POD
-                    if (obj.has_unambiguous_method("constructor", ret_tp, arg_types)) {
+                    if (obj.has_unambiguous_method("constructor", nullptr, arg_types)) {
                         // may be pod, but use the constructor anyway
-                        script_function* f = obj.method("constructor", ret_tp, arg_types);
-                        if (f) call(ctx, f, c_args);
-                    } else if (ret_tp->is_pod) {
+                        script_function* f = obj.method("constructor", nullptr, arg_types);
+                        if (f) call(ctx, f, args, &obj);
+                    } else if (ret_tp->is_pod || ret_tp->is_trivially_copyable) {
                         // no constructor, but is copyable
                         var mem = call(
                             ctx,
@@ -75,18 +63,18 @@ namespace gjs {
                         );
                     } else {
                         // trigger function not found error
-                        obj.method("constructor", ret_tp, arg_types);
+                        obj.method("constructor", nullptr, arg_types);
                     }
                 } else {
                     // constructor required
-                    script_function* f = obj.method("constructor", ret_tp, arg_types);
-                    if (f) call(ctx, f, c_args);
+                    script_function* f = obj.method("constructor", nullptr, arg_types);
+                    if (f) call(ctx, f, args, &obj);
                 }
             } else {
-                if (obj.has_unambiguous_method("constructor", ret_tp, arg_types)) {
+                if (obj.has_unambiguous_method("constructor", nullptr, arg_types)) {
                     // Default constructor
-                    script_function* f = obj.method("constructor", ret_tp, arg_types);
-                    if (f) call(ctx, f, c_args);
+                    script_function* f = obj.method("constructor", nullptr, arg_types);
+                    if (f) call(ctx, f, args, &obj);
                 } else {
                     if (obj.has_any_method("constructor")) {
                         ctx.log()->err(ec::c_no_default_constructor, ctx.node()->ref, obj.type()->name.c_str());
@@ -154,7 +142,7 @@ namespace gjs {
                     }
                 }
 
-                ctx.symbols.set(v.name(), &ctx.out.mod->local(v.name()));
+                ctx.symbols.set(v.name(), &ctx.out.mod->local_info(v.name()));
             } else {
                 if (n->initializer) {
                     if (!tp->is_primitive) {

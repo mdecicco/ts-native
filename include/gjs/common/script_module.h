@@ -13,6 +13,7 @@ namespace gjs {
     class script_type;
     class script_buffer;
     class script_enum;
+    class script_object;
     class type_manager;
 
     class script_module {
@@ -30,8 +31,9 @@ namespace gjs {
 
             void define_local(const std::string& name, u64 offset, script_type* type, const source_ref& ref);
             bool has_local(const std::string& name) const;
-            const local_var& local(const std::string& name) const;
+            const local_var& local_info(const std::string& name) const;
             void* local_ptr(const std::string& name) const;
+            script_object local(const std::string& name) const;
 
             template <typename T>
             std::enable_if_t<!std::is_class_v<T>, T> get_local(const std::string& name) {

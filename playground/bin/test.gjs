@@ -31,5 +31,5 @@ t.test();
 t.some.ayy();
 
 t.some x;
-x.x = 5;
+x.x = test_enum.f;
 x.test();

@@ -35,7 +35,7 @@ namespace gjs {
 
             if (!to->is_primitive) {
                 var td = ctx.dummy_var(to);
-                return td.has_unambiguous_method("constructor", to, { ctx.type("data"), from });
+                return td.has_unambiguous_method("constructor", nullptr, { from });
             }
             
             // conversion between non-void primitive types is always possible
@@ -203,7 +203,7 @@ namespace gjs {
                 auto& p = m_type->properties[i];
                 if (p.name == prop) {
                     if (p.getter) {
-                        var v = call(*m_ctx, p.getter, { *this });
+                        var v = call(*m_ctx, p.getter, {}, this);
                         if (p.setter) {
                             v.m_setter.this_obj.reset(new var(*this));
                             v.m_setter.func = p.setter;
@@ -334,9 +334,15 @@ namespace gjs {
 
                 if (!func) continue;
 
+                if (_name == "constructor" && func->signature.arg_types.size() == 1 && func->signature.arg_types[0]->id() == m_type->id()) {
+                    // don't match the copy constructor unless the requested arguments strictly match
+                    if (args.size() == 1 && args[0]->id() == m_type->id()) matches.push_back(func);
+                    continue;
+                }
+
                 // match return type
                 if (ret && !has_valid_conversion(*m_ctx, ret, func->signature.return_type)) continue;
-                bool ret_tp_strict = ret ? func->signature.return_type->id() == ret->id() : false;
+                bool ret_tp_strict = ret ? func->signature.return_type->id() == ret->id() : func->signature.return_type->size == 0;
 
                 // match argument types
                 if (func->signature.arg_types.size() != args.size()) continue;
@@ -492,9 +498,9 @@ namespace gjs {
             if (!from->is_primitive) {
                 if (to->is_primitive) {
                     // last chance to find a conversion
-                    script_function* cast = method("<cast>", to, { m_type });
+                    script_function* cast = method("<cast>", to, {});
                     if (cast) {
-                        var ret = call(*m_ctx, cast, { *this });
+                        var ret = call(*m_ctx, cast, {}, this);
                         if (ret.type()->id() != to->id()) {
                             return ret.convert(to);
                         }
@@ -504,28 +510,19 @@ namespace gjs {
 
                     m_ctx->log()->err(ec::c_no_valid_conversion, m_ctx->node()->ref, from->name.c_str(), to->name.c_str());
                     return m_ctx->error_var();
-                } else if (has_unambiguous_method("<cast>", to, { m_type })) {
-                    script_function* cast = method("<cast>", to, { m_type });
-                    var ret = call(*m_ctx, cast, { *this });
-                    if (ret.type()->id() != to->id()) {
-                        return ret.convert(to);
-                    }
-
-                    return ret;
+                } else if (has_unambiguous_method("<cast>", to, {})) {
+                    script_function* cast = method("<cast>", to, {});
+                    return call(*m_ctx, cast, {}, this);
                 }
             }
 
             if (!to->is_primitive) {
                 var tv = m_ctx->dummy_var(to);
-                script_function* ctor = tv.method("constructor", to, { m_ctx->type("data"), from });
+                script_function* ctor = tv.method("constructor", to, { from });
                 if (ctor) {
                     var ret = m_ctx->empty_var(to);
                     ret.raise_stack_flag();
                     construct_on_stack(*m_ctx, ret, { *this });
-
-                    if (ret.type()->id() != to->id()) {
-                        return ret.convert(to);
-                    }
                     return ret;
                 }
                 
@@ -886,9 +883,9 @@ namespace gjs {
                 return ret;
             }
             else {
-                script_function* f = a.method(std::string("operator ") + ot_str[(u8)_op], a.type(), { a.call_this_tp(), b.type() });
+                script_function* f = a.method(std::string("operator ") + ot_str[(u8)_op], a.type(), { b.type() });
                 if (f) {
-                    return call(*ctx, f, { a, b.convert(f->signature.arg_types[0]) });
+                    return call(*ctx, f, { b.convert(f->signature.arg_types[0]) }, &a);
                 }
             }
 
@@ -1023,7 +1020,7 @@ namespace gjs {
             }
 
             script_function* f = method("operator ++", m_type, { call_this_tp() });
-            if (f) return call(*m_ctx, f, { *this });
+            if (f) return call(*m_ctx, f, {}, this);
             return m_ctx->error_var();
         }
 
@@ -1034,8 +1031,8 @@ namespace gjs {
                 return result;
             }
 
-            script_function* f = method("operator --", m_type, { call_this_tp() });
-            if (f) return call(*m_ctx, f, { *this });
+            script_function* f = method("operator --", m_type, {});
+            if (f) return call(*m_ctx, f, {}, this);
             return m_ctx->error_var();
         }
 
@@ -1052,8 +1049,8 @@ namespace gjs {
             // todo: specific error when type is not copy constructible 
             clone.raise_stack_flag();
             construct_on_stack(*m_ctx, clone, { *this });
-            script_function* f = method("operator ++", m_type, { call_this_tp() });
-            if (f) call(*m_ctx, f, { *this });
+            script_function* f = method("operator ++", m_type, {});
+            if (f) call(*m_ctx, f, {}, this);
             return clone;
         }
 
@@ -1070,8 +1067,8 @@ namespace gjs {
             // todo: specific error when type is not copy constructible
             clone.raise_stack_flag();
             construct_on_stack(*m_ctx, clone, { *this });
-            script_function* f = method("operator --", m_type, { call_this_tp() });
-            if (f) call(*m_ctx, f, { *this });
+            script_function* f = method("operator --", m_type, {});
+            if (f) call(*m_ctx, f, {}, this);
             return clone;
         }
 
@@ -1106,8 +1103,8 @@ namespace gjs {
                 return do_bin_op(m_ctx, *this, m_ctx->imm(i64(0)), ot::isEq);
             }
 
-            script_function* f = method("operator !", m_type, { call_this_tp() });
-            if (f) return call(*m_ctx, f, { *this });
+            script_function* f = method("operator !", m_type, {});
+            if (f) return call(*m_ctx, f, {}, this);
             return m_ctx->error_var();
         }
 
@@ -1133,8 +1130,8 @@ namespace gjs {
                 return v;
             }
 
-            script_function* f = method("operator -", m_type, { call_this_tp() });
-            if (f) return call(*m_ctx, f, { *this });
+            script_function* f = method("operator -", m_type, {});
+            if (f) return call(*m_ctx, f, {}, this);
             return m_ctx->error_var();
         }
 
@@ -1154,7 +1151,7 @@ namespace gjs {
             }
 
             if (m_setter.func) {
-                var real_value = call(*m_ctx, m_setter.func, { *m_setter.this_obj, rhs });
+                var real_value = call(*m_ctx, m_setter.func, { rhs }, m_setter.this_obj.get());
                 m_ctx->add(operation::eq).operand(*this).operand(real_value);
             } else {
                 // todo: operator =, remove 'adopt_stack_flag'
@@ -1162,11 +1159,11 @@ namespace gjs {
                     var v = rhs.convert(m_type);
                     m_ctx->add(operation::eq).operand(*this).operand(v);
                     if (m_mem_ptr.valid) {
-                        m_ctx->add(operation::store).operand(var(m_ctx, m_mem_ptr.reg, m_ctx->type("data"))).operand(*this);
+                        m_ctx->add(operation::store).operand(var(m_ctx, m_mem_ptr.reg, m_type)).operand(*this);
                     }
                 } else {
-                    script_function* assign = method("operator =", m_type, { rhs.m_type, rhs.m_type });
-                    if (assign) call(*m_ctx, assign, { *this, rhs });
+                    script_function* assign = method("operator =", m_type, { rhs.m_type });
+                    if (assign) call(*m_ctx, assign, { rhs }, this);
                 }
             }
 
@@ -1174,9 +1171,9 @@ namespace gjs {
         }
 
         var var::operator [] (const var& rhs) const {
-            script_function* f = method("operator []", nullptr, { call_this_tp(), rhs.type() });
+            script_function* f = method("operator []", nullptr, { rhs.type() });
             if (f) {
-                return call(*m_ctx, f, { *this, rhs });
+                return call(*m_ctx, f, { rhs }, this);
             }
 
             return m_ctx->error_var();

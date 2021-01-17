@@ -30,6 +30,9 @@ namespace gjs {
     };
 
     namespace bind {
+        typedef void (*pass_ret_func)(void* /*dest*/, void* /*src*/, size_t /*size*/);
+        void trivial_copy(void* dest, void* src, size_t sz);
+
         struct wrapped_function {
             wrapped_function(std::type_index ret, std::vector<std::type_index> args, const std::string& _name)
             : return_type(ret), arg_types(args), name(_name), is_static_method(false), func_ptr(nullptr), ret_is_ptr(false),
@@ -73,7 +76,8 @@ namespace gjs {
             };
 
             wrapped_class(const std::string& _name, const std::string& _internal_name, size_t _size) :
-                name(_name), internal_name(_internal_name), size(_size), dtor(nullptr), requires_subtype(false)
+                name(_name), internal_name(_internal_name), size(_size), dtor(nullptr), requires_subtype(false),
+                trivially_copyable(true), pass_ret(trivial_copy), type(nullptr), is_pod(false)
             {
             }
 
@@ -82,6 +86,9 @@ namespace gjs {
             std::string name;
             std::string internal_name;
             bool requires_subtype;
+            bool is_pod;
+            bool trivially_copyable;
+            pass_ret_func pass_ret;
             std::vector<wrapped_function*> methods;
             robin_hood::unordered_map<std::string, property*> properties;
             wrapped_function* dtor;
@@ -184,7 +191,7 @@ namespace gjs {
                 class_method(type_manager* tpm, method_type f, const std::string& name) :
                     wrapped_function(
                         typeid(remove_all<Ret>::type),
-                        { typeid(remove_all<Cls>::type), typeid(remove_all<Args>::type)... },
+                        { typeid(remove_all<Args>::type)... },
                         name
                     ),
                     wrapper(call_class_method<Ret, Cls, Args...>)
@@ -204,13 +211,11 @@ namespace gjs {
 
                     // describe the function for the wrapped_function interface
                     ret_is_ptr = std::is_reference_v<Ret> || std::is_pointer_v<Ret>;
-                    arg_is_ptr = { true, (std::is_reference_v<Args> || std::is_pointer_v<Args>)... };
+                    arg_is_ptr = { (std::is_reference_v<Args> || std::is_pointer_v<Args>)... };
                     func_ptr = *reinterpret_cast<void**>(&f);
 
                     bool sbv_args[] = { std::is_class_v<Args>..., false };
-                    bool bt_args[] = { (!std::is_same_v<Args, script_type*> && tpm->get<Args>() == nullptr)..., false };
-                    // script_type* is allowed because host subclass types will be constructed with it, but
-                    // it should not be bound as a type
+                    bool bt_args[] = { (tpm->get<Args>() == nullptr)..., false };
 
                     for (u8 a = 0;a < ac::value;a++) {
                         if (sbv_args[a]) {
@@ -243,7 +248,7 @@ namespace gjs {
                 const_class_method(type_manager* tpm, method_type f, const std::string& name) :
                     wrapped_function(
                         typeid(remove_all<Ret>::type),
-                        { typeid(remove_all<Cls>::type), typeid(remove_all<Args>::type)... },
+                        { typeid(remove_all<Args>::type)... },
                         name
                     ),
                     wrapper(call_const_class_method<Ret, Cls, Args...>)
@@ -263,13 +268,11 @@ namespace gjs {
 
                     // describe the function for the wrapped_function interface
                     ret_is_ptr = std::is_reference_v<Ret> || std::is_pointer_v<Ret>;
-                    arg_is_ptr = { true, (std::is_reference_v<Args> || std::is_pointer_v<Args>)... };
+                    arg_is_ptr = { (std::is_reference_v<Args> || std::is_pointer_v<Args>)... };
                     func_ptr = *reinterpret_cast<void**>(&f);
 
                     bool sbv_args[] = { std::is_class_v<Args>..., false };
-                    bool bt_args[] = { (!std::is_same_v<Args, script_type*> && tpm->get<Args>() == nullptr)..., false };
-                    // script_type* is allowed because host subclass types will be constructed with it, but
-                    // it should not be bound as a type
+                    bool bt_args[] = { (tpm->get<Args>() == nullptr)..., false };
 
                     for (u8 a = 0;a < ac::value;a++) {
                         if (sbv_args[a]) {
@@ -313,8 +316,13 @@ namespace gjs {
          * Class wrapping helper
          */
         template <typename Cls, typename... Args>
-        Cls* construct_object(Cls* mem, Args... args) {
-            return new (mem) Cls(args...);
+        void construct_object(Cls* mem, Args... args) {
+            new (mem) Cls(args...);
+        }
+
+        template <typename Cls>
+        void copy_construct_object(void* dest, void* src, size_t sz) {
+            new ((Cls*)dest) Cls(*(Cls*)src);
         }
 
         template <typename Cls>
@@ -324,12 +332,24 @@ namespace gjs {
 
         template <typename Cls, typename... Args>
         wrapped_function* wrap_constructor(type_manager* tpm, const std::string& name) {
-            return wrap(tpm, name + "::constructor", construct_object<Cls, Args...>);
+            wrapped_function* f = wrap(tpm, name + "::constructor", construct_object<Cls, Args...>);
+            // gjs considers constructors and destructors methods, but they are
+            // bound like regular C functions. Remove explicit 'this' argument
+            // because gjs implicitly adds it.
+            f->arg_types.erase(f->arg_types.begin());
+            f->arg_is_ptr.erase(f->arg_is_ptr.begin());
+            return f;
         }
 
         template <typename Cls>
         wrapped_function* wrap_destructor(type_manager* tpm, const std::string& name) {
-            return wrap(tpm, name + "::destructor", destruct_object<Cls>);
+            wrapped_function* f = wrap(tpm, name + "::destructor", destruct_object<Cls>);
+            // gjs considers constructors and destructors methods, but they are
+            // bound like regular C functions. Remove explicit 'this' argument
+            // because gjs implicitly adds it.
+            f->arg_types.erase(f->arg_types.begin());
+            f->arg_is_ptr.erase(f->arg_is_ptr.begin());
+            return f;
         }
 
         enum property_flags {
@@ -346,6 +366,11 @@ namespace gjs {
                 type = tpm->add(name, typeid(remove_all<Cls>::type).name());
                 type->size = size;
                 type->is_host = true;
+                trivially_copyable = std::is_trivially_copyable_v<Cls>;
+                is_pod = std::is_pod_v<Cls>;
+                if constexpr (!std::is_trivially_copyable_v<Cls>) {
+                    pass_ret = copy_construct_object<Cls>;
+                }
             }
 
             template <typename... Args, std::enable_if_t<sizeof...(Args) != 0, int> = 0>
@@ -521,17 +546,22 @@ namespace gjs {
             pseudo_class(type_manager* tpm, const std::string& name) : wrapped_class(name, typeid(remove_all<prim>::type).name(), 0), types(tpm) {
                 type = tpm->add(name, typeid(remove_all<prim>::type).name());
                 if constexpr (!std::is_same_v<void, prim>) size = sizeof(prim);
+                trivially_copyable = true;
+                is_pod = true;
                 type->size = size;
                 type->is_host = true;
                 type->is_primitive = true;
                 type->is_pod = true;
+                type->is_trivially_copyable = true;
             }
 
-            // static methods
             template <typename Ret, typename... Args>
-            pseudo_class& method(const std::string& _name, Ret(*func)(Args...)) {
-                methods.push_back(wrap(types, name + "::" + _name, func));
-                methods[methods.size() - 1]->is_static_method = true;
+            pseudo_class& method(const std::string& _name, Ret(*func)(prim, Args...)) {
+                wrapped_function* f = wrap(types, name + "::" + _name, func);
+                // remove explicit 'this' argument (it is implicitly added by gjs)
+                f->arg_is_ptr.erase(f->arg_is_ptr.begin());
+                f->arg_types.erase(f->arg_types.begin());
+                methods.push_back(f);
                 return *this;
             }
 
@@ -582,7 +612,6 @@ namespace gjs {
             }
         }
 
-        
         template <typename T>
         void do_call(DCCallVM* call, std::enable_if_t<!std::is_pointer_v<T>, T>* ret, void* func);
 
