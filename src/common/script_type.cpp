@@ -64,12 +64,20 @@ namespace gjs {
             throw bind_exception(format("Type '%s' not found and can not be finalized", wrapped->name.c_str()));
         }
 
+        if (wrapped->dtor) {
+            // gjs considers constructors and destructors methods, but they are
+            // bound like regular C functions. Remove explicit 'this' argument
+            // because gjs implicitly adds it.
+            wrapped->dtor->arg_types.erase(wrapped->dtor->arg_types.begin());
+            wrapped->dtor->arg_is_ptr.erase(wrapped->dtor->arg_is_ptr.begin());
+        }
+
         script_type* t = it->getSecond();
         t->is_pod = wrapped->is_pod;
         t->m_wrapped = wrapped;
         t->is_trivially_copyable = wrapped->trivially_copyable;
         t->pass_ret = wrapped->pass_ret;
-        t->requires_subtype = wrapped->requires_subtype;
+        t->requires_subtype = false;
         t->size = (u32)wrapped->size;
         t->destructor = wrapped->dtor ? new script_function(this, t, wrapped->dtor, false, true) : nullptr;
 
@@ -82,11 +90,38 @@ namespace gjs {
                 i->getSecond()->getter ? new script_function(this, t, i->getSecond()->getter) : nullptr,
                 i->getSecond()->setter ? new script_function(this, t, i->getSecond()->setter) : nullptr
             });
+
+            if (i->getSecond()->type == std::type_index(typeid(subtype_t))) {
+                t->requires_subtype = true;
+            }
+        }
+
+        for (u32 i = 0;i < wrapped->methods.size();i++) {
+            bind::wrapped_function* f = wrapped->methods[i];
+            for (u8 a = 0;a < f->arg_types.size();a++) {
+                if (f->arg_types[a] == std::type_index(typeid(subtype_t))) {
+                    t->requires_subtype = true;
+                }
+            }
         }
 
         for (u32 i = 0;i < wrapped->methods.size();i++) {
             bind::wrapped_function* f = wrapped->methods[i];
             if (f->name.find("::constructor") != std::string::npos) {
+                // gjs considers constructors and destructors methods, but they are
+                // bound like regular C functions. Remove explicit 'this' argument
+                // because gjs implicitly adds it.
+                f->arg_types.erase(f->arg_types.begin());
+                f->arg_is_ptr.erase(f->arg_is_ptr.begin());
+
+                if (t->requires_subtype) {
+                    // second argument is a moduletype id, but should not be
+                    // explicitly listed as an argument. gjs deals with passing
+                    // that parameter internally
+                    f->arg_is_ptr.erase(f->arg_is_ptr.begin());
+                    f->arg_types.erase(f->arg_types.begin());
+                }
+
                 t->methods.push_back(new script_function(this, t, f, true));
                 continue;
             }

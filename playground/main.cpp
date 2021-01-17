@@ -35,6 +35,8 @@ int main(int arg_count, const char** args) {
     be.commit_bindings();
     be.log_ir(true);
     ctx.io()->set_cwd_from_args(arg_count, args);
+    //ctx.compiler()->add_ir_step(remove_unused_regs_pass);
+    ctx.compiler()->add_ir_step(debug_ir_step);
 
     script_module* mod = ctx.resolve("test");
     if (!mod) {
@@ -50,13 +52,11 @@ int main(int arg_count, const char** args) {
         f0 a, b, c;
     };
 
-    //f1* y = mod->local("y");
+    f1* y = mod->local("y");
     //f0 a = mod->local("y").prop<f0>("a");
-    //i32* x = (i32*)mod->local_ptr("x");
+    i32* x = (i32*)mod->local_ptr("x");
 
-
-    //ctx.compiler()->add_ir_step(remove_unused_regs_pass);
-    //ctx.compiler()->add_ir_step(debug_ir_step);
+    f1 t = mod->function("func")->call();
 
     /*
     script_function* f = mod->function<i32>("main");

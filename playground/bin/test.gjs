@@ -33,3 +33,11 @@ t.some.ayy();
 t.some x;
 x.x = test_enum.f;
 x.test();
+
+f1 func() {
+	return f1({
+		a: f0({ a: 1, b: 2, c: 3 }),
+		b: f0({ a: 4, b: 5, c: 6 }),
+		c: f0({ a: 7, b: 8, c: 9 })
+	});
+}

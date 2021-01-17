@@ -34,6 +34,7 @@ namespace gjs {
         m_self = ptr;
         m_owns_ptr = false;
         m_destructed = false;
+        m_refCount = new u32(1);
     }
 
     script_object::script_object(script_context* ctx) {
@@ -43,10 +44,39 @@ namespace gjs {
         m_self = nullptr;
         m_owns_ptr = false;
         m_destructed = false;
+        m_refCount = new u32(1);
+    }
+
+    script_object::script_object(const script_object& o) {
+        m_ctx = o.m_ctx;
+        m_mod = o.m_mod;
+        m_type = o.m_type;
+        m_self = o.m_self;
+        m_owns_ptr = o.m_owns_ptr;
+        m_destructed = o.m_destructed;
+        m_refCount = o.m_refCount;
+        if (m_refCount) (*m_refCount)++;
     }
 
     script_object::~script_object() {
-        if (!m_owns_ptr) destruct();
+        if (m_refCount && --(*m_refCount) == 0) {
+            delete m_refCount;
+            m_refCount = nullptr;
+
+            if (m_owns_ptr) {
+                if (m_destructed) {
+                    // runtime error
+                    return;
+                }
+                m_destructed = true;
+                if (!m_self) return;
+
+
+                script_function* dtor = m_type->method("destructor", nullptr, { m_type });
+                if (dtor) m_ctx->call(dtor, (void*)m_self);
+                if (m_owns_ptr) delete [] m_self;
+            }
+        }
     }
 
     property_accessor script_object::prop(const std::string& name) const {
@@ -64,17 +94,5 @@ namespace gjs {
 
     bool script_object::is_null() const {
         return m_self == nullptr;
-    }
-
-    void script_object::destruct() {
-        if (m_destructed) {
-            // runtime error
-            return;
-        }
-        
-        script_function* dtor = m_type->method("destructor", nullptr, { m_type });
-        if (dtor) m_ctx->call(dtor, (void*)m_self);
-        if (m_owns_ptr) delete [] m_self;
-        m_destructed = true;
     }
 };

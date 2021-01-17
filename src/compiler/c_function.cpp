@@ -236,6 +236,20 @@ namespace gjs {
                 // [expression | var].[method]
                 var expr = expression(ctx, left);
                 if (expr.type()->name != "error_type") {
+                    if (!expr.has_unambiguous_method(func_name, nullptr, out.arg_types)) {
+                        auto arg_types = out.arg_types;
+                        arg_types.insert(arg_types.begin(), expr.type());
+                        if (expr.has_unambiguous_method(func_name, nullptr, arg_types)) {
+                            out.callee = expr.method(func_name, nullptr, arg_types);
+                            if (out.callee && out.callee->is_static) {
+                                out.arg_types.insert(out.arg_types.begin(), expr.type());
+                                out.args.insert(out.args.begin(), expr);
+                                return true;
+                            }
+                            out.callee = nullptr;
+                        }
+                    }
+
                     out.callee = expr.method(func_name, nullptr, out.arg_types);
                     out.this_obj = expr;
                     return out.callee != nullptr;
@@ -291,7 +305,7 @@ namespace gjs {
             if (rtp->name == "subtype") rtp = self->type()->sub_type;
             var stack_ret = ctx.empty_var(rtp);
 
-            if (self) {
+            if (self && !func->is_static) {
                 // 'this' always gets passed first
                 ctx.add(operation::param).operand(*self);
             }
@@ -312,9 +326,11 @@ namespace gjs {
             // pass args
             for (u8 i = 0;i < args.size();i++) {
                 if (func->signature.arg_types[i]->name == "subtype") {
-                    ctx.add(operation::param).operand(args[i].convert(self->type()->sub_type));
+                    var p = args[i].convert(self->type()->sub_type);
+                    ctx.add(operation::param).operand(p);
                 } else {
-                    ctx.add(operation::param).operand(args[i].convert(func->signature.arg_types[i]));
+                    var p = args[i].convert(func->signature.arg_types[i]);
+                    ctx.add(operation::param).operand(p);
                 }
             }
 

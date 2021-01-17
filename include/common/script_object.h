@@ -1,7 +1,7 @@
 #pragma once
-#include <gjs/common/types.h>
-#include <gjs/common/script_type.h>
-#include <gjs/util/template_utils.hpp>
+#include <common/types.h>
+#include <common/script_type.h>
+#include <util/template_utils.hpp>
 
 namespace gjs {
     class script_function;
@@ -9,12 +9,18 @@ namespace gjs {
     class script_module;
     class script_object;
     
+    template <typename T>
     struct property_accessor {
         const script_object* obj;
         script_type::property* prop;
 
-        operator script_object();
-        script_object operator = (const script_object& rhs);
+        inline T& ref();
+        inline T get() const;
+        inline T set(const T& rhs);
+
+        inline operator T&() { return ref(); }
+        inline operator T() const { return get(); }
+        inline T operator = (const T& rhs) { return set(rhs); }
     };
 
     class script_object {
@@ -25,8 +31,6 @@ namespace gjs {
                 m_type = type;
                 m_mod = nullptr;
                 m_self = nullptr;
-                m_owns_ptr = true;
-                m_destructed = false;
 
                 script_function* ctor = nullptr;
 
@@ -41,16 +45,10 @@ namespace gjs {
                 }
                 // else throw error::runtime_exception(error::ecode::r_invalid_object_constructor, type->name.c_str());
             }
-            script_object(const script_object& o);
             ~script_object();
 
             template <typename Ret, typename... Args>
             void call(const std::string& func, Ret* result, Args... args) {
-                if (!m_self) {
-                    // todo runtime exception
-                    return;
-                }
-
                 func_signature sig = function_signature<Ret>(m_ctx, func, result, this, args...);
                 script_function* f = m_type->method(func, sig.return_type, sig.arg_types);
                 if (!f) {
@@ -60,18 +58,14 @@ namespace gjs {
                 m_ctx->call<Ret>(f, result, this, args...);
             }
 
-            property_accessor prop(const std::string& name) const;
-
-            bool is_null() const;
-
             template <typename T>
-            operator T&() {
-                return *(T*)m_self;
-            }
+            property_accessor<T> prop(const std::string& name) const {
+                script_type::property* p = m_type->prop(name);
+                if (!p) {
+                    throw error::runtime_exception(error::ecode::r_invalid_object_property, m_type->name.c_str(), name.c_str());
+                }
 
-            template <typename T>
-            operator T*() {
-                return (T*)m_self;
+                return { this, p };
             }
 
             inline void* self() const { return (void*)m_self; }
@@ -79,23 +73,14 @@ namespace gjs {
             inline script_context* context() const { return m_ctx; }
         protected:
             friend class script_context;
-            friend class script_module;
-            friend class property_accessor;
-            script_object(script_context* ctx); // undefined value
-            script_object(script_context* ctx, script_module* mod, script_type* type, u8* ptr);
-            void destruct();
-
-            bool m_destructed;
-            bool m_owns_ptr;
             script_context* m_ctx;
             script_type* m_type;
             script_module* m_mod;
             u8* m_self;
-            u32* m_refCount;
     };
-    /*
+
     template <typename T>
-    inline T& property_accessor::ref() {
+    inline T& property_accessor<T>::ref() {
         // todo: objects
 
         if (prop->flags & bind::pf_read_only || prop->flags & bind::pf_write_only) {
@@ -110,11 +95,24 @@ namespace gjs {
     }
 
     template <typename T>
-    inline T property_accessor::get() const {
+    inline T property_accessor<T>::get() const {
+        // todo: objects
+
+        if (!(prop->flags & bind::pf_write_only) && !prop->getter && !prop->setter) {
+            return *(T*)(((u8*)obj->self()) + prop->offset);
+        }
+
+        if (prop->getter) {
+            u8 r[sizeof(T)];
+            obj->context()->call<T>(prop->getter, (T*)r, obj);
+            return *(T*)r;
+        }
+
+        throw error::runtime_exception(error::ecode::r_cannot_read_object_property, prop->name.c_str(), obj->type()->name.c_str());
     }
 
     template <typename T>
-    inline T property_accessor::set(const T& rhs) {
+    inline T property_accessor<T>::set(const T& rhs) {
         if (!(prop->flags & bind::pf_read_only) && !prop->getter && !prop->setter) {
             return (*(T*)(((u8*)obj->self()) + prop->offset)) = rhs;
         }
@@ -127,5 +125,4 @@ namespace gjs {
 
         throw error::runtime_exception(error::ecode::r_cannot_write_object_property, prop->name.c_str(), obj->type()->name.c_str());
     }
-    */
 };

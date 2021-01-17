@@ -1,6 +1,5 @@
 #pragma once
-#include <gjs/common/types.h>
-#include <gjs/common/script_object.h>
+#include <common/types.h>
 #include <string>
 #include <vector>
 
@@ -21,11 +20,6 @@ namespace gjs {
             script_function(type_manager* mgr, script_type* tp, bind::wrapped_function* wrapped, bool is_ctor = false, bool is_dtor = false);
 
             void arg(script_type* type);
-
-            template <typename... Args>
-            script_object call(Args... args) {
-                return m_ctx->call(this, args...);
-            }
 
             std::string name;
             bool is_host;

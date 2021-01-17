@@ -27,7 +27,7 @@ namespace gjs {
     void script_module::init() {
         if (!m_init || m_initialized) return;
         m_initialized = true;
-        m_ctx->call(m_init, nullptr);
+        m_ctx->call(m_init);
     }
 
     void script_module::define_local(const std::string& name, u64 offset, script_type* type, const source_ref& ref) {
