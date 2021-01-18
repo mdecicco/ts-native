@@ -23,8 +23,8 @@ namespace gjs {
             void arg(script_type* type);
 
             template <typename... Args>
-            script_object call(Args... args) {
-                return m_ctx->call(this, args...);
+            script_object call(void* self, Args... args) {
+                return m_ctx->call(this, self, args...);
             }
 
             std::string name;

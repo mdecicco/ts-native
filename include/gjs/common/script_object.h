@@ -20,37 +20,38 @@ namespace gjs {
                 m_self = nullptr;
                 m_owns_ptr = true;
                 m_destructed = false;
+                m_propInfo = nullptr;
+                m_refCount = new u32(1);
 
                 script_function* ctor = nullptr;
 
                 constexpr u8 ac = std::tuple_size<std::tuple<Args...>>::value;
                 if constexpr (ac > 0) {
-                    ctor = m_type->method("constructor", type, { type, ctx->global()->types()->get<Args>(true)... });
-                } else ctor = m_type->method("constructor", type, { type });
+                    ctor = m_type->method("constructor", nullptr, { ctx->global()->types()->get<Args>(true)... });
+                } else ctor = m_type->method("constructor", nullptr, {});
 
                 m_self = new u8[type->size];
-                if (ctor) {
-                    ctx->call(ctor, this, this, args...);
-                }
-                // else throw error::runtime_exception(error::ecode::r_invalid_object_constructor, type->name.c_str());
+                if (ctor) ctor->call(this, args...);
+                else throw error::runtime_exception(error::ecode::r_invalid_object_constructor, type->name.c_str());
             }
             script_object(const script_object& o);
             ~script_object();
 
-            template <typename Ret, typename... Args>
-            void call(const std::string& func, Ret* result, Args... args) {
+            template <typename Ret = void, typename... Args>
+            script_object call(const std::string& func, Args... args) {
                 if (!m_self) {
                     // todo runtime exception
-                    return;
+                    return script_object(m_ctx);
                 }
 
-                func_signature sig = function_signature<Ret>(m_ctx, func, result, this, args...);
+                func_signature sig = function_signature<Ret>(m_ctx, func, (Ret*)nullptr, args...);
                 script_function* f = m_type->method(func, sig.return_type, sig.arg_types);
                 if (!f) {
                     throw error::runtime_exception(error::ecode::r_invalid_object_method, m_type->name.c_str(), sig.to_string().c_str());
+                    return script_object(m_ctx);
                 }
 
-                m_ctx->call<Ret>(f, result, this, args...);
+                return f->call(this, args...);
             }
 
             script_object operator [] (const std::string& name);

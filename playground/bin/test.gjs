@@ -16,6 +16,18 @@ f1 y = f1({
 	c: f0({ a: 7, b: 8, c: 9 })
 });
 
+class t {
+	constructor(i32 f) {
+		this.x = f;
+	}
+
+	void print() {
+		print(this.x.toFixed(2));
+	}
+
+	i32 x;
+};
+
 f1 func() {
 	return y;
 }

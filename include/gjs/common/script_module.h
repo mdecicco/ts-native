@@ -70,6 +70,8 @@ namespace gjs {
                 return function_search<Ret, Args...>(m_ctx, name, function_overloads(name));
             }
 
+            script_type* type(const std::string& name) const;
+
             std::vector<std::string> function_names() const;
 
             script_enum* get_enum(const std::string& name) const;

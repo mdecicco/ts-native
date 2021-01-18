@@ -98,6 +98,7 @@ namespace gjs {
     }
 
     bool script_object::assign(const script_object& rhs) {
+        // todo
         if (m_propInfo && m_propInfo->prop->setter) {
             if (rhs.m_type == m_type) {
                 m_propInfo->prop->setter->call(m_propInfo->obj, rhs);

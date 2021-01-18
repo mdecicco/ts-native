@@ -35,7 +35,7 @@ int main(int arg_count, const char** args) {
     be.commit_bindings();
     be.log_ir(true);
     ctx.io()->set_cwd_from_args(arg_count, args);
-    //ctx.compiler()->add_ir_step(remove_unused_regs_pass);
+    ctx.compiler()->add_ir_step(remove_unused_regs_pass);
     ctx.compiler()->add_ir_step(debug_ir_step);
 
     script_module* mod = ctx.resolve("test");
@@ -45,19 +45,15 @@ int main(int arg_count, const char** args) {
     }
 
     mod->init();
-    struct f0 {
-        i32 a, b, c;
-    };
-    struct f1 {
-        f0 a, b, c;
-    };
+    struct f0 { i32 a, b, c; };
+    struct f1 { f0 a, b, c; };
 
-    script_object _y = mod->local("y");
-    i32* aa = _y["a"]["a"];
-    _y["a"]["a"] = 55;
-    i32* x = (i32*)mod->local_ptr("x");
+    mod->local("y")["a"]["a"] = 55;
 
-    f1 t = mod->function("func")->call();
+    f1 t = mod->function("func")->call(nullptr);
+
+    script_object obj = ctx.instantiate(mod->type("t"), 5);
+    obj.call("print");
 
     return 0;
 }

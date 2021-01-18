@@ -54,6 +54,11 @@ namespace gjs {
                 return m_global->types()->get<T>(do_throw);
             }
 
+            template <typename... Args>
+            script_object instantiate(script_type* type, Args... args) {
+                return script_object(this, type, args...);
+            }
+
             script_module* module(const std::string& name);
             script_module* module(u32 id);
             std::vector<script_module*> modules() const;
@@ -82,7 +87,7 @@ namespace gjs {
             //void call(script_function* func, Ret* result, Args... args);
             
             template <typename... Args>
-            script_object call(script_function* func, Args... args);
+            script_object call(script_function* func, void* self, Args... args);
 
         protected:
             robin_hood::unordered_map<std::string, script_module*> m_modules;
@@ -105,25 +110,21 @@ namespace gjs {
     }
     */
     template <typename... Args>
-    script_object script_context::call(script_function* func, Args... args) {
-        // todo:
-        // in scripts:
-        // 1. copy construct return value from returned object if non-primitive (dynamically allocate)
-        // 2. ensure locally new-ed objects are deleted and destructed
-        // 3. return pointer to copy constructed return value
-        // here:
-        // 1. wrap returned pointer in a script_object and return (done)
-        // 2. dynamically allocate space for primitives on a script_object
-        // 3. raise some flag on script object in private copy constructor that
-        //    gets called when returned, the flag should prevent destruction of
-        //    the object when the local script_object is destroyed post-return
-
-        // reconsider... non-pod objects really can't always be copied with memcpy. Even if the
-        // lifetimes are properly managed
-
+    script_object script_context::call(script_function* func, void* self, Args... args) {
         // validate signature
         constexpr u8 ac = std::tuple_size<std::tuple<Args...>>::value;
-        bool valid_call = true;
+        bool valid_call = (self != nullptr) == func->signature.is_thiscall;
+
+        if (!valid_call) {
+            // todo
+            if (self) {
+                // self for non-thiscall exception
+            } else {
+                // no self for thiscall exception
+            }
+            return script_object(this);
+        }
+
         if constexpr (ac > 0) {
             script_type* arg_types[ac] = { arg_type(this, args)... };
             for (u8 i = 0;i < ac;i++) {
@@ -142,18 +143,19 @@ namespace gjs {
             }
 
             if (!valid_call) {
-                // exception
+                // todo exception
                 return script_object(this);
             }
 
-            void* vargs[] = { to_arg(args)... };
+            std::vector<void*> vargs = { to_arg(args)... };
+            if (self) vargs.insert(vargs.begin(), self);
+
             script_object out = script_object(this, (script_module*)nullptr, func->signature.return_type, nullptr);
             if (func->signature.return_type->size > 0) {
                 out.m_self = new u8[func->signature.return_type->size];
                 out.m_owns_ptr = true;
             }
-            m_backend->call(func, out.m_self, vargs);
-            // todo: reference counting or private ownership stealing copy constructor
+            m_backend->call(func, out.m_self, vargs.data());
             return out;
         } else {
             if (func->signature.arg_types.size() != 0) valid_call = false;
@@ -168,8 +170,7 @@ namespace gjs {
                 out.m_self = new u8[func->signature.return_type->size];
                 out.m_owns_ptr = true;
             }
-            m_backend->call(func, out.m_self, nullptr);
-            // todo: reference counting or private ownership stealing copy constructor
+            m_backend->call(func, out.m_self, &self);
             return out;
         }
 

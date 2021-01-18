@@ -28,7 +28,7 @@ namespace gjs {
 
             script_type* method_of = ctx.class_tp();
             if (method_of && !n->is_static) {
-                if (is_ctor = (std::string(*n->identifier) == "constructor")) ret = method_of;
+                if (is_ctor = (std::string(*n->identifier) == "constructor")) ret = ctx.type("void");
                 else if (is_dtor = (std::string(*n->identifier) == "destructor")) ret = ctx.type("void");
                 else {
                     ctx.push_node(n->data_type);
@@ -68,6 +68,7 @@ namespace gjs {
                 
                 f = new script_function(ctx.env, fname, 0);
                 f->owner = ctx.out.mod;
+                f->signature.is_thiscall = method_of != nullptr;
                 f->signature.return_type = ret;
                 f->signature.returns_pointer = is_ctor;
                 f->signature.returns_on_stack = !is_ctor && !ret->is_primitive && ret->size > 0;
@@ -115,6 +116,7 @@ namespace gjs {
             } else {
                 f = new script_function(ctx.env, fname, ctx.code_sz());
                 f->owner = ctx.out.mod;
+                f->signature.is_thiscall = method_of != nullptr;
                 f->signature.return_type = ret;
                 f->signature.returns_pointer = is_ctor;
                 f->signature.returns_on_stack = !is_ctor && !ret->is_primitive && ret->size > 0;

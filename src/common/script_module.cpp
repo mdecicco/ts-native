@@ -27,7 +27,7 @@ namespace gjs {
     void script_module::init() {
         if (!m_init || m_initialized) return;
         m_initialized = true;
-        m_ctx->call(m_init);
+        m_ctx->call(m_init, nullptr);
     }
 
     void script_module::define_local(const std::string& name, u64 offset, script_type* type, const source_ref& ref) {
@@ -81,6 +81,10 @@ namespace gjs {
         if (it == m_func_map.end()) return nullptr;
         if (it->getSecond().size() > 1) return nullptr;
         return m_functions[it->getSecond()[0]];
+    }
+
+    script_type* script_module::type(const std::string& name) const {
+        return m_types->get(name);
     }
 
     std::vector<std::string> script_module::function_names() const {
