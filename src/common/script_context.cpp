@@ -24,9 +24,10 @@ namespace gjs {
             m_owns_io = true;
             m_io = new basic_io_interface();
         } else m_owns_io = false;
+
+        m_all_types = new type_manager(this);
         
-        m_global = new script_module(this, "__global__");
-        add(m_global);
+        m_global = create_module("__global__");
         m_host_call_vm = dcNewCallVM(4096);
         m_backend->m_ctx = this;
 
@@ -49,6 +50,8 @@ namespace gjs {
         if (m_owns_io) {
             delete m_io;
         }
+
+        delete m_all_types;
     }
 
     void script_context::add(script_function* func) {
@@ -61,7 +64,6 @@ namespace gjs {
         }
 
         m_funcs_by_addr[addr] = func;
-        if (!func->owner) m_global->add(func);
     }
 
     void script_context::add(script_module* module) {
@@ -192,6 +194,11 @@ namespace gjs {
         return out_path;
     }
 
+    script_module* script_context::create_module(const std::string& name) {
+        script_module* m = new script_module(this, name);
+        add(m);
+        return m;
+    }
 
     script_module* script_context::module(const std::string& name) {
         auto it = m_modules.find(name);
@@ -209,6 +216,15 @@ namespace gjs {
         std::vector<script_module*> out;
         
         for (auto it = m_modules_by_id.begin();it != m_modules_by_id.end();++it) {
+            out.push_back(it->getSecond());
+        }
+
+        return out;
+    }
+    std::vector<script_function*> script_context::functions() const {
+        std::vector<script_function*> out;
+
+        for (auto it = m_funcs_by_addr.begin();it != m_funcs_by_addr.end();++it) {
             out.push_back(it->getSecond());
         }
 

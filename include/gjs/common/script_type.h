@@ -42,12 +42,16 @@ namespace gjs {
 
             script_type* add(const std::string& name, const std::string& internal_name);
 
-            script_type* finalize_class(bind::wrapped_class* wrapped);
+            script_type* finalize_class(bind::wrapped_class* wrapped, script_module* mod);
 
             std::vector<script_type*> all();
 
+            script_context* ctx();
+
         protected:
+            void add(script_type* tp);
             friend class script_function;
+            friend class script_context;
             script_context* m_ctx;
             robin_hood::unordered_map<std::string, script_type*> m_types;
             robin_hood::unordered_map<u32, script_type*> m_types_by_id;

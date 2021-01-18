@@ -555,14 +555,15 @@ namespace gjs {
         auto& lib = m_llvm->jit->getMainJITDylib();
 
         SymbolMap symbols;
-        auto global_funcs = m_ctx->global()->functions();
-        for (u32 f = 0;f < global_funcs.size();f++) {
-            void* fptr = global_funcs[f]->access.wrapped->func_ptr;
+        auto funcs = m_ctx->functions();
+        for (u32 f = 0;f < funcs.size();f++) {
+            if (!funcs[f]->is_host) continue;
+            void* fptr = funcs[f]->access.wrapped->func_ptr;
 
-            if (global_funcs[f]->access.wrapped->srv_wrapper_func) fptr = global_funcs[f]->access.wrapped->srv_wrapper_func;
-            else if (global_funcs[f]->access.wrapped->call_method_func) fptr = global_funcs[f]->access.wrapped->call_method_func;
+            if (funcs[f]->access.wrapped->srv_wrapper_func) fptr = funcs[f]->access.wrapped->srv_wrapper_func;
+            else if (funcs[f]->access.wrapped->call_method_func) fptr = funcs[f]->access.wrapped->call_method_func;
 
-            symbols[ES.intern(internal_func_name(global_funcs[f]))] = {
+            symbols[ES.intern(internal_func_name(funcs[f]))] = {
                 pointerToJITTargetAddress(fptr),
                 JITSymbolFlags::Exported | JITSymbolFlags::Absolute
             };

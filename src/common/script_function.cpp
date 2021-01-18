@@ -1,12 +1,13 @@
 #include <gjs/common/script_function.h>
 #include <gjs/common/script_type.h>
 #include <gjs/common/script_context.h>
+#include <gjs/common/script_module.h>
 #include <gjs/vm/register.h>
 #include <gjs/bind/bind.h>
 #include <gjs/util/util.h>
 
 namespace gjs {
-    script_function::script_function(script_context* ctx, const std::string _name, address addr) {
+    script_function::script_function(script_context* ctx, const std::string _name, address addr, script_module* mod) {
         m_ctx = ctx;
 
         name = _name;
@@ -23,10 +24,10 @@ namespace gjs {
 
         access.entry = addr;
 
-        owner = nullptr;
+        owner = mod;
     }
 
-    script_function::script_function(type_manager* mgr, script_type* tp, bind::wrapped_function* wrapped, bool is_ctor, bool is_dtor) {
+    script_function::script_function(type_manager* mgr, script_type* tp, bind::wrapped_function* wrapped, bool is_ctor, bool is_dtor, script_module* mod) {
         m_ctx = mgr->m_ctx;
 
         name = wrapped->name;
@@ -36,8 +37,8 @@ namespace gjs {
 
         // return type
         if (std::string(wrapped->return_type.name()) == "void" && wrapped->ret_is_ptr) {
-            signature.return_type = mgr->get<void*>();
-        } else signature.return_type = mgr->get(wrapped->return_type.name());
+            signature.return_type = m_ctx->types()->get<void*>();
+        } else signature.return_type = m_ctx->types()->get(wrapped->return_type.name());
 
         if (!signature.return_type) {
             throw bind_exception(format("Return value of function '%s' is of type '%s' that has not been bound yet", name.c_str(), wrapped->return_type.name()));
@@ -59,8 +60,8 @@ namespace gjs {
         for (u8 i = 0;i < wrapped->arg_types.size();i++) {
             script_type* atp = nullptr;
             if (std::string(wrapped->arg_types[i].name()) == "void" && wrapped->arg_is_ptr[i]) {
-                atp = mgr->get<void*>(); // some object or primitive pointer
-            } else atp = mgr->get(wrapped->arg_types[i].name());
+                atp = m_ctx->types()->get<void*>(); // some object or primitive pointer
+            } else atp = m_ctx->types()->get(wrapped->arg_types[i].name());
 
             if (!atp) {
                 throw bind_exception(format("Arg '%d' of function '%s' is of type '%s' that has not been bound yet", i + 1, name.c_str(), wrapped->arg_types[i].name()));
@@ -73,9 +74,8 @@ namespace gjs {
 
         access.wrapped = wrapped;
 
-        owner = nullptr;
-
-        mgr->m_ctx->add(this);
+        owner = mod ? mod : mgr->m_ctx->global();
+        owner->add(this);
     }
 
     void script_function::arg(script_type* type) {

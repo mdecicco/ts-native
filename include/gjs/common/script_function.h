@@ -17,8 +17,8 @@ namespace gjs {
 
     class script_function {
         public:
-            script_function(script_context* ctx, const std::string name, address addr);
-            script_function(type_manager* mgr, script_type* tp, bind::wrapped_function* wrapped, bool is_ctor = false, bool is_dtor = false);
+            script_function(script_context* ctx, const std::string name, address addr, script_module* mod = nullptr);
+            script_function(type_manager* mgr, script_type* tp, bind::wrapped_function* wrapped, bool is_ctor = false, bool is_dtor = false, script_module* mod = nullptr);
 
             void arg(script_type* type);
 

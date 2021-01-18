@@ -30,8 +30,23 @@ namespace gjs {
         m_ctx->call(m_init, nullptr);
     }
 
+    script_object script_module::define_local(const std::string& name, script_type* type) {
+        if (has_local(name)) {
+            // todo: exception
+            return script_object(m_ctx);
+        }
+        m_local_map[name] = (u16)m_locals.size();
+        u64 offset = m_data->position();
+        m_locals.push_back({ offset, type, name, source_ref(), this });
+        m_data->position(offset + type->size);
+        return script_object(const_cast<script_context*>(m_ctx), const_cast<script_module*>(this), type, (u8*)m_data->data(offset));
+    }
+
     void script_module::define_local(const std::string& name, u64 offset, script_type* type, const source_ref& ref) {
-        if (has_local(name)) return;
+        if (has_local(name)) {
+            // todo: exception
+            return;
+        }
         m_local_map[name] = (u16)m_locals.size();
         m_locals.push_back({ offset, type, name, ref, this });
     }
@@ -129,6 +144,6 @@ namespace gjs {
         }
 
         func->owner = this;
-        if (this != m_ctx->global()) m_ctx->add(func);
+        m_ctx->add(func);
     }
 };

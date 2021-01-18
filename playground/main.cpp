@@ -55,5 +55,9 @@ int main(int arg_count, const char** args) {
     script_object obj = ctx.instantiate(mod->type("t"), 5);
     obj.call("print");
 
+    struct {
+        f32 x, y;
+    } vec = mod->function("vec")->call(nullptr);
+
     return 0;
 }

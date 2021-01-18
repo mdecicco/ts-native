@@ -1,3 +1,5 @@
+import { vec2f } from 'math';
+
 format f0 {
 	i32 a,
 	i32 b,
@@ -30,4 +32,8 @@ class t {
 
 f1 func() {
 	return y;
+}
+
+vec2f vec() {
+	return vec2f(2, 5);
 }

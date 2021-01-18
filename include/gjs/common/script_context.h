@@ -24,34 +24,25 @@ namespace gjs {
             template <class Cls>
             std::enable_if_t<std::is_class_v<Cls>, bind::wrap_class<Cls>&>
             bind(const std::string& name) {
-                // as long as wrap_class::finalize is called, this will be deleted when it should be
-                bind::wrap_class<Cls>* out = new bind::wrap_class<Cls>(m_global->types(), name);
-                out->type->owner = m_global;
-                return *out;
+                return m_global->bind<Cls>(name);
             }
 
             template <class prim>
             std::enable_if_t<!std::is_class_v<prim> && !std::is_same_v<prim, void>, bind::pseudo_class<prim>&>
             bind(const std::string& name) {
-                // as long as pseudo_class::finalize is called, this will be deleted when it should be
-                bind::pseudo_class<prim>* out = new bind::pseudo_class<prim>(m_global->types(), name);
-                out->type->owner = m_global;
-                out->type->is_unsigned = std::is_unsigned_v<prim>;
-                out->type->is_builtin = true;
-                out->type->is_floating_point = std::is_floating_point_v<prim>;
-                return *out;
+                return m_global->bind<prim>(name);
             }
-
 
             template <typename Ret, typename... Args>
             script_function* bind(Ret(*func)(Args...), const std::string& name) {
-                bind::wrapped_function* w = bind::wrap(m_global->types(), name, func);
-                return new script_function(m_global->types(), nullptr, w);
+                return m_global->bind<Ret, Args...>(func, name);
             }
+
+            script_module* create_module(const std::string& name);
 
             template <typename T>
             script_type* type(bool do_throw = false) {
-                return m_global->types()->get<T>(do_throw);
+                return m_all_types->get<T>(do_throw);
             }
 
             template <typename... Args>
@@ -62,6 +53,7 @@ namespace gjs {
             script_module* module(const std::string& name);
             script_module* module(u32 id);
             std::vector<script_module*> modules() const;
+            std::vector<script_function*> functions() const;
             script_function* function(u64 address);
 
             void add(script_function* func);
@@ -72,6 +64,7 @@ namespace gjs {
             inline backend* generator() { return m_backend; }
             inline DCCallVM* call_vm() { return m_host_call_vm; }
             inline io_interface* io() { return m_io; }
+            inline type_manager* types() { return m_all_types; }
 
             script_module* resolve(const std::string& module_path);
             script_module* resolve(const std::string& rel_path, const std::string& module_path);
@@ -79,12 +72,6 @@ namespace gjs {
             std::string module_name(const std::string& rel_path, const std::string& module_path);
 
             script_module* add_code(const std::string& module, const std::string& code);
-
-            /*
-            * Call function
-            */
-            //template <typename Ret, typename... Args>
-            //void call(script_function* func, Ret* result, Args... args);
             
             template <typename... Args>
             script_object call(script_function* func, void* self, Args... args);
@@ -93,6 +80,7 @@ namespace gjs {
             robin_hood::unordered_map<std::string, script_module*> m_modules;
             robin_hood::unordered_map<u32, script_module*> m_modules_by_id;
             robin_hood::unordered_map<u64, script_function*> m_funcs_by_addr;
+            type_manager* m_all_types;
 
             pipeline m_pipeline;
             backend* m_backend;

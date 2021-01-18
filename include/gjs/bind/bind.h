@@ -17,6 +17,7 @@ namespace gjs {
     class vm_backend;
     class script_function;
     class script_type;
+    class script_module;
     class type_manager;
 
     class bind_exception : public std::exception {
@@ -362,36 +363,36 @@ namespace gjs {
 
             template <typename... Args, std::enable_if_t<sizeof...(Args) != 0, int> = 0>
             wrap_class& constructor() {
-                methods.push_back(wrap_constructor<Cls, Args...>(types, name));
-                if (!dtor) dtor = wrap_destructor<Cls>(types, name);
+                methods.push_back(wrap_constructor<Cls, Args...>(types->ctx()->types(), name));
+                if (!dtor) dtor = wrap_destructor<Cls>(types->ctx()->types(), name);
                 return *this;
             }
 
             template <typename... Args, std::enable_if_t<sizeof...(Args) == 0, int> = 0>
             wrap_class& constructor() {
-                methods.push_back(wrap_constructor<Cls, Args...>(types, name));
-                if (!dtor) dtor = wrap_destructor<Cls>(types, name);
+                methods.push_back(wrap_constructor<Cls, Args...>(types->ctx()->types(), name));
+                if (!dtor) dtor = wrap_destructor<Cls>(types->ctx()->types(), name);
                 return *this;
             }
 
             // non-const methods
             template <typename Ret, typename... Args>
             wrap_class& method(const std::string& _name, Ret(Cls::*func)(Args...)) {
-                methods.push_back(wrap(types, name + "::" + _name, func));
+                methods.push_back(wrap(types->ctx()->types(), name + "::" + _name, func));
                 return *this;
             }
 
             // const methods
             template <typename Ret, typename... Args>
             wrap_class& method(const std::string& _name, Ret(Cls::*func)(Args...) const) {
-                methods.push_back(wrap(types, name + "::" + _name, func));
+                methods.push_back(wrap(types->ctx()->types(), name + "::" + _name, func));
                 return *this;
             }
 
             // static methods
             template <typename Ret, typename... Args>
             wrap_class& method(const std::string& _name, Ret(*func)(Args...)) {
-                methods.push_back(wrap(types, name + "::" + _name, func));
+                methods.push_back(wrap(types->ctx()->types(), name + "::" + _name, func));
                 methods[methods.size() - 1]->is_static_method = true;
                 return *this;
             }
@@ -399,7 +400,7 @@ namespace gjs {
             // static method which can have 'this' obj passed to it
             template <typename Ret, typename... Args>
             wrap_class& method(const std::string& _name, Ret(*func)(Args...), bool pass_this) {
-                methods.push_back(wrap(types, name + "::" + _name, func));
+                methods.push_back(wrap(types->ctx()->types(), name + "::" + _name, func));
                 methods[methods.size() - 1]->is_static_method = true;
                 methods[methods.size() - 1]->pass_this = pass_this;
                 return *this;
@@ -412,7 +413,7 @@ namespace gjs {
                     throw bind_exception(format("Property '%s' already bound to type '%s'", _name.c_str(), name.c_str()));
                 }
 
-                if (!types->get<T>()) {
+                if (!types->ctx()->types()->get<T>()) {
                     throw bind_exception(format("Attempting to bind property of type '%s' that has not been bound itself", typeid(remove_all<T>::type).name()));
                 }
 
@@ -428,7 +429,7 @@ namespace gjs {
                     throw bind_exception(format("Property '%s' already bound to type '%s'", _name.c_str(), name.c_str()));
                 }
 
-                if (!types->get<T>()) {
+                if (!types->ctx()->types()->get<T>()) {
                     throw bind_exception(format("Attempting to bind property of type '%s' that has not been bound itself", typeid(remove_all<T>::type).name()));
                 }
 
@@ -443,13 +444,13 @@ namespace gjs {
                     throw bind_exception(format("Property '%s' already bound to type '%s'", _name.c_str(), name.c_str()));
                 }
 
-                if (!types->get<T>()) {
+                if (!types->ctx()->types()->get<T>()) {
                     throw bind_exception(format("Attempting to bind property of type '%s' that has not been bound itself", typeid(remove_all<T>::type).name()));
                 }
 
                 properties[_name] = new property(
-                    wrap(types, name + "::get_" + _name, getter),
-                    wrap(types, name + "::set_" + _name, setter),
+                    wrap(types->ctx()->types(), name + "::get_" + _name, getter),
+                    wrap(types->ctx()->types(), name + "::set_" + _name, setter),
                     typeid(remove_all<T>::type),
                     0,
                     flags
@@ -464,13 +465,13 @@ namespace gjs {
                     throw bind_exception(format("Property '%s' already bound to type '%s'", _name.c_str(), name.c_str()));
                 }
 
-                if (!types->get<T>()) {
+                if (!types->ctx()->types()->get<T>()) {
                     throw bind_exception(format("Attempting to bind property of type '%s' that has not been bound itself", typeid(remove_all<T>::type).name()));
                 }
 
                 properties[_name] = new property(
-                    wrap(types, name + "::get_" + _name, getter),
-                    wrap(types, name + "::set_" + _name, setter),
+                    wrap(types->ctx()->types(), name + "::get_" + _name, getter),
+                    wrap(types->ctx()->types(), name + "::set_" + _name, setter),
                     typeid(remove_all<T>::type),
                     0,
                     flags
@@ -485,12 +486,12 @@ namespace gjs {
                     throw bind_exception(format("Property '%s' already bound to type '%s'", _name.c_str(), name.c_str()));
                 }
 
-                if (!types->get<T>()) {
+                if (!types->ctx()->types()->get<T>()) {
                     throw bind_exception(format("Attempting to bind property of type '%s' that has not been bound itself", typeid(remove_all<T>::type).name()));
                 }
 
                 properties[_name] = new property(
-                    wrap(types, name + "::get_" + _name, getter),
+                    wrap(types->ctx()->types(), name + "::get_" + _name, getter),
                     nullptr,
                     typeid(remove_all<T>::type),
                     0,
@@ -506,12 +507,12 @@ namespace gjs {
                     throw bind_exception(format("Property '%s' already bound to type '%s'", _name.c_str(), name.c_str()));
                 }
 
-                if (!types->get<T>()) {
+                if (!types->ctx()->types()->get<T>()) {
                     throw bind_exception(format("Attempting to bind property of type '%s' that has not been bound itself", typeid(remove_all<T>::type).name()));
                 }
 
                 properties[_name] = new property(
-                    wrap(types, name + "::get_" + _name, getter),
+                    wrap(types->ctx()->types(), name + "::get_" + _name, getter),
                     nullptr,
                     typeid(remove_all<T>::type),
                     0,
@@ -520,8 +521,8 @@ namespace gjs {
                 return *this;
             }
 
-            script_type* finalize() {
-                return types->finalize_class(this);
+            script_type* finalize(script_module* mod) {
+                return types->finalize_class(this, mod);
             }
 
             type_manager* types;
@@ -543,14 +544,14 @@ namespace gjs {
 
             template <typename Ret, typename... Args>
             pseudo_class& method(const std::string& _name, Ret(*func)(prim, Args...)) {
-                wrapped_function* f = wrap(types, name + "::" + _name, func);
+                wrapped_function* f = wrap(types->ctx()->types(), name + "::" + _name, func);
                 f->is_static_method = true;
                 methods.push_back(f);
                 return *this;
             }
 
-            script_type* finalize() {
-                return types->finalize_class(this);
+            script_type* finalize(script_module* mod) {
+                return types->finalize_class(this, mod);
             }
 
             type_manager* types;

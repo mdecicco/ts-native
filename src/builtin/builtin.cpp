@@ -7,6 +7,7 @@
 #include <gjs/common/script_context.h>
 #include <gjs/common/script_module.h>
 #include <gjs/bind/bind.h>
+#include <gjs/builtin/script_math.h>
 
 namespace gjs {
     // todo: thread_id:ctx map
@@ -50,21 +51,21 @@ namespace gjs {
         auto nt8 = ctx->bind<f32>("f32");
         auto nt9 = ctx->bind<f64>("f64");
 
-        bind_number_methods(nt0).finalize();
-        bind_number_methods(nt1).finalize();
-        bind_number_methods(nt2).finalize();
-        bind_number_methods(nt3).finalize();
-        bind_number_methods(nt4).finalize();
-        bind_number_methods(nt5).finalize();
-        bind_number_methods(nt6).finalize();
-        bind_number_methods(nt7).finalize();
-        bind_number_methods(nt8).finalize();
-        bind_number_methods(nt9).finalize();
+        bind_number_methods(nt0).finalize(ctx->global());
+        bind_number_methods(nt1).finalize(ctx->global());
+        bind_number_methods(nt2).finalize(ctx->global());
+        bind_number_methods(nt3).finalize(ctx->global());
+        bind_number_methods(nt4).finalize(ctx->global());
+        bind_number_methods(nt5).finalize(ctx->global());
+        bind_number_methods(nt6).finalize(ctx->global());
+        bind_number_methods(nt7).finalize(ctx->global());
+        bind_number_methods(nt8).finalize(ctx->global());
+        bind_number_methods(nt9).finalize(ctx->global());
 
-        ctx->bind<bool>("bool").finalize();
+        ctx->bind<bool>("bool").finalize(ctx->global());
 
         if (typeid(char) != typeid(i8)) {
-            ctx->bind<char>("___char").finalize();
+            ctx->bind<char>("___char").finalize(ctx->global());
         }
 
         script_type* tp = nullptr;
@@ -87,13 +88,11 @@ namespace gjs {
         tp->is_builtin = true;
         tp->size = 0;
 
-        tp = ctx->bind<subtype_t>("subtype").finalize();
-        tp->owner = ctx->global();
+        tp = ctx->bind<subtype_t>("subtype").finalize(ctx->global());
         tp->is_builtin = true;
 
-        tp = ctx->bind<std::string>("___std_str").finalize();
+        tp = ctx->bind<std::string>("___std_str").finalize(ctx->global());
         tp->size = sizeof(std::string);
-        tp->owner = ctx->global();
 
         str.constructor();
         str.constructor<void*, u32>();
@@ -115,8 +114,7 @@ namespace gjs {
         str.method("operator data", &script_string::operator void *);
         str.method("operator ___std_str", &script_string::operator std::string);
         str.prop("length", &script_string::length);
-        tp = str.finalize();
-        tp->owner = ctx->global();
+        tp = str.finalize(ctx->global());
         tp->is_builtin = true;
 
         auto arr = ctx->bind<script_array>("array");
@@ -124,8 +122,7 @@ namespace gjs {
         arr.method("push", &script_array::push);
         arr.method("operator []", &script_array::operator[]);
         arr.prop("length", &script_array::length);
-        tp = arr.finalize();
-        tp->owner = ctx->global();
+        tp = arr.finalize(ctx->global());
         tp->requires_subtype = true;
         tp->is_builtin = true;
 
@@ -160,15 +157,15 @@ namespace gjs {
         buf.prop("capacity", &script_buffer::capacity);
         buf.prop("position", CONST_METHOD_PTR(script_buffer, position, u64), METHOD_PTR(script_buffer, position, u64, u64));
         buf.prop("at_end", &script_buffer::at_end);
-        tp = buf.finalize();
-        tp->owner = ctx->global();
+        tp = buf.finalize(ctx->global());
         tp->is_builtin = true;
-
 
         ctx->bind(script_allocate, "alloc");
         ctx->bind(script_free, "free");
         ctx->bind(script_copymem, "memcopy");
         ctx->bind(script_print, "print");
+
+        math::bind_math(ctx);
     }
 
     u32 script_print(const script_string& str) {
