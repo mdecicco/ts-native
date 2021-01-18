@@ -42,6 +42,7 @@ namespace gjs {
                 inline bool is_arg() const { return m_arg_idx != u8(-1); }
                 inline u8 arg_idx() const { return m_arg_idx; }
                 inline void set_arg_idx(u8 idx) { m_arg_idx = idx; }
+                inline context* ctx() { return m_ctx; }
 
                 // used by code generation phase when generating load instructions
                 // for 'spilled' variables
@@ -56,7 +57,7 @@ namespace gjs {
                 bool has_unambiguous_method(const std::string& name, script_type* ret, const std::vector<script_type*>& args) const;
                 script_function* method(const std::string& name, script_type* ret, const std::vector<script_type*>& args) const;
                 bool convertible_to(script_type* tp) const;
-                var convert(script_type* tp) const;
+                var convert(script_type* tp, bool store_imms_in_reg = false) const;
                 void set_mem_ptr(const var& v);
                 void raise_stack_flag();
                 void adopt_stack_flag(var& from);

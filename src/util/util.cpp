@@ -216,6 +216,18 @@ namespace gjs {
 
     void debug_ir_step(script_context* ctx, compilation_output& in) {
         for (u32 i = 0;i < in.code.size();i++) {
+            for (u32 fn = 0;fn < in.funcs.size();fn++) {
+                if (i == in.funcs[fn].begin) {
+                    script_function* f = in.funcs[fn].func;
+                    printf("\n[%s %s(", f->signature.return_type->name.c_str(), f->name.c_str());
+                    for(u8 a = 0;a < f->signature.arg_types.size();a++) {
+                        if (a > 0) printf(", ");
+                        printf("%s arg_%d", f->signature.arg_types[a]->name.c_str(), a);
+                    }
+                    printf(")]\n");
+                    break;
+                }
+            }
             printf("%3.3d: %s\n", i, in.code[i].to_string().c_str());
         }
     }

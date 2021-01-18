@@ -49,6 +49,11 @@ namespace gjs {
                 return new script_function(m_global->types(), nullptr, w);
             }
 
+            template <typename T>
+            script_type* type(bool do_throw = false) {
+                return m_global->types()->get<T>(do_throw);
+            }
+
             script_module* module(const std::string& name);
             script_module* module(u32 id);
             std::vector<script_module*> modules() const;

@@ -37,15 +37,17 @@ namespace gjs {
                 script_enum* get_enum() const { return m_enum; }
                 const script_module::local_var* get_modulevar() const { return m_modulevar; }
                 var* get_var() const { return m_var; }
+                u32 scope_idx() const { return m_scope_idx; }
 
             protected:
+                friend class symbol_table;
                 symbol_type m_stype;
-
                 script_function* m_func;
                 script_type* m_type;
                 script_enum* m_enum;
                 const script_module::local_var* m_modulevar;
                 var* m_var;
+                u32 m_scope_idx;
         };
 
         class symbol_table;

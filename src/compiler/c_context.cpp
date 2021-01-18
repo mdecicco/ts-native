@@ -54,6 +54,18 @@ namespace gjs {
             return var(this, s);
         }
 
+        var context::imm(u64 u, script_type* tp) {
+            var v = var(this, u);
+            v.m_type = tp;
+            return v;
+        }
+
+        var context::imm(i64 i, script_type* tp) {
+            var v = var(this, i);
+            v.m_type = tp;
+            return v;
+        }
+
         var& context::empty_var(script_type* type, const std::string& name) {
             var v = var(this, next_reg_id++, type);
             v.m_name = name;
@@ -64,17 +76,6 @@ namespace gjs {
 
         var context::empty_var(script_type* type) {
             return var(this, next_reg_id++, type);
-        }
-
-        var& context::dummy_var(script_type* type, const std::string& name) {
-            var v = var();
-            v.m_ctx = this;
-            v.m_instantiation = node()->ref;
-            v.m_name = name;
-            v.m_type = type;
-            block()->named_vars.push_back(v);
-            symbols.set(name, &block()->named_vars.back());
-            return block()->named_vars.back();
         }
 
         var context::dummy_var(script_type* type) {
@@ -99,7 +100,12 @@ namespace gjs {
                 const script_module::local_var* mv = nullptr;
                 for (auto s = syms->symbols.rbegin();s != syms->symbols.rend();s++) {
                     switch (s->sym_type()) {
-                        case symbol::st_var: return *s->get_var();
+                        case symbol::st_var: {
+                            if (s->scope_idx() != 0 || !compiling_function) {
+                                return *s->get_var();
+                            }
+                            break;
+                        }
                         case symbol::st_modulevar: {
                             if (mv) break;
                             mv = s->get_modulevar();

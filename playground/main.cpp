@@ -52,21 +52,12 @@ int main(int arg_count, const char** args) {
         f0 a, b, c;
     };
 
-    f1* y = mod->local("y");
-    //f0 a = mod->local("y").prop<f0>("a");
+    script_object _y = mod->local("y");
+    i32* aa = _y["a"]["a"];
+    _y["a"]["a"] = 55;
     i32* x = (i32*)mod->local_ptr("x");
 
     f1 t = mod->function("func")->call();
-
-    /*
-    script_function* f = mod->function<i32>("main");
-    if (f) {
-        i32 b = 0;
-        ctx.call(f, &b);
-        printf("Script finished with return value %d\n", b);
-    }
-    else printf("Script has no 'i32 main()' function\n");
-    */
 
     return 0;
 }

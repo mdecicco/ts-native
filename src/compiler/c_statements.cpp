@@ -100,7 +100,7 @@ namespace gjs {
                 } else if (f->signature.return_type->size == 0) {
                     ctx.log()->err(ec::c_no_void_return_val, n->ref);
                 } else {
-                    var rv = expression(ctx, n->body).convert(f->signature.return_type);
+                    var rv = expression(ctx, n->body).convert(f->signature.return_type, true);
                     if (f->signature.returns_on_stack) {
                         var& ret_ptr = ctx.get_var("@ret");
                         if (rv.type()->is_primitive) {

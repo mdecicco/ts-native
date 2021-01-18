@@ -27,6 +27,7 @@ namespace gjs {
             m_enum = nullptr;
             m_modulevar = nullptr;
             m_var = nullptr;
+            m_scope_idx = 0;
         }
 
         symbol::symbol(script_type* type) {
@@ -36,6 +37,7 @@ namespace gjs {
             m_enum = nullptr;
             m_modulevar = nullptr;
             m_var = nullptr;
+            m_scope_idx = 0;
         }
 
         symbol::symbol(script_enum* enum_) {
@@ -45,6 +47,7 @@ namespace gjs {
             m_enum = enum_;
             m_modulevar = nullptr;
             m_var = nullptr;
+            m_scope_idx = 0;
         }
 
         symbol::symbol(const script_module::local_var* modulevar) {
@@ -54,6 +57,7 @@ namespace gjs {
             m_enum = nullptr;
             m_modulevar = modulevar;
             m_var = nullptr;
+            m_scope_idx = 0;
         }
 
         symbol::symbol(var* var_) {
@@ -63,6 +67,7 @@ namespace gjs {
             m_enum = nullptr;
             m_modulevar = nullptr;
             m_var = var_;
+            m_scope_idx = var_->ctx()->block_stack.size() - 1;
         }
 
 

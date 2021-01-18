@@ -8,14 +8,7 @@ namespace gjs {
     class script_context;
     class script_module;
     class script_object;
-    
-    struct property_accessor {
-        const script_object* obj;
-        script_type::property* prop;
-
-        operator script_object();
-        script_object operator = (const script_object& rhs);
-    };
+    struct property_accessor;
 
     class script_object {
         public:
@@ -60,7 +53,37 @@ namespace gjs {
                 m_ctx->call<Ret>(f, result, this, args...);
             }
 
-            property_accessor prop(const std::string& name) const;
+            script_object operator [] (const std::string& name);
+
+            template <typename T>
+            script_object operator = (const T& rhs) {
+                using base_tp = remove_all<T>::type;
+                if constexpr (std::is_same_v<T, script_object>) assign(rhs);
+                else if constexpr (std::is_same_v<T, script_object*>) assign(*rhs);
+                else {
+                    if (std::is_trivially_copyable_v<base_tp> && std::is_pod_v<base_tp> && m_type->size == sizeof(base_tp) && m_type->is_trivially_copyable && m_type->is_pod) {
+                        script_type* tp = m_ctx->type<T>(false);
+                        if (tp && !tp->is_primitive) {
+                            // favor copy construction for structures
+                            if (assign(script_object(m_ctx, (script_module*)nullptr, tp, (u8*)&rhs))) return *this;
+                        }
+
+                        // assumes that T is an unbound type with the same layout as this object
+                        if constexpr (std::is_pointer_v<T>) *(base_tp*)m_self = *rhs;
+                        else *(base_tp*)m_self = rhs;
+                    } else {
+                        if constexpr (std::is_pointer_v<T>) {
+                            script_type* tp = m_ctx->type<T>(true);
+                            assign(script_object(m_ctx, (script_module*)nullptr, tp, (u8*)rhs));
+                        } else {
+                            script_type* tp = m_ctx->type<T>(true);
+                            assign(script_object(m_ctx, (script_module*)nullptr, tp, (u8*)&rhs));
+                        }
+                    }
+                }
+
+                return *this;
+            }
 
             bool is_null() const;
 
@@ -80,10 +103,11 @@ namespace gjs {
         protected:
             friend class script_context;
             friend class script_module;
-            friend class property_accessor;
+            friend struct property_accessor;
             script_object(script_context* ctx); // undefined value
+            script_object(const property_accessor& prop);
             script_object(script_context* ctx, script_module* mod, script_type* type, u8* ptr);
-            void destruct();
+            bool assign(const script_object& rhs);
 
             bool m_destructed;
             bool m_owns_ptr;
@@ -91,8 +115,18 @@ namespace gjs {
             script_type* m_type;
             script_module* m_mod;
             u8* m_self;
+            property_accessor* m_propInfo;
             u32* m_refCount;
     };
+
+    struct property_accessor {
+        script_object obj;
+        script_type::property* prop;
+
+        script_object get() const;
+        script_object set(const script_object& rhs);
+    };
+
     /*
     template <typename T>
     inline T& property_accessor::ref() {

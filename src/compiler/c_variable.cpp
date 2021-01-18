@@ -482,7 +482,7 @@ namespace gjs {
             return has_valid_conversion(*m_ctx, m_type, tp);
         }
 
-        var var::convert(script_type* to) const {
+        var var::convert(script_type* to, bool store_imms_in_reg) const {
             script_type* from = m_type;
 
             if (from->id() == to->id()) return *this;
@@ -531,9 +531,55 @@ namespace gjs {
             }
             
             // conversion between non-void primitive types is always possible
+            if (m_is_imm) {
+                var r;
+                if (from->is_floating_point) {
+                    if (to->is_floating_point) {
+                        if (from->size == sizeof(f64)) r = m_ctx->imm((f32)m_imm.f);
+                        else r = m_ctx->imm((f64)m_imm.d);
+                    } else {
+                        if (to->is_unsigned) {
+                            if (from->size == sizeof(f64)) r = m_ctx->imm((u64)m_imm.d, to);
+                            else r = m_ctx->imm((u64)m_imm.f, to);
+                        }
+                        else {
+                            if (from->size == sizeof(f64)) r = m_ctx->imm((i64)m_imm.d, to);
+                            else r = m_ctx->imm((i64)m_imm.i, to);
+                        }
+                    }
+                } else {
+                    if (to->is_floating_point) {
+                        if (to->size == sizeof(f64)) {
+                            if (from->is_unsigned) r = m_ctx->imm((f64)m_imm.u);
+                            else r = m_ctx->imm((f64)m_imm.i);
+                        } else {
+                            if (from->is_unsigned) r = m_ctx->imm((f32)m_imm.u);
+                            else r = m_ctx->imm((f32)m_imm.i);
+                        }
+                    } else {
+                        if (to->is_unsigned) {
+                            if (from->is_unsigned) r = m_ctx->imm(m_imm.u, to);
+                            else r = m_ctx->imm((u64)m_imm.i, to);
+                        }
+                        else {
+                            if (from->is_unsigned) r = m_ctx->imm((i64)m_imm.u, to);
+                            else r = m_ctx->imm(m_imm.i, to);
+                        }
+                    }
+                }
+
+                if (store_imms_in_reg) {
+                    var v = m_ctx->empty_var(to);
+                    m_ctx->add(operation::eq).operand(v).operand(r);
+                    return v;
+                }
+
+                return r;
+            }
+
             var v = m_ctx->empty_var(to);
             m_ctx->add(operation::eq).operand(v).operand(*this);
-            
+
             u64 from_id = join_u32(from->owner->id(), from->id());
             u64 to_id = join_u32(to->owner->id(), to->id());
             m_ctx->add(operation::cvt).operand(v).operand(m_ctx->imm(from_id)).operand(m_ctx->imm(to_id));
@@ -1159,7 +1205,12 @@ namespace gjs {
                     var v = rhs.convert(m_type);
                     m_ctx->add(operation::eq).operand(*this).operand(v);
                     if (m_mem_ptr.valid) {
-                        m_ctx->add(operation::store).operand(var(m_ctx, m_mem_ptr.reg, m_type)).operand(*this);
+                        if (v.m_is_imm) {
+                            var sv = m_ctx->empty_var(v.m_type);
+                            m_ctx->add(operation::eq).operand(sv).operand(v);
+                            m_ctx->add(operation::store).operand(var(m_ctx, m_mem_ptr.reg, m_type)).operand(sv);
+                        }
+                        else m_ctx->add(operation::store).operand(var(m_ctx, m_mem_ptr.reg, m_type)).operand(*this);
                     }
                 } else {
                     script_function* assign = method("operator =", m_type, { rhs.m_type });
