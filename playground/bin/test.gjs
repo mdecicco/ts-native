@@ -1,4 +1,4 @@
-import { vec2f } from 'math';
+import { vec2f, vec3f, vec4f, random } from 'math';
 
 format f0 {
 	i32 a,
@@ -36,4 +36,8 @@ f1 func() {
 
 vec2f vec() {
 	return vec2f(2, 5);
+}
+
+vec4f v4() {
+	return random(vec4f(0.0f, 0.0f, 0.0f, 0.0f), vec4f(1.0f, 1.0f, 1.0f, 1.0f));
 }

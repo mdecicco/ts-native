@@ -59,5 +59,9 @@ int main(int arg_count, const char** args) {
         f32 x, y;
     } vec = mod->function("vec")->call(nullptr);
 
+    struct {
+        f32 x, y, z, w;
+    } v4 = mod->function("v4")->call(nullptr);
+
     return 0;
 }

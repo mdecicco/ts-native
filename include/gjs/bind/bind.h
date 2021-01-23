@@ -10,6 +10,7 @@
 #include <tuple>
 #include <string>
 
+#define FUNC_PTR(func, ret, ...) ((ret(*)(__VA_ARGS__))func)
 #define METHOD_PTR(cls, method, ret, ...) ((ret(cls::*)(__VA_ARGS__))&cls::method)
 #define CONST_METHOD_PTR(cls, method, ret, ...) ((ret(cls::*)(__VA_ARGS__) const)&cls::method)
 
@@ -639,7 +640,7 @@ namespace gjs {
                 } else _pass_arg_wrapper<Args...>(0, call, args);
             } else if constexpr (std::is_class_v<Ret>) {
                 dcArgPointer(call, ret);
-                dcArgPointer(call, (void*)address);
+                dcArgPointer(call, (void*)func_ptr);
             }
 
 
