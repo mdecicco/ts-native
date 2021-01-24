@@ -1,8 +1,13 @@
 #include <gjs/gjs.h>
 #include <stdio.h>
 #include <gjs/backends/b_win_x86_64.h>
+#include <gjs/builtin/script_math.h>
+#include <gjs/builtin/script_vec2.h>
+#include <gjs/builtin/script_vec3.h>
+#include <gjs/builtin/script_vec4.h>
 
 using namespace gjs;
+using namespace gjs::math;
 
 void remove_unused_regs_pass (script_context* ctx, compilation_output& in) {
     u64 csz = in.code.size();
