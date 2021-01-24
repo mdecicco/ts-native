@@ -30,14 +30,15 @@ macro(add_sources group dir)
     list(APPEND _all ${_src})
 
     list(APPEND all_sources ${_all})
-    source_group(${group} FILES ${_all})
+    string(REPLACE "/" "\\" group_path "${group}")
+    source_group(${group_path} FILES ${_all})
 
     unset(_inc)
     unset(_src)
     unset(_all)
 endmacro(add_sources)
 
-add_sources("src"           ".")
+add_sources("src"          ".")
 add_sources("src/compiler"  "compiler")
 add_sources("src/lexer"     "lexer")
 add_sources("src/parser"    "parser")

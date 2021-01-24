@@ -55,6 +55,30 @@ namespace gjs {
         tac_map tmap;
         jal_map jmap;
 
+        // set up function argument locations
+        for (u16 f = 0;f < in.funcs.size();f++) {
+            script_function* func = in.funcs[f].func;
+            if (!func) continue;
+
+            u32 gp_arg = (u32)vm_register::a0;
+            u32 fp_arg = (u32)vm_register::fa0;
+
+            if (func->is_method_of) {
+                func->signature.arg_locs.push_back((vm_register)gp_arg++); // implicit 'this'
+            }
+
+            if (func->signature.returns_on_stack) {
+                func->signature.arg_locs.push_back((vm_register)gp_arg++); // implicit return value pointer
+            }
+
+            for (u8 a = 0;a < func->signature.arg_types.size();a++) {
+                script_type* type = func->signature.arg_types[a];
+
+                if (type->is_floating_point) func->signature.arg_locs.push_back((vm_register)gp_arg++);
+                else func->signature.arg_locs.push_back((vm_register)fp_arg++);
+            }
+        }
+
         for (u16 f = 0;f < in.funcs.size();f++) {
             if (!in.funcs[f].func) continue;
             gen_function(in, tmap, jmap, f);
@@ -805,11 +829,6 @@ namespace gjs {
                         m_map.append(i.src);
                     }
 
-                    if (i.callee->signature.returns_on_stack) {
-                        m_instructions += encode(vmi::addu).operand(i.callee->signature.return_loc).operand(vmr::zero).operand(r1);
-                        m_map.append(i.src);
-                    }
-
                     // do the call
                     jmap[m_instructions.size()] = i.callee;
                     if (i.callee->is_host) m_instructions += encode(vmi::jal).operand((u64)i.callee->access.wrapped->func_ptr);
@@ -828,7 +847,8 @@ namespace gjs {
                             m_instructions += encode(vmi::addu).operand(r1).operand(i.callee->signature.return_loc).operand(vmr::zero);
                             m_map.append(i.src);
                         } else if (i.callee->signature.returns_on_stack) {
-                            // return location was pre-populated with a pointer to the stack address which will hold the return value
+                            // return value should have been stored in the implicit
+                            // return value pointer passed to the callee
                         } else {
                             if (t1->is_floating_point) {
                                 if (!is_fpr(i.callee->signature.return_loc) && i.callee->is_method_of && i.callee->is_method_of->requires_subtype) {
@@ -844,9 +864,7 @@ namespace gjs {
                             m_map.append(i.src);
                         }
 
-                        if (o1.is_spilled() && !i.callee->signature.returns_on_stack) {
-                            // (if it returns on the stack, the value of the pointer doesn't change so the spilled register
-                            //  doesn't need to be updated)
+                        if (o1.is_spilled()) {
                             u8 sz = t1->size;
                             if (!t1->is_primitive) sz = sizeof(void*);
                             vmi st = vmi::st8;

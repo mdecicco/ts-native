@@ -80,6 +80,19 @@ namespace gjs {
 
     script_function* function_search(const std::string& name, const std::vector<script_function*>& source, script_type* ret, const std::vector<script_type*>& arg_types) {
         for (u8 i = 0;i < source.size();i++) {
+            // match name
+            if (name.find_first_of(' ') != std::string::npos) {
+                // probably an operator
+                std::vector<std::string> mparts = split(split(source[i]->name, ":")[1], " \t\n\r");
+                std::vector<std::string> sparts = split(name, " \t\n\r");
+                if (mparts.size() != sparts.size()) continue;
+                bool matched = true;
+                for (u32 i = 0;matched && i < mparts.size();i++) {
+                    matched = mparts[i] == sparts[i];
+                }
+                if (!matched) continue;
+            } else if (name != source[i]->name) continue;
+
             bool matches = ret ? source[i]->signature.return_type->id() == ret->id() : true;
             if (!matches) continue;
 
@@ -216,7 +229,23 @@ namespace gjs {
 
     void debug_ir_step(script_context* ctx, compilation_output& in) {
         for (u32 i = 0;i < in.code.size();i++) {
+            for (u32 fn = 0;fn < in.funcs.size();fn++) {
+                if (i == in.funcs[fn].begin) {
+                    script_function* f = in.funcs[fn].func;
+                    printf("\n[%s %s(", f->signature.return_type->name.c_str(), f->name.c_str());
+                    for(u8 a = 0;a < f->signature.arg_types.size();a++) {
+                        if (a > 0) printf(", ");
+                        printf("%s arg_%d", f->signature.arg_types[a]->name.c_str(), a);
+                    }
+                    printf(")]\n");
+                    break;
+                }
+            }
             printf("%3.3d: %s\n", i, in.code[i].to_string().c_str());
         }
+    }
+
+    script_type* resolve_moduletype(u64 moduletype) {
+        return current_ctx()->module(extract_left_u32(moduletype))->types()->get(extract_right_u32(moduletype));
     }
 };

@@ -1,8 +1,13 @@
 #include <gjs/gjs.h>
 #include <stdio.h>
 #include <gjs/backends/b_win_x86_64.h>
+#include <gjs/builtin/script_math.h>
+#include <gjs/builtin/script_vec2.h>
+#include <gjs/builtin/script_vec3.h>
+#include <gjs/builtin/script_vec4.h>
 
 using namespace gjs;
+using namespace gjs::math;
 
 void remove_unused_regs_pass (script_context* ctx, compilation_output& in) {
     u64 csz = in.code.size();
@@ -35,6 +40,8 @@ int main(int arg_count, const char** args) {
     be.commit_bindings();
     be.log_ir(true);
     ctx.io()->set_cwd_from_args(arg_count, args);
+    ctx.compiler()->add_ir_step(remove_unused_regs_pass);
+    ctx.compiler()->add_ir_step(debug_ir_step);
 
     script_module* mod = ctx.resolve("test");
     if (!mod) {
@@ -43,29 +50,23 @@ int main(int arg_count, const char** args) {
     }
 
     mod->init();
-    struct f0 {
-        i32 a, b, c;
-    };
-    struct f1 {
-        f0 a, b, c;
-    };
+    struct f0 { i32 a, b, c; };
+    struct f1 { f0 a, b, c; };
 
-    f1* y = (f1*)mod->local_ptr("y");
-    i32* x = (i32*)mod->local_ptr("x");
+    mod->local("y")["a"]["a"] = 55;
 
+    f1 t = mod->function("func")->call(nullptr);
 
-    //ctx.compiler()->add_ir_step(remove_unused_regs_pass);
-    //ctx.compiler()->add_ir_step(debug_ir_step);
+    script_object obj = ctx.instantiate(mod->type("t"), 5);
+    obj.call("print");
 
-    /*
-    script_function* f = mod->function<i32>("main");
-    if (f) {
-        i32 b = 0;
-        ctx.call(f, &b);
-        printf("Script finished with return value %d\n", b);
-    }
-    else printf("Script has no 'i32 main()' function\n");
-    */
+    struct {
+        f32 x, y;
+    } vec = mod->function("vec")->call(nullptr);
+
+    struct {
+        f32 x, y, z, w;
+    } v4 = mod->function("v4")->call(nullptr);
 
     return 0;
 }

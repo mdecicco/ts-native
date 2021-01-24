@@ -9,6 +9,6 @@ namespace gjs {
 
         std::string arg_tp_str(const std::vector<script_type*> types);
 
-        var call(context& ctx, script_function* func, const std::vector<var>& args);
+        var call(context& ctx, script_function* func, const std::vector<var>& args, const var* self = nullptr);
     };
 };

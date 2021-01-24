@@ -29,7 +29,7 @@ namespace gjs {
                     script_enum* en = mod->get_enum(symbol);
 
                     if (tp) ctx.symbols.set(name, tp);
-                    else if (mod->has_local(symbol)) ctx.symbols.set(name, &mod->local(symbol));
+                    else if (mod->has_local(symbol)) ctx.symbols.set(name, &mod->local_info(symbol));
                     else if (en) ctx.symbols.set(name, en);
                     else if (mod->has_function(symbol)) {
                         auto funcs = mod->function_overloads(symbol);
@@ -100,15 +100,20 @@ namespace gjs {
                 } else if (f->signature.return_type->size == 0) {
                     ctx.log()->err(ec::c_no_void_return_val, n->ref);
                 } else {
-                    // todo: handle returning stack objects
-                    var rv = expression(ctx, n->body).convert(f->signature.return_type);
-                    ctx.add(operation::ret).operand(rv);
+                    var rv = expression(ctx, n->body).convert(f->signature.return_type, true);
+                    if (f->signature.returns_on_stack) {
+                        var& ret_ptr = ctx.get_var("@ret");
+                        if (rv.type()->is_primitive) {
+                            ctx.add(operation::store).operand(ret_ptr).operand(rv);
+                            ctx.add(operation::ret);
+                        } else {
+                            construct_in_place(ctx, ret_ptr, { rv });
+                            ctx.add(operation::ret);
+                        }
+                    } else ctx.add(operation::ret).operand(rv);
                 }
             } else {
-                script_type* this_tp = ctx.class_tp();
-                if (this_tp && f->name == this_tp->name + "::constructor") {
-                    ctx.add(operation::ret).operand(ctx.get_var("this"));
-                } else if (f->signature.return_type->size == 0) ctx.add(operation::ret);
+                if (f->signature.return_type->size == 0) ctx.add(operation::ret);
                 else ctx.log()->err(ec::c_missing_return_value, n->ref, f->name.c_str());
             }
 
@@ -132,7 +137,7 @@ namespace gjs {
             }
 
             if (obj.type()->destructor) {
-                call(ctx, obj.type()->destructor, { obj });
+                call(ctx, obj.type()->destructor, {}, &obj);
             }
 
             script_function* free = ctx.function("free", ctx.type("void"), { ctx.type("data") });

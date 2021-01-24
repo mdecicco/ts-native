@@ -1,4 +1,4 @@
-import 'test1' as t;
+import { vec2f, vec3f, vec4f, random } from 'math';
 
 format f0 {
 	i32 a,
@@ -18,18 +18,30 @@ f1 y = f1({
 	c: f0({ a: 7, b: 8, c: 9 })
 });
 
-enum test_enum {
-	a = 10 / 2,
-	b,
-	c,
-	d,
-	e,
-	f
+class t {
+	constructor(i32 f) {
+		this.x = f;
+	}
+
+	void print() {
+		print(this.x.toFixed(2));
+	}
+
+	i32 x;
 };
 
-t.test();
-t.some.ayy();
+array<vec2f> arr;
+arr.push(vec2f(1.0f, 2.0f));
+arr.push(vec2f(3.0f, 4.0f));
 
-t.some x;
-x.x = 5;
-x.test();
+f1 func() {
+	return y;
+}
+
+vec2f vec() {
+	return arr[1];
+}
+
+vec4f v4() {
+	return random(vec4f(0.0f, 0.0f, 0.0f, 0.0f), vec4f(1.0f, 1.0f, 1.0f, 1.0f));
+}

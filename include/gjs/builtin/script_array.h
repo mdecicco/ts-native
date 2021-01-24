@@ -7,7 +7,7 @@ namespace gjs {
 
     class script_array {
         public:
-            script_array(script_type* type);
+            script_array(u64 moduletype);
             ~script_array();
 
             void push(subtype_t* elem);

@@ -10,6 +10,7 @@
 namespace gjs {
     namespace bind {
         struct wrapped_class;
+        typedef void (*pass_ret_func)(void* /*dest*/, void* /*src*/, size_t /*size*/);
     };
 
     class script_context;
@@ -41,12 +42,16 @@ namespace gjs {
 
             script_type* add(const std::string& name, const std::string& internal_name);
 
-            script_type* finalize_class(bind::wrapped_class* wrapped);
+            script_type* finalize_class(bind::wrapped_class* wrapped, script_module* mod);
 
             std::vector<script_type*> all();
 
+            script_context* ctx();
+
         protected:
+            void add(script_type* tp);
             friend class script_function;
+            friend class script_context;
             script_context* m_ctx;
             robin_hood::unordered_map<std::string, script_type*> m_types;
             robin_hood::unordered_map<u32, script_type*> m_types_by_id;
@@ -64,6 +69,7 @@ namespace gjs {
             bool is_floating_point;
             bool is_builtin;
             bool is_host;
+            bool is_trivially_copyable;
             bool requires_subtype;
 
             struct property {
@@ -89,6 +95,7 @@ namespace gjs {
             std::vector<property> properties;
             script_function* destructor;
             std::vector<script_function*> methods;
+            bind::pass_ret_func pass_ret;
 
             inline u32 id() const { return m_id; }
 

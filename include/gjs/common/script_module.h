@@ -1,8 +1,10 @@
 #pragma once
 #include <gjs/common/types.h>
 #include <gjs/common/source_ref.h>
+#include <gjs/common/script_function.h>
 #include <gjs/util/robin_hood.h>
 #include <gjs/util/template_utils.hpp>
+#include <gjs/bind/bind.h>
 
 #include <string>
 #include <vector>
@@ -13,6 +15,7 @@ namespace gjs {
     class script_type;
     class script_buffer;
     class script_enum;
+    class script_object;
     class type_manager;
 
     class script_module {
@@ -28,10 +31,35 @@ namespace gjs {
 
             void init();
 
-            void define_local(const std::string& name, u64 offset, script_type* type, const source_ref& ref);
-            bool has_local(const std::string& name) const;
-            const local_var& local(const std::string& name) const;
-            void* local_ptr(const std::string& name) const;
+            // todo: tidy this mess up
+
+            template <class Cls>
+            std::enable_if_t<std::is_class_v<Cls>, bind::wrap_class<Cls>&>
+            bind(const std::string& name) {
+                // as long as wrap_class::finalize is called, this will be deleted when it should be
+                bind::wrap_class<Cls>* out = new bind::wrap_class<Cls>(m_types, name);
+                out->type->owner = this;
+                return *out;
+            }
+
+            template <class prim>
+            std::enable_if_t<!std::is_class_v<prim> && !std::is_same_v<prim, void>, bind::pseudo_class<prim>&>
+            bind(const std::string& name) {
+                // as long as pseudo_class::finalize is called, this will be deleted when it should be
+                bind::pseudo_class<prim>* out = new bind::pseudo_class<prim>(m_types, name);
+                out->type->owner = this;
+                out->type->is_unsigned = std::is_unsigned_v<prim>;
+                out->type->is_builtin = true;
+                out->type->is_floating_point = std::is_floating_point_v<prim>;
+                return *out;
+            }
+
+
+            template <typename Ret, typename... Args>
+            script_function* bind(Ret(*func)(Args...), const std::string& name) {
+                bind::wrapped_function* w = bind::wrap(m_ctx->types(), name, func);
+                return new script_function(m_types, nullptr, w, false, false, this);
+            }
 
             template <typename T>
             std::enable_if_t<!std::is_class_v<T>, T> get_local(const std::string& name) {
@@ -68,9 +96,15 @@ namespace gjs {
                 return function_search<Ret, Args...>(m_ctx, name, function_overloads(name));
             }
 
+            script_type* type(const std::string& name) const;
             std::vector<std::string> function_names() const;
-
             script_enum* get_enum(const std::string& name) const;
+            script_object define_local(const std::string& name, script_type* type);
+            void define_local(const std::string& name, u64 offset, script_type* type, const source_ref& ref);
+            bool has_local(const std::string& name) const;
+            const local_var& local_info(const std::string& name) const;
+            void* local_ptr(const std::string& name) const;
+            script_object local(const std::string& name) const;
 
             inline std::string name() const { return m_name; }
             inline u32 id() const { return m_id; }
@@ -84,6 +118,7 @@ namespace gjs {
         protected:
             friend class pipeline;
             friend class script_context;
+            friend class script_function;
             script_module(script_context* ctx, const std::string& name);
             void add(script_function* func);
 

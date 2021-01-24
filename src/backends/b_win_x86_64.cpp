@@ -555,14 +555,15 @@ namespace gjs {
         auto& lib = m_llvm->jit->getMainJITDylib();
 
         SymbolMap symbols;
-        auto global_funcs = m_ctx->global()->functions();
-        for (u32 f = 0;f < global_funcs.size();f++) {
-            void* fptr = global_funcs[f]->access.wrapped->func_ptr;
+        auto funcs = m_ctx->functions();
+        for (u32 f = 0;f < funcs.size();f++) {
+            if (!funcs[f]->is_host) continue;
+            void* fptr = funcs[f]->access.wrapped->func_ptr;
 
-            if (global_funcs[f]->access.wrapped->srv_wrapper_func) fptr = global_funcs[f]->access.wrapped->srv_wrapper_func;
-            else if (global_funcs[f]->access.wrapped->call_method_func) fptr = global_funcs[f]->access.wrapped->call_method_func;
+            if (funcs[f]->access.wrapped->srv_wrapper_func) fptr = funcs[f]->access.wrapped->srv_wrapper_func;
+            else if (funcs[f]->access.wrapped->call_method_func) fptr = funcs[f]->access.wrapped->call_method_func;
 
-            symbols[ES.intern(internal_func_name(global_funcs[f]))] = {
+            symbols[ES.intern(internal_func_name(funcs[f]))] = {
                 pointerToJITTargetAddress(fptr),
                 JITSymbolFlags::Exported | JITSymbolFlags::Absolute
             };
@@ -582,6 +583,16 @@ namespace gjs {
             if (!in.funcs[f].func) continue;
 
             std::vector<Type*> ptypes;
+            if (in.funcs[f].func->is_method_of && !in.funcs[f].func->is_static) {
+                // 'this' object
+                ptypes.push_back(Type::getInt64Ty(*m_llvm->ctx()));
+            }
+
+            if (in.funcs[f].func->signature.returns_on_stack) {
+                // return pointer
+                ptypes.push_back(Type::getInt64Ty(*m_llvm->ctx()));
+            }
+
             for (u8 a = 0;a < in.funcs[f].func->signature.arg_types.size();a++) {
                 ptypes.push_back(llvm_type(in.funcs[f].func->signature.arg_types[a], g));
             }
@@ -948,15 +959,22 @@ namespace gjs {
                 if (f) {
                     if (i.callee->is_host) {
                         if (i.callee->access.wrapped->srv_wrapper_func) {
+                            u8 ret_idx = 0;
                             if (i.callee->is_method_of && !i.callee->is_static) {
+                                Value* ret = g.call_params[1]; // 0 = 'this', 1 = '@ret'
+                                g.call_params.erase(g.call_params.begin() + 1);
+
                                 // return value pointer, call_method_func, func_ptr, call_params...
                                 g.call_params.insert(g.call_params.begin(), ConstantInt::get(Type::getInt64Ty(*ctx), u64(i.callee->access.wrapped->func_ptr), false));
                                 g.call_params.insert(g.call_params.begin(), ConstantInt::get(Type::getInt64Ty(*ctx), u64(i.callee->access.wrapped->call_method_func), false));
-                                g.call_params.insert(g.call_params.begin(), v1);
+                                g.call_params.insert(g.call_params.begin(), ret);
                             } else {
+                                Value* ret = g.call_params[0];
+                                g.call_params.erase(g.call_params.begin());
+
                                 // return value pointer, func_ptr, call_params...
                                 g.call_params.insert(g.call_params.begin(), ConstantInt::get(Type::getInt64Ty(*ctx), u64(i.callee->access.wrapped->func_ptr), false));
-                                g.call_params.insert(g.call_params.begin(), v1);
+                                g.call_params.insert(g.call_params.begin(), ret);
                             }
                             b.CreateCall(f, g.call_params);
                         } else if (i.callee->access.wrapped->call_method_func) {
@@ -1122,6 +1140,16 @@ namespace gjs {
                 }
             }
 
+            if (func->is_method_of && !func->is_static) {
+                // 'this' object
+                params.push_back(Type::getInt64Ty(ctx));
+            }
+
+            if (func->signature.is_subtype_obj_ctor) {
+                // moduletype id
+                params.push_back(Type::getInt64Ty(ctx));
+            }
+
             for (u8 a = 0;a < used_functions[f]->signature.arg_types.size();a++) {
                 params.push_back(llvm_type(used_functions[f]->signature.arg_types[a], g));
             }
@@ -1141,30 +1169,39 @@ namespace gjs {
         dcMode(cvm, DC_CALL_C_DEFAULT);
         dcReset(cvm);
 
+        u8 argOff = 0;
+        if (func->is_method_of) {
+            dcArgPointer(cvm, args[argOff++]); // implicit 'this'
+        }
+
+        if (func->signature.returns_on_stack) {
+            dcArgPointer(cvm, ret); // implicit return value pointer
+        }
+
         for (u8 a = 0;a < func->signature.arg_types.size();a++) {
             script_type* tp = func->signature.arg_types[a];
             if (tp->is_primitive) {
                 if (tp->is_floating_point) {
-                    if (tp->size == sizeof(f64)) dcArgDouble(cvm, *(f64*)&args[a]);
-                    else dcArgFloat(cvm, *(f32*)&args[a]);
+                    if (tp->size == sizeof(f64)) dcArgDouble(cvm, *(f64*)&args[a + argOff]);
+                    else dcArgFloat(cvm, *(f32*)&args[a + argOff]);
                 } else {
                     switch (tp->size) {
                         case sizeof(i8): {
-                            if (tp->name == "bool") dcArgBool(cvm, *(bool*)&args[a]);
-                            else dcArgChar(cvm, *(i8*)&args[a]);
+                            if (tp->name == "bool") dcArgBool(cvm, *(bool*)&args[a + argOff]);
+                            else dcArgChar(cvm, *(i8*)&args[a + argOff]);
                             break;
                         }
-                        case sizeof(i16): { dcArgShort(cvm, *(i16*)&args[a]); break; }
+                        case sizeof(i16): { dcArgShort(cvm, *(i16*)&args[a + argOff]); break; }
                         case sizeof(i32): {
-                            if (tp->is_unsigned) dcArgLong(cvm, *(u32*)&args[a]);
-                            else dcArgInt(cvm, *(i32*)&args[a]);
+                            if (tp->is_unsigned) dcArgLong(cvm, *(u32*)&args[a + argOff]);
+                            else dcArgInt(cvm, *(i32*)&args[a + argOff]);
                             break;
                         }
-                        case sizeof(i64): { dcArgLongLong(cvm, *(i64*)&args[a]); break; }
+                        case sizeof(i64): { dcArgLongLong(cvm, *(i64*)&args[a + argOff]); break; }
                     }
                 }
             } else {
-                dcArgPointer(cvm, args[a]);
+                dcArgPointer(cvm, args[a + argOff]);
             }
         }
 
@@ -1190,7 +1227,7 @@ namespace gjs {
                     }
                 }
             } else {
-                // uh oh, returns a struct
+                dcCallVoid(cvm, f);
             }
         }
     }
