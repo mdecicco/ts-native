@@ -17,6 +17,7 @@ namespace gjs {
             v.constructor<const vec3<T>&>();
             v.constructor<const vec3<T>&, T>();
             v.constructor<T, const vec3<T>&>();
+            v.constructor<const vec4<T>&>();
             v.method("operator +", CONST_METHOD_PTR(vec4<T>, operator +, vec4<T>, const vec4<T>&));
             v.method("operator +", CONST_METHOD_PTR(vec4<T>, operator +, vec4<T>, T));
             v.method("operator +=", METHOD_PTR(vec4<T>, operator +=, vec4<T>, const vec4<T>&));

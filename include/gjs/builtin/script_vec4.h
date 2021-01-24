@@ -421,7 +421,7 @@ namespace gjs {
                         T(0), T(0), T(0), T(1)
                     );
                 }
-                static mat4<T> translate3D(const vec3<T> trans) {
+                static mat4<T> translate3D(const vec3<T>& trans) {
                     return mat4<T>(
                         T(1), T(0), T(0), trans.x,
                         T(0), T(1), T(0), trans.y,

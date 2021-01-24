@@ -314,7 +314,7 @@ namespace gjs {
 
             if (func->signature.is_subtype_obj_ctor) {
                 // pass moduletype after 'this' to represent subtype
-                u64 moduletype = join_u32(self->type()->owner->id(), self->type()->sub_type->id());
+                u64 moduletype = join_u32(self->type()->sub_type->owner->id(), self->type()->sub_type->id());
                 ctx.add(operation::param).operand(ctx.imm(moduletype));
             }
 

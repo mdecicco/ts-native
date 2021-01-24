@@ -14,7 +14,6 @@ namespace gjs {
     class type_manager;
     class script_function;
     class script_module;
-    //class script_object;
     class io_interface;
     class script_context {
         public:
@@ -38,18 +37,17 @@ namespace gjs {
                 return m_global->bind<Ret, Args...>(func, name);
             }
 
-            script_module* create_module(const std::string& name);
-
-            template <typename T>
-            script_type* type(bool do_throw = false) {
-                return m_all_types->get<T>(do_throw);
-            }
-
             template <typename... Args>
             script_object instantiate(script_type* type, Args... args) {
                 return script_object(this, type, args...);
             }
 
+            template <typename... Args>
+            script_object construct_at(script_type* type, void* dest, Args... args) {
+                return script_object(this, type, (u8*)dest, args...);
+            }
+
+            script_module* create_module(const std::string& name);
             script_module* module(const std::string& name);
             script_module* module(u32 id);
             std::vector<script_module*> modules() const;
@@ -65,6 +63,11 @@ namespace gjs {
             inline DCCallVM* call_vm() { return m_host_call_vm; }
             inline io_interface* io() { return m_io; }
             inline type_manager* types() { return m_all_types; }
+
+            template <typename T>
+            script_type* type(bool do_throw = false) {
+                return m_all_types->get<T>(do_throw);
+            }
 
             script_module* resolve(const std::string& module_path);
             script_module* resolve(const std::string& rel_path, const std::string& module_path);
@@ -91,12 +94,6 @@ namespace gjs {
             bool m_owns_io;
     };
 
-    /*
-    template <typename Ret, typename... Args>
-    void script_context::call(script_function* func, Ret* result, Args... args) {
-        
-    }
-    */
     template <typename... Args>
     script_object script_context::call(script_function* func, void* self, Args... args) {
         // validate signature

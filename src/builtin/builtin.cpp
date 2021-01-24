@@ -38,6 +38,7 @@ namespace gjs {
     }
 
     void init_context(script_context* ctx) {
+        set_builtin_context(ctx);
         auto str = ctx->bind<script_string>("string");
 
         auto nt0 = ctx->bind<i64>("i64");

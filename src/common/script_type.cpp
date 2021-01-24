@@ -183,7 +183,7 @@ namespace gjs {
     }
 
     script_function* script_type::method(const std::string& _name, script_type* ret, const std::vector<script_type*>& arg_types) {
-        return function_search(_name, methods, ret, arg_types);
+        return function_search(name + "::" + _name, methods, ret, arg_types);
     }
 
     script_type::property* script_type::prop(const std::string& _name) {

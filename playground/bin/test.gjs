@@ -30,12 +30,16 @@ class t {
 	i32 x;
 };
 
+array<vec2f> arr;
+arr.push(vec2f(1.0f, 2.0f));
+arr.push(vec2f(3.0f, 4.0f));
+
 f1 func() {
 	return y;
 }
 
 vec2f vec() {
-	return vec2f(2, 5);
+	return arr[1];
 }
 
 vec4f v4() {

@@ -17,6 +17,12 @@ namespace gjs {
                 // they must be dynamically allocated
                 // specifically for storage in the symbol
                 delete m_var;
+            } else if (m_stype == st_modulevar) {
+                // it's unsafe to point to modulevar
+                // records on the modules directly, they
+                // have to be allocated specifically for
+                // storage here
+                delete m_modulevar;
             }
         }
 
@@ -94,7 +100,7 @@ namespace gjs {
         }
 
         symbol* symbol_list::add(const script_module::local_var* modulevar) {
-            symbols.emplace_back(modulevar);
+            symbols.emplace_back(new script_module::local_var(*modulevar));
             return &symbols.back();
         }
 
