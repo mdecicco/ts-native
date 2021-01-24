@@ -71,6 +71,8 @@ namespace gjs {
 
             bool is_null() const;
 
+            // todo: non-trivial casts
+
             template <typename T>
             operator T&() {
                 return *(T*)m_self;
@@ -154,6 +156,5 @@ namespace gjs {
         script_type::property* prop;
 
         script_object get() const;
-        script_object set(const script_object& rhs);
     };
 };
