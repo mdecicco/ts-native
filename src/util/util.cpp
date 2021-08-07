@@ -80,6 +80,19 @@ namespace gjs {
 
     script_function* function_search(const std::string& name, const std::vector<script_function*>& source, script_type* ret, const std::vector<script_type*>& arg_types) {
         for (u8 i = 0;i < source.size();i++) {
+            // match name
+            if (name.find_first_of(' ') != std::string::npos) {
+                // probably an operator
+                std::vector<std::string> mparts = split(split(source[i]->name, ":")[1], " \t\n\r");
+                std::vector<std::string> sparts = split(name, " \t\n\r");
+                if (mparts.size() != sparts.size()) continue;
+                bool matched = true;
+                for (u32 i = 0;matched && i < mparts.size();i++) {
+                    matched = mparts[i] == sparts[i];
+                }
+                if (!matched) continue;
+            } else if (name != source[i]->name) continue;
+
             bool matches = ret ? source[i]->signature.return_type->id() == ret->id() : true;
             if (!matches) continue;
 

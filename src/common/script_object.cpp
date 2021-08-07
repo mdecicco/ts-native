@@ -6,6 +6,17 @@
 #include <gjs/common/script_context.h>
 
 namespace gjs {
+    script_object::script_object(script_type* type, u8* ptr) {
+        m_ctx = type->owner->context();
+        m_mod = nullptr;
+        m_type = type;
+        m_self = ptr;
+        m_owns_ptr = false;
+        m_destructed = false;
+        m_propInfo = nullptr;
+        m_refCount = new u32(1);
+    }
+
     script_object::script_object(script_context* ctx, script_module* mod, script_type* type, u8* ptr) {
         m_ctx = ctx;
         m_mod = mod;
@@ -98,28 +109,63 @@ namespace gjs {
     }
 
     bool script_object::assign(const script_object& rhs) {
-        // todo
+        script_function* cpy_ctor = nullptr;
+        if (m_propInfo && m_propInfo->prop->getter) {
+            // copy constructor from m_type -> m_type is required if there is a getter
+            cpy_ctor = m_type->method("constructor", nullptr, { m_type });
+            if (!cpy_ctor) return false;
+        }
+
         if (m_propInfo && m_propInfo->prop->setter) {
             if (rhs.m_type == m_type) {
                 m_propInfo->prop->setter->call(m_propInfo->obj, rhs);
-                return true;
             } else {
                 // look for applicable copy constructor,
                 // create a new object of type m_type from
                 // from rhs, pass it to setter
+
+                script_function* ctor = m_type->method("constructor", nullptr, { rhs.m_type });
+                if (ctor) m_propInfo->prop->setter->call(m_self, script_object(m_ctx, m_type, rhs));
+                else return false;
             }
 
             if (m_propInfo->prop->getter) {
                 // destruct m_self, replace with result of
                 // of getter
+
+                if (m_type->destructor) m_type->destructor->call(m_self);
+                script_object newVal = m_propInfo->prop->getter->call(m_self);
+                cpy_ctor->call(m_self, newVal);
             }
+
+            return true;
         } else {
             // look for operator= on m_type
-            if (rhs.m_type == m_type) {
+            script_function* opEq = m_type->method("operator =", nullptr, { rhs.m_type });
+            if (opEq) {
+                opEq->call(m_self, rhs);
+            } else if (rhs.m_type == m_type) {
                 // failing that, look for applicable copy
                 // constructor, and if it exists, destruct
                 // m_self and reconstruct it with rhs
+
+                script_function* cpy_from_ctor = m_type->method("constructor", nullptr, { rhs.m_type });
+                if (cpy_from_ctor) {
+                    if (m_type->destructor) m_type->destructor->call(m_self);
+                    cpy_from_ctor->call(m_self, rhs);
+                } else return false;
             }
+
+            if (m_propInfo && m_propInfo->prop->getter) {
+                // destruct m_self, replace with result of
+                // of getter
+
+                if (m_type->destructor) m_type->destructor->call(m_self);
+                script_object newVal = m_propInfo->prop->getter->call(m_self);
+                cpy_ctor->call(m_self, newVal);
+            }
+
+            return true;
         }
 
         return false;
