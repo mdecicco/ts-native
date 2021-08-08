@@ -13,10 +13,6 @@ namespace gjs {
 
     script_pointer::~script_pointer() {
         if (m_data) release();
-        if (m_refCount) {
-            delete m_refCount;
-            m_refCount = nullptr;
-        }
     }
 
     void script_pointer::reset(subtype_t* v) {
