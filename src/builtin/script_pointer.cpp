@@ -23,7 +23,7 @@ namespace gjs {
         if (m_type->is_primitive) {
             release();
             m_data = new u8[m_type->size];
-            memcpy(m_data, v, m_type->size);
+            memcpy(m_data, &v, m_type->size);
             m_refCount = new u32(1);
             return;
         }
@@ -56,14 +56,10 @@ namespace gjs {
             (*m_refCount)--;
             if (*m_refCount == 0) {
                 if (m_data) destruct();
-
+                delete m_refCount;
             }
-            m_refCount = nullptr;
             m_data = nullptr;
-        }
-
-        if (m_refCount) {
-            delete m_refCount;
+            m_refCount = nullptr;
         }
     }
 
