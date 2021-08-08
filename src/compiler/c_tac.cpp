@@ -187,7 +187,7 @@ namespace gjs {
 
         std::string tac_instruction::to_string() const {
             std::string out = op_str[(u8)op];
-            if (callee) {
+            if (callee && op == operation::call) {
                 if (callee->signature.return_type->size > 0) {
                     if (callee->signature.returns_on_stack) return out + " " + callee->name + " -> @ret";
                     return out + " " + callee->name + " -> " + operands[0].to_string();
