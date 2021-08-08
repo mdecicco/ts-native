@@ -217,12 +217,26 @@ namespace gjs {
                             if (p.type->is_host) {
                                 // offset points to absolute memory location
                                 m_ctx->add(operation::eq).operand(ptr).operand(m_ctx->imm(p.offset));
-                                if (p.type->is_primitive) {
-                                    // load value of primitive to ret
-                                    m_ctx->add(operation::load).operand(ret).operand(m_ctx->imm(p.offset));
+                                
+                                if (p.flags & bind::pf_pointer) {
+                                    // ptr points to a pointer to the value. Get pointer to value in ptr
+                                    m_ctx->add(operation::load).operand(ptr).operand(ptr);
+
+                                    if (p.type->is_primitive) {
+                                        // load value of primitive to ret
+                                        m_ctx->add(operation::load).operand(ret).operand(ptr);
+                                    } else {
+                                        // get pointer to value in ret
+                                        m_ctx->add(operation::eq).operand(ret).operand(ptr);
+                                    }
                                 } else {
-                                    // get pointer to value in ret
-                                    m_ctx->add(operation::eq).operand(ret).operand(m_ctx->imm(p.offset));
+                                    if (p.type->is_primitive) {
+                                        // load value of primitive to ret
+                                        m_ctx->add(operation::load).operand(ret).operand(m_ctx->imm(p.offset));
+                                    } else {
+                                        // get pointer to value in ret
+                                        m_ctx->add(operation::eq).operand(ret).operand(m_ctx->imm(p.offset));
+                                    }
                                 }
                             } else {
                                 // offset points to module memory location
@@ -237,12 +251,25 @@ namespace gjs {
                             }
                         } else {
                             m_ctx->add(operation::uadd).operand(ptr).operand(*this).operand(m_ctx->imm(p.offset));
-                            if (p.type->is_primitive) {
-                                // load value of primitive to ret
-                                m_ctx->add(operation::load).operand(ret).operand(*this).operand(m_ctx->imm(p.offset));
+                            if (p.flags & bind::pf_pointer) {
+                                // ptr points to a pointer to the value. Get pointer to value in ptr
+                                m_ctx->add(operation::load).operand(ptr).operand(ptr);
+
+                                if (p.type->is_primitive) {
+                                    // load value of primitive to ret
+                                    m_ctx->add(operation::load).operand(ret).operand(ptr);
+                                } else {
+                                    // get pointer to value in ret
+                                    m_ctx->add(operation::eq).operand(ret).operand(ptr);
+                                }
                             } else {
-                                // get pointer to value in ret
-                                m_ctx->add(operation::eq).operand(ret).operand(ptr);
+                                if (p.type->is_primitive) {
+                                    // load value of primitive to ret
+                                    m_ctx->add(operation::load).operand(ret).operand(*this).operand(m_ctx->imm(p.offset));
+                                } else {
+                                    // get pointer to value in ret
+                                    m_ctx->add(operation::eq).operand(ret).operand(ptr);
+                                }
                             }
                         }
                         ret.set_mem_ptr(ptr);
@@ -265,6 +292,16 @@ namespace gjs {
             for (u16 i = 0;i < m_type->properties.size();i++) {
                 auto& p = m_type->properties[i];
                 if (p.name == prop) {
+                    if (p.flags & bind::pf_pointer) {
+                        var ptr = m_ctx->empty_var(m_ctx->type("u64"));
+                        if (p.flags & bind::pf_static) {
+                            m_ctx->add(operation::load).operand(ptr).operand(m_ctx->imm(p.offset));
+                        } else {
+                            m_ctx->add(operation::load).operand(ptr).operand(*this).operand(m_ctx->imm(p.offset));
+                        }
+                        return ptr;
+                    }
+
                     if (p.flags & bind::pf_static) {
                         return m_ctx->imm(p.offset);
                     } else {
@@ -1200,7 +1237,6 @@ namespace gjs {
                 var real_value = call(*m_ctx, m_setter.func, { rhs }, m_setter.this_obj.get());
                 m_ctx->add(operation::eq).operand(*this).operand(real_value);
             } else {
-                // todo: operator =, remove 'adopt_stack_flag'
                 if (m_type->is_primitive) {
                     var v = rhs.convert(m_type);
                     m_ctx->add(operation::eq).operand(*this).operand(v);

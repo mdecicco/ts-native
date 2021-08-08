@@ -309,30 +309,30 @@ namespace gjs {
 
             if (self && !func->is_static) {
                 // 'this' always gets passed first
-                ctx.add(operation::param).operand(*self);
+                ctx.add(operation::param).operand(*self).func(func);
             }
 
             if (func->signature.is_subtype_obj_ctor) {
                 // pass moduletype after 'this' to represent subtype
                 u64 moduletype = join_u32(self->type()->sub_type->owner->id(), self->type()->sub_type->id());
-                ctx.add(operation::param).operand(ctx.imm(moduletype));
+                ctx.add(operation::param).operand(ctx.imm(moduletype)).func(func);
             }
 
             if (func->signature.returns_on_stack) {
                 // pass pointer to return value
                 ctx.add(operation::stack_alloc).operand(stack_ret).operand(ctx.imm((u64)rtp->size));
                 stack_ret.raise_stack_flag();
-                ctx.add(operation::param).operand(stack_ret);
+                ctx.add(operation::param).operand(stack_ret).func(func);
             }
 
             // pass args
             for (u8 i = 0;i < args.size();i++) {
                 if (func->signature.arg_types[i]->name == "subtype") {
                     var p = args[i].convert(self->type()->sub_type);
-                    ctx.add(operation::param).operand(p);
+                    ctx.add(operation::param).operand(p).func(func);
                 } else {
                     var p = args[i].convert(func->signature.arg_types[i]);
-                    ctx.add(operation::param).operand(p);
+                    ctx.add(operation::param).operand(p).func(func);
                 }
             }
 
@@ -348,9 +348,9 @@ namespace gjs {
                 var result = ctx.empty_var(rtp);
                 ctx.add(operation::call).operand(result).func(func);
 
-                if (func->signature.return_type->is_primitive) {
+                if (rtp->is_primitive) {
                     // load value from pointer
-                    var ret = ctx.empty_var(func->signature.return_type);
+                    var ret = ctx.empty_var(rtp);
                     ret.set_mem_ptr(result);
                     ctx.add(operation::load).operand(ret).operand(result);
                     return ret;

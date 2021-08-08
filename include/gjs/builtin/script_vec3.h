@@ -157,6 +157,7 @@ namespace gjs {
                     else {
                         // todo: runtime exception if idx > 2
                     }
+                    return vec3<T>(x.x, y.x, z.x);
                 }
 
                 static mat3<T> rotationX(T deg) {

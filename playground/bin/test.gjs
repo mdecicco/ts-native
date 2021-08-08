@@ -1,5 +1,11 @@
 import { vec2f, vec3f, vec4f, random } from 'math';
 
+pointer<f32> a;
+a.reset(1.234f);
+pointer<f32> b;
+b.share(a);
+b.value = 3.14f;
+
 format f0 {
 	i32 a,
 	i32 b,
@@ -40,6 +46,10 @@ f1 func() {
 
 vec2f vec() {
 	return arr[1];
+}
+
+vec2f vec1() {
+	return vec2f(a.value, b.value);
 }
 
 vec4f v4() {

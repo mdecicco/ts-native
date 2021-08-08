@@ -418,6 +418,8 @@ namespace gjs {
                     throw bind_exception(format("Attempting to bind property of type '%s' that has not been bound itself", typeid(remove_all<T>::type).name()));
                 }
 
+                if (std::is_pointer_v<T>) flags |= property_flags::pf_pointer;
+
                 u32 offset = (u8*)&((Cls*)nullptr->*member) - (u8*)nullptr;
                 properties[_name] = new property(nullptr, nullptr, typeid(remove_all<T>::type), offset, flags);
                 return *this;
@@ -434,6 +436,8 @@ namespace gjs {
                     throw bind_exception(format("Attempting to bind property of type '%s' that has not been bound itself", typeid(remove_all<T>::type).name()));
                 }
 
+                if (std::is_pointer_v<T>) flags |= property_flags::pf_pointer;
+
                 properties[_name] = new property(nullptr, nullptr, typeid(remove_all<T>::type), (u64)member, flags | pf_static);
                 return *this;
             }
@@ -448,6 +452,8 @@ namespace gjs {
                 if (!types->ctx()->types()->get<T>()) {
                     throw bind_exception(format("Attempting to bind property of type '%s' that has not been bound itself", typeid(remove_all<T>::type).name()));
                 }
+
+                if (std::is_pointer_v<T>) flags |= property_flags::pf_pointer;
 
                 properties[_name] = new property(
                     wrap(types->ctx()->types(), name + "::get_" + _name, getter),
@@ -470,6 +476,9 @@ namespace gjs {
                     throw bind_exception(format("Attempting to bind property of type '%s' that has not been bound itself", typeid(remove_all<T>::type).name()));
                 }
 
+
+                if (std::is_pointer_v<T>) flags |= property_flags::pf_pointer;
+
                 properties[_name] = new property(
                     wrap(types->ctx()->types(), name + "::get_" + _name, getter),
                     wrap(types->ctx()->types(), name + "::set_" + _name, setter),
@@ -491,12 +500,15 @@ namespace gjs {
                     throw bind_exception(format("Attempting to bind property of type '%s' that has not been bound itself", typeid(remove_all<T>::type).name()));
                 }
 
+                if (std::is_pointer_v<T>) flags |= property_flags::pf_pointer;
+                else flags |= property_flags::pf_read_only;
+
                 properties[_name] = new property(
                     wrap(types->ctx()->types(), name + "::get_" + _name, getter),
                     nullptr,
                     typeid(remove_all<T>::type),
                     0,
-                    property_flags::pf_read_only | flags
+                    flags
                 );
                 return *this;
             }
@@ -512,12 +524,15 @@ namespace gjs {
                     throw bind_exception(format("Attempting to bind property of type '%s' that has not been bound itself", typeid(remove_all<T>::type).name()));
                 }
 
+                if (std::is_pointer_v<T>) flags |= property_flags::pf_pointer;
+                else flags |= property_flags::pf_read_only;
+
                 properties[_name] = new property(
                     wrap(types->ctx()->types(), name + "::get_" + _name, getter),
                     nullptr,
                     typeid(remove_all<T>::type),
                     0,
-                    property_flags::pf_read_only | flags
+                    flags
                 );
                 return *this;
             }
