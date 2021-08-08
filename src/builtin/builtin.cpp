@@ -1,6 +1,7 @@
 #include <gjs/common/script_function.h>
 #include <gjs/common/script_type.h>
 #include <gjs/builtin/builtin.h>
+#include <gjs/builtin/script_pointer.h>
 #include <gjs/builtin/script_array.h>
 #include <gjs/builtin/script_string.h>
 #include <gjs/builtin/script_buffer.h>
@@ -124,6 +125,19 @@ namespace gjs {
         arr.method("operator []", &script_array::operator[]);
         arr.prop("length", &script_array::length);
         tp = arr.finalize(ctx->global());
+        tp->requires_subtype = true;
+        tp->is_builtin = true;
+
+        auto ptr = ctx->bind<script_pointer>("pointer");
+        ptr.constructor<u64>();
+        ptr.method("reset", &script_pointer::reset);
+        ptr.method("share", &script_pointer::share);
+        ptr.method("release", &script_pointer::release);
+        ptr.method("operator=", &script_pointer::operator=);
+        ptr.prop("is_null", &script_pointer::is_null);
+        ptr.prop("reference_count", &script_pointer::references);
+        ptr.prop("value", &script_pointer::get);
+        tp = ptr.finalize(ctx->global());
         tp->requires_subtype = true;
         tp->is_builtin = true;
 

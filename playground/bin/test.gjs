@@ -34,12 +34,21 @@ array<vec2f> arr;
 arr.push(vec2f(1.0f, 2.0f));
 arr.push(vec2f(3.0f, 4.0f));
 
+pointer<f32> a;
+a.reset(1.234f);
+pointer<f32> b;
+b.share(a);
+
 f1 func() {
 	return y;
 }
 
 vec2f vec() {
 	return arr[1];
+}
+
+vec2f vec1() {
+	return vec2f(a.value, b.value);
 }
 
 vec4f v4() {

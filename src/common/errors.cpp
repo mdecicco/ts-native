@@ -79,6 +79,8 @@ namespace gjs {
             "Cannot get direct reference to property '%s' of type '%s' which uses property accessor functions",
             "Type '%s' has not been bound",
             "Enum '%s' has no value named '%s'",
+            "Cannot get the value of pointer<%s> when the value is null",
+            "pointer<%s>::set called with argument of type pointer<%s>",
             "" // end runtime errors
         };
 

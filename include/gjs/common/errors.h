@@ -83,6 +83,8 @@ namespace gjs {
             r_cannot_ref_object_accessor_property,
             r_unbound_type,
             r_invalid_enum_value,
+            r_cannot_get_null_pointer,
+            r_pointer_assign_type_mismatch,
             __runtime_error_end
         };
 

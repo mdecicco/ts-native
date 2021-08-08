@@ -323,6 +323,8 @@ namespace gjs {
                     else {
                         // todo: runtime exception if idx > 3
                     }
+
+                    return vec4<T>(x.x, y.x, z.x, w.x);
                 }
                 static mat4<T> rotationX(T deg) {
                     T rad = d2r(deg);
