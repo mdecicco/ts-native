@@ -995,7 +995,33 @@ namespace gjs {
                 break;
             }
             case op::param: {
-                g.call_params.push_back(v1);
+                Value* p = v1;
+                if (i.callee->is_host && i.callee->is_method_of && i.callee->is_method_of->requires_subtype) {
+                    u8 param_off = 1;
+                    // param 0 is always self object (and is not included in the callee's signature)
+                    if (i.callee->signature.is_subtype_obj_ctor) {
+                        // param 1 is the moduletype id of the subtype
+                        param_off++;
+                    }
+
+                    if (g.call_params.size() >= param_off) {
+                        if (i.callee->signature.arg_types[g.call_params.size() - param_off]->name == "subtype") {
+                            if (o1.type()->is_floating_point) {
+                                // floating point primitives need to be cast to int64 without modifying their bits
+                                // allocate space on the stack to store the float in
+                                Value* dst = b.CreateAlloca(Type::getFloatTy(*ctx));
+                                // store it
+                                b.CreateStore(v1, dst);
+                                // cast pointer to stack space to int64*
+                                dst = b.CreateBitCast(dst, Type::getInt64PtrTy(*ctx));
+                                // p = *dst
+                                // p = *reinterpret_cast<u64*>(&param) (basically)
+                                p = b.CreateLoad(dst);
+                            }
+                        }
+                    }
+                }
+                g.call_params.push_back(p);
                 break;
             }
             case op::ret: {
