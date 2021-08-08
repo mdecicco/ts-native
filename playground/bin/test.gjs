@@ -1,5 +1,11 @@
 import { vec2f, vec3f, vec4f, random } from 'math';
 
+pointer<f32> a;
+a.reset(1.234f);
+pointer<f32> b;
+b.share(a);
+b.value = 3.14f;
+
 format f0 {
 	i32 a,
 	i32 b,
@@ -33,11 +39,6 @@ class t {
 array<vec2f> arr;
 arr.push(vec2f(1.0f, 2.0f));
 arr.push(vec2f(3.0f, 4.0f));
-
-pointer<f32> a;
-a.reset(1.234f);
-pointer<f32> b;
-b.share(a);
 
 f1 func() {
 	return y;
