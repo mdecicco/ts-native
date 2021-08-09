@@ -644,7 +644,6 @@ namespace gjs {
                 n->type = nt::format_expression;
 
                 bool expects_field = true;
-                // todo: throw error on duplicate identifier
                 while (!ctx.match({ tt::close_block }) && !ctx.at_end()) {
                     if (!expects_field) throw exc(ec::p_expected_char, ctx.current().src, ';');
 
