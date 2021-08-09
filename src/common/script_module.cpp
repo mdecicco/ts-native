@@ -19,10 +19,12 @@ namespace gjs {
     }
 
     script_module::~script_module() {
-        for (u32 i = 0;i < m_locals.size();i++) {
-            auto& l = m_locals[i];
-            if (l.type->destructor) {
-                l.type->destructor->call(m_data->data(l.offset));
+        if (m_initialized) {
+            for (u32 i = 0;i < m_locals.size();i++) {
+                auto& l = m_locals[i];
+                if (l.type->destructor) {
+                    l.type->destructor->call(m_data->data(l.offset));
+                }
             }
         }
 
