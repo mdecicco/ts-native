@@ -65,6 +65,67 @@ namespace gjs {
 
                     ctx.path.push(f);
                     f->arguments = argument_list(ctx);
+
+                    if (ctx.match({ tt::colon })) {
+                        ctx.consume();
+
+                        bool expectMore = false;
+                        f->initializer = nullptr;
+                        ast* lastInitializer = nullptr;
+                        while (!ctx.match({ tt::open_block })) {
+                            if (lastInitializer) lastInitializer = lastInitializer->next = new ast();
+                            else lastInitializer = f->initializer = new ast();
+
+                            ast* i = lastInitializer;
+                            i->src(ctx.current());
+                            i->type = nt::property_initializer;
+                            i->identifier = identifier(ctx);
+
+                            if (!ctx.match({ tt::open_parenth })) {
+                                throw exc(ec::p_expected_char, ctx.current().src, '(');
+                            }
+                            ctx.consume();
+
+                            ast* lastArg = nullptr;
+                            while (!ctx.match({ tt::close_parenth })) {
+                                if (lastArg) lastArg = lastArg->next = expression(ctx);
+                                else lastArg = i->arguments = expression(ctx);
+
+                                if (ctx.match({ tt::comma })) {
+                                    ctx.consume();
+                                    expectMore = true;
+                                }
+                                else {
+                                    if (!ctx.match({ tt::close_parenth })) {
+                                        throw exc(ec::p_expected_char, ctx.current().src, ')');
+                                    }
+                                    expectMore = false;
+                                }
+                            }
+
+                            if (expectMore) {
+                                throw exc(ec::p_expected_expression, ctx.current().src);
+                            }
+
+                            ctx.consume();
+                            
+                            if (ctx.match({ tt::comma })) {
+                                ctx.consume();
+                                expectMore = true;
+                            }
+                            else {
+                                if (!ctx.match({ tt::open_block })) {
+                                    throw exc(ec::p_expected_char, ctx.current().src, '{');
+                                }
+                                expectMore = false;
+                            }
+                        }
+
+                        if (expectMore) {
+                            throw exc(ec::p_expected_identifier, ctx.current().src);
+                        }
+                    }
+
                     if (!ctx.match({ tt::semicolon })) {
                         f->body = any(ctx);
                     } else ctx.consume();

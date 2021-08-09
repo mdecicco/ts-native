@@ -64,6 +64,8 @@ namespace gjs {
             "Types cannot be used as values",
             "Enum types cannot be used as values",
             "Functions cannot be used as values",
+            "Property '%s' has already been initialized in this initializer list",
+            "Property '%s' is of type '%s', which has no default constructor and must be included in the initializer list of each constructor of type '%s'",
             "Compilation finished with errors",
             "", // end compile errors
             "", // start runtime errors

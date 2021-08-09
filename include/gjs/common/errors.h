@@ -67,6 +67,8 @@ namespace gjs {
             c_type_is_not_value,
             c_enum_is_not_value,
             c_func_is_not_value,
+            c_prop_already_initialized,
+            c_prop_has_no_default_ctor,
             c_compile_finished_with_errors,
             __compile_error_end,
 

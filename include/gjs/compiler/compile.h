@@ -27,6 +27,8 @@ namespace gjs {
 
         var function_call(context& ctx, parse::ast* n);
 
+        void add_implicit_destructor_code(context& ctx, parse::ast* n, script_type* cls);
+
         script_type* class_declaration(context& ctx, parse::ast* n);
 
         void class_definition(context& ctx, parse::ast* n, script_type* subtype);

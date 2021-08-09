@@ -6,6 +6,7 @@
 #include <gjs/common/errors.h>
 #include <gjs/common/script_function.h>
 #include <gjs/common/script_type.h>
+#include <gjs/common/script_context.h>
 #include <gjs/util/util.h>
 #include <gjs/vm/register.h>
 #include <gjs/bind/bind.h>
@@ -87,6 +88,7 @@ namespace gjs {
             }
             
             script_function* f = ctx.find_func(fname, ret, arg_types);
+            var* self = nullptr;
             if (f) {
                 if (f->is_host || f->access.entry) {
                     ctx.log()->err(ec::c_function_already_defined, n->ref, ret->name.c_str(), f->name.c_str(), arg_tp_str(arg_types));
@@ -99,8 +101,8 @@ namespace gjs {
                 u32 base_idx = 0;
                 if (f->is_method_of) {
                     // implicit 'this' argument
-                    var& self = ctx.empty_var(f->is_method_of, "this");
-                    self.set_arg_idx(base_idx++);
+                    self = &ctx.empty_var(f->is_method_of, "this");
+                    self->set_arg_idx(base_idx++);
                 }
 
                 if (f->signature.returns_on_stack) {
@@ -132,8 +134,8 @@ namespace gjs {
                 u32 base_idx = 0;
                 if (f->is_method_of) {
                     // implicit 'this' argument
-                    var& self = ctx.empty_var(f->is_method_of, "this");
-                    self.set_arg_idx(base_idx++);
+                    self = &ctx.empty_var(f->is_method_of, "this");
+                    self->set_arg_idx(base_idx++);
                 }
 
                 if (f->signature.returns_on_stack) {
@@ -149,10 +151,84 @@ namespace gjs {
                 }
             }
 
+
+            if (is_ctor) {
+                std::vector<std::string> initializedNames;
+                if (n->initializer) {
+                    ast* i = n->initializer;
+                    while (i) {
+                        ctx.push_node(i);
+                        std::string pname = *i->identifier;
+                        bool found = false;
+                        for (u32 in = 0;in < initializedNames.size();in++) {
+                            if (initializedNames[in] == pname) {
+                                ctx.log()->err(ec::c_prop_already_initialized, i->ref, pname.c_str());
+                                found = true;
+                                break;
+                            }
+                        }
+
+                        if (found) continue;
+
+                        initializedNames.push_back(pname);
+                        var ptr = self->prop_ptr(pname);
+                        std::vector<var> args;
+                        ast* arg = i->arguments;
+                        while (arg) {
+                            args.push_back(expression(ctx, arg));
+                            arg = arg->next;
+                        }
+
+                        if (ptr.type()->is_primitive && args.size() == 1) {
+                            ctx.add(operation::store).operand(ptr).operand(args[0]);
+                        } else {
+                            construct_in_place(ctx, ptr, args);
+                        }
+                        i = i->next;
+                        ctx.pop_node();
+                    }
+
+                    for (u32 i = 0;i < f->is_method_of->properties.size();i++) {
+                        auto& p = f->is_method_of->properties[i];
+                        bool found = false;
+                        for (u32 in = 0;in < initializedNames.size();in++) {
+                            if (initializedNames[in] == p.name) {
+                                found = true;
+                                break;
+                            }
+                        }
+
+                        if (found) continue;
+
+                        /*
+                        bool found_default = false;
+                        for (u32 m = 0;m < p.type->methods.size();m++) {
+                            if (p.type->methods[m]->name.find("::constructor") != std::string::npos) {
+                                if (p.type->methods[m]->signature.arg_types.size() == 0) {
+                                    found_default = true;
+                                    break;
+                                }
+                            }
+                        }
+                        */
+
+                        if (!p.type->method<void>("constructor")) {
+                            ctx.log()->err(ec::c_prop_has_no_default_ctor, n->initializer->ref, p.name.c_str(), p.type->name.c_str(), f->is_method_of->name.c_str());
+                        }
+                    }
+                }
+            }
+
             block(ctx, n->body);
 
             if (ctx.out.code.size() == 0 || ctx.out.code.back().op != operation::ret) {
-                if (f->signature.return_type->size == 0) ctx.add(operation::ret);
+                if (is_dtor) {
+                    add_implicit_destructor_code(ctx, n, f->is_method_of);
+                }
+
+                if (f->signature.return_type->size == 0) {
+                    ctx.add(operation::ret);
+                }
                 else ctx.log()->err(ec::c_missing_return_value, n->ref, f->name.c_str());
             }
 

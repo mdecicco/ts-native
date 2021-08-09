@@ -12,6 +12,7 @@ namespace gjs {
             "format_declaration",
             "enum_declaration",
             "variable_initializer",
+            "property_initializer",
             "class_property",
             "format_property",
             "enum_value",

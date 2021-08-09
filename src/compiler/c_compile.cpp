@@ -176,6 +176,16 @@ namespace gjs {
             return off;
         }
 
+        void add_implicit_destructor_code(context& ctx, parse::ast* n, script_type* cls) {
+            var& self = ctx.get_var("this");
+            for (u32 i = 0;i < cls->properties.size();i++) {
+                if (cls->properties[i].type->destructor) {
+                    var p = self.prop_ptr(cls->properties[i].name);
+                    call(ctx, cls->properties[i].type->destructor, {}, &p);
+                }
+            }
+        }
+
         script_type* class_declaration(context& ctx, parse::ast* n) {
             if (ctx.type(*n->identifier, false) && !ctx.compiling_deferred) {
                 ctx.log()->err(ec::c_identifier_in_use, n->ref, std::string(*n->identifier).c_str());
@@ -419,6 +429,10 @@ namespace gjs {
         void block(context& ctx, ast* b) {
             ctx.push_block();
             ast* n = b->body;
+            if (!n) {
+                ctx.add(operation::null);
+            }
+
             while (n) {
                 any(ctx, n);
                 n = n->next;

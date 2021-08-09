@@ -24,9 +24,18 @@ f1 y = f1({
 	c: f0({ a: 7, b: 8, c: 9 })
 });
 
+class ndc {
+	constructor(i32 a, i32 b) {
+		this.a = a;
+		this.b = b;
+	}
+
+	i32 a;
+	i32 b;
+};
+
 class t {
-	constructor(i32 f) {
-		this.x = f;
+	constructor(i32 f) : x(f) {
 	}
 
 	void print() {
@@ -34,6 +43,7 @@ class t {
 	}
 
 	i32 x;
+	ndc test;
 };
 
 array<vec2f> arr;

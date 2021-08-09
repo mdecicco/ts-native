@@ -68,6 +68,11 @@ namespace gjs {
 
         void return_statement(context& ctx, parse::ast* n) {
             script_function* f = ctx.current_function();
+
+            if (f->is_method_of && f == f->is_method_of->destructor) {
+                add_implicit_destructor_code(ctx, n, f->is_method_of);
+            }
+
             if (!f) {
                 f = ctx.out.funcs[0].func;
                 
