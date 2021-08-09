@@ -357,7 +357,11 @@ namespace gjs {
         }
 
         void enum_declaration(context& ctx, parse::ast* n) {
-            // todo: check for name collision
+            if (ctx.symbols.get_enum(*n->identifier)) {
+                ctx.log()->err(ec::c_identifier_in_use, n->ref, std::string(*n->identifier).c_str());
+                return;
+            }
+
             script_enum* e = new script_enum(*n->identifier);
             ctx.new_enums.push_back(e);
 
