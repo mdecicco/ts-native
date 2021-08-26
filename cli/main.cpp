@@ -1,6 +1,6 @@
 #include <gjs/gjs.h>
 #include <stdio.h>
-#include <gjs/backends/b_win_x86_64.h>
+// #include <gjs/backends/b_win_x86_64.h>
 #include <gjs/builtin/script_math.h>
 #include <gjs/builtin/script_vec2.h>
 #include <gjs/builtin/script_vec3.h>
@@ -138,17 +138,17 @@ backend* create_backend(std::vector<std::string>& args) {
             } else if (args[i + 1] == "native") {
                 args.erase(args.begin() + i + 1);
                 args.erase(args.begin() + i);
-                win64_backend* be = new win64_backend();
-                if (do_log_vme(args)) throw std::exception("--log-vm-exec cannot be used with the native backend");
-                if (do_log_native_ir(args)) be->log_ir(true);
-                return be;
+                // win64_backend* be = new win64_backend();
+                // if (do_log_vme(args)) throw std::exception("--log-vm-exec cannot be used with the native backend");
+                // if (do_log_native_ir(args)) be->log_ir(true);
+                return nullptr;// be;
             } else {
                 throw std::exception(std::string("The backend parameter was given an invalid argument '" + args[i + 1] + "'. Usage '--b [vm | native]").c_str());
             }
         }
     }
 
-    return new win64_backend();
+    return nullptr; // new win64_backend();
 }
 
 script_context* create_ctx(std::vector<std::string>& args) {
@@ -173,10 +173,6 @@ script_context* parse_args(std::vector<std::string>& args) {
     return ctx;
 }
 
-void test(void (*cb)(i32, f32)) {
-    cb(1, 1.0f);
-}
-
 int main(i32 argc, const char** argp) {
     try {
         std::vector<std::string> args;
@@ -187,9 +183,6 @@ int main(i32 argc, const char** argp) {
         bool log_vmi = do_log_vmi(args);
         script_context* ctx = parse_args(args);
         ctx->io()->set_cwd_from_args(argc, argp);
-
-        script_type* tp = ctx->types()->get<void(*)(int, int)>();
-        script_function* func = ctx->bind(test, "test");
 
         if (log_vmi && !g_allocator) {
             throw std::exception("--log-vmi cannot be used with the native backend");

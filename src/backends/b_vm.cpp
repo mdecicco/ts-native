@@ -633,7 +633,7 @@ namespace gjs {
                     if (i.callee->is_method_of && i.callee->is_method_of->requires_subtype) {
                         // get subtype from the this obj parameter
                         script_type* st = params[0].type()->sub_type;
-                        u64 moduletype = join_u32(params[0].type()->owner->id(), st->id());
+                        u64 moduletype = join_u32(st->owner->id(), st->id());
                         m_instructions += encode(vmi::addui).operand(vmr::v3).operand(vmr::zero).operand(moduletype);
                         m_map.append(i.src);
                     }
@@ -1016,10 +1016,14 @@ namespace gjs {
             vm_register loc = func->type->signature->args[a].loc;
             u64* dest = &m_vm.state.registers[u8(loc)];
 
-            if (tp->is_primitive) {
-                *dest = (u64)args[a];
+            if (func->type->signature->args[a].implicit == function_signature::argument::ret_addr) {
+                *dest = (u64)ret;
             } else {
-                *dest = (u64)args[a];
+                if (tp->is_primitive) {
+                    *dest = (u64)args[a];
+                } else {
+                    *dest = (u64)args[a];
+                }
             }
         }
 

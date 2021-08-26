@@ -1251,12 +1251,15 @@ namespace gjs {
                     var v = rhs.convert(m_type);
                     m_ctx->add(operation::eq).operand(*this).operand(v);
                     if (m_mem_ptr.valid) {
+                        /*
                         if (v.m_is_imm) {
                             var sv = m_ctx->empty_var(v.m_type);
                             m_ctx->add(operation::eq).operand(sv).operand(v);
                             m_ctx->add(operation::store).operand(var(m_ctx, m_mem_ptr.reg, m_type)).operand(sv);
                         }
                         else m_ctx->add(operation::store).operand(var(m_ctx, m_mem_ptr.reg, m_type)).operand(*this);
+                        */
+                        m_ctx->add(operation::store).operand(var(m_ctx, m_mem_ptr.reg, m_ctx->type("data"))).operand(*this);
                     }
                 } else {
                     script_function* assign = method("operator =", m_type, { rhs.m_type });

@@ -1,6 +1,6 @@
 #include <gjs/gjs.h>
 #include <stdio.h>
-#include <gjs/backends/b_win_x86_64.h>
+// #include <gjs/backends/b_win_x86_64.h>
 #include <gjs/builtin/script_math.h>
 #include <gjs/builtin/script_vec2.h>
 #include <gjs/builtin/script_vec3.h>
@@ -34,13 +34,14 @@ void remove_unused_regs_pass (script_context* ctx, compilation_output& in) {
 }
 
 int main(int arg_count, const char** args) {
-    win64_backend be;
+    basic_malloc_allocator alloc;
+    vm_backend be(&alloc, 8 * 1024 * 1024, 8 * 1024 * 1024);
     script_context ctx(&be);
 
     be.commit_bindings();
-    be.log_ir(true);
+    //be.log_ir(true);
     ctx.io()->set_cwd_from_args(arg_count, args);
-    ctx.compiler()->add_ir_step(remove_unused_regs_pass);
+    //ctx.compiler()->add_ir_step(remove_unused_regs_pass);
     ctx.compiler()->add_ir_step(debug_ir_step);
 
     script_module* mod = ctx.resolve("test");
@@ -48,6 +49,9 @@ int main(int arg_count, const char** args) {
         print_log(&ctx);
         return -1;
     }
+
+    print_code(&be);
+    //be.log_instructions(true);
 
     mod->init();
     struct f0 { i32 a, b, c; };

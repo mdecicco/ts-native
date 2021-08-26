@@ -422,7 +422,7 @@ namespace gjs {
             
             // pointer return
             if (func->type->signature->returns_pointer) {
-                var result = ctx.empty_var(rtp);
+                var result = ctx.empty_var(ctx.type("data"));
                 ctx.add(operation::call).operand(result).func(func);
 
                 if (rtp->is_primitive) {

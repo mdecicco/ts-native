@@ -98,7 +98,7 @@ namespace gjs {
         if (return_type) return return_type->name + out;
         return out;
     }
-    std::string function_signature::to_string(std::string& funcName) const {
+    std::string function_signature::to_string(const std::string& funcName) const {
         std::string out = funcName + "(";
 
         for (u8 i = 0;i < args.size();i++) {

@@ -35,7 +35,7 @@ class ndc {
 };
 
 class t {
-	constructor(i32 f) : x(f) {
+	constructor(i32 f) : x(f), test(ndc(0, 0)) {
 	}
 
 	void print() {

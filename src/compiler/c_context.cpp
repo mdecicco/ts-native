@@ -348,9 +348,10 @@ namespace gjs {
         }
 
         void context::pop_block() {
-            bool lastIsRet = out.code.size() > 0 && out.code.back().op == operation::ret;
+            bool lastIsRet = code_sz() > 0 && (compiling_function ? out.code : global_code).back().op == operation::ret;
             u64 postRet = code_sz();
 
+            bool func_ended = false;
             if (block_stack.back()) {
                 script_function* f = block_stack.back()->func;
                 if (f) {
@@ -360,7 +361,7 @@ namespace gjs {
                             break;
                         }
                     }
-                    compiling_function = false;
+                    func_ended = true;
                 }
 
                 block_context* b = block_stack.back();
@@ -390,6 +391,17 @@ namespace gjs {
 
             block_stack.pop_back();
 
+            if (lastIsRet && postRet != code_sz()) {
+                // extra code was automatically added when popping the last block,
+                // return statement must be moved to be at the end
+                compilation_output::ir_code& code = compiling_function ? out.code : global_code;
+                auto ret = code[postRet - 1];
+                code.erase(code.begin() + (postRet - 1));
+                code.push_back(ret);
+            }
+
+            if (func_ended) compiling_function = false;
+
             if (block_stack.size() == 0) {
                 // global function concluded, combine code and assign __init__ function's range
                 out.funcs[0].begin = out.code.size();
@@ -413,14 +425,6 @@ namespace gjs {
                         }
                     }
                 }
-            }
-
-            if (lastIsRet && postRet != code_sz()) {
-                // extra code was automatically added when popping the last block,
-                // return statement must be moved to be at the end
-                auto ret = out.code[postRet - 1];
-                out.code.erase(out.code.begin() + (postRet - 1));
-                out.code.push_back(ret);
             }
         }
 

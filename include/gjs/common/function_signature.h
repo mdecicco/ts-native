@@ -37,7 +37,7 @@ namespace gjs {
             const argument& explicit_arg(u8 idx) const;
 
             std::string to_string() const;
-            std::string to_string(std::string& funcName) const;
+            std::string to_string(const std::string& funcName) const;
 
             script_type* return_type;
             vm_register return_loc;

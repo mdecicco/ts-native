@@ -193,7 +193,7 @@ namespace gjs {
                 printf("\n[%s %s::%s(", f->type->signature->return_type->name.c_str(), f->owner->name().c_str(), f->name.c_str());
                 for(u8 a = 0;a < f->type->signature->args.size();a++) {
                     if (a > 0) printf(", ");
-                    printf("%s arg_%d -> $%s", f->type->signature->args[a].tp->name.c_str(), a, register_str[u8(f->type->signature->args[a + implicit_arg_count].loc)]);
+                    printf("%s arg_%d -> $%s", f->type->signature->args[a].tp->name.c_str(), a, register_str[u8(f->type->signature->args[a].loc)]);
                 }
                 printf(")");
 

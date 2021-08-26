@@ -27,12 +27,12 @@ namespace gjs {
                     return script_object(m_ctx);
                 }
 
-                script_function* f = m_type->method(func, tpm->get<Ret>(), { tpm->get<Args>()... });
+                script_function* f = m_type->method(func, m_ctx->type<Ret>(), { m_ctx->type<Args>()... });
                 if (!f) {
-                    script_type* rt = tpm->get<Ret>();
+                    script_type* rt = m_ctx->type<Ret>();
                     constexpr i32 argc = std::tuple_size<std::tuple<Args...>>::value;
-                    script_type* argTps[argc] = { tpm->get<Args>()... };
-                    function_signature sig = function_signature(tpm, rt, (std::is_reference_v<Ret> || std::is_pointer_v<Ret>), argTps, argc);
+                    script_type* argTps[] = { m_ctx->type<Args>()..., nullptr };
+                    function_signature sig = function_signature(m_ctx, rt, std::is_reference_v<Ret> || std::is_pointer_v<Ret>, argTps, argc, nullptr);
 
                     throw error::runtime_exception(error::ecode::r_invalid_object_method, m_type->name.c_str(), sig.to_string(func).c_str());
                     return script_object(m_ctx);
