@@ -1,7 +1,7 @@
 #pragma once
 #include <gjs/common/types.h>
 #include <gjs/common/script_type.h>
-#include <gjs/util/template_utils.hpp>
+#include <gjs/common/function_signature.h>
 
 namespace gjs {
     class script_function;
@@ -23,14 +23,18 @@ namespace gjs {
             template <typename Ret = void, typename... Args>
             script_object call(const std::string& func, Args... args) {
                 if (!m_self) {
-                    // todo runtime exception
+                    throw error::runtime_exception(error::ecode::r_call_null_obj_method, func.c_str());
                     return script_object(m_ctx);
                 }
 
-                func_signature sig = function_signature<Ret>(m_ctx, func, (Ret*)nullptr, args...);
-                script_function* f = m_type->method(func, sig.return_type, sig.arg_types);
+                script_function* f = m_type->method(func, tpm->get<Ret>(), { tpm->get<Args>()... });
                 if (!f) {
-                    throw error::runtime_exception(error::ecode::r_invalid_object_method, m_type->name.c_str(), sig.to_string().c_str());
+                    script_type* rt = tpm->get<Ret>();
+                    constexpr i32 argc = std::tuple_size<std::tuple<Args...>>::value;
+                    script_type* argTps[argc] = { tpm->get<Args>()... };
+                    function_signature sig = function_signature(tpm, rt, (std::is_reference_v<Ret> || std::is_pointer_v<Ret>), argTps, argc);
+
+                    throw error::runtime_exception(error::ecode::r_invalid_object_method, m_type->name.c_str(), sig.to_string(func).c_str());
                     return script_object(m_ctx);
                 }
 

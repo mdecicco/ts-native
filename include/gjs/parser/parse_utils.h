@@ -1,5 +1,6 @@
 #pragma once
 #include <gjs/common/types.h>
+#include <gjs/common/errors.h>
 #include <gjs/util/util.h>
 #include <string>
 #include <stack>
@@ -71,20 +72,5 @@ namespace gjs {
             u64 m_idx;
             u32 m_line;
             u32 m_col;
-    };
-
-    class parse_exception : public std::exception {
-        public:
-            parse_exception(const std::string& text, const std::string& module, const std::string& lineText, u32 line, u32 col);
-            parse_exception(const std::string& text, const tokenizer& t, const tokenizer::token& tk) : parse_exception(t.module, text, t.lines[tk.line], tk.line, tk.col) { }
-            parse_exception(const std::string& text, const tokenizer& t) : parse_exception(t.module, text, t.line_str(), t.line(), t.col()) { }
-            ~parse_exception();
-
-            virtual const char* what() { return text.c_str(); }
-            std::string module;
-            std::string text;
-            std::string lineText;
-            u32 line;
-            u32 col;
     };
 };

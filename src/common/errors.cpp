@@ -7,6 +7,11 @@ namespace gjs {
         static const char* error_fmts[] = {
             "No Error",
             "", // unspecified error
+
+            "", // lexer errors
+            "Unknown token '%s'",
+            "", // end lexer errors
+
             "", // parse errors
             "Expected identifier",
             "Unexpected identifier '%s'",
@@ -15,8 +20,10 @@ namespace gjs {
             "Expected %s",
             "Unexpected token '%s'",
             "Expected keyword '%s'",
+            "Expected keyword",
             "Unexpected keyword '%s'",
             "Expected operator",
+            "Expected operator '%s'",
             "Expected expression",
             "Expected identifier, member expression, or index expression",
             "Expected identifier or member expression",
@@ -26,7 +33,11 @@ namespace gjs {
             "Expected import path or import list",
             "Failed to resolve module '%s'",
             "Detected cyclic import:\n%s",
+            "Malformed numerical constant",
+            "String should not be empty",
+            "Expected numerical constant",
             "", // end parse errors
+
             "", // compile errors
             "No source code to compile",
             "Encountered invalid AST node. This is not a user error",
@@ -68,6 +79,7 @@ namespace gjs {
             "Property '%s' is of type '%s', which has no default constructor and must be included in the initializer list of each constructor of type '%s'",
             "Compilation finished with errors",
             "", // end compile errors
+
             "", // start runtime errors
             "Buffer offset %llu is out of range (size: %llu)",
             "Cannot read %llu bytes from buffer (%llu bytes remain from current position)",
@@ -83,6 +95,7 @@ namespace gjs {
             "Enum '%s' has no value named '%s'",
             "Cannot get the value of pointer<%s> when the value is null",
             "pointer<%s>::set called with argument of type pointer<%s>",
+            "Cannot call method '%s' of null object",
             "" // end runtime errors
         };
 

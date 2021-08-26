@@ -347,10 +347,10 @@ namespace gjs {
                 if (_name == "<cast>") {
                     script_function* mt = m_type->methods[m];
                     auto mparts = split(split(mt->name,":")[1], " \t\n\r");
-                    if (mparts.size() == 2 && mparts[0] == "operator" && mparts[1] == mt->signature.return_type->name && mt->signature.arg_types.size() == 1) {
-                        if (mt->signature.return_type->id() == ret->id()) {
+                    if (mparts.size() == 2 && mparts[0] == "operator" && mparts[1] == mt->type->signature->return_type->name && mt->type->signature->explicit_argc == 1) {
+                        if (mt->type->signature->return_type->id() == ret->id()) {
                             return mt;
-                        } else if (has_valid_conversion(*m_ctx, mt->signature.return_type, ret)) {
+                        } else if (has_valid_conversion(*m_ctx, mt->type->signature->return_type, ret)) {
                             matches.push_back(mt);
                             continue;
                         }
@@ -371,29 +371,29 @@ namespace gjs {
 
                 if (!func) continue;
 
-                if (_name == "constructor" && func->signature.arg_types.size() == 1 && func->signature.arg_types[0]->id() == m_type->id()) {
+                if (_name == "constructor" && func->type->signature->explicit_argc == 1 && func->type->signature->explicit_arg(0).tp->id() == m_type->id()) {
                     // don't match the copy constructor unless the requested arguments strictly match
                     if (args.size() == 1 && args[0]->id() == m_type->id()) matches.push_back(func);
                     continue;
                 }
 
                 // match return type
-                if (ret && !has_valid_conversion(*m_ctx, ret, func->signature.return_type)) continue;
-                bool ret_tp_strict = ret ? func->signature.return_type->id() == ret->id() : func->signature.return_type->size == 0;
+                if (ret && !has_valid_conversion(*m_ctx, ret, func->type->signature->return_type)) continue;
+                bool ret_tp_strict = ret ? func->type->signature->return_type->id() == ret->id() : func->type->signature->return_type->size == 0;
 
                 // match argument types
-                if (func->signature.arg_types.size() != args.size()) continue;
+                if (func->type->signature->explicit_argc != args.size()) continue;
 
                 // prefer strict type matches
                 bool match = true;
                 for (u8 i = 0;i < args.size();i++) {
-                    if (func->signature.arg_types[i]->name == "subtype") {
+                    if (func->type->signature->explicit_arg(i).tp->name == "subtype") {
                         if (m_type->sub_type->id() != args[i]->id()) {
                             match = false;
                             break;
                         }
                     } else {
-                        if (func->signature.arg_types[i]->id() != args[i]->id()) {
+                        if (func->type->signature->explicit_arg(i).tp->id() != args[i]->id()) {
                             match = false;
                             break;
                         }
@@ -406,7 +406,7 @@ namespace gjs {
                     // check if the arguments are at least convertible
                     match = true;
                     for (u8 i = 0;i < args.size();i++) {
-                        script_type* at = func->signature.arg_types[i];
+                        script_type* at = func->type->signature->explicit_arg(i).tp;
                         if (at->name == "subtype") at = m_type->sub_type;
                         if (!has_valid_conversion(*m_ctx, args[i], at)) {
                             match = false;
@@ -434,10 +434,10 @@ namespace gjs {
                 if (_name == "<cast>") {
                     script_function* mt = m_type->methods[m];
                     auto mparts = split(split(mt->name,":")[1], " \t\n\r");
-                    if (mparts.size() == 2 && mparts[0] == "operator" && mparts[1] == mt->signature.return_type->name && mt->signature.arg_types.size() == 1) {
-                        if (mt->signature.return_type->id() == ret->id()) {
+                    if (mparts.size() == 2 && mparts[0] == "operator" && mparts[1] == mt->type->signature->return_type->name && mt->type->signature->args.size() == 1) {
+                        if (mt->type->signature->return_type->id() == ret->id()) {
                             return mt;
-                        } else if (has_valid_conversion(*m_ctx, mt->signature.return_type, ret)) {
+                        } else if (has_valid_conversion(*m_ctx, mt->type->signature->return_type, ret)) {
                             matches.push_back(mt);
                             continue;
                         }
@@ -460,22 +460,22 @@ namespace gjs {
                 if (!func) continue;
 
                 // match return type
-                if (ret && !has_valid_conversion(*m_ctx, func->signature.return_type, ret)) continue;
-                bool ret_tp_strict = ret ? func->signature.return_type->id() == ret->id() : false;
+                if (ret && !has_valid_conversion(*m_ctx, func->type->signature->return_type, ret)) continue;
+                bool ret_tp_strict = ret ? func->type->signature->return_type->id() == ret->id() : false;
 
                 // match argument types
-                if (func->signature.arg_types.size() != args.size()) continue;
+                if (func->type->signature->explicit_argc != args.size()) continue;
 
                 // prefer strict type matches
                 bool match = true;
                 for (u8 i = 0;i < args.size();i++) {
-                    if (func->signature.arg_types[i]->name == "subtype") {
+                    if (func->type->signature->explicit_arg(i).tp->name == "subtype") {
                         if (m_type->sub_type->id() != args[i]->id()) {
                             match = false;
                             break;
                         }
                     } else {
-                        if (func->signature.arg_types[i]->id() != args[i]->id()) {
+                        if (func->type->signature->explicit_arg(i).tp->id() != args[i]->id()) {
                             match = false;
                             break;
                         }
@@ -488,7 +488,7 @@ namespace gjs {
                     // check if the arguments are at least convertible
                     match = true;
                     for (u8 i = 0;i < args.size();i++) {
-                        script_type* at = func->signature.arg_types[i];
+                        script_type* at = func->type->signature->explicit_arg(i).tp;
                         if (at->name == "subtype") at = m_type->sub_type;
                         if (!has_valid_conversion(*m_ctx, args[i], at)) {
                             match = false;
@@ -628,6 +628,7 @@ namespace gjs {
                 if (m_name.length() > 0) return format("[$sp + %u] (%s)", m_stack_loc, m_name.c_str());
                 else return format("[$sp + %u]", m_stack_loc);
             }
+
             if (m_is_imm) {
                 if (m_type->is_floating_point) {
                     if (m_type->size == sizeof(f64)) {
@@ -644,13 +645,22 @@ namespace gjs {
                 }
             }
 
+            static bool showStackInfo = false;
             if (m_name.length() > 0) {
-                if (m_type->is_floating_point) return format("$FP%d (%s)", m_reg_id, m_name.c_str());
-                return format("$GP%d (%s)", m_reg_id, m_name.c_str());
+                if (m_type->is_floating_point) {
+                    if (m_stack_id > 0 && showStackInfo) return format("$FP%d (%s) <$sp[%d]>", m_reg_id, m_name.c_str(), m_stack_id);
+                    else return format("$FP%d (%s)", m_reg_id, m_name.c_str());
+                }
+                if (m_stack_id > 0 && showStackInfo) return format("$GP%d (%s) <$sp[%d]>", m_reg_id, m_name.c_str(), m_stack_id);
+                else return format("$GP%d (%s)", m_reg_id, m_name.c_str());
             }
 
-            if (m_type->is_floating_point) return format("$FP%d", m_reg_id);
-            return format("$GP%d", m_reg_id);
+            if (m_type->is_floating_point) {
+                if (m_stack_id > 0 && showStackInfo) return format("$FP%d <$sp[%d]>", m_reg_id, m_stack_id);
+                else return format("$FP%d", m_reg_id);
+            }
+            if (m_stack_id > 0 && showStackInfo) return format("$GP%d <$sp[%d]>", m_reg_id, m_stack_id);
+            else return format("$GP%d", m_reg_id);
         }
 
         void var::set_mem_ptr(const var& v) {
@@ -968,7 +978,7 @@ namespace gjs {
             else {
                 script_function* f = a.method(std::string("operator ") + ot_str[(u8)_op], a.type(), { b.type() });
                 if (f) {
-                    return call(*ctx, f, { b.convert(f->signature.arg_types[0]) }, &a);
+                    return call(*ctx, f, { b.convert(f->type->signature->explicit_arg(0).tp) }, &a);
                 }
             }
 

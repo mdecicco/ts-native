@@ -51,12 +51,14 @@ add_sources("src/backends"  "backends")
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/lib)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/lib)
 
 add_library(gjs ${all_sources})
 
 add_subdirectory("./deps")
 add_subdirectory("./tests")
 add_subdirectory("./playground")
+add_subdirectory("./cli")
 
 target_link_libraries(gjs
     dyncall_s

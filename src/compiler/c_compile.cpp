@@ -481,8 +481,7 @@ namespace gjs {
             import_globals(ctx);
 
             // return type will be determined by the first global return statement, or it will be void
-            script_function* init = new script_function(ctx.env, "__init__", 0);
-            init->signature.return_loc = vm_register::v0;
+            script_function* init = new script_function(ctx.env, "__init__", 0, nullptr);
             init->owner = out.mod;
             ctx.new_functions.push_back(init);
             ctx.out.funcs.push_back({ init, gjs::func_stack(), 0, 0, register_allocator(out) });
@@ -518,9 +517,9 @@ namespace gjs {
             }
 
             ctx.out.funcs[0].end = ctx.code_sz();
-            if (!init->signature.return_type) {
+            if (!init->type) {
                 if (ctx.global_code.size() != 0) {
-                    init->signature.return_type = ctx.type("void");
+                    init->type = ctx.env->types()->get(function_signature(ctx.env, ctx.type("void"), false, nullptr, 0, nullptr));
                     ctx.add(operation::ret);
                 } else {
                     delete init;
@@ -529,7 +528,7 @@ namespace gjs {
                 }
             }
             else if (ctx.global_code.back().op != operation::ret) {
-                if (init->signature.return_type->size == 0) ctx.add(operation::ret);
+                if (init->type->signature->return_type->size == 0) ctx.add(operation::ret);
                 else ctx.log()->err(ec::c_missing_return_value, n->ref, "__init__");
             }
 

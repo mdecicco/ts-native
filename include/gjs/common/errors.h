@@ -9,6 +9,10 @@ namespace gjs {
             no_error = 0,
             unspecified_error,
 
+            __lexer_error_start,
+            l_unknown_token,
+            __lexer_error_end,
+
             __parse_error_start,
             p_expected_identifier,
             p_unexpected_identifier,
@@ -17,8 +21,10 @@ namespace gjs {
             p_expected_x,
             p_unexpected_token,
             p_expected_specific_keyword,
+            p_expected_keyword,
             p_unexpected_keyword,
             p_expected_operator,
+            p_expected_specific_operator,
             p_expected_expression,
             p_expected_assignable,
             p_expected_callable,
@@ -28,6 +34,9 @@ namespace gjs {
             p_malformed_import,
             p_failed_to_resolve_module,
             p_cyclic_imports,
+            p_malformed_numerical_constant,
+            p_string_should_not_be_empty,
+            p_expected_numerical_constant,
             __parse_error_end,
 
             __compile_error_start,
@@ -87,6 +96,7 @@ namespace gjs {
             r_invalid_enum_value,
             r_cannot_get_null_pointer,
             r_pointer_assign_type_mismatch,
+            r_call_null_obj_method,
             __runtime_error_end
         };
 

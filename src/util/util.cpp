@@ -93,14 +93,14 @@ namespace gjs {
                 if (!matched) continue;
             } else if (name != source[i]->name) continue;
 
-            bool matches = ret ? source[i]->signature.return_type->id() == ret->id() : true;
+            bool matches = ret ? source[i]->type->signature->return_type->id() == ret->id() : true;
             if (!matches) continue;
 
-            if (source[i]->signature.arg_types.size() != arg_types.size()) continue;
+            if (source[i]->type->signature->explicit_argc != arg_types.size()) continue;
 
             matches = true;
-            for (u8 a = 0;a < source[i]->signature.arg_types.size() && matches;a++) {
-                matches = (source[i]->signature.arg_types[a]->id() == arg_types[a]->id());
+            for (u8 a = 0;a < source[i]->type->signature->explicit_argc && matches;a++) {
+                matches = (source[i]->type->signature->explicit_arg(a).tp->id() == arg_types[a]->id());
             }
 
             if (matches) return source[i];
@@ -185,19 +185,24 @@ namespace gjs {
             }
 
             if (f) {
-                printf("\n[%s %s::%s(", f->signature.return_type->name.c_str(), f->owner->name().c_str(), f->name.c_str());
-                for(u8 a = 0;a < f->signature.arg_types.size();a++) {
+                u16 implicit_arg_count = 0;
+                if (f->is_method_of) implicit_arg_count++;
+                if (f->is_subtype_obj_ctor) implicit_arg_count++;
+                if (f->type->signature->returns_on_stack) implicit_arg_count++;
+
+                printf("\n[%s %s::%s(", f->type->signature->return_type->name.c_str(), f->owner->name().c_str(), f->name.c_str());
+                for(u8 a = 0;a < f->type->signature->args.size();a++) {
                     if (a > 0) printf(", ");
-                    printf("%s arg_%d -> $%s", f->signature.arg_types[a]->name.c_str(), a, register_str[u8(f->signature.arg_locs[a])]);
+                    printf("%s arg_%d -> $%s", f->type->signature->args[a].tp->name.c_str(), a, register_str[u8(f->type->signature->args[a + implicit_arg_count].loc)]);
                 }
                 printf(")");
 
-                if (f->signature.return_type->name == "void") printf(" -> null");
+                if (f->type->signature->return_type->name == "void") printf(" -> null");
                 else {
-                    if (f->signature.returns_on_stack) {
-                        printf(" -> $%s (stack)", register_str[u8(f->signature.return_loc)]);
+                    if (f->type->signature->returns_on_stack) {
+                        printf(" -> $%s (stack)", register_str[u8(f->type->signature->return_loc)]);
                     } else {
-                        printf(" -> $%s", register_str[u8(f->signature.return_loc)]);
+                        printf(" -> $%s", register_str[u8(f->type->signature->return_loc)]);
                     }
                 }
                 printf("]\n");
@@ -213,11 +218,10 @@ namespace gjs {
                 std::string str;
                 script_function* f = ctx->context()->function(ins.imm_u());
                 if (f) {
-                    str += f->signature.return_type->name + " " + f->owner->name() + "::" + f->name + "(";
-                    for (u8 a = 0;a < f->signature.arg_types.size();a++) {
-                        if ((a > 0 && !f->is_method_of) || (f->is_method_of && a > 1)) str += ", ";
-                        if (a == 0 && f->is_method_of) continue; // skip implicit 'this' parameter
-                        str += f->signature.arg_types[a]->name;
+                    str += f->type->signature->return_type->name + " " + f->owner->name() + "::" + f->name + "(";
+                    for (u8 a = 0;a < f->type->signature->args.size();a++) {
+                        if (a > 0) str += ", ";
+                        str += f->type->signature->args[a].tp->name;
                     }
                     str += ")";
                 } else str = "Bad function address";
@@ -232,10 +236,10 @@ namespace gjs {
             for (u32 fn = 0;fn < in.funcs.size();fn++) {
                 if (i == in.funcs[fn].begin) {
                     script_function* f = in.funcs[fn].func;
-                    printf("\n[%s %s(", f->signature.return_type->name.c_str(), f->name.c_str());
-                    for(u8 a = 0;a < f->signature.arg_types.size();a++) {
+                    printf("\n[%s %s(", f->type->signature->return_type->name.c_str(), f->name.c_str());
+                    for(u8 a = 0;a < f->type->signature->args.size();a++) {
                         if (a > 0) printf(", ");
-                        printf("%s arg_%d", f->signature.arg_types[a]->name.c_str(), a);
+                        printf("%s arg_%d", f->type->signature->args[a].tp->name.c_str(), a);
                     }
                     printf(")]\n");
                     break;

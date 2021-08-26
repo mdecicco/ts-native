@@ -1,18 +1,9 @@
 #include <gjs/parser/parse_utils.h>
+#include <gjs/common/errors.h>
 #include <stdarg.h>
 using namespace std;
 
 namespace gjs {
-    parse_exception::parse_exception(const std::string& _module, const string& _text, const string& _lineText, u32 _line, u32 _col) {
-        module = _module;
-        text = _text;
-        lineText = _lineText;
-        line = _line;
-        col = _col;
-    }
-
-    parse_exception::~parse_exception() { }
-
     tokenizer::tokenizer(const string& input) {
         m_input = input;
         m_line = 0;
@@ -200,13 +191,7 @@ namespace gjs {
             else if (!is_alnum && !is_num && isalnum(c)) break;
             if (c == '.' && is_num) {
                 if (found_decimal) {
-                    throw parse_exception(
-                        module,
-                        "Invalid numerical constant",
-                        lines[m_line],
-                        m_line,
-                        m_col
-                    );
+                    throw error::exception(error::ecode::p_malformed_numerical_constant, source_ref(module, lines[m_line], m_line, m_col));
                 } else found_decimal = true;
             }
             out.text += c;
@@ -230,21 +215,9 @@ namespace gjs {
         if (ident) {
             if (expected) {
                 if (kw.length() > 0) {
-                    throw parse_exception(
-                        module,
-                        format("Expected '%s'", kw.c_str()),
-                        lines[ident.line],
-                        ident.line,
-                        ident.col
-                    );
+                    throw error::exception(error::ecode::p_expected_specific_keyword, source_ref(module, lines[ident.line], ident.line, ident.col), kw.c_str());
                 } else {
-                    throw parse_exception(
-                        module,
-                        "Expected keyword",
-                        lines[ident.line],
-                        ident.line,
-                        ident.col
-                    );
+                    throw error::exception(error::ecode::p_expected_keyword, source_ref(module, lines[ident.line], ident.line, ident.col));
                 }
             }
 
@@ -274,13 +247,7 @@ namespace gjs {
 
             if (!longest_kw && expected) {
                 if (!expected) return token();
-                throw parse_exception(
-                    module,
-                    "Expected keyword",
-                    lines[m_line],
-                    m_line,
-                    m_col
-                );
+                throw error::exception(error::ecode::p_expected_keyword, source_ref(module, lines[m_line], m_line, m_col));
             } else if (!longest_kw) return token();
 
             m_idx += kw_offset;
@@ -293,24 +260,12 @@ namespace gjs {
             if (c >= 48 && c <= 57 && out.text.length() == 0) {
                 if (!expected) return out;
                 // 0 - 9
-                throw parse_exception(
-                    module,
-                    "Expected keyword, found numerical constant",
-                    lines[m_line],
-                    m_line,
-                    m_col
-                );
+                throw error::exception(error::ecode::p_expected_keyword, source_ref(module, lines[m_line], m_line, m_col));
             }
 
             if (c == '\'' || c == '"' && out.text.length() == 0) {
                 if (!expected) return out;
-                throw parse_exception(
-                    module,
-                    "Expected keyword, found string constant",
-                    lines[m_line],
-                    m_line,
-                    m_col
-                );
+                throw error::exception(error::ecode::p_expected_keyword, source_ref(module, lines[m_line], m_line, m_col));
             }
 
             if (
@@ -328,37 +283,19 @@ namespace gjs {
             } else {
                 if (out.text.length() == 0) {
                     if (!expected) return out;
-                    throw parse_exception(
-                        module,
-                        "Expected keyword, found something else",
-                        lines[m_line],
-                        m_line,
-                        m_col
-                    );
+                    throw error::exception(error::ecode::p_expected_keyword, source_ref(module, lines[m_line], m_line, m_col));
                 } else break;
             }
         }
 
         if (!is_keyword(out.text)) {
             if (!expected) return token();
-            throw parse_exception(
-                module,
-                "Expected keyword, found identifier",
-                lines[m_line],
-                m_line,
-                m_col
-            );
+            throw error::exception(error::ecode::p_expected_keyword, source_ref(module, lines[m_line], m_line, m_col));
         }
 
         if (out.text != kw && kw.length() > 0) {
             if (!expected) return token();
-            throw parse_exception(
-                module,
-                format("Expected keyword '%s', found '%s'", kw.c_str(), out.text.c_str()),
-                lines[m_line],
-                m_line,
-                m_col
-            );
+            throw error::exception(error::ecode::p_expected_specific_keyword, source_ref(module, lines[m_line], m_line, m_col), kw.c_str());
         }
 
         m_idx += offset;
@@ -376,21 +313,9 @@ namespace gjs {
         if (ident) {
             if (expected) {
                 if (op.length() > 0) {
-                    throw parse_exception(
-                        module,
-                        format("Expected '%s'", op.c_str()),
-                        lines[ident.line],
-                        ident.line,
-                        ident.col
-                    );
+                    throw error::exception(error::ecode::p_expected_specific_operator, source_ref(module, lines[ident.line], ident.line, ident.col), op.c_str());
                 } else {
-                    throw parse_exception(
-                        module,
-                        "Expected operator",
-                        lines[ident.line],
-                        ident.line,
-                        ident.col
-                    );
+                    throw error::exception(error::ecode::p_expected_operator, source_ref(module, lines[ident.line], ident.line, ident.col));
                 }
             }
 
@@ -420,13 +345,7 @@ namespace gjs {
 
             if (!longest_kw && expected) {
                 if (!expected) return token();
-                throw parse_exception(
-                    module,
-                    "Expected operator",
-                    lines[m_line],
-                    m_line,
-                    m_col
-                );
+                throw error::exception(error::ecode::p_expected_operator, source_ref(module, lines[m_line], m_line, m_col));
             } else if (!longest_kw) return token();
 
             m_idx += kw_offset;
@@ -439,24 +358,12 @@ namespace gjs {
             if (c >= 48 && c <= 57 && out.text.length() == 0) {
                 if (!expected) return out;
                 // 0 - 9
-                throw parse_exception(
-                    module,
-                    "Expected operator, found numerical constant",
-                    lines[m_line],
-                    m_line,
-                    m_col
-                );
+                throw error::exception(error::ecode::p_expected_operator, source_ref(module, lines[m_line], m_line, m_col));
             }
 
             if (c == '\'' || c == '"' && out.text.length() == 0) {
                 if (!expected) return out;
-                throw parse_exception(
-                    module,
-                    "Expected operator, found string constant",
-                    lines[m_line],
-                    m_line,
-                    m_col
-                );
+                throw error::exception(error::ecode::p_expected_operator, source_ref(module, lines[m_line], m_line, m_col));
             }
 
             if (
@@ -474,37 +381,19 @@ namespace gjs {
             } else {
                 if (out.text.length() == 0) {
                     if (!expected) return out;
-                    throw parse_exception(
-                        module,
-                        "Expected operator, found something else",
-                        lines[m_line],
-                        m_line,
-                        m_col
-                    );
+                    throw error::exception(error::ecode::p_expected_operator, source_ref(module, lines[m_line], m_line, m_col));
                 } else break;
             }
         }
 
         if (!is_operator(out.text)) {
             if (!expected) return token();
-            throw parse_exception(
-                module,
-                "Expected operator, found identifier",
-                lines[m_line],
-                m_line,
-                m_col
-            );
+            throw error::exception(error::ecode::p_expected_operator, source_ref(module, lines[m_line], m_line, m_col));
         }
 
         if (out.text != op && op.length() > 0) {
             if (!expected) return token();
-            throw parse_exception(
-                module,
-                format("Expected operator '%s', found '%s'", op.c_str(), out.text.c_str()),
-                lines[m_line],
-                m_line,
-                m_col
-            );
+            throw error::exception(error::ecode::p_expected_specific_operator, source_ref(module, lines[m_line], m_line, m_col), op.c_str());
         }
 
         m_idx += offset;
@@ -524,24 +413,12 @@ namespace gjs {
             if (c >= 48 && c <= 57 && out.text.length() == 0) {
                 if (!expected) return out;
                 // 0 - 9
-                throw parse_exception(
-                    module,
-                    "Expected identifier, found numerical constant",
-                    lines[m_line],
-                    m_line,
-                    m_col
-                );
+                throw error::exception(error::ecode::p_expected_identifier, source_ref(module, lines[m_line], m_line, m_col));
             }
 
             if (c == '\'' || c == '"' && out.text.length() == 0) {
                 if (!expected) return out;
-                throw parse_exception(
-                    module,
-                    "Expected identifier, found string constant",
-                    lines[m_line],
-                    m_line,
-                    m_col
-                );
+                throw error::exception(error::ecode::p_expected_identifier, source_ref(module, lines[m_line], m_line, m_col));
             }
 
             if (
@@ -555,37 +432,19 @@ namespace gjs {
             } else {
                 if (out.text.length() == 0) {
                     if (!expected) return out;
-                    throw parse_exception(
-                        module,
-                        "Expected identifier, found something else",
-                        lines[m_line],
-                        m_line,
-                        m_col
-                    );
+                    throw error::exception(error::ecode::p_expected_identifier, source_ref(module, lines[m_line], m_line, m_col));
                 } else break;
             }
         }
         
         if (is_keyword(out.text)) {
             if (!expected) return token();
-            throw parse_exception(
-                module,
-                "Expected identifier, found keyword",
-                lines[m_line],
-                m_line,
-                m_col
-            );
+            throw error::exception(error::ecode::p_expected_identifier, source_ref(module, lines[m_line], m_line, m_col));
         }
 
         if (out.text != identifier && identifier.length() > 0) {
             if (!expected) return token();
-            throw parse_exception(
-                module,
-                format("Expected identifier '%s', found '%s'", identifier.c_str(), out.text.c_str()),
-                lines[m_line],
-                m_line,
-                m_col
-            );
+            throw error::exception(error::ecode::p_expected_x, source_ref(module, lines[m_line], m_line, m_col), identifier.c_str());
         }
 
         m_idx += offset;
@@ -605,13 +464,7 @@ namespace gjs {
         } else {
             if (!expected) return out;
             string found = thing();
-            throw parse_exception(
-                module,
-                format("Expected '%c', found \"%s\"", c, found.c_str()),
-                lines[m_line],
-                m_line,
-                m_col
-            );
+            throw error::exception(error::ecode::p_expected_char, source_ref(module, lines[m_line], m_line, m_col), c);
         }
 
         return out;
@@ -689,34 +542,16 @@ namespace gjs {
 
         if (quote) {
             if (!expected) commit_state();
-            throw parse_exception(
-                module,
-                "Encountered unexpected end of file while parsing string constant",
-                lines[quote.line],
-                quote.line,
-                quote.col
-            );
+            throw error::exception(error::ecode::p_unexpected_eof, source_ref(module, lines[quote.line], quote.line, quote.col), "string constant");
         }
 
         if (parens.size() > 0) {
             if (!expected) commit_state();
-            throw parse_exception(
-                module,
-                "Encountered unexpected end of file while parsing expression",
-                lines[parens.top().line],
-                parens.top().line,
-                parens.top().col
-            );
+            throw error::exception(error::ecode::p_unexpected_eof, source_ref(module, lines[parens.top().line], parens.top().line, parens.top().col), "expression");
         }
 
         if (expected && !out) {
-            throw parse_exception(
-                module,
-                "Expected expression",
-                lines[out.line],
-                out.line,
-                out.col
-            );
+            throw error::exception(error::ecode::p_expected_expression, source_ref(module, lines[out.line], out.line, out.col));
         }
 
         if (!expected && !out) commit_state();
@@ -762,23 +597,11 @@ namespace gjs {
         }
 
         if (!foundEnd) {
-            throw parse_exception(
-                module,
-                "Encountered unexpected end of file while parsing string constant",
-                lines[bt.line],
-                bt.line,
-                bt.col
-            );
+            throw error::exception(error::ecode::p_unexpected_eof, source_ref(module, lines[bt.line], bt.line, bt.col), "string constant");
         }
 
         if (!allow_empty && out.text.length() == 0) {
-            throw parse_exception(
-                module,
-                "String should not be empty",
-                lines[bt.line],
-                bt.line,
-                bt.col
-            );
+            throw error::exception(error::ecode::p_string_should_not_be_empty, source_ref(module, lines[bt.line], bt.line, bt.col));
         }
 
         return out;
@@ -821,13 +644,7 @@ namespace gjs {
             } else {
                 if (out.text.length() == 0) {
                     if (!expected) return token();
-                    throw parse_exception(
-                        module,
-                        format("Expected numerical constant, found '%s'", thing().c_str()),
-                        lines[m_line],
-                        m_line,
-                        m_col
-                    );
+                    throw error::exception(error::ecode::p_expected_numerical_constant, source_ref(module, lines[m_line], m_line, m_col));
                 }
                 break;
             }

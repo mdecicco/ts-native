@@ -1,5 +1,6 @@
 #pragma once
 #include <gjs/common/types.h>
+#include <gjs/common/function_signature.h>
 #include <gjs/builtin/builtin.h>
 #include <gjs/util/template_utils.hpp>
 #include <gjs/util/robin_hood.h>
@@ -35,15 +36,61 @@ namespace gjs {
         typedef void (*pass_ret_func)(void* /*dest*/, void* /*src*/, size_t /*size*/);
         void trivial_copy(void* dest, void* src, size_t sz);
 
+        template <typename Ret, typename... Args>
+        script_type* signature(script_context* ctx, Ret (*f)(Args...)) {
+            script_type* rt = ctx->type<Ret>();
+            if (!rt) throw bind_exception(format("Cannot construct signature type for function with unbound return type '%s'", base_type_name<Ret>()));
+            constexpr i32 argc = std::tuple_size<std::tuple<Args...>>::value;
+            script_type* argTps[argc] = { ctx->type<Args>()... };
+
+            for (u8 i = 0;i < argc;i++) {
+                if (!argTps[i]) {
+                    throw bind_exception(format("Cannot construct signature type for function with unbound argument type (arg index %d)", i));
+                }
+            }
+
+            return tpm->get(function_signature(
+                ctx,
+                rt,
+                (std::is_reference_v<Ret> || std::is_pointer_v<Ret>),
+                argTps,
+                argc,
+                null
+            ));
+        }
+
+        template <typename Cls, typename Ret, typename... Args>
+        script_type* signature(script_context* ctx, Ret (Cls::*f)(Args...)) {
+            script_type* rt = ctx->type<Ret>();
+            if (!rt) throw bind_exception(format("Cannot construct signature type for function with unbound return type '%s'", base_type_name<Ret>()));
+            constexpr i32 argc = std::tuple_size<std::tuple<Args...>>::value;
+            script_type* argTps[argc] = { ctx->type<Args>()... };
+
+            for (u8 i = 0;i < argc;i++) {
+                if (!argTps[i]) {
+                    throw bind_exception(format("Cannot construct signature type for function with unbound argument type (arg index %d)", i));
+                }
+            }
+
+            return tpm->get(function_signature(
+                ctx,
+                rt,
+                (std::is_reference_v<Ret> || std::is_pointer_v<Ret>),
+                argTps,
+                argc,
+                ctx->type<Cls>
+            ));
+        }
+
         struct wrapped_function {
-            wrapped_function(std::type_index ret, std::vector<std::type_index> args, const std::string& _name)
+            wrapped_function(std::type_index ret, std::vector<script_type*> args, const std::string& _name)
             : return_type(ret), arg_types(args), name(_name), is_static_method(false), func_ptr(nullptr), ret_is_ptr(false),
               srv_wrapper_func(nullptr), call_method_func(nullptr), pass_this(false) { }
 
             std::string name;
             std::type_index return_type;
-            std::vector<std::type_index> arg_types;
             std::vector<bool> arg_is_ptr;
+            std::vector<script_type*> arg_types;
             bool is_static_method;
 
             // whether or not to pass this obj when the method is static
@@ -139,7 +186,7 @@ namespace gjs {
             global_function(type_manager* tpm, func_type f, const std::string& name) :
                 wrapped_function(
                     typeid(remove_all<Ret>::type),
-                    { typeid(remove_all<Args>::type)... },
+                    { tpm->get<Args>()... },
                     name
                 )
             {
@@ -157,9 +204,6 @@ namespace gjs {
                 }
 
                 bool sbv_args[] = { std::is_class_v<Args>..., false };
-                bool bt_args[] = { (!std::is_same_v<Args, script_type*> && tpm->get<Args>() == nullptr)..., false };
-                // script_type* is allowed because host subclass types will be constructed with it, but
-                // it should not be bound as a type
 
                 for (u8 a = 0;a < arg_count::value;a++) {
                     if (sbv_args[a]) {
@@ -169,10 +213,11 @@ namespace gjs {
                         , a, name.c_str()));
                     }
 
-                    if (bt_args[a]) {
+                    if (!arg_types[a]) {
+                        const char* arg_typenames[] = { base_type_name<Args>()..., nullptr };
                         throw bind_exception(format(
                             "Argument %d of function '%s' is of type '%s' that has not been bound yet"
-                        , a, name.c_str(), arg_types[a].name()));
+                        , a, name.c_str(), arg_typenames[a]));
                     }
                 }
             }
@@ -192,7 +237,7 @@ namespace gjs {
                 class_method(type_manager* tpm, method_type f, const std::string& name) :
                     wrapped_function(
                         typeid(remove_all<Ret>::type),
-                        { typeid(remove_all<Args>::type)... },
+                        { tpm->get<Args>()... },
                         name
                     ),
                     wrapper(call_class_method<Ret, Cls, Args...>)
@@ -216,7 +261,6 @@ namespace gjs {
                     func_ptr = *reinterpret_cast<void**>(&f);
 
                     bool sbv_args[] = { std::is_class_v<Args>..., false };
-                    bool bt_args[] = { (tpm->get<Args>() == nullptr)..., false };
 
                     for (u8 a = 0;a < ac::value;a++) {
                         if (sbv_args[a]) {
@@ -226,10 +270,11 @@ namespace gjs {
                             , a, name.c_str()));
                         }
 
-                        if (bt_args[a]) {
+                        if (!arg_types[a]) {
+                            const char* arg_typenames[] = { base_type_name<Args>()..., nullptr };
                             throw bind_exception(format(
                                 "Argument %d of function '%s' is of type '%s' that has not been bound yet"
-                            , a, name.c_str(), arg_types[a].name()));
+                            , a, name.c_str(), arg_typenames[a]));
                         }
                     }
                 }
@@ -249,7 +294,7 @@ namespace gjs {
                 const_class_method(type_manager* tpm, method_type f, const std::string& name) :
                     wrapped_function(
                         typeid(remove_all<Ret>::type),
-                        { typeid(remove_all<Args>::type)... },
+                        { tpm->get<Args>()... },
                         name
                     ),
                     wrapper(call_const_class_method<Ret, Cls, Args...>)
@@ -273,7 +318,6 @@ namespace gjs {
                     func_ptr = *reinterpret_cast<void**>(&f);
 
                     bool sbv_args[] = { std::is_class_v<Args>..., false };
-                    bool bt_args[] = { (tpm->get<Args>() == nullptr)..., false };
 
                     for (u8 a = 0;a < ac::value;a++) {
                         if (sbv_args[a]) {
@@ -283,10 +327,11 @@ namespace gjs {
                             , a, name.c_str()));
                         }
 
-                        if (bt_args[a]) {
+                        if (!arg_types[a]) {
+                            const char* arg_typenames[] = { base_type_name<Args>()..., nullptr };
                             throw bind_exception(format(
                                 "Argument %d of function '%s' is of type '%s' that has not been bound yet"
-                            , a, name.c_str(), arg_types[a].name()));
+                            , a, name.c_str(), arg_typenames[a]));
                         }
                     }
                 }

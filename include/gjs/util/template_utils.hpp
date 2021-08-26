@@ -5,6 +5,7 @@
 namespace gjs {
     class script_function;
     class script_type;
+    class type_manager;
     class script_context;
 
     template<class T> struct remove_all { typedef T type; };
@@ -15,6 +16,29 @@ namespace gjs {
     template<class T> struct remove_all<T volatile> : remove_all<T> {};
     template<class T> struct remove_all<T const volatile> : remove_all<T> {};
     template<class T> struct remove_all<T[]> : remove_all<T> {};
+
+    template <typename R, typename... Args>
+    struct FunctionTraitsBase {
+        using RetType = R;
+        using ArgTypes = std::tuple<Args...>;
+        static constexpr std::size_t ArgCount = sizeof...(Args);
+        template <std::size_t N>
+        using NthArg = std::tuple_element_t<N, ArgTypes>;
+    };
+
+    template <typename F> struct FunctionTraits;
+
+    template <typename R, typename... Args>
+    struct FunctionTraits<R(*)(Args...)> : FunctionTraitsBase<R, Args...> {
+        using Pointer = R(*)(Args...);
+
+        static void arg_types(type_manager* tpm, script_type** out, bool do_throw) {
+            script_type* argTps[ArgCount] = { tpm->get<Args>(do_throw)... };
+            for (u8 i = 0;i < ArgCount;i++) {
+                out[i] = argTps[i];
+            }
+        }
+    };
 
     template <typename T>
     inline const char* base_type_name() {
@@ -54,17 +78,6 @@ namespace gjs {
         }
     }
     
-    struct func_signature {
-        func_signature() {};
-        func_signature(const std::string& name, script_type* ret, const std::vector<script_type*>& arg_types);
-
-        std::string to_string() const;
-        
-        std::string name;
-        script_type* return_type;
-        std::vector<script_type*> arg_types;
-    };
-
     template <typename Ret, typename ...Args>
     script_function* function_search(script_context* ctx, const std::string& name, const std::vector<script_function*>& source) {
         if (source.size() == 0) return nullptr;
@@ -83,35 +96,5 @@ namespace gjs {
         }
 
         return function_search(name, source, ret, { });
-    }
-
-
-    template <typename Ret, typename ...Args>
-    func_signature function_signature(script_context* ctx, const std::string& name) {
-        func_signature s;
-        s.name = name;
-        s.return_type = ctx->global()->types()->get<Ret>();
-
-        constexpr u8 ac = std::tuple_size<std::tuple<Args...>>::value;
-        if constexpr (ac > 0) {
-            s.arg_types = { ctx->global()->types()->get<Args>()... };
-        }
-
-        return s;
-    }
-
-    template <typename Ret, typename ...Args>
-    func_signature function_signature(script_context* ctx, const std::string& name, Ret* ret, Args... args) {
-        func_signature s;
-        s.name = name;
-        if constexpr (std::is_same_v<Ret, void>) s.return_type = ctx->global()->types()->get<void>();
-        else s.return_type = arg_type(ctx, ret);
-
-        constexpr u8 ac = std::tuple_size<std::tuple<Args...>>::value;
-        if constexpr (ac > 0) {
-            s.arg_types = { arg_type(ctx, args)... };
-        }
-
-        return s;
     }
 };

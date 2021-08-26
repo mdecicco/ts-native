@@ -289,6 +289,7 @@ namespace gjs {
 
                     if (n->body) {
                         // stack format
+                        obj.raise_stack_flag();
                         construct_on_stack(ctx, obj, {});
 
                         ast* field = n->body->body;

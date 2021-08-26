@@ -133,14 +133,14 @@ namespace gjs {
             std::vector<u32>& funcs = m_func_map[func->name];
             for (u8 i = 0;i < funcs.size();i++) {
                 script_function* f = m_functions[funcs[i]];
-                bool matches = f->signature.return_type->id() == func->signature.return_type->id();
+                bool matches = f->type->signature->return_type->id() == func->type->signature->return_type->id();
                 if (!matches) continue;
 
-                if (f->signature.arg_types.size() != func->signature.arg_types.size()) continue;
+                if (f->type->signature->explicit_argc != func->type->signature->explicit_argc) continue;
 
                 matches = true;
-                for (u8 a = 0;a < f->signature.arg_types.size() && matches;a++) {
-                    matches = (f->signature.arg_types[a]->id() == func->signature.arg_types[a]->id());
+                for (u8 a = 0;a < f->type->signature->explicit_argc && matches;a++) {
+                    matches = (f->type->signature->explicit_arg(a).tp->id() == func->type->signature->explicit_arg(a).tp->id());
                 }
 
                 if (matches) {

@@ -53,17 +53,6 @@ namespace gjs {
         auto nt8 = ctx->bind<f32>("f32");
         auto nt9 = ctx->bind<f64>("f64");
 
-        bind_number_methods(nt0).finalize(ctx->global());
-        bind_number_methods(nt1).finalize(ctx->global());
-        bind_number_methods(nt2).finalize(ctx->global());
-        bind_number_methods(nt3).finalize(ctx->global());
-        bind_number_methods(nt4).finalize(ctx->global());
-        bind_number_methods(nt5).finalize(ctx->global());
-        bind_number_methods(nt6).finalize(ctx->global());
-        bind_number_methods(nt7).finalize(ctx->global());
-        bind_number_methods(nt8).finalize(ctx->global());
-        bind_number_methods(nt9).finalize(ctx->global());
-
         ctx->bind<bool>("bool").finalize(ctx->global());
 
         if (typeid(char) != typeid(i8)) {
@@ -180,11 +169,22 @@ namespace gjs {
         ctx->bind(script_copymem, "memcopy");
         ctx->bind(script_print, "print");
 
+        bind_number_methods(nt0).finalize(ctx->global());
+        bind_number_methods(nt1).finalize(ctx->global());
+        bind_number_methods(nt2).finalize(ctx->global());
+        bind_number_methods(nt3).finalize(ctx->global());
+        bind_number_methods(nt4).finalize(ctx->global());
+        bind_number_methods(nt5).finalize(ctx->global());
+        bind_number_methods(nt6).finalize(ctx->global());
+        bind_number_methods(nt7).finalize(ctx->global());
+        bind_number_methods(nt8).finalize(ctx->global());
+        bind_number_methods(nt9).finalize(ctx->global());
+
         math::bind_math(ctx);
     }
 
     u32 script_print(const script_string& str) {
-        return printf(str.c_str());
+        return printf("%s\n", str.c_str());
     }
 
     void* script_allocate(u64 size) {

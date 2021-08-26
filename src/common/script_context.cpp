@@ -117,14 +117,16 @@ namespace gjs {
         }
 
         // Make sure the path is absolute
-        try {
+        // try {
             std::filesystem::path p(out_path);
             out_path = std::filesystem::absolute(p).u8string();
-        } catch(...) {
-            return nullptr;
-        }
+        // } catch(const std::exception& e) {
+        //     return nullptr;
+        // }
 
-        if (!m_io->exists(out_path) || m_io->is_dir(out_path)) return nullptr;
+        if (!m_io->exists(out_path) || m_io->is_dir(out_path)) {
+            throw std::exception(format("Could not find file '%s'", out_path.c_str()).c_str());
+        }
 
         // check if the module was already loaded
         mod = module(out_path);
@@ -142,6 +144,7 @@ namespace gjs {
             return add_code(out_path, src);
         }
 
+        throw std::exception(format("Could not open file '%s' or file is empty", out_path.c_str()).c_str());
         return nullptr;
     }
 

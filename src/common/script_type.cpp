@@ -1,6 +1,7 @@
 #include <gjs/common/script_function.h>
 #include <gjs/common/script_type.h>
 #include <gjs/common/script_context.h>
+#include <gjs/common/function_signature.h>
 #include <gjs/util/util.h>
 #include <gjs/bind/bind.h>
 
@@ -37,6 +38,61 @@ namespace gjs {
     script_type* type_manager::get(u32 id) {
         if (m_types_by_id.count(id) == 0) return nullptr;
         return m_types_by_id[id];
+    }
+
+    script_type* type_manager::get(const function_signature& sig, const std::string& name) {
+        if (this != m_ctx->types()) return m_ctx->types()->get(sig, name);
+
+        if (name.length() > 0) {
+            if (m_types.count(name) == 0) {
+                std::string n = sig.to_string();
+                script_type* t = new script_type();
+                t->m_id = hash(n);
+                t->name = name;
+                t->internal_name = n;
+                t->signature = new function_signature(sig);
+                t->size = sizeof(u64);
+                t->is_pod = true;
+                t->is_primitive = true;
+                t->is_host = true;
+                t->is_floating_point = false;
+                t->is_trivially_copyable = true;
+                t->is_unsigned = true;
+                t->is_builtin = true;
+                m_types[name] = t;
+                m_types_by_id[t->m_id] = t;
+
+                return t;
+            }
+
+            return m_types[name];
+        }
+
+        std::string n = sig.to_string();
+        if (m_types.count(n) == 0) {
+            script_type* t = m_ctx->types()->get(n);
+            if (t) return t;
+
+            t = new script_type();
+            t->m_id = hash(n);
+            t->name = n;
+            t->internal_name = n;
+            t->signature = new function_signature(sig);
+            t->size = sizeof(u64);
+            t->is_pod = true;
+            t->is_primitive = true;
+            t->is_host = true;
+            t->is_floating_point = false;
+            t->is_trivially_copyable = true;
+            t->is_unsigned = true;
+            t->is_builtin = true;
+            m_types[n] = t;
+            m_types_by_id[t->m_id] = t;
+
+            return t;
+        }
+
+        return m_types[n];
     }
 
     script_type* type_manager::add(const std::string& name, const std::string& internal_name) {
@@ -115,7 +171,7 @@ namespace gjs {
         for (u32 i = 0;i < wrapped->methods.size();i++) {
             bind::wrapped_function* f = wrapped->methods[i];
             for (u8 a = 0;a < f->arg_types.size();a++) {
-                if (f->arg_types[a] == std::type_index(typeid(subtype_t))) {
+                if (f->arg_types[a]->name == "subtype") {
                     t->requires_subtype = true;
                 }
             }
@@ -180,6 +236,7 @@ namespace gjs {
 
     script_type::~script_type() {
         if (m_wrapped) delete m_wrapped;
+        if (signature) delete signature;
     }
 
     script_function* script_type::method(const std::string& _name, script_type* ret, const std::vector<script_type*>& arg_types) {

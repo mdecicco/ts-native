@@ -98,7 +98,7 @@ namespace gjs {
     script_object script_context::call(script_function* func, void* self, Args... args) {
         // validate signature
         constexpr u8 ac = std::tuple_size<std::tuple<Args...>>::value;
-        bool valid_call = (self != nullptr) == func->signature.is_thiscall;
+        bool valid_call = (self != nullptr) == func->is_thiscall;
 
         if (!valid_call) {
             // todo
@@ -120,10 +120,10 @@ namespace gjs {
             }
 
             if (valid_call) {
-                if (func->signature.arg_types.size() != ac) valid_call = false;
+                if (func->type->signature->explicit_argc != ac) valid_call = false;
 
-                for (u8 a = 0;a < func->signature.arg_types.size() && valid_call;a++) {
-                    valid_call = (func->signature.arg_types[a]->id() == arg_types[a]->id());
+                for (u8 a = 0;a < func->type->signature->explicit_argc && valid_call;a++) {
+                    valid_call = (func->type->signature->explicit_arg(a).tp->id() == arg_types[a]->id());
                 }
             }
 
@@ -135,24 +135,24 @@ namespace gjs {
             std::vector<void*> vargs = { to_arg(args)... };
             if (self) vargs.insert(vargs.begin(), self);
 
-            script_object out = script_object(this, (script_module*)nullptr, func->signature.return_type, nullptr);
-            if (func->signature.return_type->size > 0) {
-                out.m_self = new u8[func->signature.return_type->size];
+            script_object out = script_object(this, (script_module*)nullptr, func->type->signature->return_type, nullptr);
+            if (func->type->signature->return_type->size > 0) {
+                out.m_self = new u8[func->type->signature->return_type->size];
                 out.m_owns_ptr = true;
             }
             m_backend->call(func, out.m_self, vargs.data());
             return out;
         } else {
-            if (func->signature.arg_types.size() != 0) valid_call = false;
+            if (func->type->signature->explicit_argc != 0) valid_call = false;
 
             if (!valid_call) {
                 // exception
                 return script_object(this);
             }
 
-            script_object out = script_object(this, (script_module*)nullptr, func->signature.return_type, nullptr);
-            if (func->signature.return_type->size > 0) {
-                out.m_self = new u8[func->signature.return_type->size];
+            script_object out = script_object(this, (script_module*)nullptr, func->type->signature->return_type, nullptr);
+            if (func->type->signature->return_type->size > 0) {
+                out.m_self = new u8[func->type->signature->return_type->size];
                 out.m_owns_ptr = true;
             }
             m_backend->call(func, out.m_self, &self);

@@ -184,7 +184,11 @@ namespace gjs {
 
             for (u32 f = 0;f < type->methods.size();f++) {
                 script_function* fn = type->methods[f];
-                if (!t->get_func_strict(fn->name, fn->signature.return_type, fn->signature.arg_types, false)) t->set(fn->name, fn);
+                std::vector<script_type*> argTps;
+                for (u8 a = 0;a < fn->type->signature->args.size();a++) {
+                    argTps.push_back(fn->type->signature->args[a].tp);
+                }
+                if (!t->get_func_strict(fn->name, fn->type->signature->return_type, argTps, false)) t->set(fn->name, fn);
             }
 
             // todo
@@ -276,16 +280,16 @@ namespace gjs {
                 script_function* func = all[f];
 
                 // match return type
-                if (ret && !has_valid_conversion(*m_ctx, func->signature.return_type, ret)) continue;
-                bool ret_tp_strict = ret ? func->signature.return_type->id() == ret->id() : false;
+                if (ret && !has_valid_conversion(*m_ctx, func->type->signature->return_type, ret)) continue;
+                bool ret_tp_strict = ret ? func->type->signature->return_type->id() == ret->id() : false;
 
                 // match argument types
-                if (func->signature.arg_types.size() != args.size()) continue;
+                if (func->type->signature->explicit_argc != args.size()) continue;
 
                 // prefer strict type matches
                 bool match = true;
                 for (u8 i = 0;i < args.size();i++) {
-                    if (func->signature.arg_types[i]->id() != args[i]->id()) {
+                    if (func->type->signature->explicit_arg(i).tp->id() != args[i]->id()) {
                         match = false;
                         break;
                     }
@@ -297,7 +301,7 @@ namespace gjs {
                     // check if the arguments are at least convertible
                     match = true;
                     for (u8 i = 0;i < args.size();i++) {
-                        if (!has_valid_conversion(*m_ctx, args[i], func->signature.arg_types[i])) {
+                        if (!has_valid_conversion(*m_ctx, args[i], func->type->signature->explicit_arg(i).tp)) {
                             match = false;
                             break;
                         }
@@ -340,15 +344,15 @@ namespace gjs {
                 script_function* func = all[f];
 
                 // match return type
-                if (ret && func->signature.return_type->id() != ret->id()) continue;
+                if (ret && func->type->signature->return_type->id() != ret->id()) continue;
 
                 // match argument types
-                if (func->signature.arg_types.size() != args.size()) continue;
+                if (func->type->signature->explicit_argc != args.size()) continue;
 
                 // only strict type matches
                 bool match = true;
                 for (u8 i = 0;i < args.size();i++) {
-                    if (func->signature.arg_types[i]->id() != args[i]->id()) {
+                    if (func->type->signature->explicit_arg(i).tp->id() != args[i]->id()) {
                         match = false;
                         break;
                     }

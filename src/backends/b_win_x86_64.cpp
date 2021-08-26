@@ -588,23 +588,23 @@ namespace gjs {
                 ptypes.push_back(Type::getInt64Ty(*m_llvm->ctx()));
             }
 
-            if (in.funcs[f].func->signature.returns_on_stack) {
+            if (in.funcs[f].func->type->signature->returns_on_stack) {
                 // return pointer
                 ptypes.push_back(Type::getInt64Ty(*m_llvm->ctx()));
             }
 
-            for (u8 a = 0;a < in.funcs[f].func->signature.arg_types.size();a++) {
-                ptypes.push_back(llvm_type(in.funcs[f].func->signature.arg_types[a], g));
+            for (u8 a = 0;a < in.funcs[f].func->type->signature->args.size();a++) {
+                ptypes.push_back(llvm_type(in.funcs[f].func->type->signature->args[a].tp, g));
             }
 
             Function* func = Function::Create(
-                FunctionType::get(llvm_type(in.funcs[f].func->signature.return_type, g), ptypes, false),
+                FunctionType::get(llvm_type(in.funcs[f].func->type->signature->return_type, g), ptypes, false),
                 Function::ExternalLinkage,
                 internal_func_name(in.funcs[f].func),
                 mod.get()
             );
 
-            for (u8 a = 0;a < in.funcs[f].func->signature.arg_types.size();a++) {
+            for (u8 a = 0;a < in.funcs[f].func->type->signature->args.size();a++) {
                 func->getArg(a)->setName(format("param_%d", a));
             }
         }
@@ -999,17 +999,38 @@ namespace gjs {
                 if (i.callee->is_host && i.callee->is_method_of && i.callee->is_method_of->requires_subtype) {
                     u8 param_off = 1;
                     // param 0 is always self object (and is not included in the callee's signature)
-                    if (i.callee->signature.is_subtype_obj_ctor) {
+                    if (i.callee->is_subtype_obj_ctor) {
                         // param 1 is the moduletype id of the subtype
                         param_off++;
                     }
 
                     if (g.call_params.size() >= param_off) {
-                        if (i.callee->signature.arg_types[g.call_params.size() - param_off]->name == "subtype") {
+                        if (i.callee->type->signature->args[g.call_params.size() - param_off].tp->name == "subtype") {
                             if (o1.type()->is_floating_point) {
+                                Type* tp = nullptr;
+                                if (o1.type()->size == sizeof(f64)) tp = Type::getDoubleTy(*ctx);
+                                else tp = Type::getFloatTy(*ctx);
+
                                 // floating point primitives need to be cast to int64 without modifying their bits
                                 // allocate space on the stack to store the float in
-                                Value* dst = b.CreateAlloca(Type::getFloatTy(*ctx));
+                                Value* dst = b.CreateAlloca(tp);
+                                // store it
+                                b.CreateStore(v1, dst);
+                                // cast pointer to stack space to int64*
+                                dst = b.CreateBitCast(dst, Type::getInt64PtrTy(*ctx));
+                                // p = *dst
+                                // p = *reinterpret_cast<u64*>(&param) (basically)
+                                p = b.CreateLoad(dst);
+                            } else {
+                                IntegerType* tp = nullptr;
+                                if (o1.type()->size == sizeof(u8)) tp = Type::getInt8Ty(*ctx);
+                                else if (o1.type()->size == sizeof(u16)) tp = Type::getInt16Ty(*ctx);
+                                else if (o1.type()->size == sizeof(u32)) tp = Type::getInt32Ty(*ctx);
+                                else if (o1.type()->size == sizeof(u64)) tp = Type::getInt64Ty(*ctx);
+
+                                // integer primitives need to be cast to int64 without modifying their bits
+                                // allocate space on the stack to store the float in
+                                Value* dst = b.CreateAlloca(tp);
                                 // store it
                                 b.CreateStore(v1, dst);
                                 // cast pointer to stack space to int64*
@@ -1025,7 +1046,7 @@ namespace gjs {
                 break;
             }
             case op::ret: {
-                if (g.input.funcs[g.cur_function_idx].func->signature.return_type->size == 0) b.CreateRetVoid();
+                if (g.input.funcs[g.cur_function_idx].func->type->signature->return_type->size == 0) b.CreateRetVoid();
                 else b.CreateRet(v1);
                 break;
             }
@@ -1144,7 +1165,7 @@ namespace gjs {
             script_function* func = used_functions[f];
             std::vector<Type*> params;
 
-            Type* ret = llvm_type(used_functions[f]->signature.return_type, g);
+            Type* ret = llvm_type(used_functions[f]->type->signature->return_type, g);
 
             if (func->is_host) {
                 if (func->access.wrapped->srv_wrapper_func) {
@@ -1166,18 +1187,8 @@ namespace gjs {
                 }
             }
 
-            if (func->is_method_of && !func->is_static) {
-                // 'this' object
-                params.push_back(Type::getInt64Ty(ctx));
-            }
-
-            if (func->signature.is_subtype_obj_ctor) {
-                // moduletype id
-                params.push_back(Type::getInt64Ty(ctx));
-            }
-
-            for (u8 a = 0;a < used_functions[f]->signature.arg_types.size();a++) {
-                params.push_back(llvm_type(used_functions[f]->signature.arg_types[a], g));
+            for (u8 a = 0;a < used_functions[f]->type->signature->args.size();a++) {
+                params.push_back(llvm_type(used_functions[f]->type->signature->args[a].tp, g));
             }
 
             FunctionType* sig = FunctionType::get(ret, params, false);
@@ -1195,43 +1206,39 @@ namespace gjs {
         dcMode(cvm, DC_CALL_C_DEFAULT);
         dcReset(cvm);
 
-        u8 argOff = 0;
-        if (func->is_method_of) {
-            dcArgPointer(cvm, args[argOff++]); // implicit 'this'
-        }
+        for (u8 a = 0;a < func->type->signature->args.size();a++) {
+            if (func->type->signature->args[a].implicit == function_signature::argument::ret_addr) {
+                dcArgPointer(cvm, ret);
+                continue;
+            }
 
-        if (func->signature.returns_on_stack) {
-            dcArgPointer(cvm, ret); // implicit return value pointer
-        }
-
-        for (u8 a = 0;a < func->signature.arg_types.size();a++) {
-            script_type* tp = func->signature.arg_types[a];
+            script_type* tp = func->type->signature->args[a].tp;
             if (tp->is_primitive) {
                 if (tp->is_floating_point) {
-                    if (tp->size == sizeof(f64)) dcArgDouble(cvm, *(f64*)&args[a + argOff]);
-                    else dcArgFloat(cvm, *(f32*)&args[a + argOff]);
+                    if (tp->size == sizeof(f64)) dcArgDouble(cvm, *(f64*)&args[a]);
+                    else dcArgFloat(cvm, *(f32*)&args[a]);
                 } else {
                     switch (tp->size) {
                         case sizeof(i8): {
-                            if (tp->name == "bool") dcArgBool(cvm, *(bool*)&args[a + argOff]);
-                            else dcArgChar(cvm, *(i8*)&args[a + argOff]);
+                            if (tp->name == "bool") dcArgBool(cvm, *(bool*)&args[a]);
+                            else dcArgChar(cvm, *(i8*)&args[a]);
                             break;
                         }
-                        case sizeof(i16): { dcArgShort(cvm, *(i16*)&args[a + argOff]); break; }
+                        case sizeof(i16): { dcArgShort(cvm, *(i16*)&args[a]); break; }
                         case sizeof(i32): {
-                            if (tp->is_unsigned) dcArgLong(cvm, *(u32*)&args[a + argOff]);
-                            else dcArgInt(cvm, *(i32*)&args[a + argOff]);
+                            if (tp->is_unsigned) dcArgLong(cvm, *(u32*)&args[a]);
+                            else dcArgInt(cvm, *(i32*)&args[a]);
                             break;
                         }
-                        case sizeof(i64): { dcArgLongLong(cvm, *(i64*)&args[a + argOff]); break; }
+                        case sizeof(i64): { dcArgLongLong(cvm, *(i64*)&args[a]); break; }
                     }
                 }
             } else {
-                dcArgPointer(cvm, args[a + argOff]);
+                dcArgPointer(cvm, args[a]);
             }
         }
 
-        script_type* rtp = func->signature.return_type;
+        script_type* rtp = func->type->signature->return_type;
         void* f = reinterpret_cast<void*>(func->access.entry);
 
         if (rtp->size == 0) dcCallVoid(cvm, f);

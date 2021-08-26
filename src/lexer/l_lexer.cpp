@@ -252,7 +252,7 @@ namespace gjs {
                 }
 
                 tok = t.any_token();
-                if (tok) throw parse_exception(format("Unknown token '%s'", tok.text.c_str()), t, tok);
+                if (tok) throw error::exception(error::ecode::l_unknown_token, source_ref(module, t.lines[tok.line], tok.line, tok.col), tok.text.c_str());
             }
 
             if (t.lines.size()) {

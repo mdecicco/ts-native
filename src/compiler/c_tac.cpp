@@ -152,7 +152,7 @@ namespace gjs {
                 false    // meta_do_while_loop
             };
 
-            return s_is_assignment[u32(i.op)] && !(i.op == operation::call && i.callee->signature.returns_on_stack);
+            return s_is_assignment[u32(i.op)] && !(i.op == operation::call && i.callee->type->signature->returns_on_stack);
         }
 
         tac_instruction::tac_instruction() : op(operation::null), op_idx(0), callee(nullptr) {
@@ -188,8 +188,8 @@ namespace gjs {
         std::string tac_instruction::to_string() const {
             std::string out = op_str[(u8)op];
             if (callee && op == operation::call) {
-                if (callee->signature.return_type->size > 0) {
-                    if (callee->signature.returns_on_stack) return out + " " + callee->name + " -> @ret";
+                if (callee->type->signature->return_type->size > 0) {
+                    if (callee->type->signature->returns_on_stack) return out + " " + callee->name + " -> @ret";
                     return out + " " + callee->name + " -> " + operands[0].to_string();
                 }
                 else return out + " " + callee->name;

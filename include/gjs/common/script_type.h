@@ -16,6 +16,7 @@ namespace gjs {
     class script_context;
     class script_type;
     class script_module;
+    class function_signature;
 
     class type_manager {
         public:
@@ -28,13 +29,42 @@ namespace gjs {
 
             script_type* get(u32 id);
 
+            script_type* get(const function_signature& sig, const std::string& name = "");
+
             template <typename T>
             script_type* get(bool do_throw = false) {
                 if constexpr (std::is_same_v<T, void*>) {
                     script_type* tp = get(typeid(void*).name());
-                    if (do_throw && !tp) throw error::runtime_exception(error::ecode::r_unbound_type, typeid(remove_all<T>).name());
+                    if (do_throw && !tp) throw error::runtime_exception(error::ecode::r_unbound_type, base_type_name<T>());
                     return tp;
                 }
+
+                if constexpr (std::is_function_v<std::remove_pointer_t<T>>) {
+                    using FT = FunctionTraits<T>;
+                    script_type* rt = get<FT::RetType>();
+                    if (!rt) {
+                        if (do_throw) throw error::runtime_exception(error::ecode::r_unbound_type, base_type_name<FT::RetType>());
+                        return nullptr;
+                    }
+
+                    constexpr i32 argc = FT::ArgCount;
+                    script_type* argTps[FT::ArgCount];
+                    FT::arg_types(m_ctx->types(), argTps, do_throw);
+
+                    for (u8 i = 0;i < FT::ArgCount;i++) {
+                        if (!argTps[i]) return nullptr;
+                    }
+
+                    return get(function_signature(
+                        m_ctx,
+                        rt,
+                        std::is_reference_v<FT::RetType> || std::is_pointer_v<FT::RetType>,
+                        argTps,
+                        FT::ArgCount,
+                        nullptr
+                    ));
+                }
+
                 script_type* tp = get(base_type_name<T>());
                 if (do_throw && !tp) throw error::runtime_exception(error::ecode::r_unbound_type, typeid(remove_all<T>).name());
                 return tp;
@@ -96,6 +126,7 @@ namespace gjs {
             script_function* destructor;
             std::vector<script_function*> methods;
             bind::pass_ret_func pass_ret;
+            function_signature* signature;
 
             inline u32 id() const { return m_id; }
 

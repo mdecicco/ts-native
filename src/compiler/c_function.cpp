@@ -66,22 +66,22 @@ namespace gjs {
                     ctx.pop_node();
                     return nullptr;
                 }
+
+                function_signature sig(ctx.env, ret, is_ctor, arg_types.data(), arg_types.size(), method_of, is_ctor, n->is_static);
+                script_type* tp = ctx.type(sig.to_string(), false);
+                if (!tp) {
+                    tp = ctx.new_types->get(sig);
+                    ctx.symbols.set(tp->name, tp);
+                }
                 
-                f = new script_function(ctx.env, fname, 0);
+                f = new script_function(ctx.env, fname, 0, tp);
                 f->owner = ctx.out.mod;
-                f->signature.is_thiscall = method_of != nullptr;
-                f->signature.return_type = ret;
-                f->signature.returns_pointer = is_ctor;
-                f->signature.returns_on_stack = !is_ctor && !ret->is_primitive && ret->size > 0;
+                f->is_thiscall = method_of != nullptr;
                 f->is_method_of = method_of;
                 f->is_static = n->is_static;
                 f->access.entry = 0;
 
                 ctx.symbols.set(fname, f);
-                
-                for (u8 i = 0;i < arg_types.size();i++) {
-                    f->arg(arg_types[i]);
-                }
                 ctx.new_functions.push_back(f);
                 ctx.pop_node();
                 return f;
@@ -105,9 +105,9 @@ namespace gjs {
                     self->set_arg_idx(base_idx++);
                 }
 
-                if (f->signature.returns_on_stack) {
+                if (f->type->signature->returns_on_stack) {
                     // implicit return pointer argument
-                    var& ret_ptr = ctx.empty_var(f->signature.return_type, "@ret");
+                    var& ret_ptr = ctx.empty_var(f->type->signature->return_type, "@ret");
                     ret_ptr.set_arg_idx(base_idx++);
                 }
 
@@ -116,12 +116,16 @@ namespace gjs {
                     arg.set_arg_idx(base_idx + i);
                 }
             } else {
-                f = new script_function(ctx.env, fname, ctx.code_sz());
+                function_signature sig(ctx.env, ret, is_ctor, arg_types.data(), arg_types.size(), method_of, is_ctor, n->is_static);
+                script_type* tp = ctx.type(sig.to_string(), false);
+                if (!tp) {
+                    tp = ctx.new_types->get(sig);
+                    ctx.symbols.set(tp->name, tp);
+                }
+
+                f = new script_function(ctx.env, fname, ctx.code_sz(), tp);
                 f->owner = ctx.out.mod;
-                f->signature.is_thiscall = method_of != nullptr;
-                f->signature.return_type = ret;
-                f->signature.returns_pointer = is_ctor;
-                f->signature.returns_on_stack = !is_ctor && !ret->is_primitive && ret->size > 0;
+                f->is_thiscall = method_of != nullptr;
                 f->is_method_of = method_of;
                 f->is_static = n->is_static;
                 f->access.entry = 0;
@@ -138,14 +142,13 @@ namespace gjs {
                     self->set_arg_idx(base_idx++);
                 }
 
-                if (f->signature.returns_on_stack) {
+                if (f->type->signature->returns_on_stack) {
                     // implicit return pointer argument
-                    var& ret_ptr = ctx.empty_var(f->signature.return_type, "@ret");
+                    var& ret_ptr = ctx.empty_var(f->type->signature->return_type, "@ret");
                     ret_ptr.set_arg_idx(base_idx++);
                 }
 
                 for (u8 i = 0;i < arg_types.size();i++) {
-                    f->arg(arg_types[i]);
                     var& arg = ctx.empty_var(arg_types[i], arg_names[i]);
                     arg.set_arg_idx(base_idx + i);
                 }
@@ -204,7 +207,7 @@ namespace gjs {
                         bool found_default = false;
                         for (u32 m = 0;m < p.type->methods.size();m++) {
                             if (p.type->methods[m]->name.find("::constructor") != std::string::npos) {
-                                if (p.type->methods[m]->signature.arg_types.size() == 0) {
+                                if (p.type->methods[m]->type->signature->explicit_argc == 0) {
                                     found_default = true;
                                     break;
                                 }
@@ -226,7 +229,7 @@ namespace gjs {
                     add_implicit_destructor_code(ctx, n, f->is_method_of);
                 }
 
-                if (f->signature.return_type->size == 0) {
+                if (f->type->signature->return_type->size == 0) {
                     ctx.add(operation::ret);
                 }
                 else ctx.log()->err(ec::c_missing_return_value, n->ref, f->name.c_str());
@@ -379,35 +382,33 @@ namespace gjs {
         // function binding
         var call(context& ctx, script_function* func, const std::vector<var>& args, const var* self) {
             // get return value
-            script_type* rtp = func->signature.return_type;
+            script_type* rtp = func->type->signature->return_type;
             if (rtp->name == "subtype") rtp = self->type()->sub_type;
             var stack_ret = ctx.empty_var(rtp);
 
-            if (self && !func->is_static) {
-                // 'this' always gets passed first
-                ctx.add(operation::param).operand(*self).func(func);
-            }
-
-            if (func->signature.is_subtype_obj_ctor) {
-                // pass moduletype after 'this' to represent subtype
-                u64 moduletype = join_u32(self->type()->sub_type->owner->id(), self->type()->sub_type->id());
-                ctx.add(operation::param).operand(ctx.imm(moduletype)).func(func);
-            }
-
-            if (func->signature.returns_on_stack) {
-                // pass pointer to return value
-                ctx.add(operation::stack_alloc).operand(stack_ret).operand(ctx.imm((u64)rtp->size));
-                stack_ret.raise_stack_flag();
-                ctx.add(operation::param).operand(stack_ret).func(func);
-            }
-
             // pass args
-            for (u8 i = 0;i < args.size();i++) {
-                if (func->signature.arg_types[i]->name == "subtype") {
-                    var p = args[i].convert(self->type()->sub_type);
+            for (u8 i = 0;i < func->type->signature->args.size();i++) {
+                if (func->type->signature->args[i].implicit == function_signature::argument::this_ptr) {
+                    ctx.add(operation::param).operand(*self).func(func);
+                    continue;
+                }
+                if (func->type->signature->args[i].implicit == function_signature::argument::moduletype_id) {
+                    u64 moduletype = join_u32(self->type()->sub_type->owner->id(), self->type()->sub_type->id());
+                    ctx.add(operation::param).operand(ctx.imm(moduletype)).func(func);
+                    continue;
+                }
+                if (func->type->signature->args[i].implicit == function_signature::argument::ret_addr) {
+                    stack_ret.raise_stack_flag();
+                    ctx.add(operation::stack_alloc).operand(stack_ret).operand(ctx.imm((u64)rtp->size));
+                    ctx.add(operation::param).operand(stack_ret).func(func);
+                    continue;
+                }
+
+                if (func->type->signature->args[i].tp->name == "subtype") {
+                    var p = args[i - func->type->signature->implicit_argc].convert(self->type()->sub_type);
                     ctx.add(operation::param).operand(p).func(func);
                 } else {
-                    var p = args[i].convert(func->signature.arg_types[i]);
+                    var p = args[i - func->type->signature->implicit_argc].convert(func->type->signature->args[i].tp);
                     ctx.add(operation::param).operand(p).func(func);
                 }
             }
@@ -420,7 +421,7 @@ namespace gjs {
             }
             
             // pointer return
-            if (func->signature.returns_pointer) {
+            if (func->type->signature->returns_pointer) {
                 var result = ctx.empty_var(rtp);
                 ctx.add(operation::call).operand(result).func(func);
 
@@ -438,7 +439,7 @@ namespace gjs {
             }
 
             // stack return
-            if (func->signature.returns_on_stack) {
+            if (func->type->signature->returns_on_stack) {
                 // callee will construct return value in $stack_ret (or copy it to $stack_ret),
                 // which is passed as an argument
                 ctx.add(operation::call).func(func);

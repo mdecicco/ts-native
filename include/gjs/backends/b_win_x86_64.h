@@ -11,7 +11,7 @@ namespace gjs {
             ~win64_backend();
 
             virtual void init();
-            void commit_bindings();
+            virtual void commit_bindings();
 
             virtual void generate(compilation_output& in);
             virtual u16 gp_count() const { return 0; }
