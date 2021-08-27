@@ -97,6 +97,7 @@ namespace gjs {
             r_cannot_get_null_pointer,
             r_pointer_assign_type_mismatch,
             r_call_null_obj_method,
+            r_fp_bind_self_thiscall_only,
             __runtime_error_end
         };
 

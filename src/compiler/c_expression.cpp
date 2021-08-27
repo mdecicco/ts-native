@@ -425,9 +425,11 @@ namespace gjs {
         }
 
         var expression(context& ctx, ast* n) {
+            ctx.push_node(n);
             ctx.push_block();
             var ret = expression_inner(ctx, n);
             ctx.pop_block(ret);
+            ctx.pop_node();
 
             return ret;
         }

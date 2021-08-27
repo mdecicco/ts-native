@@ -193,18 +193,24 @@ namespace gjs {
                 printf("\n[%s %s::%s(", f->type->signature->return_type->name.c_str(), f->owner->name().c_str(), f->name.c_str());
                 for(u8 a = 0;a < f->type->signature->args.size();a++) {
                     if (a > 0) printf(", ");
-                    printf("%s arg_%d -> $%s", f->type->signature->args[a].tp->name.c_str(), a, register_str[u8(f->type->signature->args[a].loc)]);
+                    auto& arg = f->type->signature->args[a];
+                    if (arg.implicit) {
+                        static const char* implicitArgNames[] = {
+                            nullptr,
+                            "@this",
+                            "@moduletype_id",
+                            "@ret"
+                        };
+                        printf("%s %s -> $%s", arg.tp->name.c_str(), implicitArgNames[arg.implicit], register_str[u8(arg.loc)]);
+                    } else {
+                        printf("%s arg_%d -> $%s", arg.tp->name.c_str(), a, register_str[u8(arg.loc)]);
+                    }
                 }
                 printf(")");
 
                 if (f->type->signature->return_type->name == "void") printf(" -> null");
-                else {
-                    if (f->type->signature->returns_on_stack) {
-                        printf(" -> $%s (stack)", register_str[u8(f->type->signature->return_loc)]);
-                    } else {
-                        printf(" -> $%s", register_str[u8(f->type->signature->return_loc)]);
-                    }
-                }
+                else if (f->type->signature->returns_on_stack) printf(" -> @ret");
+                else printf(" -> $%s", register_str[u8(f->type->signature->return_loc)]);
                 printf("]\n");
             }
 

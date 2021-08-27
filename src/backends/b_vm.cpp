@@ -798,8 +798,7 @@ namespace gjs {
 
                     // do the call
                     jmap[m_instructions.size()] = i.callee;
-                    if (i.callee->is_host) m_instructions += encode(vmi::jal).operand((u64)i.callee->access.wrapped->func_ptr);
-                    else m_instructions += encode(vmi::jal).operand(i.callee->access.entry);
+                    m_instructions += encode(vmi::jal).operand((u64)i.callee->id());
                     m_map.append(i.src);
 
                     if (!i.callee->is_host) {

@@ -25,6 +25,7 @@ namespace gjs {
             u64 begin;
             u64 end;
             register_allocator regs;
+            source_ref ref;
         };
         typedef std::vector<func_def> func_defs;
         typedef std::vector<compile::tac_instruction> ir_code;
@@ -70,7 +71,7 @@ namespace gjs {
              *
              * Returns the compiled module or null
              */
-            script_module* compile(const std::string& module, const std::string& code, backend* generator);
+            script_module* compile(const std::string& module_name, const std::string& module_path, const std::string& code, backend* generator);
 
             /*
              * When a module is loaded, the path/name is pushed to the stack

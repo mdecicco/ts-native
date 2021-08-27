@@ -9,6 +9,7 @@
 #include <gjs/compiler/compile.h>
 #include <gjs/builtin/script_buffer.h>
 #include <gjs/common/script_module.h>
+#include <gjs/common/function_pointer.h>
 
 namespace gjs {
     using exc = error::exception;
@@ -98,12 +99,17 @@ namespace gjs {
             symbol_list* syms = symbols.get(name);
             if (syms) {
                 const script_module::local_var* mv = nullptr;
+                const script_function* fn = nullptr;
                 for (auto s = syms->symbols.rbegin();s != syms->symbols.rend();s++) {
                     switch (s->sym_type()) {
                         case symbol::st_var: {
                             if (s->scope_idx() != 0 || !compiling_function) {
                                 return *s->get_var();
                             }
+                            break;
+                        }
+                        case symbol::st_function: {
+                            fn = s->get_func();
                             break;
                         }
                         case symbol::st_modulevar: {
@@ -130,6 +136,54 @@ namespace gjs {
                     }
 
                     return v;
+                }
+
+                if (fn) {
+                    // allocate data for raw_callback
+                    /*
+                    script_function* alloc = function("alloc", type("data"), { type("u32") });
+                    var raw_cb = call(
+                        *this,
+                        alloc,
+                        { imm((u64)sizeof(raw_callback)) }
+                    );
+                    var out = empty_var(fn->type);
+                    add(operation::eq).operand(out).operand(raw_cb);
+
+                    script_type* fp_t = type("$funcptr");
+                    var dest = empty_var(fp_t);
+                    add(operation::uadd).operand(dest).operand(out).operand(imm(u64(offsetof(raw_callback, ptr))));
+
+                    // allocate data for function_pointer
+                    var fptr = call(
+                        *this,
+                        alloc,
+                        { imm((u64)sizeof(function_pointer)) }
+                    );
+
+                    // store pointer to it at dest (raw_cb.ptr)
+                    add(operation::store).operand(dest).operand(fptr);
+
+                    call(
+                        *this,
+                        fp_t->method("constructor", type("void"), { type("u32"), type("u64") }),
+                        { imm((u64)fn->id()), imm((u64)0) }, // function id, context data size
+                        &dest
+                    );
+                    */
+                    var out = empty_var(fn->type);
+                    auto dt = type("data");
+                    var dataPtr = empty_var(dt);
+                    add(operation::eq).operand(dataPtr).operand(imm((u64)0));
+                    var ptr = call(
+                        *this,
+                        function("$makefunc", dt, { type("u32"), dt, type("u64") }),
+                        { imm((u64)fn->id()), dataPtr, imm((u64)0) }, // function id, context data size
+                        nullptr
+                    );
+                    add(operation::eq).operand(out).operand(ptr);
+
+                    return out;
                 }
             }
 
@@ -340,9 +394,10 @@ namespace gjs {
         void context::push_block(script_function* f) {
             block_stack.push_back(new block_context);
             block()->func = f;
+            block()->input_ref = node();
 
             if (f) {
-                out.funcs.push_back({ f, gjs::func_stack(), out.code.size(), 0, register_allocator(out) });
+                out.funcs.push_back({ f, gjs::func_stack(), out.code.size(), 0, register_allocator(out), node()->ref });
                 compiling_function = true;
             }
         }

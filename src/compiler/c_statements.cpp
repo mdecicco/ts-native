@@ -83,11 +83,15 @@ namespace gjs {
                     } else {
                         var rv = expression(ctx, n->body);
                         ctx.add(operation::ret).operand(rv);
-                        f->type = ctx.env->types()->get(function_signature(ctx.env, rv.type(), false, nullptr, 0, nullptr));
+                        f->update_signature(
+                            ctx.env->types()->get(function_signature(ctx.env, rv.type(), false, nullptr, 0, nullptr))
+                        );
                     }
                 } else if (!f->type) {
                     ctx.add(operation::ret);
-                    f->type = ctx.env->types()->get(function_signature(ctx.env, ctx.type("void"), false, nullptr, 0, nullptr));
+                    f->update_signature(
+                        ctx.env->types()->get(function_signature(ctx.env, ctx.type("void"), false, nullptr, 0, nullptr))
+                    );
                 } else if (f->type->signature->return_type->size == 0) ctx.add(operation::ret);
                 else ctx.log()->err(ec::c_missing_return_value, n->ref, f->name.c_str());
 
@@ -166,10 +170,12 @@ namespace gjs {
             auto jmp = ctx.add(operation::jump);
 
             if (n->else_body) {
+                ctx.push_node(n->else_body);
                 branch.operand(ctx.imm((u64)ctx.code_sz()));
                 ctx.push_block();
                 any(ctx, n->else_body);
                 ctx.pop_block();
+                ctx.pop_node();
 
                 // false body end
                 meta.operand(ctx.imm((u64)ctx.code_sz()));

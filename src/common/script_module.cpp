@@ -10,10 +10,10 @@
 #include <gjs/backends/backend.h>
 
 namespace gjs {
-    script_module::script_module(script_context* ctx, const std::string& name) : m_ctx(ctx), m_data(nullptr), m_init(nullptr) {
+    script_module::script_module(script_context* ctx, const std::string& name, const std::string& path) : m_ctx(ctx), m_data(nullptr), m_init(nullptr) {
         m_types = new type_manager(ctx);
         m_name = name;
-        m_id = hash(m_name);
+        m_id = hash(path);
         m_data = new script_buffer();
         m_initialized = false;
     }

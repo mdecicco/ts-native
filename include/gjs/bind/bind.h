@@ -36,62 +36,17 @@ namespace gjs {
         typedef void (*pass_ret_func)(void* /*dest*/, void* /*src*/, size_t /*size*/);
         void trivial_copy(void* dest, void* src, size_t sz);
 
-        template <typename Ret, typename... Args>
-        script_type* signature(script_context* ctx, Ret (*f)(Args...)) {
-            script_type* rt = ctx->type<Ret>();
-            if (!rt) throw bind_exception(format("Cannot construct signature type for function with unbound return type '%s'", base_type_name<Ret>()));
-            constexpr i32 argc = std::tuple_size<std::tuple<Args...>>::value;
-            script_type* argTps[argc] = { ctx->type<Args>()... };
-
-            for (u8 i = 0;i < argc;i++) {
-                if (!argTps[i]) {
-                    throw bind_exception(format("Cannot construct signature type for function with unbound argument type (arg index %d)", i));
-                }
-            }
-
-            return tpm->get(function_signature(
-                ctx,
-                rt,
-                (std::is_reference_v<Ret> || std::is_pointer_v<Ret>),
-                argTps,
-                argc,
-                null
-            ));
-        }
-
-        template <typename Cls, typename Ret, typename... Args>
-        script_type* signature(script_context* ctx, Ret (Cls::*f)(Args...)) {
-            script_type* rt = ctx->type<Ret>();
-            if (!rt) throw bind_exception(format("Cannot construct signature type for function with unbound return type '%s'", base_type_name<Ret>()));
-            constexpr i32 argc = std::tuple_size<std::tuple<Args...>>::value;
-            script_type* argTps[argc] = { ctx->type<Args>()... };
-
-            for (u8 i = 0;i < argc;i++) {
-                if (!argTps[i]) {
-                    throw bind_exception(format("Cannot construct signature type for function with unbound argument type (arg index %d)", i));
-                }
-            }
-
-            return tpm->get(function_signature(
-                ctx,
-                rt,
-                (std::is_reference_v<Ret> || std::is_pointer_v<Ret>),
-                argTps,
-                argc,
-                ctx->type<Cls>
-            ));
-        }
-
         struct wrapped_function {
-            wrapped_function(std::type_index ret, std::vector<script_type*> args, const std::string& _name)
+            wrapped_function(std::type_index ret, std::vector<script_type*> args, const std::string& _name, bool anonymous)
             : return_type(ret), arg_types(args), name(_name), is_static_method(false), func_ptr(nullptr), ret_is_ptr(false),
-              srv_wrapper_func(nullptr), call_method_func(nullptr), pass_this(false) { }
+              srv_wrapper_func(nullptr), call_method_func(nullptr), pass_this(false), is_anonymous(anonymous) { }
 
             std::string name;
             std::type_index return_type;
             std::vector<bool> arg_is_ptr;
             std::vector<script_type*> arg_types;
             bool is_static_method;
+            bool is_anonymous;
 
             // whether or not to pass this obj when the method is static
             // (Useful for artificially extending types)
@@ -183,11 +138,12 @@ namespace gjs {
             typedef Ret (*func_type)(Args...);
             typedef std::tuple_size<std::tuple<Args...>> arg_count;
 
-            global_function(type_manager* tpm, func_type f, const std::string& name) :
+            global_function(type_manager* tpm, func_type f, const std::string& name, bool anonymous) :
                 wrapped_function(
                     typeid(remove_all<Ret>::type),
                     { tpm->get<Args>()... },
-                    name
+                    name,
+                    anonymous
                 )
             {
                 if (!tpm->get<Ret>()) {
@@ -195,7 +151,7 @@ namespace gjs {
                 }
                 // describe the function for the wrapped_function interface
                 ret_is_ptr = std::is_reference_v<Ret> || std::is_pointer_v<Ret>;
-                arg_is_ptr = { (std::is_reference_v<Args> || std::is_pointer_v<Args>)... };
+                arg_is_ptr = { (std::is_reference_v<Args> || std::is_pointer_v<Args> || is_callback<Args>::value)... };
                 func_ptr = *reinterpret_cast<void**>(&f);
 
                 if constexpr (std::is_class_v<Ret>) {
@@ -203,7 +159,7 @@ namespace gjs {
                     srv_wrapper_func = reinterpret_cast<void*>(srv);
                 }
 
-                bool sbv_args[] = { std::is_class_v<Args>..., false };
+                bool sbv_args[] = { (std::is_class_v<Args> && !is_callback<Args>::value)..., false };
 
                 for (u8 a = 0;a < arg_count::value;a++) {
                     if (sbv_args[a]) {
@@ -234,15 +190,16 @@ namespace gjs {
 
                 func_type wrapper;
                 
-                class_method(type_manager* tpm, method_type f, const std::string& name) :
+                class_method(type_manager* tpm, method_type f, const std::string& name, bool anonymous) :
                     wrapped_function(
                         typeid(remove_all<Ret>::type),
                         { tpm->get<Args>()... },
-                        name
+                        name,
+                        anonymous
                     ),
                     wrapper(call_class_method<Ret, Cls, Args...>)
                 {
-                    if (!tpm->get<Cls>()) {
+                    if (!anonymous && !tpm->get<Cls>()) {
                         throw bind_exception(format("Binding method '%s' of class '%s' that has not been bound yet", name.c_str(), typeid(remove_all<Cls>::type).name()));
                     }
                     if (!tpm->get<Ret>()) {
@@ -257,10 +214,10 @@ namespace gjs {
 
                     // describe the function for the wrapped_function interface
                     ret_is_ptr = std::is_reference_v<Ret> || std::is_pointer_v<Ret>;
-                    arg_is_ptr = { (std::is_reference_v<Args> || std::is_pointer_v<Args>)... };
+                    arg_is_ptr = { (std::is_reference_v<Args> || std::is_pointer_v<Args> || is_callback<Args>::value)... };
                     func_ptr = *reinterpret_cast<void**>(&f);
 
-                    bool sbv_args[] = { std::is_class_v<Args>..., false };
+                    bool sbv_args[] = { (std::is_class_v<Args> && !is_callback<Args>::value)..., false };
 
                     for (u8 a = 0;a < ac::value;a++) {
                         if (sbv_args[a]) {
@@ -291,15 +248,16 @@ namespace gjs {
 
                 func_type wrapper;
                 
-                const_class_method(type_manager* tpm, method_type f, const std::string& name) :
+                const_class_method(type_manager* tpm, method_type f, const std::string& name, bool anonymous) :
                     wrapped_function(
                         typeid(remove_all<Ret>::type),
                         { tpm->get<Args>()... },
-                        name
+                        name,
+                        anonymous
                     ),
                     wrapper(call_const_class_method<Ret, Cls, Args...>)
                 {
-                    if (!tpm->get<Cls>()) {
+                    if (!anonymous && !tpm->get<Cls>()) {
                         throw bind_exception(format("Binding method '%s' of class '%s' that has not been bound yet", name.c_str(), typeid(remove_all<Cls>::type).name()));
                     }
                     if (!tpm->get<Ret>()) {
@@ -314,10 +272,10 @@ namespace gjs {
 
                     // describe the function for the wrapped_function interface
                     ret_is_ptr = std::is_reference_v<Ret> || std::is_pointer_v<Ret>;
-                    arg_is_ptr = { (std::is_reference_v<Args> || std::is_pointer_v<Args>)... };
+                    arg_is_ptr = { (std::is_reference_v<Args> || std::is_pointer_v<Args> || is_callback<Args>::value)... };
                     func_ptr = *reinterpret_cast<void**>(&f);
 
-                    bool sbv_args[] = { std::is_class_v<Args>..., false };
+                    bool sbv_args[] = { (std::is_class_v<Args> && !is_callback<Args>::value)..., false };
 
                     for (u8 a = 0;a < ac::value;a++) {
                         if (sbv_args[a]) {
@@ -343,18 +301,18 @@ namespace gjs {
          * Function wrapping helper
          */
         template <typename Ret, typename... Args>
-        wrapped_function* wrap(type_manager* tpm, const std::string& name, Ret(*func)(Args...)) {
-            return new global_function<Ret, Args...>(tpm, func, name);
+        wrapped_function* wrap(type_manager* tpm, const std::string& name, Ret(*func)(Args...), bool anonymous = false) {
+            return new global_function<Ret, Args...>(tpm, func, name, anonymous);
         };
 
         template <typename Ret, typename Cls, typename... Args>
-        wrapped_function* wrap(type_manager* tpm, const std::string& name, Ret(Cls::*func)(Args...)) {
-            return new class_method<Ret, Cls, Args...>(tpm, func, name);
+        wrapped_function* wrap(type_manager* tpm, const std::string& name, Ret(Cls::*func)(Args...), bool anonymous = false) {
+            return new class_method<Ret, Cls, Args...>(tpm, func, name, anonymous);
         };
 
         template <typename Ret, typename Cls, typename... Args>
-        wrapped_function* wrap(type_manager* tpm, const std::string& name, Ret(Cls::*func)(Args...) const) {
-            return new const_class_method<Ret, Cls, Args...>(tpm, func, name);
+        wrapped_function* wrap(type_manager* tpm, const std::string& name, Ret(Cls::*func)(Args...) const, bool anonymous = false) {
+            return new const_class_method<Ret, Cls, Args...>(tpm, func, name, anonymous);
         };
 
 
@@ -644,7 +602,13 @@ namespace gjs {
         }
 
         template <typename T>
-        inline void pass_arg(DCCallVM* call, std::enable_if_t<std::is_class_v<T>, void*> p) {
+        inline void pass_arg(DCCallVM* call, std::enable_if_t<is_callback<T>::value, void*> p) {
+            raw_callback* cb = (raw_callback*)p;
+            dcArgPointer(call, cb);
+        }
+
+        template <typename T>
+        inline void pass_arg(DCCallVM* call, std::enable_if_t<std::is_class_v<T> && !is_callback<T>::value, void*> p) {
             // This only exists to prevent confusing compiler errors.
             // A bind_exception will be thrown when binding any function
             // that has a struct or class passed by value

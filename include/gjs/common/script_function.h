@@ -17,8 +17,11 @@ namespace gjs {
 
     class script_function {
         public:
-            script_function(script_context* ctx, const std::string name, address addr, script_type* signature, script_module* mod = nullptr);
+            script_function(script_context* ctx, const std::string name, address addr, script_type* signature, script_type* method_of, script_module* mod = nullptr);
             script_function(type_manager* mgr, script_type* tp, bind::wrapped_function* wrapped, bool is_ctor = false, bool is_dtor = false, script_module* mod = nullptr);
+
+            // should only be called from compiler for __init__ function with deferred signature assignment
+            void update_signature(script_type* sig);
 
             template <typename... Args>
             script_object call(void* self, Args... args) {
@@ -38,9 +41,13 @@ namespace gjs {
                 address entry;
             } access;
 
+            script_context* ctx() const;
+            u32 id() const;
+
             script_module* owner;
         protected:
             script_context* m_ctx;
+            u32 m_id;
     };
 };
 

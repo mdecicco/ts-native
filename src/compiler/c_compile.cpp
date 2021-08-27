@@ -431,6 +431,7 @@ namespace gjs {
         }
 
         void block(context& ctx, ast* b) {
+            ctx.push_node(b);
             ctx.push_block();
             ast* n = b->body;
             if (!n) {
@@ -442,6 +443,7 @@ namespace gjs {
                 n = n->next;
             }
             ctx.pop_block();
+            ctx.pop_node();
         }
 
         void import_globals(context& ctx) {
@@ -481,8 +483,7 @@ namespace gjs {
             import_globals(ctx);
 
             // return type will be determined by the first global return statement, or it will be void
-            script_function* init = new script_function(ctx.env, "__init__", 0, nullptr);
-            init->owner = out.mod;
+            script_function* init = new script_function(ctx.env, "__init__", 0, nullptr, nullptr, out.mod);
             ctx.new_functions.push_back(init);
             ctx.out.funcs.push_back({ init, gjs::func_stack(), 0, 0, register_allocator(out) });
             ctx.push_block();
@@ -519,7 +520,9 @@ namespace gjs {
             ctx.out.funcs[0].end = ctx.code_sz();
             if (!init->type) {
                 if (ctx.global_code.size() != 0) {
-                    init->type = ctx.env->types()->get(function_signature(ctx.env, ctx.type("void"), false, nullptr, 0, nullptr));
+                    init->update_signature(
+                         ctx.env->types()->get(function_signature(ctx.env, ctx.type("void"), false, nullptr, 0, nullptr))
+                    );
                     ctx.add(operation::ret);
                 } else {
                     delete init;

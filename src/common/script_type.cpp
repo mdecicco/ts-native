@@ -51,9 +51,9 @@ namespace gjs {
                 t->name = name;
                 t->internal_name = n;
                 t->signature = new function_signature(sig);
-                t->size = sizeof(u64);
+                t->size = sizeof(void*);
                 t->is_pod = true;
-                t->is_primitive = true;
+                t->is_primitive = false;
                 t->is_host = true;
                 t->is_floating_point = false;
                 t->is_trivially_copyable = true;
@@ -78,9 +78,9 @@ namespace gjs {
             t->name = n;
             t->internal_name = n;
             t->signature = new function_signature(sig);
-            t->size = sizeof(u64);
+            t->size = sizeof(void*);
             t->is_pod = true;
-            t->is_primitive = true;
+            t->is_primitive = false;
             t->is_host = true;
             t->is_floating_point = false;
             t->is_trivially_copyable = true;

@@ -22,6 +22,7 @@ namespace gjs {
                 std::vector<var> stack_objs;
                 u32 start = 0;
                 u32 end = 0;
+                parse::ast* input_ref;
             };
 
             struct deferred_node {

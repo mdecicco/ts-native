@@ -6,6 +6,7 @@
 namespace gjs {
     class script_context;
     class script_type;
+    class script_module;
     class type_manager;
     enum class vm_register;
 
@@ -37,7 +38,7 @@ namespace gjs {
             const argument& explicit_arg(u8 idx) const;
 
             std::string to_string() const;
-            std::string to_string(const std::string& funcName) const;
+            std::string to_string(const std::string& funcName, script_type* method_of = nullptr, script_module* mod = nullptr) const;
 
             script_type* return_type;
             vm_register return_loc;

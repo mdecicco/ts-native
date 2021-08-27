@@ -18,7 +18,7 @@ namespace gjs {
 
         protected:
             friend class script_function;
-            void call_external(u64 addr);
+            void call_external(script_function* fn);
             vm_backend* m_ctx;
             u32 m_stack_size;
     };

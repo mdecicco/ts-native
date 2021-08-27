@@ -47,12 +47,12 @@ namespace gjs {
                 return script_object(this, type, (u8*)dest, args...);
             }
 
-            script_module* create_module(const std::string& name);
+            script_module* create_module(const std::string& name, const std::string& path);
             script_module* module(const std::string& name);
             script_module* module(u32 id);
             std::vector<script_module*> modules() const;
             std::vector<script_function*> functions() const;
-            script_function* function(u64 address);
+            script_function* function(u32 id);
 
             void add(script_function* func);
             void add(script_module* module);
@@ -74,15 +74,17 @@ namespace gjs {
             std::string module_name(const std::string& module_path);
             std::string module_name(const std::string& rel_path, const std::string& module_path);
 
-            script_module* add_code(const std::string& module, const std::string& code);
+            script_module* add_code(const std::string& module_name, const std::string& module_path, const std::string& code);
             
             template <typename... Args>
             script_object call(script_function* func, void* self, Args... args);
 
+            static script_context* current();
+
         protected:
             robin_hood::unordered_map<std::string, script_module*> m_modules;
             robin_hood::unordered_map<u32, script_module*> m_modules_by_id;
-            robin_hood::unordered_map<u64, script_function*> m_funcs_by_addr;
+            robin_hood::unordered_map<u32, script_function*> m_funcs_by_id;
             type_manager* m_all_types;
 
             pipeline m_pipeline;

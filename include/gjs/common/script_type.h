@@ -39,6 +39,10 @@ namespace gjs {
                     return tp;
                 }
 
+                if constexpr (is_callback<T>::value) {
+                    return T::type(m_ctx);
+                }
+
                 if constexpr (std::is_function_v<std::remove_pointer_t<T>>) {
                     using FT = FunctionTraits<T>;
                     script_type* rt = get<FT::RetType>();

@@ -14,6 +14,7 @@
 #include <gjs/common/script_module.h>
 #include <gjs/common/io.h>
 #include <gjs/common/script_object.h>
+#include <gjs/common/function_pointer.h>
 
 #include <gjs/backends/backend.h>
 #include <gjs/backends/b_vm.h>

@@ -74,7 +74,7 @@ namespace gjs {
                     ctx.symbols.set(tp->name, tp);
                 }
                 
-                f = new script_function(ctx.env, fname, 0, tp);
+                f = new script_function(ctx.env, fname, 0, tp, method_of, ctx.out.mod);
                 f->owner = ctx.out.mod;
                 f->is_thiscall = method_of != nullptr;
                 f->is_method_of = method_of;
@@ -123,7 +123,7 @@ namespace gjs {
                     ctx.symbols.set(tp->name, tp);
                 }
 
-                f = new script_function(ctx.env, fname, ctx.code_sz(), tp);
+                f = new script_function(ctx.env, fname, ctx.code_sz(), tp, method_of, ctx.out.mod);
                 f->owner = ctx.out.mod;
                 f->is_thiscall = method_of != nullptr;
                 f->is_method_of = method_of;

@@ -62,17 +62,17 @@ namespace gjs {
     pipeline::~pipeline() {
     }
 
-    script_module* pipeline::compile(const std::string& module, const std::string& code, backend* generator) {
+    script_module* pipeline::compile(const std::string& module_name, const std::string& module_path, const std::string& code, backend* generator) {
         bool is_entry = m_importStack.size() == 0;
         if (is_entry) {
             m_log.files.clear();
             m_log.errors.clear();
             m_log.warnings.clear();
-            m_importStack.push_back({ source_ref("[internal]", "", 0, 0), module });
+            m_importStack.push_back({ source_ref("[internal]", "", 0, 0), module_path });
         }
 
         bool cyclic = false;
-        for (u32 i = 0;i < m_importStack.size() - 1 && !cyclic;i++) cyclic = m_importStack[i].second == module;
+        for (u32 i = 0;i < m_importStack.size() - 1 && !cyclic;i++) cyclic = m_importStack[i].second == module_path;
 
         if (cyclic) {
             std::string path;
@@ -88,9 +88,9 @@ namespace gjs {
 
         try {
             std::vector<lex::token> tokens;
-            lex::tokenize(code, module, tokens, m_log.files[module] = log_file());
+            lex::tokenize(code, module_name, tokens, m_log.files[module_path] = log_file());
 
-            tree = parse::parse(m_ctx, module, tokens);
+            tree = parse::parse(m_ctx, module_name, tokens);
             for (u8 i = 0;i < m_ast_steps.size();i++) {
                 m_ast_steps[i](m_ctx, tree);
             }
@@ -105,7 +105,7 @@ namespace gjs {
         }
 
         compilation_output out(generator->gp_count(), generator->fp_count());
-        out.mod = new script_module(m_ctx, module);
+        out.mod = new script_module(m_ctx, module_name, module_path);
 
         try {
             compile::compile(m_ctx, tree, out);

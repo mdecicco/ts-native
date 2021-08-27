@@ -7,6 +7,7 @@
 #include <gjs/builtin/script_buffer.h>
 #include <gjs/common/script_context.h>
 #include <gjs/common/script_module.h>
+#include <gjs/common/function_pointer.h>
 #include <gjs/bind/bind.h>
 #include <gjs/builtin/script_math.h>
 
@@ -164,6 +165,12 @@ namespace gjs {
         tp = buf.finalize(ctx->global());
         tp->is_builtin = true;
 
+        auto fp = ctx->bind<function_pointer>("$funcptr");
+        fp.constructor<u32, u64>();
+        tp = fp.finalize(ctx->global());
+        tp->is_builtin = true;
+
+        ctx->bind<void*, u32, void*, u64>(raw_callback::make, "$makefunc");
         ctx->bind(script_allocate, "alloc");
         ctx->bind(script_free, "free");
         ctx->bind(script_copymem, "memcopy");

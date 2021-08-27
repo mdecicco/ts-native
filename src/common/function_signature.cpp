@@ -2,6 +2,7 @@
 #include <gjs/bind/bind.h>
 #include <gjs/common/script_type.h>
 #include <gjs/common/script_context.h>
+#include <gjs/common/script_module.h>
 #include <gjs/vm/register.h>
 
 namespace gjs {
@@ -22,6 +23,8 @@ namespace gjs {
         if (!return_type) {
             throw bind_exception(format("Return value of function '%s' is of type '%s' that has not been bound yet", wrapped->name.c_str(), wrapped->return_type.name()));
         }
+
+        if (return_type->size == 0) return_loc = vm_register::register_count;
 
         returns_on_stack = !wrapped->ret_is_ptr && !return_type->is_primitive && return_type->size != 0;
         returns_pointer = wrapped->ret_is_ptr;
@@ -47,7 +50,7 @@ namespace gjs {
 
     function_signature::function_signature(script_context* ctx, script_type* ret, bool ret_ptr, script_type** argtps, u8 argc, script_type* method_of, bool is_ctor, bool is_static_method) {
         return_type = ret;
-        return_loc = vm_register::v0;
+        return_loc = ret->size == 0 ? vm_register::register_count : vm_register::v0;
         returns_pointer = ret_ptr;
         returns_on_stack = !ret->is_primitive && !ret_ptr && ret->size != 0;
         explicit_argc = 0;
@@ -98,8 +101,11 @@ namespace gjs {
         if (return_type) return return_type->name + out;
         return out;
     }
-    std::string function_signature::to_string(const std::string& funcName) const {
-        std::string out = funcName + "(";
+    std::string function_signature::to_string(const std::string& funcName, script_type* method_of, script_module* mod) const {
+        std::string out;
+        if (mod) out += mod->name() + "::";
+        if (method_of) out += method_of->name + "::";
+        out += funcName + "(";
 
         for (u8 i = 0;i < args.size();i++) {
             if (i > 0) out += ",";

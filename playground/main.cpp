@@ -6,6 +6,8 @@
 #include <gjs/builtin/script_vec3.h>
 #include <gjs/builtin/script_vec4.h>
 
+#include <type_traits>
+
 using namespace gjs;
 using namespace gjs::math;
 
@@ -33,10 +35,41 @@ void remove_unused_regs_pass (script_context* ctx, compilation_output& in) {
     if (csz > in.code.size()) remove_unused_regs_pass(ctx, in);
 }
 
+void tttt(i32 a, i8 b, f32 c) {
+    printf("%d, '%c', %f\n", a, b, c);
+}
+
+typedef void (*t)(i32, i8, f32);
+void func (callback<t> arg) {
+    arg(1, 'a', 1.0f);
+}
+
 int main(int arg_count, const char** args) {
     basic_malloc_allocator alloc;
     vm_backend be(&alloc, 8 * 1024 * 1024, 8 * 1024 * 1024);
     script_context ctx(&be);
+
+    int a = 69;
+    char b = 61;
+    float c = 3.14f;
+
+    auto test = [&](int a1, char b1, float c1) {
+        a = a1;
+        b = b1;
+        c = c1;
+    };
+    //script_function* ttt = ctx.bind(tttt, "ttt");
+    //function_pointer fptr(ttt);
+    //func(&fptr);
+
+    //u64 sz0 = sizeof(callback<t>);
+    //u64 sz1 = sizeof(raw_callback);
+
+    //raw_callback* rcb = raw_callback::make(&fptr);
+    //func(*((callback<t>*)&rcb));
+
+    script_function* test_cb = ctx.bind(func, "test_cb");
+
 
     be.commit_bindings();
     //be.log_ir(true);
@@ -49,9 +82,13 @@ int main(int arg_count, const char** args) {
         print_log(&ctx);
         return -1;
     }
-
     print_code(&be);
-    //be.log_instructions(true);
+
+    function_pointer tptr(mod->function("tttt"));
+    auto cb = callback<t>(&tptr);
+    cb(1, 'a', 3.0f);
+
+    be.log_instructions(true);
 
     mod->init();
     struct f0 { i32 a, b, c; };

@@ -57,6 +57,12 @@ namespace gjs {
     }
 
     void vm::execute(const instruction_array& code, address entry) {
+        // todo:
+        // script -> host -> script calls corrupt the VM state of the original script call
+        // registers need to be backed up to the stack before execution and restored from
+        // the stack after execution (only if already executing)
+        // there needs to be an execution counter that is incremented at the start of this
+        // function and decremented at the end
         GR64(vmr::ip) = entry;
         GR64(vmr::ra) = 0;
         GR64(vmr::sp) = (u64)state.memory[0];
@@ -754,11 +760,14 @@ namespace gjs {
                 }
                 // jump to address and store $ip in $ra             jal        0x123                    $ra = $ip + 1;$ip = 0x123
                 case vmi::jal: {
-                    u64 addr = _O1ui64;
-                    if (addr < code.size()) {
+                    u64 id = _O1ui64;
+                    script_function* fn = m_ctx->context()->function(id);
+                    if (!fn) throw vm_exception(m_ctx, "Invalid function ID");
+                    if (fn->is_host) call_external(fn);
+                    else {
                         GRx(vmr::ra, u64) = (*ip) + 1;
-                        *ip = addr - 1;
-                    } else call_external(addr);
+                        *ip = fn->access.entry - 1;
+                    }
                     break;
                 }
                 // jump to address in register and store $ip in $ra jalr    (a)                        $ra = $ip + 1;$ip = a
@@ -782,12 +791,7 @@ namespace gjs {
         }
     }
 
-    void vm::call_external(u64 addr) {
-        script_function* f = m_ctx->context()->function(addr);
-        if (!f) {
-            throw vm_exception(m_ctx, format("Function at 0x%lX not found", addr));
-        }
-
+    void vm::call_external(script_function* f) {
         u8 stackReturnRegId = 0;
 
         std::vector<void*> args;
