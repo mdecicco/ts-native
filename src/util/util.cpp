@@ -165,11 +165,16 @@ namespace gjs {
     }
 
     void print_code(vm_backend* ctx) {
-        robin_hood::unordered_map<u64, script_function*> module_initializers;
+        robin_hood::unordered_map<u64, script_function*> funcsByAddr;
+        auto funcs = ctx->context()->functions();
+        for (u32 i = 0;i < funcs.size();i++) {
+            if (funcs[i]->is_host) continue;
+            funcsByAddr[funcs[i]->access.entry] = funcs[i];
+        }
         auto modules = ctx->context()->modules();
         for (u32 i = 0;i < modules.size();i++) {
             script_function* init = modules[i]->function("__init__");
-            if (init) module_initializers[init->access.entry] = init;
+            if (init) funcsByAddr[init->access.entry] = init;
         }
 
         char instr_fmt[32] = { 0 };
@@ -178,11 +183,9 @@ namespace gjs {
         
         std::string last_line = "";
         for (u64 i = 0;i < ctx->code()->size();i++) {
-            script_function* f = ctx->context()->function(i);
-            if (!f) {
-                auto init = module_initializers.find(i);
-                if (init != module_initializers.end()) f = init->getSecond();
-            }
+            script_function* f = nullptr;
+            auto p = funcsByAddr.find(i);
+            if (p != funcsByAddr.end()) f = p->getSecond();
 
             if (f) {
                 u16 implicit_arg_count = 0;
@@ -221,17 +224,8 @@ namespace gjs {
                 printf("; %s", src.line_text.c_str());
                 last_line = src.line_text;
             } else if (ins.instr() == vm_instruction::jal) {
-                std::string str;
                 script_function* f = ctx->context()->function(ins.imm_u());
-                if (f) {
-                    str += f->type->signature->return_type->name + " " + f->owner->name() + "::" + f->name + "(";
-                    for (u8 a = 0;a < f->type->signature->args.size();a++) {
-                        if (a > 0) str += ", ";
-                        str += f->type->signature->args[a].tp->name;
-                    }
-                    str += ")";
-                } else str = "Bad function address";
-                printf("; <- %s", str.c_str());
+                if (!f) printf("; <- Bad function ID");
             }
             printf("\n");
         }

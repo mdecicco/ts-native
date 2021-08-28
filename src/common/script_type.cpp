@@ -157,13 +157,13 @@ namespace gjs {
             t->properties.push_back({
                 i->getSecond()->flags,
                 i->getFirst(),
-                get(i->getSecond()->type.name()),
+                i->getSecond()->type,
                 i->getSecond()->offset,
                 i->getSecond()->getter ? new script_function(this, t, i->getSecond()->getter, false, false, mod) : nullptr,
                 i->getSecond()->setter ? new script_function(this, t, i->getSecond()->setter, false, false, mod) : nullptr
             });
 
-            if (i->getSecond()->type == std::type_index(typeid(subtype_t))) {
+            if (i->getSecond()->type->name == "subtype") {
                 t->requires_subtype = true;
             }
         }

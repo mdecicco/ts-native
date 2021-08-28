@@ -14,14 +14,9 @@ namespace gjs {
         is_thiscall = false;
         explicit_argc = 0;
         implicit_argc = 0;
-
-        // return type
-        if (std::string(wrapped->return_type.name()) == "void" && wrapped->ret_is_ptr) {
-            return_type = ctx->types()->get<void*>();
-        } else return_type = ctx->types()->get(wrapped->return_type.name());
-
+        return_type = wrapped->return_type;
         if (!return_type) {
-            throw bind_exception(format("Return value of function '%s' is of type '%s' that has not been bound yet", wrapped->name.c_str(), wrapped->return_type.name()));
+            throw bind_exception(format("Return value of function '%s' has not been bound yet", wrapped->name.c_str()));
         }
 
         if (return_type->size == 0) return_loc = vm_register::register_count;

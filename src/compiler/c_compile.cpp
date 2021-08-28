@@ -430,11 +430,11 @@ namespace gjs {
             }
         }
 
-        void block(context& ctx, ast* b) {
+        void block(context& ctx, ast* b, bool add_null_if_empty) {
             ctx.push_node(b);
             ctx.push_block();
             ast* n = b->body;
-            if (!n) {
+            if (!n && add_null_if_empty) {
                 ctx.add(operation::null);
             }
 

@@ -11,7 +11,7 @@ namespace gjs {
             vm(vm_backend* ctx, vm_allocator* alloc, u32 stack_size, u32 mem_size);
             ~vm();
 
-            void execute(const instruction_array& code, address entry);
+            void execute(const instruction_array& code, address entry, bool nested);
 
             vm_allocator* alloc;
             vm_state state;

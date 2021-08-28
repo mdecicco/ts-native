@@ -407,12 +407,14 @@ namespace gjs {
             u64 postRet = code_sz();
 
             bool func_ended = false;
+            u32 fidx = -1;
             if (block_stack.back()) {
                 script_function* f = block_stack.back()->func;
                 if (f) {
                     for (u16 i = 0;i < out.funcs.size();i++) {
                         if (out.funcs[i].func == f) {
-                            out.funcs[i].end = code_sz() - 1;
+                            fidx = i;
+                            out.funcs[fidx].end = code_sz() - 1;
                             break;
                         }
                     }
@@ -453,6 +455,7 @@ namespace gjs {
                 auto ret = code[postRet - 1];
                 code.erase(code.begin() + (postRet - 1));
                 code.push_back(ret);
+                if (fidx != u32(-1)) out.funcs[fidx].end = code_sz() - 1;
             }
 
             if (func_ended) compiling_function = false;

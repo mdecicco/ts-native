@@ -75,7 +75,7 @@ int main(int arg_count, const char** args) {
     //be.log_ir(true);
     ctx.io()->set_cwd_from_args(arg_count, args);
     //ctx.compiler()->add_ir_step(remove_unused_regs_pass);
-    ctx.compiler()->add_ir_step(debug_ir_step);
+    //ctx.compiler()->add_ir_step(debug_ir_step);
 
     script_module* mod = ctx.resolve("test");
     if (!mod) {
@@ -88,7 +88,7 @@ int main(int arg_count, const char** args) {
     auto cb = callback<t>(&tptr);
     cb(1, 'a', 3.0f);
 
-    be.log_instructions(true);
+    // be.log_instructions(true);
 
     mod->init();
     struct f0 { i32 a, b, c; };

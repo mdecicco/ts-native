@@ -31,7 +31,7 @@ namespace gjs {
 
 
     vm_backend::vm_backend(vm_allocator* alloc, u32 stack_size, u32 mem_size) :
-        m_vm(this, alloc, stack_size, mem_size), m_instructions(alloc), m_is_executing(false),
+        m_vm(this, alloc, stack_size, mem_size), m_instructions(alloc), m_execution_level(0),
         m_log_instructions(false), m_alloc(alloc)
     {
         m_instructions += encode(vm_instruction::term);
@@ -42,11 +42,22 @@ namespace gjs {
     }
 
     void vm_backend::execute(address entry) {
-        m_is_executing = true;
+        m_execution_level++;
 
-        m_vm.execute(m_instructions, entry);
+        try {
+            m_vm.execute(m_instructions, entry, m_execution_level > 1);
+        } catch (const vm_exception& e) {
+            m_execution_level--;
+            throw e;
+        } catch (const error::runtime_exception& e) {
+            m_execution_level--;
+            throw e;
+        } catch (const std::exception& e) {
+            m_execution_level--;
+            throw e;
+        }
 
-        m_is_executing = false;
+        m_execution_level--;
     }
 
     void vm_backend::generate(compilation_output& in) {
@@ -640,6 +651,7 @@ namespace gjs {
                     
                     struct bk { vmr reg; u64 addr; u64 sz; };
                     std::vector<bk> backup;
+                    robin_hood::unordered_map<vm_register, u32> backup_map;
                     // Backup registers that were populated before this call
                     // and will be used after this call
                     auto live = in.funcs[fidx].regs.get_live(c);
@@ -665,6 +677,7 @@ namespace gjs {
                             u64 sl = in.funcs[fidx].stack.alloc(sz);
 
                             backup.push_back({ reg, sl, sz });
+                            backup_map[reg] = backup.size() - 1;
 
                             m_instructions += encode(st).operand(reg).operand(vmr::sp).operand(sl);
                             m_map.append(i.src);
@@ -672,11 +685,10 @@ namespace gjs {
                     }
 
                     // backup caller's args
-                    u8 implicit_arg_count = 0;
-                    if (cf->is_method_of && !cf->is_static) implicit_arg_count++;
-                    if (cf->type->signature->returns_on_stack) implicit_arg_count++;
                     for (u8 a = 0;a < cf->type->signature->args.size();a++) {
                         vmr ar = in.funcs[fidx].func->type->signature->args[a].loc;
+                        if (backup_map.count(ar)) continue; // already backed up by the above loop
+
                         bool will_be_overwritten = false;
                         for (u8 a1 = 0;a1 < i.callee->type->signature->args.size() && !will_be_overwritten;a1++) {
                             will_be_overwritten = i.callee->type->signature->args[a1].loc == ar;
@@ -701,6 +713,7 @@ namespace gjs {
                         u64 sl = in.funcs[fidx].stack.alloc(sz);
 
                         backup.push_back({ ar, sl, sz });
+                        backup_map[ar] = backup.size() - 1;
 
                         m_instructions += encode(st).operand(ar).operand(vmr::sp).operand(sl);
                         m_map.append(i.src);
@@ -764,8 +777,32 @@ namespace gjs {
                                 m_map.append(i.src);
                             } else {
                                 vmr reg;
-                                if (params[p].is_arg()) reg = in.funcs[fidx].func->type->signature->args[params[p].arg_idx()].loc;
+                                if (params[p].is_arg()) {
+                                    reg = in.funcs[fidx].func->type->signature->args[params[p].arg_idx()].loc;
+                                    auto l = backup_map.find(reg);
+                                    if (l != backup_map.end()) {
+                                        // argument register was backed up
+                                        bk& info = backup[l->getSecond()];
+
+                                        vmi ld = vmi::ld8;
+                                        switch (info.sz) {
+                                            case 2: { ld = vmi::ld16; break; }
+                                            case 4: { ld = vmi::ld32; break; }
+                                            case 8: { ld = vmi::ld64; break; }
+                                            default: {
+                                                // invalid size
+                                                // exception
+                                                break;
+                                            }
+                                        }
+
+                                        m_instructions += encode(ld).operand(i.callee->type->signature->args[p].loc).operand(vmr::sp).operand((u64)info.addr);
+                                        m_map.append(i.src);
+                                        continue;
+                                    }
+                                }
                                 else reg = tp->is_floating_point ? vmr(u32(vmr::f0) + params[p].reg_id()) : vmr(u32(vmr::s0) + params[p].reg_id());
+
                                 if (tp->is_floating_point) {
                                     if (!is_fpr(i.callee->type->signature->args[p].loc) && i.callee->is_method_of && i.callee->is_method_of->requires_subtype) {
                                         // fp value must be passed through GP register

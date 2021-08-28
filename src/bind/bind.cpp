@@ -6,6 +6,33 @@ namespace gjs {
             memcpy(dest, src, sz);
         }
 
+        wrapped_function::wrapped_function(script_type* ret, std::vector<script_type*> args, const std::string& _name, bool anonymous) {
+            return_type = ret;
+            arg_types = args;
+            name = _name;
+            is_static_method = false;
+            func_ptr = nullptr;
+            ret_is_ptr = false;
+            srv_wrapper_func = nullptr;
+            call_method_func = nullptr;
+            pass_this = false;
+            is_anonymous = anonymous;
+        }
+
+        wrapped_class::property::property(wrapped_function* g, wrapped_function* s, script_type* t, u64 o, u8 f) {
+            getter = g;
+            setter = s;
+            type = t;
+            offset = o;
+            flags = f;
+        }
+
+        wrapped_class::wrapped_class(const std::string& _name, const std::string& _internal_name, size_t _size) :
+            name(_name), internal_name(_internal_name), size(_size), dtor(nullptr),
+            trivially_copyable(true), pass_ret(trivial_copy), type(nullptr), is_pod(false)
+        {
+        }
+
         wrapped_class::~wrapped_class() {
             for (auto i = properties.begin();i != properties.end();++i) {
                 delete i->getSecond();

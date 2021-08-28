@@ -5,7 +5,7 @@ namespace gjs {
     // number of bits needed to store instruction id: 7
     // max number of instructions 127
     enum class vm_instruction {
-        null        = 0 ,    // do nothing
+        null         = 0,    // do nothing
         term            ,    // terminate execution
 
         // load src/store dest can have an offset, and load from/store in the memory pointed to

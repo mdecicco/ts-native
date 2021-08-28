@@ -222,7 +222,7 @@ namespace gjs {
                 }
             }
 
-            block(ctx, n->body);
+            block(ctx, n->body, false);
 
             if (ctx.out.code.size() == 0 || ctx.out.code.back().op != operation::ret) {
                 if (is_dtor) {

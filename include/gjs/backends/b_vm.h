@@ -20,7 +20,7 @@ namespace gjs {
             inline gjs::vm*             vm       () { return &m_vm; }
             inline vm_allocator*        allocator() { return m_alloc; }
 
-            inline bool is_executing    () const { return m_is_executing; }
+            inline bool is_executing    () const { return m_execution_level > 0; }
             inline bool log_instructions() const { return m_log_instructions; }
             inline void log_instructions(bool doLog) { m_log_instructions = doLog; }
 
@@ -41,7 +41,7 @@ namespace gjs {
             gjs::vm m_vm;
             instruction_array m_instructions;
             source_map m_map;
-            bool m_is_executing;
+            u16 m_execution_level;
             bool m_log_instructions;
     };
 

@@ -2,6 +2,8 @@
 #include <gjs/vm/instruction_encoder.h>
 #include <gjs/backends/b_vm.h>
 #include <gjs/vm/register.h>
+#include <gjs/common/script_context.h>
+#include <gjs/common/script_function.h>
 #include <gjs/util/util.h>
 #include <assert.h>
 
@@ -480,7 +482,7 @@ namespace gjs {
         std::string out;
         vmi i = instr();
         if (i >= vmi::instruction_count) return "Invalid Instruction";
-
+        
         if (check_instr_type_0(i)) return instruction_str[(u8)i];
 
         auto reg_str = [state, i, ctx](vmr r, i64 offset = 0, bool is_mem = false) {
@@ -508,6 +510,15 @@ namespace gjs {
 
         out += instruction_str[(u8)i];
         while (out.length() < 8) out += ' ';
+
+        if (i == vmi::jal && ctx) {
+            script_function* fn = ctx->context()->function(imm_u());
+            if (fn) {
+                out += fn->type->signature->to_string(fn->name, fn->is_method_of, fn->owner);
+                return out;
+            }
+        }
+
         if (check_instr_type_1(i)) {
             u64 o1 = imm_u();
             out += format("0x%llX", o1);
