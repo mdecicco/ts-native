@@ -12,12 +12,12 @@ namespace gjs {
 
     namespace compile {
         symbol::~symbol() {
-            if (m_stype == st_var && m_var->is_imm()) {
+            if (m_stype == symbol_type::st_var && m_var->is_imm()) {
                 // imm vars aren't stored anywhere, so
                 // they must be dynamically allocated
                 // specifically for storage in the symbol
                 delete m_var;
-            } else if (m_stype == st_modulevar) {
+            } else if (m_stype == symbol_type::st_modulevar) {
                 // it's unsafe to point to modulevar
                 // records on the modules directly, they
                 // have to be allocated specifically for
@@ -27,7 +27,7 @@ namespace gjs {
         }
 
         symbol::symbol(script_function* func) {
-            m_stype = st_function;
+            m_stype = symbol_type::st_function;
             m_func = func;
             m_type = nullptr;
             m_enum = nullptr;
@@ -37,7 +37,7 @@ namespace gjs {
         }
 
         symbol::symbol(script_type* type) {
-            m_stype = st_type;
+            m_stype = symbol_type::st_type;
             m_func = nullptr;
             m_type = type;
             m_enum = nullptr;
@@ -47,7 +47,7 @@ namespace gjs {
         }
 
         symbol::symbol(script_enum* enum_) {
-            m_stype = st_enum;
+            m_stype = symbol_type::st_enum;
             m_func = nullptr;
             m_type = nullptr;
             m_enum = enum_;
@@ -57,7 +57,7 @@ namespace gjs {
         }
 
         symbol::symbol(const script_module::local_var* modulevar) {
-            m_stype = st_modulevar;
+            m_stype = symbol_type::st_modulevar;
             m_func = nullptr;
             m_type = nullptr;
             m_enum = nullptr;
@@ -67,13 +67,13 @@ namespace gjs {
         }
 
         symbol::symbol(var* var_) {
-            m_stype = st_var;
+            m_stype = symbol_type::st_var;
             m_func = nullptr;
             m_type = nullptr;
             m_enum = nullptr;
             m_modulevar = nullptr;
             m_var = var_;
-            m_scope_idx = var_->ctx()->block_stack.size() - 1;
+            m_scope_idx = u32(var_->ctx()->block_stack.size() - 1);
         }
 
 
@@ -111,7 +111,7 @@ namespace gjs {
 
         void symbol_list::remove(script_function* func) {
             for (auto it = symbols.begin();it != symbols.end();it++) {
-                if (it->sym_type() == symbol::st_function && it->get_func() == func) {
+                if (it->sym_type() == symbol::symbol_type::st_function && it->get_func() == func) {
                     symbols.erase(it);
                     return;
                 }
@@ -120,7 +120,7 @@ namespace gjs {
 
         void symbol_list::remove(script_type* type) {
             for (auto it = symbols.begin();it != symbols.end();it++) {
-                if (it->sym_type() == symbol::st_type && it->get_type() == type) {
+                if (it->sym_type() == symbol::symbol_type::st_type && it->get_type() == type) {
                     symbols.erase(it);
                     return;
                 }
@@ -129,7 +129,7 @@ namespace gjs {
 
         void symbol_list::remove(script_enum* enum_) {
             for (auto it = symbols.begin();it != symbols.end();it++) {
-                if (it->sym_type() == symbol::st_enum && it->get_enum() == enum_) {
+                if (it->sym_type() == symbol::symbol_type::st_enum && it->get_enum() == enum_) {
                     symbols.erase(it);
                     return;
                 }
@@ -138,7 +138,7 @@ namespace gjs {
 
         void symbol_list::remove(const script_module::local_var* modulevar) {
             for (auto it = symbols.begin();it != symbols.end();it++) {
-                if (it->sym_type() == symbol::st_modulevar && it->get_modulevar() == modulevar) {
+                if (it->sym_type() == symbol::symbol_type::st_modulevar && it->get_modulevar() == modulevar) {
                     symbols.erase(it);
                     return;
                 }
@@ -147,7 +147,7 @@ namespace gjs {
 
         void symbol_list::remove(var* var_) {
             for (auto it = symbols.begin();it != symbols.end();it++) {
-                if (it->sym_type() == symbol::st_var && it->get_var() == var_) {
+                if (it->sym_type() == symbol::symbol_type::st_var && it->get_var() == var_) {
                     symbols.erase(it);
                     return;
                 }
@@ -197,7 +197,7 @@ namespace gjs {
             if (exists) {
                 symbol_list& l = m_symbols[name];
                 for (auto& s : l.symbols) {
-                    if (s.sym_type() == symbol::st_type && s.get_type() == type) return &s;
+                    if (s.sym_type() == symbol::symbol_type::st_type && s.get_type() == type) return &s;
                 }
             }
 
@@ -272,7 +272,7 @@ namespace gjs {
 
             std::vector<script_function*> all;
             for (auto& s : symbols->symbols) {
-                if (s.sym_type() == symbol::st_function) all.push_back(s.get_func());
+                if (s.sym_type() == symbol::symbol_type::st_function) all.push_back(s.get_func());
             }
 
             std::vector<script_function*> matches;
@@ -336,7 +336,7 @@ namespace gjs {
 
             std::vector<script_function*> all;
             for (auto& s : symbols->symbols) {
-                if (s.sym_type() == symbol::st_function) all.push_back(s.get_func());
+                if (s.sym_type() == symbol::symbol_type::st_function) all.push_back(s.get_func());
             }
 
             std::vector<script_function*> matches;

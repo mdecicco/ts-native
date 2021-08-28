@@ -625,7 +625,7 @@ namespace gjs {
                     break;
                 }
                 case vmi::jal: {
-                    u64 id = _O1ui64;
+                    u32 id = (u32)_O1ui64;
                     script_function* fn = m_ctx->context()->function(id);
                     if (!fn) throw error::vm_exception(error::ecode::vm_invalid_function_id);
                     if (fn->is_host) {
@@ -665,7 +665,7 @@ namespace gjs {
             bool is_ptr = f->type->signature->args[a].is_ptr;
             u64* reg = &(m_ctx->state()->registers[regId]);
 
-            if (f->type->signature->args[a].implicit == function_signature::argument::ret_addr) {
+            if (f->type->signature->args[a].implicit == function_signature::argument::implicit_type::ret_addr) {
                 // arg refers to output pointer which is passed to 'call' function and not to the target function directly
                 stackReturnRegId = regId;
                 continue;

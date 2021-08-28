@@ -85,24 +85,24 @@ namespace gjs {
         void bind_vec2(script_module* m) {
             bind_v2<f64>(m, "vec2d");
             bind_v2<f32>(m, "vec2f");
-            bind_v2<u64>(m, "vec2u64");
+            //bind_v2<u64>(m, "vec2u64");
             bind_v2<i64>(m, "vec2i64");
-            bind_v2<u32>(m, "vec2u32");
+            //bind_v2<u32>(m, "vec2u32");
             bind_v2<i32>(m, "vec2i32");
-            bind_v2<u16>(m, "vec2u16");
+            //bind_v2<u16>(m, "vec2u16");
             bind_v2<i16>(m, "vec2i16");
-            bind_v2<u8>(m, "vec2u8");
+            //bind_v2<u8>(m, "vec2u8");
             bind_v2<i8>(m, "vec2i8");
 
             bind_m2<f64>(m, "mat2d");
             bind_m2<f32>(m, "mat2f");
-            bind_m2<u64>(m, "mat2u64");
+            //bind_m2<u64>(m, "mat2u64");
             bind_m2<i64>(m, "mat2i64");
-            bind_m2<u32>(m, "mat2u32");
+            //bind_m2<u32>(m, "mat2u32");
             bind_m2<i32>(m, "mat2i32");
-            bind_m2<u16>(m, "mat2u16");
+            //bind_m2<u16>(m, "mat2u16");
             bind_m2<i16>(m, "mat2i16");
-            bind_m2<u8>(m, "mat2u8");
+            //bind_m2<u8>(m, "mat2u8");
             bind_m2<i8>(m, "mat2i8");
         }
     };

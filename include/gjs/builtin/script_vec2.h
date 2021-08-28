@@ -34,7 +34,7 @@ namespace gjs {
                     return (&x)[idx];
                 }
 
-                T mag() const { return sqrt((x * x) + (y * y)); }
+                T mag() const { return (T)sqrt((x * x) + (y * y)); }
                 T magSq() const { return (x * x) + (y * y); }
                 T distance(const vec2<T>& v) const { return (*this - v).mag(); }
                 T distanceSq(const vec2<T>& v) const { return (*this - v).magSq(); }
@@ -128,12 +128,12 @@ namespace gjs {
 
                 static mat2<T> rotation(T deg) {
                     T rad = d2r(deg);
-                    T cosTh = cos(rad);
-                    T sinTh = sin(rad);
+                    T cosTh = (T)cos(rad);
+                    T sinTh = (T)sin(rad);
                     return mat2<T>(
                         cosTh, -sinTh,
                         sinTh, cosTh
-                        );
+                    );
                 }
                 static mat2<T> scale(T amount) {
                     return mat2<T>(

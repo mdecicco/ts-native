@@ -50,7 +50,8 @@ namespace gjs {
     }
     script_string basic_io_interface::get_cwd() {
         char cwd[256] = { 0 };
-        getcwd(cwd, 256);
+        // for some reason there is a compiler warning when the return value of getcwd is ignored...
+        char* r = getcwd(cwd, 256);
         return script_string(cwd, strlen(cwd));
     }
     
@@ -77,7 +78,7 @@ namespace gjs {
     bool basic_file_interface::set_position(u64 pos) {
         if (!m_file) return false;
 
-        if (fseek(m_file, pos, SEEK_SET) == 0) {
+        if (fseek(m_file, (long)pos, SEEK_SET) == 0) {
             m_cached_pos = pos;
             return true;
         }
@@ -117,11 +118,11 @@ namespace gjs {
     }
 
     bool basic_file_interface::init(const script_string& file, io_open_mode mode) {
-        if (mode == io_open_mode::create_empty) m_file = fopen(file.c_str(), "wb");
+        if (mode == io_open_mode::create_empty) fopen_s(&m_file, file.c_str(), "wb");
         else if (mode == io_open_mode::create_or_open) {
-            if (m_owner->exists(file)) m_file = fopen(file.c_str(), "rb+");
-            else m_file = fopen(file.c_str(), "wb");
-        } else m_file = fopen(file.c_str(), "rb+");
+            if (m_owner->exists(file)) fopen_s(&m_file, file.c_str(), "rb+");
+            else fopen_s(&m_file, file.c_str(), "wb");
+        } else fopen_s(&m_file, file.c_str(), "rb+");
 
         if (m_file) {
             fseek(m_file, 0, SEEK_END);

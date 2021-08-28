@@ -173,7 +173,7 @@ namespace gjs {
 
 
     script_object property_accessor::get() const {
-        if (!(prop->flags & bind::pf_write_only) && !prop->getter && !prop->setter) {
+        if (!(prop->flags & u8(bind::property_flags::pf_write_only)) && !prop->getter && !prop->setter) {
             u8* ptr = (((u8*)obj.m_self) + prop->offset);
             return script_object(obj.m_ctx, obj.m_mod, prop->type, ptr);
         }

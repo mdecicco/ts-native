@@ -102,17 +102,17 @@ namespace gjs {
                 const script_function* fn = nullptr;
                 for (auto s = syms->symbols.rbegin();s != syms->symbols.rend();s++) {
                     switch (s->sym_type()) {
-                        case symbol::st_var: {
+                        case symbol::symbol_type::st_var: {
                             if (s->scope_idx() != 0 || !compiling_function) {
                                 return *s->get_var();
                             }
                             break;
                         }
-                        case symbol::st_function: {
+                        case symbol::symbol_type::st_function: {
                             fn = s->get_func();
                             break;
                         }
-                        case symbol::st_modulevar: {
+                        case symbol::symbol_type::st_modulevar: {
                             if (mv) break;
                             mv = s->get_modulevar();
                             break;
@@ -139,39 +139,7 @@ namespace gjs {
                 }
 
                 if (fn) {
-                    // allocate data for raw_callback
-                    /*
-                    script_function* alloc = function("alloc", type("data"), { type("u32") });
-                    var raw_cb = call(
-                        *this,
-                        alloc,
-                        { imm((u64)sizeof(raw_callback)) }
-                    );
-                    var out = empty_var(fn->type);
-                    add(operation::eq).operand(out).operand(raw_cb);
-
-                    script_type* fp_t = type("$funcptr");
-                    var dest = empty_var(fp_t);
-                    add(operation::uadd).operand(dest).operand(out).operand(imm(u64(offsetof(raw_callback, ptr))));
-
-                    // allocate data for function_pointer
-                    var fptr = call(
-                        *this,
-                        alloc,
-                        { imm((u64)sizeof(function_pointer)) }
-                    );
-
-                    // store pointer to it at dest (raw_cb.ptr)
-                    add(operation::store).operand(dest).operand(fptr);
-
-                    call(
-                        *this,
-                        fp_t->method("constructor", type("void"), { type("u32"), type("u64") }),
-                        { imm((u64)fn->id()), imm((u64)0) }, // function id, context data size
-                        &dest
-                    );
-                    */
-                    var out = empty_var(fn->type);
+                    var& out = empty_var(fn->type, fn->name);
                     auto dt = type("data");
                     var dataPtr = empty_var(dt);
                     add(operation::eq).operand(dataPtr).operand(imm((u64)0));

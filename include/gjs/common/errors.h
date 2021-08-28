@@ -103,6 +103,7 @@ namespace gjs {
             c_prop_already_initialized,
             c_prop_has_no_default_ctor,
             c_compile_finished_with_errors,
+            c_invalid_binary_operator,
             __compile_error_end,
 
             __runtime_error_start,
@@ -124,6 +125,7 @@ namespace gjs {
             r_fp_bind_self_thiscall_only,
             r_file_not_found,
             r_failed_to_open_file,
+            r_callback_missing_data,
             __runtime_error_end,
 
             __vm_error_start,

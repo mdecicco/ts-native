@@ -226,12 +226,15 @@ namespace gjs {
         is_unsigned = false;
         is_builtin = false;
         is_host = false;
+        is_trivially_copyable = false;
         requires_subtype = false;
         owner = nullptr;
         destructor = nullptr;
         m_wrapped = nullptr;
         base_type = nullptr;
         sub_type = nullptr;
+        pass_ret = nullptr;
+        signature = nullptr;
     }
 
     script_type::~script_type() {

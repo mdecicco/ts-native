@@ -123,6 +123,8 @@ namespace gjs {
         for (u32 i = 0;i < m_enums.size();i++) {
             if (m_enums[i]->name() == name) return m_enums[i];
         }
+
+        return nullptr;
     }
 
     void script_module::add(script_function* func) {

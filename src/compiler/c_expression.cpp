@@ -75,7 +75,7 @@ namespace gjs {
                 // is desired. But if it doesn't exist, it is not desired
                 // to log a second error about a non-existent property not
                 // being static.
-                if (dummy.has_prop(pname) && !ret.flag(bind::pf_static)) {
+                if (dummy.has_prop(pname) && !ret.flag(bind::property_flags::pf_static)) {
                     ctx.log()->err(ec::c_class_property_not_static, n->rvalue->ref, tp->name.c_str(), pname.c_str());
                 }
                 return ret;
@@ -90,7 +90,7 @@ namespace gjs {
                     symbol_list* syms = mod->get(vname);
                     if (syms) {
                         for (symbol& sym : syms->symbols) {
-                            if (sym.sym_type() == symbol::st_modulevar) {
+                            if (sym.sym_type() == symbol::symbol_type::st_modulevar) {
                                 // [module].[global var]
                                 const script_module::local_var* v = sym.get_modulevar();
                                 var ret = ctx.empty_var(v->type);
@@ -119,7 +119,7 @@ namespace gjs {
                     symbol_list* syms = _enum->get(vname);
                     if (syms) {
                         for (symbol& sym : syms->symbols) {
-                            if (sym.sym_type() == symbol::st_var) {
+                            if (sym.sym_type() == symbol::symbol_type::st_var) {
                                 // [enum].[name]
                                 return *sym.get_var();
                             }
@@ -136,18 +136,19 @@ namespace gjs {
                         if (syms) {
                             symbol& last = syms->symbols.back();
                             switch (last.sym_type()) {
-                                case symbol::st_enum: {
+                                case symbol::symbol_type::st_enum: {
                                     ctx.log()->err(ec::c_enum_is_not_value, n->lvalue->ref);
                                     break;
                                 }
-                                case symbol::st_function: {
+                                case symbol::symbol_type::st_function: {
                                     ctx.log()->err(ec::c_func_is_not_value, n->lvalue->ref);
                                     break;
                                 }
-                                case symbol::st_type: {
+                                case symbol::symbol_type::st_type: {
                                     ctx.log()->err(ec::c_type_is_not_value, n->lvalue->ref);
                                     break;
                                 }
+                                default: { }
                             }
                         }
                         else ctx.log()->err(ec::c_symbol_not_found_in_module, n->lvalue->ref, std::string(*n->rvalue).c_str(), name.c_str());
@@ -182,7 +183,7 @@ namespace gjs {
                         if (tbl) {
                             symbol_list* syms = tbl->get(vname);
                             for (symbol& sym : syms->symbols) {
-                                if (sym.sym_type() == symbol::st_var) {
+                                if (sym.sym_type() == symbol::symbol_type::st_var) {
                                     // [module].[enum].[name]
                                     return *sym.get_var();
                                 }

@@ -60,13 +60,14 @@ namespace gjs {
                 case vmi::jal: {
                     script_function* f = jmap[c];
                     if (f->owner->id() != in.mod->id()) break;
+                    [[fallthrough]];
                 }
-                case vmi::jmp:
-                case vmi::beqz:
-                case vmi::bneqz:
-                case vmi::bgtz:
-                case vmi::bgtez:
-                case vmi::bltz:
+                case vmi::jmp: [[fallthrough]];
+                case vmi::beqz: [[fallthrough]];
+                case vmi::bneqz: [[fallthrough]];
+                case vmi::bgtz: [[fallthrough]];
+                case vmi::bgtez: [[fallthrough]];
+                case vmi::bltz: [[fallthrough]];
                 case vmi::bltez: {
                     u64 addr = m_instructions[c].imm_u();
                     if (addr < m_instructions.size()) {
@@ -606,7 +607,7 @@ namespace gjs {
                     
                     struct bk { vmr reg; u64 addr; u64 sz; };
                     std::vector<bk> backup;
-                    robin_hood::unordered_map<vm_register, u32> backup_map;
+                    robin_hood::unordered_map<vm_register, size_t> backup_map;
                     // Backup registers that were populated before this call
                     // and will be used after this call
                     auto live = in.funcs[fidx].regs.get_live(c);
@@ -979,7 +980,7 @@ namespace gjs {
             vm_register loc = func->type->signature->args[a].loc;
             u64* dest = &m_vm.state.registers[u8(loc)];
 
-            if (func->type->signature->args[a].implicit == function_signature::argument::ret_addr) {
+            if (func->type->signature->args[a].implicit == function_signature::argument::implicit_type::ret_addr) {
                 *dest = (u64)ret;
             } else {
                 if (tp->is_primitive) {

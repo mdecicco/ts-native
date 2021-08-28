@@ -631,7 +631,7 @@ namespace gjs {
                 hasDecimal = true;
                 out.text += c;
                 restore_idx = m_idx + offset;
-                restore_col = m_col + offset;
+                restore_col = m_col + u32(offset);
                 restore_line = m_line;
                 offset++;
             } else if (c >= 48 && c <= 57) {

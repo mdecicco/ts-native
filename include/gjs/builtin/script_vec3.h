@@ -37,7 +37,7 @@ namespace gjs {
                     return (&x)[idx];
                 }
 
-                T mag() const { return sqrt((x * x) + (y * y) + (z * z)); }
+                T mag() const { return (T)sqrt((x * x) + (y * y) + (z * z)); }
                 T magSq() const { return (x * x) + (y * y) + (z * z); }
                 T distance(const vec3<T>& v) const { return (*this - v).mag(); }
                 T distanceSq(const vec3<T>& v) const { return (*this - v).magSq(); }
@@ -162,8 +162,8 @@ namespace gjs {
 
                 static mat3<T> rotationX(T deg) {
                     T rad = d2r(deg);
-                    T cosTh = cos(rad);
-                    T sinTh = sin(rad);
+                    T cosTh = (T)cos(rad);
+                    T sinTh = (T)sin(rad);
                     return mat3<T>(
                         T(1), T(0), T(0),
                         T(0), cosTh, -sinTh,
@@ -172,8 +172,8 @@ namespace gjs {
                 }
                 static mat3<T> rotationY(T deg) {
                     T rad = d2r(deg);
-                    T cosTh = cos(rad);
-                    T sinTh = sin(rad);
+                    T cosTh = (T)cos(rad);
+                    T sinTh = (T)sin(rad);
                     return mat3<T>(
                         cosTh, T(0), sinTh,
                         T(0), T(1), T(0),
@@ -182,8 +182,8 @@ namespace gjs {
                 }
                 static mat3<T> rotationZ(T deg) {
                     T rad = d2r(deg);
-                    T cosTh = cos(rad);
-                    T sinTh = sin(rad);
+                    T cosTh = (T)cos(rad);
+                    T sinTh = (T)sin(rad);
                     return mat3<T>(
                         cosTh, -sinTh, T(0),
                         sinTh, cosTh, T(0),
@@ -192,13 +192,13 @@ namespace gjs {
                 }
                 static mat3<T> rotationEuler(const vec3<T>& degXYZ) {
                     vec3<T> rad(d2r(degXYZ.x), d2r(degXYZ.y), d2r(degXYZ.z));
-                    vec3<T> cosTh(cos(rad.x), cos(rad.y), cos(rad.z));
-                    vec3<T> sinTh(sin(rad.x), sin(rad.y), sin(rad.z));
+                    vec3<T> cosTh((T)cos(rad.x), (T)cos(rad.y), (T)cos(rad.z));
+                    vec3<T> sinTh((T)sin(rad.x), (T)sin(rad.y), (T)sin(rad.z));
 
                     return mat3<T>(
-                        cosTh.y * cosTh.z                                  , cosTh.y * sinTh.z                                  , -sinTh.y         ,
-                        (sinTh.x * sinTh.y * cosTh.z) - (cosTh.x * sinTh.z), (sinTh.x * sinTh.y * sinTh.z) + (cosTh.x * cosTh.z), sinTh.x * cosTh.y,
-                        (cosTh.x * sinTh.y * cosTh.z) + (sinTh.x * sinTh.z), (cosTh.x * sinTh.y * sinTh.z) - (sinTh.x * cosTh.z), cosTh.x * cosTh.y
+                         cosTh.y * cosTh.z                                  , cosTh.y * sinTh.z                                 , -sinTh.y         ,
+                        (sinTh.x * sinTh.y * cosTh.z) - (cosTh.x * sinTh.z), (sinTh.x * sinTh.y * sinTh.z) + (cosTh.x * cosTh.z),  sinTh.x * cosTh.y,
+                        (cosTh.x * sinTh.y * cosTh.z) + (sinTh.x * sinTh.z), (cosTh.x * sinTh.y * sinTh.z) - (sinTh.x * cosTh.z),  cosTh.x * cosTh.y
                     );
                 }
                 static mat3<T> scale(T amount) {

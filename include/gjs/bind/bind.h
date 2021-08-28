@@ -230,7 +230,7 @@ namespace gjs {
     // Class wrappers
     //
     namespace bind {
-        enum property_flags {
+        enum class property_flags : u8 {
             pf_none             = 0b00000000,
             pf_read_only        = 0b00000001,
             pf_write_only       = 0b00000010,
@@ -266,27 +266,27 @@ namespace gjs {
 
             // normal member
             template <typename T>
-            wrap_class& prop(const std::string& _name, T Cls::*member, u8 flags = property_flags::pf_none);
+            wrap_class& prop(const std::string& _name, T Cls::*member, u8 flags = 0);
 
             // static member
             template <typename T>
-            wrap_class& prop(const std::string& _name, T *member, u8 flags = property_flags::pf_none);
+            wrap_class& prop(const std::string& _name, T *member, u8 flags = 0);
 
             // getter, setter member
             template <typename T>
-            wrap_class& prop(const std::string& _name, T(Cls::*getter)(), T(Cls::*setter)(T), u8 flags = property_flags::pf_none);
+            wrap_class& prop(const std::string& _name, T(Cls::*getter)(), T(Cls::*setter)(T), u8 flags = 0);
 
             // const getter, setter member
             template <typename T>
-            wrap_class& prop(const std::string& _name, T(Cls::*getter)() const, T(Cls::*setter)(T), u8 flags = property_flags::pf_none);
+            wrap_class& prop(const std::string& _name, T(Cls::*getter)() const, T(Cls::*setter)(T), u8 flags = 0);
 
             // read only member with getter
             template <typename T>
-            wrap_class& prop(const std::string& _name, T(Cls::*getter)(), u8 flags = property_flags::pf_none);
+            wrap_class& prop(const std::string& _name, T(Cls::*getter)(), u8 flags = 0);
 
             // read only member with const getter
             template <typename T>
-            wrap_class& prop(const std::string& _name, T(Cls::*getter)() const, u8 flags = property_flags::pf_none);
+            wrap_class& prop(const std::string& _name, T(Cls::*getter)() const, u8 flags = 0);
 
             script_type* finalize(script_module* mod);
 

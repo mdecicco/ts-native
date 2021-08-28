@@ -170,8 +170,8 @@ namespace gjs {
                 }
             }
 
-            if (n->is_const) v.raise_flag(bind::pf_read_only);
-            if (n->is_static) v.raise_flag(bind::pf_static);
+            if (n->is_const) v.raise_flag(bind::property_flags::pf_read_only);
+            if (n->is_static) v.raise_flag(bind::property_flags::pf_static);
 
             return off;
         }
@@ -226,7 +226,7 @@ namespace gjs {
                         u8 flags = 0;
                         u64 offset = tp->size;
                         if (cn->is_static) {
-                            flags |= bind::pf_static;
+                            flags |= u8(bind::property_flags::pf_static);
                             ctx.compiling_static = true;
                             bool prevCompFunc = ctx.compiling_function;
                             ctx.compiling_function = false;
@@ -237,7 +237,7 @@ namespace gjs {
                             if (!p_tp->is_pod) tp->is_pod = false;
                             tp->size += p_tp->size;
                         }
-                        if (cn->is_const) flags |= bind::pf_read_only;
+                        if (cn->is_const) flags |= u8(bind::property_flags::pf_read_only);
 
                         tp->properties.push_back({ flags, name, p_tp, offset, nullptr, nullptr });
 
@@ -336,8 +336,8 @@ namespace gjs {
                         script_type* p_tp = ctx.type(cn->data_type);
                         u8 flags = 0;
                         if (!p_tp->is_pod) tp->is_pod = false;
-                        if (cn->is_static) flags |= bind::pf_static;
-                        if (cn->is_const) flags |= bind::pf_read_only;
+                        if (cn->is_static) flags |= u8(bind::property_flags::pf_static);
+                        if (cn->is_const) flags |= u8(bind::property_flags::pf_read_only);
 
                         tp->properties.push_back({ flags, name, p_tp, tp->size, nullptr, nullptr });
 
@@ -381,8 +381,7 @@ namespace gjs {
                     if (!ev.is_imm()) ctx.log()->err(ec::c_invalid_enum_value_expr, v->body->ref);
                     else {
                         if (ev.type()->is_floating_point) {
-                            if (ev.type()->size == sizeof(f64)) val = ev.imm_d();
-                            else val = ev.imm_f();
+                            ctx.log()->err(ec::c_invalid_enum_value_expr, v->body->ref);
                         } else {
                             if (ev.type()->is_unsigned) val = ev.imm_u();
                             else val = ev.imm_i();

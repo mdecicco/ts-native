@@ -67,7 +67,7 @@ namespace gjs {
                     return nullptr;
                 }
 
-                function_signature sig(ctx.env, ret, is_ctor, arg_types.data(), arg_types.size(), method_of, is_ctor, n->is_static);
+                function_signature sig(ctx.env, ret, is_ctor, arg_types.data(), (u8)arg_types.size(), method_of, is_ctor, n->is_static);
                 script_type* tp = ctx.type(sig.to_string(), false);
                 if (!tp) {
                     tp = ctx.new_types->get(sig);
@@ -116,7 +116,7 @@ namespace gjs {
                     arg.set_arg_idx(base_idx + i);
                 }
             } else {
-                function_signature sig(ctx.env, ret, is_ctor, arg_types.data(), arg_types.size(), method_of, is_ctor, n->is_static);
+                function_signature sig(ctx.env, ret, is_ctor, arg_types.data(), (u8)arg_types.size(), method_of, is_ctor, n->is_static);
                 script_type* tp = ctx.type(sig.to_string(), false);
                 if (!tp) {
                     tp = ctx.new_types->get(sig);
@@ -377,9 +377,6 @@ namespace gjs {
             return o;
         }
 
-        // todo: change the following
-        // public host call interface [script_context::call]
-        // function binding
         var call(context& ctx, script_function* func, const std::vector<var>& args, const var* self) {
             // get return value
             script_type* rtp = func->type->signature->return_type;
@@ -388,16 +385,16 @@ namespace gjs {
 
             // pass args
             for (u8 i = 0;i < func->type->signature->args.size();i++) {
-                if (func->type->signature->args[i].implicit == function_signature::argument::this_ptr) {
+                if (func->type->signature->args[i].implicit == function_signature::argument::implicit_type::this_ptr) {
                     ctx.add(operation::param).operand(*self).func(func);
                     continue;
                 }
-                if (func->type->signature->args[i].implicit == function_signature::argument::moduletype_id) {
+                if (func->type->signature->args[i].implicit == function_signature::argument::implicit_type::moduletype_id) {
                     u64 moduletype = join_u32(self->type()->sub_type->owner->id(), self->type()->sub_type->id());
                     ctx.add(operation::param).operand(ctx.imm(moduletype)).func(func);
                     continue;
                 }
-                if (func->type->signature->args[i].implicit == function_signature::argument::ret_addr) {
+                if (func->type->signature->args[i].implicit == function_signature::argument::implicit_type::ret_addr) {
                     stack_ret.raise_stack_flag();
                     ctx.add(operation::stack_alloc).operand(stack_ret).operand(ctx.imm((u64)rtp->size));
                     ctx.add(operation::param).operand(stack_ret).func(func);

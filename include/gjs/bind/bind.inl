@@ -55,7 +55,7 @@ namespace gjs {
     // global_function
     namespace bind {
         template <typename Ret, typename... Args>
-        global_function<Ret, Args...>::global_function<Ret, Args...>(type_manager* tpm, func_type f, const std::string& name, bool anonymous) :
+        global_function<Ret, Args...>::global_function(type_manager* tpm, func_type f, const std::string& name, bool anonymous) :
             wrapped_function(tpm->get<Ret>(), { tpm->get<Args>()... }, name, anonymous)
         {
             if (!return_type) {
@@ -73,14 +73,16 @@ namespace gjs {
 
             bool sbv_args[] = { (std::is_class_v<Args> && !is_callback<Args>::value)..., false };
 
-            for (u8 a = 0;a < arg_count::value;a++) {
-                if (sbv_args[a]) {
-                    throw error::bind_exception(error::ecode::b_arg_struct_pass_by_value, a, name.c_str());
-                }
+            if constexpr (arg_count::value > 0) {
+                for (u8 a = 0;a < arg_count::value;a++) {
+                    if (sbv_args[a]) {
+                        throw error::bind_exception(error::ecode::b_arg_struct_pass_by_value, a, name.c_str());
+                    }
 
-                if (!arg_types[a]) {
-                    const char* arg_typenames[] = { base_type_name<Args>()..., nullptr };
-                    throw error::bind_exception(error::ecode::b_arg_type_unbound, a, name.c_str(), arg_typenames[a]);
+                    if (!arg_types[a]) {
+                        const char* arg_typenames[] = { base_type_name<Args>()..., nullptr };
+                        throw error::bind_exception(error::ecode::b_arg_type_unbound, a, name.c_str(), arg_typenames[a]);
+                    }
                 }
             }
         }
@@ -117,7 +119,7 @@ namespace gjs {
     // class_method
     namespace bind {
         template <typename Ret, typename Cls, typename... Args>
-        class_method<Ret, Cls, Args...>::class_method<Ret, Cls, Args...>(type_manager* tpm, method_type f, const std::string& name, bool anonymous) :
+        class_method<Ret, Cls, Args...>::class_method(type_manager* tpm, method_type f, const std::string& name, bool anonymous) :
             wrapped_function(tpm->get<Ret>(), { tpm->get<Args>()... }, name, anonymous),
             wrapper(call_class_method<Ret, Cls, Args...>)
         {
@@ -141,14 +143,16 @@ namespace gjs {
 
             bool sbv_args[] = { (std::is_class_v<Args> && !is_callback<Args>::value)..., false };
 
-            for (u8 a = 0;a < ac::value;a++) {
-                if (sbv_args[a]) {
-                    throw error::bind_exception(error::ecode::b_method_arg_struct_pass_by_value, a, base_type_name<Cls>(), name.c_str());
-                }
+            if constexpr (ac::value > 0) {
+                for (u8 a = 0;a < ac::value;a++) {
+                    if (sbv_args[a]) {
+                        throw error::bind_exception(error::ecode::b_method_arg_struct_pass_by_value, a, base_type_name<Cls>(), name.c_str());
+                    }
 
-                if (!arg_types[a]) {
-                    const char* arg_typenames[] = { base_type_name<Args>()..., nullptr };
-                    throw error::bind_exception(error::ecode::b_method_arg_type_unbound, a, base_type_name<Cls>(), name.c_str(), arg_typenames[a]);
+                    if (!arg_types[a]) {
+                        const char* arg_typenames[] = { base_type_name<Args>()..., nullptr };
+                        throw error::bind_exception(error::ecode::b_method_arg_type_unbound, a, base_type_name<Cls>(), name.c_str(), arg_typenames[a]);
+                    }
                 }
             }
         }
@@ -185,7 +189,7 @@ namespace gjs {
     // const_class_method
     namespace bind {
         template <typename Ret, typename Cls, typename... Args>
-        const_class_method<Ret, Cls, Args...>::const_class_method<Ret, Cls, Args...>(type_manager* tpm, method_type f, const std::string& name, bool anonymous) :
+        const_class_method<Ret, Cls, Args...>::const_class_method(type_manager* tpm, method_type f, const std::string& name, bool anonymous) :
             wrapped_function(tpm->get<Ret>(), { tpm->get<Args>()... }, name, anonymous),
             wrapper(call_const_class_method<Ret, Cls, Args...>)
         {
@@ -209,14 +213,16 @@ namespace gjs {
 
             bool sbv_args[] = { (std::is_class_v<Args> && !is_callback<Args>::value)..., false };
 
-            for (u8 a = 0;a < ac::value;a++) {
-                if (sbv_args[a]) {
-                    throw error::bind_exception(error::ecode::b_method_arg_struct_pass_by_value, a, base_type_name<Cls>(), name.c_str());
-                }
+            if constexpr (ac::value > 0) {
+                for (u8 a = 0;a < ac::value;a++) {
+                    if (sbv_args[a]) {
+                        throw error::bind_exception(error::ecode::b_method_arg_struct_pass_by_value, a, base_type_name<Cls>(), name.c_str());
+                    }
 
-                if (!arg_types[a]) {
-                    const char* arg_typenames[] = { base_type_name<Args>()..., nullptr };
-                    throw error::bind_exception(error::ecode::b_method_arg_type_unbound, a, base_type_name<Cls>(), name.c_str(), arg_typenames[a]);
+                    if (!arg_types[a]) {
+                        const char* arg_typenames[] = { base_type_name<Args>()..., nullptr };
+                        throw error::bind_exception(error::ecode::b_method_arg_type_unbound, a, base_type_name<Cls>(), name.c_str(), arg_typenames[a]);
+                    }
                 }
             }
         }
@@ -282,9 +288,9 @@ namespace gjs {
     // wrap_class
     namespace bind {
         template <typename Cls>
-        wrap_class<Cls>::wrap_class<Cls>(type_manager* tpm, const std::string& name) : wrapped_class(name, typeid(remove_all<Cls>::type).name(), sizeof(remove_all<Cls>::type)), types(tpm) {
+        wrap_class<Cls>::wrap_class(type_manager* tpm, const std::string& name) : wrapped_class(name, typeid(remove_all<Cls>::type).name(), sizeof(remove_all<Cls>::type)), types(tpm) {
             type = tpm->add(name, typeid(remove_all<Cls>::type).name());
-            type->size = size;
+            type->size = u32(size);
             type->is_host = true;
             trivially_copyable = std::is_trivially_copyable_v<Cls>;
             is_pod = std::is_pod_v<Cls>;
@@ -357,9 +363,9 @@ namespace gjs {
                 throw error::bind_exception(error::ecode::b_prop_type_unbound, base_type_name<T>());
             }
 
-            if (std::is_pointer_v<T>) flags |= property_flags::pf_pointer;
+            if (std::is_pointer_v<T>) flags |= u8(property_flags::pf_pointer);
 
-            u32 offset = (u8*)&((Cls*)nullptr->*member) - (u8*)nullptr;
+            u64 offset = (u8*)&((Cls*)nullptr->*member) - (u8*)nullptr;
             properties[_name] = new property(nullptr, nullptr, tp, offset, flags);
             return *this;
         }
@@ -377,7 +383,7 @@ namespace gjs {
                 throw error::bind_exception(error::ecode::b_prop_type_unbound, base_type_name<T>());
             }
 
-            if (std::is_pointer_v<T>) flags |= property_flags::pf_pointer;
+            if (std::is_pointer_v<T>) flags |= u8(property_flags::pf_pointer);
 
             properties[_name] = new property(nullptr, nullptr, tp, (u64)member, flags | pf_static);
             return *this;
@@ -396,7 +402,7 @@ namespace gjs {
                 throw error::bind_exception(error::ecode::b_prop_type_unbound, base_type_name<T>());
             }
 
-            if (std::is_pointer_v<T>) flags |= property_flags::pf_pointer;
+            if (std::is_pointer_v<T>) flags |= u8(property_flags::pf_pointer);
 
             properties[_name] = new property(
                 wrap(types->ctx()->types(), name + "::get_" + _name, getter),
@@ -421,7 +427,7 @@ namespace gjs {
                 throw error::bind_exception(error::ecode::b_prop_type_unbound, base_type_name<T>());
             }
 
-            if (std::is_pointer_v<T>) flags |= property_flags::pf_pointer;
+            if (std::is_pointer_v<T>) flags |= u8(property_flags::pf_pointer);
 
             properties[_name] = new property(
                 wrap(types->ctx()->types(), name + "::get_" + _name, getter),
@@ -446,8 +452,8 @@ namespace gjs {
                 throw error::bind_exception(error::ecode::b_prop_type_unbound, base_type_name<T>());
             }
 
-            if (std::is_pointer_v<T>) flags |= property_flags::pf_pointer;
-            else flags |= property_flags::pf_read_only;
+            if (std::is_pointer_v<T>) flags |= u8(property_flags::pf_pointer);
+            else flags |= u8(property_flags::pf_read_only);
 
             properties[_name] = new property(
                 wrap(types->ctx()->types(), name + "::get_" + _name, getter),
@@ -472,8 +478,8 @@ namespace gjs {
                 throw error::bind_exception(error::ecode::b_prop_type_unbound, base_type_name<T>());
             }
 
-            if (std::is_pointer_v<T>) flags |= property_flags::pf_pointer;
-            else flags |= property_flags::pf_read_only;
+            if (std::is_pointer_v<T>) flags |= u8(property_flags::pf_pointer);
+            else flags |= u8(property_flags::pf_read_only);
 
             properties[_name] = new property(
                 wrap(types->ctx()->types(), name + "::get_" + _name, getter),
@@ -494,12 +500,12 @@ namespace gjs {
     // pseudo_class
     namespace bind {
         template <typename prim>
-        pseudo_class<prim>::pseudo_class<prim>(type_manager* tpm, const std::string& name) : wrapped_class(name, typeid(remove_all<prim>::type).name(), 0), types(tpm) {
+        pseudo_class<prim>::pseudo_class(type_manager* tpm, const std::string& name) : wrapped_class(name, typeid(remove_all<prim>::type).name(), 0), types(tpm) {
             type = tpm->add(name, typeid(remove_all<prim>::type).name());
             if constexpr (!std::is_same_v<void, prim>) size = sizeof(prim);
             trivially_copyable = true;
             is_pod = true;
-            type->size = size;
+            type->size = u32(size);
             type->is_host = true;
             type->is_primitive = true;
             type->is_pod = true;

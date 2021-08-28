@@ -55,7 +55,7 @@ namespace gjs {
             m_stack_id = 0;
             m_mem_ptr.valid = false;
             m_mem_ptr.reg = -1;
-            m_flags = bind::pf_none;
+            m_flags = 0;
             m_setter.this_obj = nullptr;
             m_setter.func = nullptr;
         }
@@ -64,7 +64,7 @@ namespace gjs {
             m_ctx = ctx;
             m_is_imm = true;
             m_instantiation = ctx->node()->ref;
-            m_flags = bind::pf_none;
+            m_flags = 0;
             m_reg_id = -1;
             m_imm.i = i;
             m_type = ctx->type("i64");
@@ -81,7 +81,7 @@ namespace gjs {
             m_ctx = ctx;
             m_is_imm = true;
             m_instantiation = ctx->node()->ref;
-            m_flags = bind::pf_none;
+            m_flags = 0;
             m_reg_id = -1;
             m_imm.f = f;
             m_type = ctx->type("f32");
@@ -98,7 +98,7 @@ namespace gjs {
             m_ctx = ctx;
             m_is_imm = true;
             m_instantiation = ctx->node()->ref;
-            m_flags = bind::pf_none;
+            m_flags = 0;
             m_reg_id = -1;
             m_imm.d = d;
             m_type = ctx->type("f64");
@@ -115,7 +115,7 @@ namespace gjs {
             m_ctx = ctx;
             m_is_imm = true;
             m_instantiation = ctx->node()->ref;
-            m_flags = bind::pf_none;
+            m_flags = 0;
             m_reg_id = -1;
             m_type = ctx->type("string");
             m_stack_loc = -1;
@@ -132,7 +132,7 @@ namespace gjs {
             m_ctx = ctx;
             m_is_imm = false;
             m_instantiation = ctx->node()->ref;
-            m_flags = bind::pf_none;
+            m_flags = 0;
             m_reg_id = reg_id;
             m_type = type;
             m_stack_loc = -1;
@@ -148,7 +148,7 @@ namespace gjs {
         var::var() {
             m_ctx = nullptr;
             m_is_imm = false;
-            m_flags = bind::pf_none;
+            m_flags = 0;
             m_reg_id = -1;
             m_type = nullptr;
             m_stack_loc = -1;
@@ -213,12 +213,12 @@ namespace gjs {
                     } else {
                         var ptr = m_ctx->empty_var(m_ctx->type("u64"));
                         var ret = m_ctx->empty_var(p.type);
-                        if (p.flags & bind::pf_static) {
+                        if (p.flags & u8(bind::property_flags::pf_static)) {
                             if (p.type->is_host) {
                                 // offset points to absolute memory location
                                 m_ctx->add(operation::eq).operand(ptr).operand(m_ctx->imm(p.offset));
                                 
-                                if (p.flags & bind::pf_pointer) {
+                                if (p.flags & u8(bind::property_flags::pf_pointer)) {
                                     // ptr points to a pointer to the value. Get pointer to value in ptr
                                     m_ctx->add(operation::load).operand(ptr).operand(ptr);
 
@@ -251,7 +251,7 @@ namespace gjs {
                             }
                         } else {
                             m_ctx->add(operation::uadd).operand(ptr).operand(*this).operand(m_ctx->imm(p.offset));
-                            if (p.flags & bind::pf_pointer) {
+                            if (p.flags & u8(bind::property_flags::pf_pointer)) {
                                 // ptr points to a pointer to the value. Get pointer to value in ptr
                                 m_ctx->add(operation::load).operand(ptr).operand(ptr);
 
@@ -292,9 +292,9 @@ namespace gjs {
             for (u16 i = 0;i < m_type->properties.size();i++) {
                 auto& p = m_type->properties[i];
                 if (p.name == prop) {
-                    if (p.flags & bind::pf_pointer) {
+                    if (p.flags & u8(bind::property_flags::pf_pointer)) {
                         var ptr = m_ctx->empty_var(m_ctx->type("u64"));
-                        if (p.flags & bind::pf_static) {
+                        if (p.flags & u8(bind::property_flags::pf_static)) {
                             m_ctx->add(operation::load).operand(ptr).operand(m_ctx->imm(p.offset));
                         } else {
                             m_ctx->add(operation::load).operand(ptr).operand(*this).operand(m_ctx->imm(p.offset));
@@ -302,7 +302,7 @@ namespace gjs {
                         return ptr;
                     }
 
-                    if (p.flags & bind::pf_static) {
+                    if (p.flags & u8(bind::property_flags::pf_static)) {
                         return m_ctx->imm(p.offset);
                     } else {
                         var ret = m_ctx->empty_var(m_ctx->type("u64"));
@@ -840,42 +840,49 @@ namespace gjs {
                     if ( i[0] && !i[1]) return ctx->imm(av.f + bv.i);
                     if (!i[0] &&  i[1]) return ctx->imm(av.i + bv.f);
                     if (!i[0] && !i[1]) return ctx->imm(av.i + bv.i);
+                    break;
                 }
                 case ot::sub: {
                     if ( i[0] &&  i[1]) return ctx->imm(av.f - bv.f);
                     if ( i[0] && !i[1]) return ctx->imm(av.f - bv.i);
                     if (!i[0] &&  i[1]) return ctx->imm(av.i - bv.f);
                     if (!i[0] && !i[1]) return ctx->imm(av.i - bv.i);
+                    break;
                 }
                 case ot::mul: {
                     if ( i[0] &&  i[1]) return ctx->imm(av.f * bv.f);
                     if ( i[0] && !i[1]) return ctx->imm(av.f * bv.i);
                     if (!i[0] &&  i[1]) return ctx->imm(av.i * bv.f);
                     if (!i[0] && !i[1]) return ctx->imm(av.i * bv.i);
+                    break;
                 }
                 case ot::div: {
                     if ( i[0] &&  i[1]) return ctx->imm(av.f / bv.f);
                     if ( i[0] && !i[1]) return ctx->imm(av.f / bv.i);
                     if (!i[0] &&  i[1]) return ctx->imm(av.i / bv.f);
                     if (!i[0] && !i[1]) return ctx->imm(av.i / bv.i);
+                    break;
                 }
                 case ot::mod: {
                     if ( i[0] &&  i[1]) return ctx->imm(modf(av.f, bv.f));
                     if ( i[0] && !i[1]) return ctx->imm(modf(av.f, bv.f));
-                    if (!i[0] &&  i[1]) return ctx->imm(modf(av.i, bv.f));
-                    if (!i[0] && !i[1]) return ctx->imm(av.i % bv.i);
+                    if (!i[0] &&  i[1]) return ctx->imm(modf(f64(av.i), bv.f));
+                    if (!i[0] && !i[1]) return ctx->imm(f64(av.i % bv.i));
+                    break;
                 }
                 case ot::shiftLeft: {
                     if ( i[0] &&  i[1]) return ctx->imm((i64)av.f << (i64)bv.f);
                     if ( i[0] && !i[1]) return ctx->imm((i64)av.f << bv.i);
                     if (!i[0] &&  i[1]) return ctx->imm(av.i << (i64)bv.f);
                     if (!i[0] && !i[1]) return ctx->imm(av.i << bv.i);
+                    break;
                 }
                 case ot::shiftRight: {
                     if ( i[0] &&  i[1]) return ctx->imm((i64)av.f >> (i64)bv.f);
                     if ( i[0] && !i[1]) return ctx->imm((i64)av.f >> bv.i);
                     if (!i[0] &&  i[1]) return ctx->imm(av.i >> (i64)bv.f);
                     if (!i[0] && !i[1]) return ctx->imm(av.i >> bv.i);
+                    break;
                 }
                 case ot::land: {
                     // 0 == 0.0f, !0 == !0.0f
@@ -911,57 +918,66 @@ namespace gjs {
                     if ( i[0] && !i[1]) return ctx->imm(i64(av.f < f64(bv.i)));
                     if (!i[0] &&  i[1]) return ctx->imm(i64(f64(av.i) < bv.f));
                     if (!i[0] && !i[1]) return ctx->imm(i64(av.i < bv.i));
+                    break;
                 }
                 case ot::greater: {
                     if ( i[0] &&  i[1]) return ctx->imm(i64(av.f > bv.f));
                     if ( i[0] && !i[1]) return ctx->imm(i64(av.f > f64(bv.i)));
                     if (!i[0] &&  i[1]) return ctx->imm(i64(f64(av.i) > bv.f));
                     if (!i[0] && !i[1]) return ctx->imm(i64(av.i > bv.i));
+                    break;
                 }
                 case ot::lessEq: {
                     if ( i[0] &&  i[1]) return ctx->imm(i64(av.f <= bv.f));
                     if ( i[0] && !i[1]) return ctx->imm(i64(av.f <= f64(bv.i)));
                     if (!i[0] &&  i[1]) return ctx->imm(i64(f64(av.i) <= bv.f));
                     if (!i[0] && !i[1]) return ctx->imm(i64(av.i <= bv.i));
+                    break;
                 }
                 case ot::greaterEq: {
                     if ( i[0] &&  i[1]) return ctx->imm(i64(av.f >= bv.f));
                     if ( i[0] && !i[1]) return ctx->imm(i64(av.f >= f64(bv.i)));
                     if (!i[0] &&  i[1]) return ctx->imm(i64(f64(av.i) >= bv.f));
                     if (!i[0] && !i[1]) return ctx->imm(i64(av.i >= bv.i));
+                    break;
                 }
                 case ot::notEq: {
                     if ( i[0] &&  i[1]) return ctx->imm(i64(av.f != bv.f));
                     if ( i[0] && !i[1]) return ctx->imm(i64(av.f != f64(bv.i)));
                     if (!i[0] &&  i[1]) return ctx->imm(i64(f64(av.i) != bv.f));
                     if (!i[0] && !i[1]) return ctx->imm(i64(av.i != bv.i));
+                    break;
                 }
                 case ot::isEq: {
                     if ( i[0] &&  i[1]) return ctx->imm(i64(av.f == bv.f));
                     if ( i[0] && !i[1]) return ctx->imm(i64(av.f == f64(bv.i)));
                     if (!i[0] &&  i[1]) return ctx->imm(i64(f64(av.i) == bv.f));
                     if (!i[0] && !i[1]) return ctx->imm(i64(av.i == bv.i));
+                    break;
                 }
-                case ot::addEq:
-                case ot::subEq:
-                case ot::mulEq:
-                case ot::divEq:
-                case ot::modEq:
-                case ot::shiftLeftEq:
-                case ot::shiftRightEq:
-                case ot::landEq:
-                case ot::lorEq:
-                case ot::bandEq:
-                case ot::borEq:
+                case ot::addEq: [[fallthrough]];
+                case ot::subEq: [[fallthrough]];
+                case ot::mulEq: [[fallthrough]];
+                case ot::divEq: [[fallthrough]];
+                case ot::modEq: [[fallthrough]];
+                case ot::shiftLeftEq: [[fallthrough]];
+                case ot::shiftRightEq: [[fallthrough]];
+                case ot::landEq: [[fallthrough]];
+                case ot::lorEq: [[fallthrough]];
+                case ot::bandEq: [[fallthrough]];
+                case ot::borEq: [[fallthrough]];
                 case ot::bxorEq: {
                     ctx->log()->err(ec::c_no_assign_literal, ctx->node()->ref);
                     return ctx->error_var();
                 }
             }
+
+            ctx->log()->err(ec::c_invalid_binary_operator, ctx->node()->ref);
+            return ctx->error_var();
         }
 
         var do_bin_op(context* ctx, const var& a, const var& b, ot _op) {
-            if (a.flag(bind::pf_write_only) || b.flag(bind::pf_write_only)) {
+            if (a.flag(bind::property_flags::pf_write_only) || b.flag(bind::property_flags::pf_write_only)) {
                 ctx->log()->err(ec::c_no_read_write_only, ctx->node()->ref);
                 return ctx->error_var();
             }
@@ -1213,7 +1229,7 @@ namespace gjs {
             }
 
             if (m_type->is_primitive) {
-                if (m_flags & bind::pf_write_only) {
+                if (flag(bind::property_flags::pf_write_only)) {
                     m_ctx->log()->err(ec::c_no_read_write_only, m_ctx->node()->ref);
                     return m_ctx->error_var();
                 }
@@ -1234,11 +1250,11 @@ namespace gjs {
                 return m_ctx->error_var();
             }
 
-            if (m_flags & bind::pf_read_only) {
+            if (flag(bind::property_flags::pf_read_only)) {
                 m_ctx->log()->err(ec::c_no_assign_read_only, m_ctx->node()->ref);
                 return *this;
             }
-            if (rhs.m_flags & bind::pf_write_only) {
+            if (rhs.flag(bind::property_flags::pf_write_only)) {
                 m_ctx->log()->err(ec::c_no_read_write_only, m_ctx->node()->ref);
                 return *this;
             }

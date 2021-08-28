@@ -103,6 +103,7 @@ namespace gjs {
             "Property '%s' has already been initialized in this initializer list",
             "Property '%s' is of type '%s', which has no default constructor and must be included in the initializer list of each constructor of type '%s'",
             "Compilation finished with errors",
+            "Invalid binary operator",
             "", // end compile errors
 
             "", // start runtime errors
@@ -124,6 +125,7 @@ namespace gjs {
             "Cannot bind 'this' object to pointer to global or static function",
             "Could not find file '%s'",
             "Could not open file '%s' or file is empty",
+            "Callback is missing callee data. This is not a user error",
             "", // end runtime errors
 
             "", // vm errors

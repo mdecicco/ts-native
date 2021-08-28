@@ -259,7 +259,7 @@ namespace gjs {
                 out.push_back({
                     "",
                     token_type::eof,
-                    source_ref(module, t.lines[t.lines.size() - 1], t.lines.size() - 1, t.lines[t.lines.size() - 1].length())
+                    source_ref(module, t.lines[t.lines.size() - 1], u16(t.lines.size() - 1), u16(t.lines[t.lines.size() - 1].length()))
                 });
             }
         }

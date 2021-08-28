@@ -138,7 +138,7 @@ namespace gjs {
             m_io->close(file);
 
             std::string name = std::filesystem::path(out_path).filename().u8string();
-            u8 extIdx = name.find_last_of('.');
+            u8 extIdx = (u8)name.find_last_of('.');
             if (extIdx != std::string::npos) name = name.substr(0, extIdx);
 
             return add_code(name, out_path, src);

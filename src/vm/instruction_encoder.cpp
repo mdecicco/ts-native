@@ -500,7 +500,9 @@ namespace gjs {
 
                 std::string reg_val = ""; // "<" + state->registers[(integer)r].to_string() + ">"
 
-                if (is_fpr(r)) reg_val = format("<%f>", *(f32*)&state->registers[(u64)r]);
+                if (is_fpr(r)) {
+                    reg_val = format("<%f>", *(f32*)&state->registers[(u64)r]);
+                }
                 else reg_val = format("<%lld>", *(i64*)&state->registers[(u64)r]);
                 return "$" + std::string(register_str[(u64)r]) + reg_val;
             }
@@ -512,7 +514,7 @@ namespace gjs {
         while (out.length() < 8) out += ' ';
 
         if (i == vmi::jal && ctx) {
-            script_function* fn = ctx->context()->function(imm_u());
+            script_function* fn = ctx->context()->function((u32)imm_u());
             if (fn) {
                 out += fn->type->signature->to_string(fn->name, fn->is_method_of, fn->owner);
                 return out;

@@ -197,14 +197,14 @@ namespace gjs {
                 for(u8 a = 0;a < f->type->signature->args.size();a++) {
                     if (a > 0) printf(", ");
                     auto& arg = f->type->signature->args[a];
-                    if (arg.implicit) {
+                    if (arg.implicit != function_signature::argument::implicit_type::not_implicit) {
                         static const char* implicitArgNames[] = {
                             nullptr,
                             "@this",
                             "@moduletype_id",
                             "@ret"
                         };
-                        printf("%s %s -> $%s", arg.tp->name.c_str(), implicitArgNames[arg.implicit], register_str[u8(arg.loc)]);
+                        printf("%s %s -> $%s", arg.tp->name.c_str(), implicitArgNames[u8(arg.implicit)], register_str[u8(arg.loc)]);
                     } else {
                         printf("%s arg_%d -> $%s", arg.tp->name.c_str(), a, register_str[u8(arg.loc)]);
                     }
@@ -224,7 +224,7 @@ namespace gjs {
                 printf("; %s", src.line_text.c_str());
                 last_line = src.line_text;
             } else if (ins.instr() == vm_instruction::jal) {
-                script_function* f = ctx->context()->function(ins.imm_u());
+                script_function* f = ctx->context()->function((u32)ins.imm_u());
                 if (!f) printf("; <- Bad function ID");
             }
             printf("\n");

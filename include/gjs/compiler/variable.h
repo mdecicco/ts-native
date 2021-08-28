@@ -11,7 +11,7 @@ namespace gjs {
     struct compilation_output;
 
     namespace bind {
-        enum property_flags;
+        enum class property_flags : u8;
     };
 
     namespace compile {
@@ -35,8 +35,8 @@ namespace gjs {
                 inline f64 imm_d() const { return m_imm.d; }
                 inline u32 reg_id() const { return m_reg_id; }
                 inline bool valid() const { return m_ctx != nullptr; }
-                inline bool flag(bind::property_flags f) const { return m_flags & f; }
-                inline void raise_flag(bind::property_flags f) { m_flags |= f; }
+                inline bool flag(bind::property_flags f) const { return m_flags & u8(f); }
+                inline void raise_flag(bind::property_flags f) { m_flags |= u8(f); }
                 inline bool is_stack_obj() const { return m_stack_id != 0; }
                 inline u64 stack_id() const { return m_stack_id; }
                 inline bool is_arg() const { return m_arg_idx != u8(-1); }

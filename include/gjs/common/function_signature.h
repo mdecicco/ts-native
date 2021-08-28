@@ -18,7 +18,7 @@ namespace gjs {
     class function_signature {
         public:
             struct argument {
-                enum implicit_type {
+                enum class implicit_type : u8 {
                     not_implicit = 0,
                     this_ptr,
                     moduletype_id,

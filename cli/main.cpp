@@ -43,13 +43,13 @@ void remove_unused_regs_pass(script_context* ctx, compilation_output& in) {
 
 vm_allocator* g_allocator = nullptr;
 
-u64 get_stack_size(std::vector<std::string>& args) {
+u32 get_stack_size(std::vector<std::string>& args) {
     for (u32 i = 0;i < args.size();i++) {
         if (args[i] == "-s") {
             if (i + 1 >= args.size()) {
                 throw std::exception("The stack size parameter was specified without providing an argument. Usage '--s <size in bytes>'. Size must be >= 1024 B and <= 128 MB"); 
             }
-            int sz = atoi(args[i + 1].c_str());
+            u32 sz = atoi(args[i + 1].c_str());
             if (sz < 1024 || sz > 128 * 1024 * 1024) {
                 throw std::exception(std::string("The stack size parameter was given an invalid argument '" + args[i + 1] + "'. Usage '--s <size in bytes>'. Size must be >= 1024 B and <= 128 MB").c_str());
             }
@@ -62,13 +62,13 @@ u64 get_stack_size(std::vector<std::string>& args) {
     return 8 * 1024 * 1024;
 }
 
-u64 get_mem_size(std::vector<std::string>& args) {
+u32 get_mem_size(std::vector<std::string>& args) {
     for (u32 i = 0;i < args.size();i++) {
         if (args[i] == "-s") {
             if (i + 1 >= args.size()) {
                 throw std::exception("The memory size parameter was specified without providing an argument. Usage '--m <size in bytes>'. Size must be >= 1024 B and <= 128 MB"); 
             }
-            int sz = atoi(args[i + 1].c_str());
+            u32 sz = atoi(args[i + 1].c_str());
             if (sz < 1024 || sz > 128 * 1024 * 1024) {
                 throw std::exception(std::string("The memory size parameter was given an invalid argument '" + args[i + 1] + "'. Usage '--m <size in bytes>'. Size must be >= 1024 B and <= 128 MB").c_str());
             }
@@ -176,7 +176,7 @@ script_context* parse_args(std::vector<std::string>& args) {
 int main(i32 argc, const char** argp) {
     try {
         std::vector<std::string> args;
-        for (u32 i = 1;i < argc;i++) {
+        for (i32 i = 1;i < argc;i++) {
             args.push_back(argp[i][0] == '-' ? argp[i] + 1 : argp[i]);
         }
 

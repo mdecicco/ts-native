@@ -25,17 +25,17 @@ namespace gjs {
 
         u16 gp_arg = (u16)vm_register::a0;
         u16 fp_arg = (u16)vm_register::f0;
-        if (is_thiscall) args.push_back({ tp, vm_register(gp_arg++), argument::this_ptr, true });
-        if (is_subtype_obj_ctor) args.push_back({ ctx->types()->get<u64>(), vm_register(gp_arg++), argument::moduletype_id, false });
-        if (returns_on_stack) args.push_back({ ctx->types()->get<void*>(), vm_register(gp_arg++), argument::ret_addr, true });
-        implicit_argc = args.size();
+        if (is_thiscall) args.push_back({ tp, vm_register(gp_arg++), argument::implicit_type::this_ptr, true });
+        if (is_subtype_obj_ctor) args.push_back({ ctx->types()->get<u64>(), vm_register(gp_arg++), argument::implicit_type::moduletype_id, false });
+        if (returns_on_stack) args.push_back({ ctx->types()->get<void*>(), vm_register(gp_arg++), argument::implicit_type::ret_addr, true });
+        implicit_argc = (u8)args.size();
 
         // args
         for (u8 i = 0;i < wrapped->arg_types.size();i++) {
             script_type* atp = wrapped->arg_types[i];
 
-            if (atp->is_floating_point) args.push_back({ atp, vm_register(fp_arg++), argument::not_implicit, wrapped->arg_is_ptr[i] });
-            else args.push_back({ atp, vm_register(gp_arg++), argument::not_implicit, wrapped->arg_is_ptr[i] });
+            if (atp->is_floating_point) args.push_back({ atp, vm_register(fp_arg++), argument::implicit_type::not_implicit, wrapped->arg_is_ptr[i] });
+            else args.push_back({ atp, vm_register(gp_arg++), argument::implicit_type::not_implicit, wrapped->arg_is_ptr[i] });
             explicit_argc++;
         }
     }
@@ -52,15 +52,15 @@ namespace gjs {
 
         u16 gp_arg = (u16)vm_register::a0;
         u16 fp_arg = (u16)vm_register::f0;
-        if (is_thiscall) args.push_back({ method_of, vm_register(gp_arg++), argument::this_ptr, true });
-        if (is_subtype_obj_ctor) args.push_back({ ctx->types()->get<u64>(), vm_register(gp_arg++), argument::moduletype_id, false });
-        if (returns_on_stack) args.push_back({ ctx->types()->get<void*>(), vm_register(gp_arg++), argument::ret_addr, true });
-        implicit_argc = args.size();
+        if (is_thiscall) args.push_back({ method_of, vm_register(gp_arg++), argument::implicit_type::this_ptr, true });
+        if (is_subtype_obj_ctor) args.push_back({ ctx->types()->get<u64>(), vm_register(gp_arg++), argument::implicit_type::moduletype_id, false });
+        if (returns_on_stack) args.push_back({ ctx->types()->get<void*>(), vm_register(gp_arg++), argument::implicit_type::ret_addr, true });
+        implicit_argc = (u8)args.size();
 
         // args
         for (u8 i = 0;i < argc;i++) {
-            if (argtps[i]->is_floating_point) args.push_back({ argtps[i], vm_register(fp_arg++), argument::not_implicit, false });
-            else args.push_back({ argtps[i], vm_register(gp_arg++), argument::not_implicit, false });
+            if (argtps[i]->is_floating_point) args.push_back({ argtps[i], vm_register(fp_arg++), argument::implicit_type::not_implicit, false });
+            else args.push_back({ argtps[i], vm_register(gp_arg++), argument::implicit_type::not_implicit, false });
             explicit_argc++;
         }
     }
@@ -84,7 +84,7 @@ namespace gjs {
 
         for (u8 i = 0;i < args.size();i++) {
             if (i > 0) out += ",";
-            if (args[i].implicit) out += "$";
+            if (args[i].implicit != argument::implicit_type::not_implicit) out += "$";
             out += args[i].tp->name;
         }
 
@@ -101,7 +101,7 @@ namespace gjs {
 
         for (u8 i = 0;i < args.size();i++) {
             if (i > 0) out += ",";
-            if (args[i].implicit) out += "$";
+            if (args[i].implicit != argument::implicit_type::not_implicit) out += "$";
             out += args[i].tp->name;
         }
 

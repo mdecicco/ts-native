@@ -16,7 +16,7 @@ namespace gjs {
 
         class symbol {
             public:
-                enum symbol_type {
+                enum class symbol_type {
                     st_function,
                     st_type,
                     st_enum,
