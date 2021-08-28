@@ -56,7 +56,7 @@ namespace gjs {
 
     void script_context::add(script_function* func) {
         if (m_funcs_by_id.count(func->id()) > 0) {
-            throw bind_exception(format("Function '%s' has already been added to the context", func->name.c_str()));
+            throw error::bind_exception(error::ecode::b_function_already_bound, func->name.c_str());
         }
 
         m_funcs_by_id[func->id()] = func;
@@ -64,11 +64,11 @@ namespace gjs {
 
     void script_context::add(script_module* module) {
         if (m_modules.count(module->name()) > 0) {
-            throw bind_exception(format("Module '%s' has already been added to the context", module->name().c_str()));
+            throw error::bind_exception(error::ecode::b_module_already_created, module->name().c_str());
         }
 
         if (m_modules_by_id.count(module->id()) > 0) {
-            throw bind_exception(format("Hash collision binding module '%s' (id: %lu)", module->name().c_str(), module->id()));
+            throw error::bind_exception(error::ecode::b_module_hash_collision, module->name().c_str(), module->id());
         }
 
         m_modules[module->name()] = module;
@@ -121,7 +121,7 @@ namespace gjs {
         // }
 
         if (!m_io->exists(out_path) || m_io->is_dir(out_path)) {
-            throw std::exception(format("Could not find file '%s'", out_path.c_str()).c_str());
+            throw error::runtime_exception(error::ecode::r_file_not_found, out_path.c_str());
         }
 
         // check if the module was already loaded
@@ -144,7 +144,7 @@ namespace gjs {
             return add_code(name, out_path, src);
         }
 
-        throw std::exception(format("Could not open file '%s' or file is empty", out_path.c_str()).c_str());
+        throw error::runtime_exception(error::ecode::r_failed_to_open_file, out_path.c_str());
         return nullptr;
     }
 

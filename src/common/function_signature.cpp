@@ -15,15 +15,12 @@ namespace gjs {
         explicit_argc = 0;
         implicit_argc = 0;
         return_type = wrapped->return_type;
-        if (!return_type) {
-            throw bind_exception(format("Return value of function '%s' has not been bound yet", wrapped->name.c_str()));
-        }
 
         if (return_type->size == 0) return_loc = vm_register::register_count;
 
         returns_on_stack = !wrapped->ret_is_ptr && !return_type->is_primitive && return_type->size != 0;
         returns_pointer = wrapped->ret_is_ptr;
-        is_thiscall = tp && !wrapped->is_static_method;
+        is_thiscall = wrapped->pass_this || (tp && !wrapped->is_static_method);
         bool is_subtype_obj_ctor = tp && tp->requires_subtype && is_ctor;
 
         u16 gp_arg = (u16)vm_register::a0;

@@ -1,14 +1,65 @@
 #pragma once
 
 namespace gjs {
+    // function call wrappers
+    namespace bind {
+        template <typename Ret, typename... Args>
+        void srv_wrapper(Ret* out, Ret (*f)(Args...), Args... args) {
+            new (out) Ret(f(args...));
+        }
+
+        // Non-const methods
+        template <typename Ret, typename Cls, typename... Args>
+        typename std::enable_if<!std::is_same<Ret, void>::value, Ret>::type
+            call_class_method(Ret(Cls::*method)(Args...), Cls* self, Args... args) {
+            return (*self.*method)(args...);
+        }
+
+        // Const methods
+        template <typename Ret, typename Cls, typename... Args>
+        typename std::enable_if<!std::is_same<Ret, void>::value, Ret>::type
+            call_const_class_method(Ret(Cls::*method)(Args...) const, Cls* self, Args... args) {
+            return (*self.*method)(args...);
+        }
+
+        // Non-const methods
+        template <typename Ret, typename Cls, typename... Args>
+        typename std::enable_if<std::is_same<Ret, void>::value, Ret>::type
+            call_class_method(Ret(Cls::*method)(Args...), Cls* self, Args... args) {
+            (*self.*method)(args...);
+        }
+
+        // Const methods
+        template <typename Ret, typename Cls, typename... Args>
+        typename std::enable_if<std::is_same<Ret, void>::value, Ret>::type
+            call_const_class_method(Ret(Cls::*method)(Args...) const, Cls* self, Args... args) {
+            (*self.*method)(args...);
+        }
+
+        template <typename Cls, typename... Args>
+        void construct_object(Cls* mem, Args... args) {
+            new (mem) Cls(args...);
+        }
+
+        template <typename Cls>
+        void copy_construct_object(void* dest, void* src, size_t sz) {
+            new ((Cls*)dest) Cls(*(Cls*)src);
+        }
+
+        template <typename Cls>
+        void destruct_object(Cls* obj) {
+            obj->~Cls();
+        }
+    };
+
     // global_function
     namespace bind {
         template <typename Ret, typename... Args>
         global_function<Ret, Args...>::global_function<Ret, Args...>(type_manager* tpm, func_type f, const std::string& name, bool anonymous) :
             wrapped_function(tpm->get<Ret>(), { tpm->get<Args>()... }, name, anonymous)
         {
-            if (!tpm->get<Ret>()) {
-                throw bind_exception(format("Return type '%s' of function '%s' has not been bound yet", base_type_name<Ret>(), name.c_str()));
+            if (!return_type) {
+                throw error::bind_exception(error::ecode::b_function_return_type_unbound, base_type_name<Ret>(), name.c_str());
             }
             // describe the function for the wrapped_function interface
             ret_is_ptr = std::is_reference_v<Ret> || std::is_pointer_v<Ret>;
@@ -24,17 +75,12 @@ namespace gjs {
 
             for (u8 a = 0;a < arg_count::value;a++) {
                 if (sbv_args[a]) {
-                    throw bind_exception(format(
-                        "Argument %d of function '%s' is a struct or class that is passed by value. "
-                        "This is unsupported. Please use reference or pointer types for structs/classes"
-                    , a, name.c_str()));
+                    throw error::bind_exception(error::ecode::b_arg_struct_pass_by_value, a, name.c_str());
                 }
 
                 if (!arg_types[a]) {
                     const char* arg_typenames[] = { base_type_name<Args>()..., nullptr };
-                    throw bind_exception(format(
-                        "Argument %d of function '%s' is of type '%s' that has not been bound yet"
-                    , a, name.c_str(), arg_typenames[a]));
+                    throw error::bind_exception(error::ecode::b_arg_type_unbound, a, name.c_str(), arg_typenames[a]);
                 }
             }
         }
@@ -76,10 +122,10 @@ namespace gjs {
             wrapper(call_class_method<Ret, Cls, Args...>)
         {
             if (!anonymous && !tpm->get<Cls>()) {
-                throw bind_exception(format("Binding method '%s' of class '%s' that has not been bound yet", name.c_str(), typeid(remove_all<Cls>::type).name()));
+                throw error::bind_exception(error::ecode::b_method_class_unbound, name.c_str(), base_type_name<Cls>());
             }
-            if (!tpm->get<Ret>()) {
-                throw bind_exception(format("Return type '%s' of method '%s' of class '%s' has not been bound yet", base_type_name<Ret>(), name.c_str(), typeid(remove_all<Cls>::type).name()));
+            if (!return_type) {
+                throw error::bind_exception(error::ecode::b_method_return_type_unbound, base_type_name<Ret>(), base_type_name<Cls>(), name.c_str());
             }
 
             call_method_func = wrapper;
@@ -97,17 +143,12 @@ namespace gjs {
 
             for (u8 a = 0;a < ac::value;a++) {
                 if (sbv_args[a]) {
-                    throw bind_exception(format(
-                        "Argument %d of function '%s' is a struct or class that is passed by value. "
-                        "This is unsupported. Please use reference or pointer types for structs/classes"
-                    , a, name.c_str()));
+                    throw error::bind_exception(error::ecode::b_method_arg_struct_pass_by_value, a, base_type_name<Cls>(), name.c_str());
                 }
 
                 if (!arg_types[a]) {
                     const char* arg_typenames[] = { base_type_name<Args>()..., nullptr };
-                    throw bind_exception(format(
-                        "Argument %d of function '%s' is of type '%s' that has not been bound yet"
-                    , a, name.c_str(), arg_typenames[a]));
+                    throw error::bind_exception(error::ecode::b_method_arg_type_unbound, a, base_type_name<Cls>(), name.c_str(), arg_typenames[a]);
                 }
             }
         }
@@ -149,10 +190,10 @@ namespace gjs {
             wrapper(call_const_class_method<Ret, Cls, Args...>)
         {
             if (!anonymous && !tpm->get<Cls>()) {
-                throw bind_exception(format("Binding method '%s' of class '%s' that has not been bound yet", name.c_str(), typeid(remove_all<Cls>::type).name()));
+                throw error::bind_exception(error::ecode::b_method_class_unbound, name.c_str(), base_type_name<Cls>());
             }
-            if (!tpm->get<Ret>()) {
-                throw bind_exception(format("Return type '%s' of method '%s' of class '%s' has not been bound yet", base_type_name<Ret>(), name.c_str(), typeid(remove_all<Cls>::type).name()));
+            if (!return_type) {
+                throw error::bind_exception(error::ecode::b_method_return_type_unbound, base_type_name<Ret>(), base_type_name<Cls>(), name.c_str());
             }
 
             call_method_func = wrapper;
@@ -170,17 +211,12 @@ namespace gjs {
 
             for (u8 a = 0;a < ac::value;a++) {
                 if (sbv_args[a]) {
-                    throw bind_exception(format(
-                        "Argument %d of function '%s' is a struct or class that is passed by value. "
-                        "This is unsupported. Please use reference or pointer types for structs/classes"
-                    , a, name.c_str()));
+                    throw error::bind_exception(error::ecode::b_method_arg_struct_pass_by_value, a, base_type_name<Cls>(), name.c_str());
                 }
 
                 if (!arg_types[a]) {
                     const char* arg_typenames[] = { base_type_name<Args>()..., nullptr };
-                    throw bind_exception(format(
-                        "Argument %d of function '%s' is of type '%s' that has not been bound yet"
-                    , a, name.c_str(), arg_typenames[a]));
+                    throw error::bind_exception(error::ecode::b_method_arg_type_unbound, a, base_type_name<Cls>(), name.c_str(), arg_typenames[a]);
                 }
             }
         }
@@ -313,12 +349,12 @@ namespace gjs {
         template <typename T>
         wrap_class<Cls>& wrap_class<Cls>::prop(const std::string& _name, T Cls::*member, u8 flags) {
             if (properties.find(_name) != properties.end()) {
-                throw bind_exception(format("Property '%s' already bound to type '%s'", _name.c_str(), name.c_str()));
+                throw error::bind_exception(error::ecode::b_prop_already_bound, _name.c_str(), name.c_str());
             }
 
             script_type* tp = types->ctx()->type<T>();
             if (!tp) {
-                throw bind_exception(format("Attempting to bind property of type '%s' that has not been bound itself", typeid(remove_all<T>::type).name()));
+                throw error::bind_exception(error::ecode::b_prop_type_unbound, base_type_name<T>());
             }
 
             if (std::is_pointer_v<T>) flags |= property_flags::pf_pointer;
@@ -333,12 +369,12 @@ namespace gjs {
         template <typename T>
         wrap_class<Cls>& wrap_class<Cls>::prop(const std::string& _name, T *member, u8 flags) {
             if (properties.find(_name) != properties.end()) {
-                throw bind_exception(format("Property '%s' already bound to type '%s'", _name.c_str(), name.c_str()));
+                throw error::bind_exception(error::ecode::b_prop_already_bound, _name.c_str(), name.c_str());
             }
 
             script_type* tp = types->ctx()->type<T>();
             if (!tp) {
-                throw bind_exception(format("Attempting to bind property of type '%s' that has not been bound itself", typeid(remove_all<T>::type).name()));
+                throw error::bind_exception(error::ecode::b_prop_type_unbound, base_type_name<T>());
             }
 
             if (std::is_pointer_v<T>) flags |= property_flags::pf_pointer;
@@ -352,12 +388,12 @@ namespace gjs {
         template <typename T>
         wrap_class<Cls>& wrap_class<Cls>::prop(const std::string& _name, T(Cls::*getter)(), T(Cls::*setter)(T), u8 flags) {
             if (properties.find(_name) != properties.end()) {
-                throw bind_exception(format("Property '%s' already bound to type '%s'", _name.c_str(), name.c_str()));
+                throw error::bind_exception(error::ecode::b_prop_already_bound, _name.c_str(), name.c_str());
             }
 
             script_type* tp = types->ctx()->type<T>();
             if (!tp) {
-                throw bind_exception(format("Attempting to bind property of type '%s' that has not been bound itself", typeid(remove_all<T>::type).name()));
+                throw error::bind_exception(error::ecode::b_prop_type_unbound, base_type_name<T>());
             }
 
             if (std::is_pointer_v<T>) flags |= property_flags::pf_pointer;
@@ -377,12 +413,12 @@ namespace gjs {
         template <typename T>
         wrap_class<Cls>& wrap_class<Cls>::prop(const std::string& _name, T(Cls::*getter)() const, T(Cls::*setter)(T), u8 flags) {
             if (properties.find(_name) != properties.end()) {
-                throw bind_exception(format("Property '%s' already bound to type '%s'", _name.c_str(), name.c_str()));
+                throw error::bind_exception(error::ecode::b_prop_already_bound, _name.c_str(), name.c_str());
             }
 
             script_type* tp = types->ctx()->type<T>();
             if (!tp) {
-                throw bind_exception(format("Attempting to bind property of type '%s' that has not been bound itself", typeid(remove_all<T>::type).name()));
+                throw error::bind_exception(error::ecode::b_prop_type_unbound, base_type_name<T>());
             }
 
             if (std::is_pointer_v<T>) flags |= property_flags::pf_pointer;
@@ -402,12 +438,12 @@ namespace gjs {
         template <typename T>
         wrap_class<Cls>& wrap_class<Cls>::prop(const std::string& _name, T(Cls::*getter)(), u8 flags) {
             if (properties.find(_name) != properties.end()) {
-                throw bind_exception(format("Property '%s' already bound to type '%s'", _name.c_str(), name.c_str()));
+                throw error::bind_exception(error::ecode::b_prop_already_bound, _name.c_str(), name.c_str());
             }
 
             script_type* tp = types->ctx()->type<T>();
             if (!tp) {
-                throw bind_exception(format("Attempting to bind property of type '%s' that has not been bound itself", typeid(remove_all<T>::type).name()));
+                throw error::bind_exception(error::ecode::b_prop_type_unbound, base_type_name<T>());
             }
 
             if (std::is_pointer_v<T>) flags |= property_flags::pf_pointer;
@@ -428,12 +464,12 @@ namespace gjs {
         template <typename T>
         wrap_class<Cls>& wrap_class<Cls>::prop(const std::string& _name, T(Cls::*getter)() const, u8 flags) {
             if (properties.find(_name) != properties.end()) {
-                throw bind_exception(format("Property '%s' already bound to type '%s'", _name.c_str(), name.c_str()));
+                throw error::bind_exception(error::ecode::b_prop_already_bound, _name.c_str(), name.c_str());
             }
 
             script_type* tp = types->ctx()->type<T>();
             if (!tp) {
-                throw bind_exception(format("Attempting to bind property of type '%s' that has not been bound itself", typeid(remove_all<T>::type).name()));
+                throw error::bind_exception(error::ecode::b_prop_type_unbound, base_type_name<T>());
             }
 
             if (std::is_pointer_v<T>) flags |= property_flags::pf_pointer;
@@ -536,10 +572,5 @@ namespace gjs {
         inline void do_call(DCCallVM* call, std::enable_if_t<std::is_pointer_v<T>, T>* ret, void* func) {
             *ret = (T)dcCallPointer(call, func);
         }
-
-        /*
-        * Call helpers for VM
-        */
-
     };
 };

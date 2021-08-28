@@ -2,6 +2,7 @@
 #include <vector>
 #include <string>
 #include <gjs/common/types.h>
+#include <gjs/common/errors.h>
 
 namespace gjs {
     class script_function;
@@ -13,13 +14,14 @@ namespace gjs {
     template <typename Ret, typename... Args>
     script_type* cdecl_signature(script_context* ctx) {
         script_type* rt = ctx->type<Ret>();
-        if (!rt) throw bind_exception(format("Cannot construct signature type for function with unbound return type '%s'", base_type_name<Ret>()));
+        if (!rt) throw error::bind_exception(error::ecode::b_cannot_get_signature_unbound_return, base_type_name<Ret>());
         constexpr i32 argc = std::tuple_size<std::tuple<Args...>>::value;
         script_type* argTps[argc] = { ctx->type<Args>()... };
 
         for (u8 i = 0;i < argc;i++) {
             if (!argTps[i]) {
-                throw bind_exception(format("Cannot construct signature type for function with unbound argument type (arg index %d)", i));
+                const char* argtypenames[] = { base_type_name<Args>... };
+                throw error::bind_exception(error::ecode::b_cannot_get_signature_unbound_arg, argtypenames[i], i);
             }
         }
 
@@ -36,13 +38,13 @@ namespace gjs {
     template <typename Cls, typename Ret, typename... Args>
     script_type* thiscall_signature(script_context* ctx) {
         script_type* rt = ctx->type<Ret>();
-        if (!rt) throw bind_exception(format("Cannot construct signature type for function with unbound return type '%s'", base_type_name<Ret>()));
+        if (!rt) throw error::bind_exception(error::ecode::b_cannot_get_signature_unbound_return, base_type_name<Ret>());
         constexpr i32 argc = std::tuple_size<std::tuple<Args...>>::value;
         script_type* argTps[argc] = { ctx->type<Args>()... };
 
         for (u8 i = 0;i < argc;i++) {
             if (!argTps[i]) {
-                throw bind_exception(format("Cannot construct signature type for function with unbound argument type (arg index %d)", i));
+                throw error::bind_exception(error::ecode::b_cannot_get_signature_unbound_arg, argtypenames[i], i);
             }
         }
 

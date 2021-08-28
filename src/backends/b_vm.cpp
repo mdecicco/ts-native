@@ -10,26 +10,6 @@
 namespace gjs {
     #define is_fpr(x) ((x >= vmr::f0 && x <= vmr::f15) || (x >= vmr::fa0 && x <= vmr::fa7))
 
-    vm_exception::vm_exception(vm_backend* ctx, const std::string& _text) :
-        text(_text), raised_from_script(true), line(0), col(0)
-    {
-        if (ctx->is_executing()) {
-            source_ref info = ctx->map()->get((address)ctx->state()->registers[(integer)vm_register::ip]);
-            module = info.module;
-            lineText = info.line_text;
-            line = info.line;
-            col = info.col;
-        }
-        else raised_from_script = false;
-    }
-
-    vm_exception::vm_exception(const std::string& _text) : text(_text), raised_from_script(false), line(0), col(0) {
-    }
-
-    vm_exception::~vm_exception() {
-    }
-
-
     vm_backend::vm_backend(vm_allocator* alloc, u32 stack_size, u32 mem_size) :
         m_vm(this, alloc, stack_size, mem_size), m_instructions(alloc), m_execution_level(0),
         m_log_instructions(false), m_alloc(alloc)
@@ -46,10 +26,13 @@ namespace gjs {
 
         try {
             m_vm.execute(m_instructions, entry, m_execution_level > 1);
-        } catch (const vm_exception& e) {
+        } catch (const error::vm_exception& e) {
             m_execution_level--;
             throw e;
         } catch (const error::runtime_exception& e) {
+            m_execution_level--;
+            throw e;
+        } catch (const error::exception& e) {
             m_execution_level--;
             throw e;
         } catch (const std::exception& e) {
@@ -172,11 +155,7 @@ namespace gjs {
                         case 2: { st = vmi::st16; break; }
                         case 4: { st = vmi::st32; break; }
                         case 8: { st = vmi::st64; break; }
-                        default: {
-                            // invalid size
-                            // exception
-                            break;
-                        }
+                        default: { break; }
                     }
                     m_instructions += encode(st).operand(r1).operand(vmr::sp).operand((u64)o1.stack_off());
                     m_map.append(i.src);
@@ -196,11 +175,7 @@ namespace gjs {
                             case 2: { ld = vmi::ld16; break; }
                             case 4: { ld = vmi::ld32; break; }
                             case 8: { ld = vmi::ld64; break; }
-                            default: {
-                                // invalid size
-                                // exception
-                                break;
-                            }
+                            default: { break; }
                         }
                         m_instructions += encode(ld).operand(r1).operand(vmr::sp).operand((u64)o1.stack_off());
                         m_map.append(i.src);
@@ -225,11 +200,7 @@ namespace gjs {
                         case 2: { ld = vmi::ld16; break; }
                         case 4: { ld = vmi::ld32; break; }
                         case 8: { ld = vmi::ld64; break; }
-                        default: {
-                            // invalid size
-                            // exception
-                            break;
-                        }
+                        default: { break; }
                     }
                     m_instructions += encode(ld).operand(r2).operand(vmr::sp).operand((u64)o2.stack_off());
                     m_map.append(i.src);
@@ -253,11 +224,7 @@ namespace gjs {
                         case 2: { ld = vmi::ld16; break; }
                         case 4: { ld = vmi::ld32; break; }
                         case 8: { ld = vmi::ld64; break; }
-                        default: {
-                            // invalid size
-                            // exception
-                            break;
-                        }
+                        default: { break; }
                     }
                     m_instructions += encode(ld).operand(r3).operand(vmr::sp).operand((u64)o3.stack_off());
                     m_map.append(i.src);
@@ -291,11 +258,7 @@ namespace gjs {
                         case 2: { ld = vmi::ld16; break; }
                         case 4: { ld = vmi::ld32; break; }
                         case 8: { ld = vmi::ld64; break; }
-                        default: {
-                            // invalid size
-                            // exception
-                            break;
-                        }
+                        default: { break; }
                     }
                     // load dest_var imm_addr
                     // load dest_var var_addr
@@ -318,11 +281,7 @@ namespace gjs {
                         case 2: { st = vmi::st16; break; }
                         case 4: { st = vmi::st32; break; }
                         case 8: { st = vmi::st64; break; }
-                        default: {
-                            // invalid size
-                            // exception
-                            break;
-                        }
+                        default: { break; }
                     }
 
                     m_instructions += encode(st).operand(r2).operand(r1).operand((u64)0);
@@ -624,11 +583,7 @@ namespace gjs {
                             case 2: { st = vmi::st16; break; }
                             case 4: { st = vmi::st32; break; }
                             case 8: { st = vmi::st64; break; }
-                            default: {
-                                // invalid size
-                                // exception
-                                break;
-                            }
+                            default: { break; }
                         }
                         m_instructions += encode(st).operand(r1).operand(vmr::sp).operand((u64)o1.stack_off());
                         m_map.append(i.src);
@@ -667,11 +622,7 @@ namespace gjs {
                                 case 2: { st = vmi::st16; break; }
                                 case 4: { st = vmi::st32; break; }
                                 case 8: { st = vmi::st64; break; }
-                                default: {
-                                    // invalid size
-                                    // exception
-                                    break;
-                                }
+                                default: { break; }
                             }
                             vmr reg = live[l].is_fp ? vmr(u32(vmr::f0) + live[l].reg_id) : vmr(u32(vmr::s0) + live[l].reg_id);
                             u64 sl = in.funcs[fidx].stack.alloc(sz);
@@ -704,11 +655,7 @@ namespace gjs {
                             case 2: { st = vmi::st16; break; }
                             case 4: { st = vmi::st32; break; }
                             case 8: { st = vmi::st64; break; }
-                            default: {
-                                // invalid size
-                                // exception
-                                break;
-                            }
+                            default: { break; }
                         }
                         u64 sl = in.funcs[fidx].stack.alloc(sz);
 
@@ -767,11 +714,7 @@ namespace gjs {
                                     case 2: { ld = vmi::ld16; break; }
                                     case 4: { ld = vmi::ld32; break; }
                                     case 8: { ld = vmi::ld64; break; }
-                                    default: {
-                                        // invalid size
-                                        // exception
-                                        break;
-                                    }
+                                    default: { break; }
                                 }
                                 m_instructions += encode(ld).operand(i.callee->type->signature->args[p].loc).operand(vmr::sp).operand((u64)params[p].stack_off());
                                 m_map.append(i.src);
@@ -789,11 +732,7 @@ namespace gjs {
                                             case 2: { ld = vmi::ld16; break; }
                                             case 4: { ld = vmi::ld32; break; }
                                             case 8: { ld = vmi::ld64; break; }
-                                            default: {
-                                                // invalid size
-                                                // exception
-                                                break;
-                                            }
+                                            default: { break; }
                                         }
 
                                         m_instructions += encode(ld).operand(i.callee->type->signature->args[p].loc).operand(vmr::sp).operand((u64)info.addr);
@@ -875,11 +814,7 @@ namespace gjs {
                                 case 2: { st = vmi::st16; break; }
                                 case 4: { st = vmi::st32; break; }
                                 case 8: { st = vmi::st64; break; }
-                                default: {
-                                    // invalid size
-                                    // exception
-                                    break;
-                                }
+                                default: { break; }
                             }
                             m_instructions += encode(st).operand(r1).operand(vmr::sp).operand((u64)o1.stack_off());
                             m_map.append(i.src);
@@ -900,11 +835,7 @@ namespace gjs {
                             case 2: { ld = vmi::ld16; break; }
                             case 4: { ld = vmi::ld32; break; }
                             case 8: { ld = vmi::ld64; break; }
-                            default: {
-                                // invalid size
-                                // exception
-                                break;
-                            }
+                            default: { break; }
                         }
 
                         m_instructions += encode(ld).operand(backup[b].reg).operand(vmr::sp).operand(backup[b].addr);
@@ -980,11 +911,7 @@ namespace gjs {
                                 case 2: { st = vmi::st16; break; }
                                 case 4: { st = vmi::st32; break; }
                                 case 8: { st = vmi::st64; break; }
-                                default: {
-                                    // invalid size
-                                    // exception
-                                    break;
-                                }
+                                default: { break; }
                             }
                             m_instructions += encode(st).operand(r1).operand(vmr::sp).operand((u64)o1.stack_off());
                             m_map.append(i.src);

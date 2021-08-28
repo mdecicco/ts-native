@@ -4,10 +4,34 @@
 #include <exception>
 
 namespace gjs {
+    class vm_backend;
+
     namespace error {
         enum class ecode {
             no_error = 0,
             unspecified_error,
+
+            __bind_error_start,
+            b_prop_already_bound,
+            b_prop_type_unbound,
+            b_method_class_unbound,
+            b_function_return_type_unbound,
+            b_method_return_type_unbound,
+            b_method_arg_struct_pass_by_value,
+            b_method_arg_type_unbound,
+            b_arg_struct_pass_by_value,
+            b_arg_type_unbound,
+            b_cannot_get_signature_unbound_return,
+            b_cannot_get_signature_unbound_arg,
+            b_function_already_bound,
+            b_module_already_created,
+            b_module_hash_collision,
+            b_enum_value_exists,
+            b_function_already_added_to_module,
+            b_type_already_bound,
+            b_type_hash_collision,
+            b_type_not_found_cannot_finalize,
+            __bind_error_end,
 
             __lexer_error_start,
             l_unknown_token,
@@ -98,7 +122,18 @@ namespace gjs {
             r_pointer_assign_type_mismatch,
             r_call_null_obj_method,
             r_fp_bind_self_thiscall_only,
-            __runtime_error_end
+            r_file_not_found,
+            r_failed_to_open_file,
+            __runtime_error_end,
+
+            __vm_error_start,
+            vm_stack_overflow,
+            vm_invalid_module_id,
+            vm_invalid_function_id,
+            vm_invalid_instruction,
+            vm_no_subtype_provided_for_call,
+            vm_cannot_pass_struct_by_value,
+            __vm_error_end
         };
 
         const char* format_str(ecode code);
@@ -106,21 +141,30 @@ namespace gjs {
         class exception : public std::exception {
             public:
                 exception(ecode code, source_ref at, ...);
+                exception();
+                
+                virtual const char* what() const;
 
                 ecode code;
                 source_ref src;
                 std::string message;
         };
 
+        class bind_exception : public exception {
+            public:
+                bind_exception(ecode code, ...);
+        };
 
-        class script_context;
-        class runtime_exception : public std::exception {
+        class runtime_exception : public exception {
             public:
                 runtime_exception(ecode code, ...);
+        };
 
-                ecode code;
-                source_ref src;
-                std::string message;
+        class vm_exception : public exception {
+            public:
+                vm_exception(ecode code, ...);
+
+                bool raised_from_script;
         };
     };
 };

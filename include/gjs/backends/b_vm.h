@@ -44,20 +44,4 @@ namespace gjs {
             u16 m_execution_level;
             bool m_log_instructions;
     };
-
-    class vm_exception : public std::exception {
-        public:
-            vm_exception(vm_backend* ctx, const std::string& text);
-            vm_exception(const std::string& text);
-            ~vm_exception();
-
-            virtual char const* what() const { return text.c_str(); }
-
-            bool raised_from_script;
-            std::string module;
-            std::string lineText;
-            std::string text;
-            u32 line;
-            u32 col;
-    };
 };

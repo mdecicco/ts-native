@@ -1,5 +1,6 @@
 #pragma once
 #include <gjs/common/types.h>
+#include <gjs/common/errors.h>
 #include <gjs/common/function_signature.h>
 #include <gjs/builtin/builtin.h>
 #include <gjs/util/template_utils.hpp>
@@ -30,16 +31,6 @@ namespace gjs {
     class script_module;
     class type_manager;
 
-    class bind_exception : public std::exception {
-        public:
-            bind_exception(const std::string& _text) : text(_text) { }
-            ~bind_exception() { }
-
-            virtual char const* what() const { return text.c_str(); }
-
-            std::string text;
-    };
-
     //
     // Function call wrappers
     //
@@ -49,9 +40,7 @@ namespace gjs {
         // callee with the placement new operator, constructing the result in an
         // output parameter.
         template <typename Ret, typename... Args>
-        void srv_wrapper(Ret* out, Ret (*f)(Args...), Args... args) {
-            new (out) Ret(f(args...));
-        }
+        void srv_wrapper(Ret* out, Ret (*f)(Args...), Args... args);
 
         // Non-void class method wrappers
         // Wraps call to class method in a function which accepts a pointer to the class
@@ -61,16 +50,12 @@ namespace gjs {
         // Non-const methods
         template <typename Ret, typename Cls, typename... Args>
         typename std::enable_if<!std::is_same<Ret, void>::value, Ret>::type
-            call_class_method(Ret(Cls::*method)(Args...), Cls* self, Args... args) {
-            return (*self.*method)(args...);
-        }
+        call_class_method(Ret(Cls::*method)(Args...), Cls* self, Args... args);
 
         // Const methods
         template <typename Ret, typename Cls, typename... Args>
         typename std::enable_if<!std::is_same<Ret, void>::value, Ret>::type
-            call_const_class_method(Ret(Cls::*method)(Args...) const, Cls* self, Args... args) {
-            return (*self.*method)(args...);
-        }
+        call_const_class_method(Ret(Cls::*method)(Args...) const, Cls* self, Args... args);
 
         // Void class method wrappers
         // Wraps call to class method in a function which accepts a pointer to the class
@@ -80,39 +65,29 @@ namespace gjs {
         // Non-const methods
         template <typename Ret, typename Cls, typename... Args>
         typename std::enable_if<std::is_same<Ret, void>::value, Ret>::type
-            call_class_method(Ret(Cls::*method)(Args...), Cls* self, Args... args) {
-            (*self.*method)(args...);
-        }
+        call_class_method(Ret(Cls::*method)(Args...), Cls* self, Args... args);
 
         // Const methods
         template <typename Ret, typename Cls, typename... Args>
         typename std::enable_if<std::is_same<Ret, void>::value, Ret>::type
-            call_const_class_method(Ret(Cls::*method)(Args...) const, Cls* self, Args... args) {
-            (*self.*method)(args...);
-        }
+        call_const_class_method(Ret(Cls::*method)(Args...) const, Cls* self, Args... args);
 
         // Class constructor wrapper
         // Wraps call to class constructors in a function that forces the class to be
         // constructed in an output parameter using the placement new operator.
         template <typename Cls, typename... Args>
-        void construct_object(Cls* mem, Args... args) {
-            new (mem) Cls(args...);
-        }
+        void construct_object(Cls* mem, Args... args);
 
         // Class copy constructor wrapper
         // Wraps call to class constructors in a function that forces the class to be
         // constructed in an output parameter using the placement new operator.
         template <typename Cls>
-        void copy_construct_object(void* dest, void* src, size_t sz) {
-            new ((Cls*)dest) Cls(*(Cls*)src);
-        }
+        void copy_construct_object(void* dest, void* src, size_t sz);
 
         // Class destructor wrapper
         // Wraps call to class destructor.
         template <typename Cls>
-        void destruct_object(Cls* obj) {
-            obj->~Cls();
-        }
+        void destruct_object(Cls* obj);
     };
 
     //

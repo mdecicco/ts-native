@@ -144,7 +144,7 @@ namespace gjs {
                 }
 
                 if (matches) {
-                    throw bind_exception(format("Function '%s' has already been added to the context", func->name.c_str()));
+                    throw error::bind_exception(error::ecode::b_function_already_added_to_module, func->name.c_str(), m_name.c_str());
                 }
             }
 

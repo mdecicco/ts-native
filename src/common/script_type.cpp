@@ -19,10 +19,10 @@ namespace gjs {
 
         for (u16 i = 0;i < all.size();i++) {
             if (m_types.count(all[i]->name) > 0) {
-                throw bind_exception(format("Type '%s' already bound", all[i]->name.c_str()));
+                throw error::bind_exception(error::ecode::b_type_already_bound, all[i]->name.c_str());
             }
             if (m_types_by_id.count(all[i]->id()) > 0) {
-                throw bind_exception(format("There was a type id collision while binding type '%s'", all[i]->name.c_str()));
+                throw error::bind_exception(error::ecode::b_type_hash_collision, all[i]->name.c_str());
             }
 
             m_types[all[i]->name] = all[i];
@@ -97,11 +97,11 @@ namespace gjs {
 
     script_type* type_manager::add(const std::string& name, const std::string& internal_name) {
         if (m_types.count(internal_name) > 0) {
-            throw bind_exception(format("Type '%s' already bound", name.c_str()));
+            throw error::bind_exception(error::ecode::b_type_already_bound, name.c_str());
         }
         u32 id = hash(name);
         if (m_types_by_id.count(id) > 0) {
-            throw bind_exception(format("There was a type id collision while binding type '%s'", name.c_str()));
+            throw error::bind_exception(error::ecode::b_type_hash_collision, name.c_str());
         }
 
         script_type* t = new script_type();
@@ -119,11 +119,11 @@ namespace gjs {
     
     void type_manager::add(script_type* type) {
         if (m_types.count(type->internal_name) > 0) {
-            throw bind_exception(format("Type '%s' already bound", type->name.c_str()));
+            throw error::bind_exception(error::ecode::b_type_already_bound, type->name.c_str());
         }
 
         if (m_types_by_id.count(type->id()) > 0) {
-            throw bind_exception(format("There was a type id collision while binding type '%s'", type->name.c_str()));
+            throw error::bind_exception(error::ecode::b_type_hash_collision, type->name.c_str());
         }
 
         m_types[type->internal_name] = type;
@@ -133,7 +133,7 @@ namespace gjs {
     script_type* type_manager::finalize_class(bind::wrapped_class* wrapped, script_module* mod) {
         auto it = m_types.find(wrapped->internal_name);
         if (it == m_types.end()) {
-            throw bind_exception(format("Type '%s' not found and can not be finalized", wrapped->name.c_str()));
+            throw error::bind_exception(error::ecode::b_type_not_found_cannot_finalize, wrapped->name.c_str());
         }
 
         if (wrapped->dtor) {

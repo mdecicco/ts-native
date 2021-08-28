@@ -27,10 +27,15 @@ namespace gjs {
             flags = f;
         }
 
-        wrapped_class::wrapped_class(const std::string& _name, const std::string& _internal_name, size_t _size) :
-            name(_name), internal_name(_internal_name), size(_size), dtor(nullptr),
-            trivially_copyable(true), pass_ret(trivial_copy), type(nullptr), is_pod(false)
-        {
+        wrapped_class::wrapped_class(const std::string& _name, const std::string& _internal_name, size_t _size) {
+            name = _name;
+            internal_name = _internal_name;
+            size = _size;
+            dtor = nullptr;
+            trivially_copyable = true;
+            pass_ret = trivial_copy;
+            type = nullptr;
+            is_pod = false;
         }
 
         wrapped_class::~wrapped_class() {

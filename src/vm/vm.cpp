@@ -82,7 +82,7 @@ namespace gjs {
                 case vmi::ld8: {
                     u64 offset = GR64(integer(_O2)) + _O3ui64;
                     if (offset >= stack_padding_start && offset <= stack_padding_end) {
-                        throw vm_exception(m_ctx, "Stack overflow detected");
+                        throw error::vm_exception(error::ecode::vm_stack_overflow);
                     }
                     u8* ptr = (u8*)offset;
                     GR64(_O1) = *(u8*)ptr;
@@ -91,7 +91,7 @@ namespace gjs {
                 case vmi::ld16: {
                     u64 offset = GR64(integer(_O2)) + _O3ui64;
                     if (offset >= stack_padding_start && offset <= stack_padding_end) {
-                        throw vm_exception(m_ctx, "Stack overflow detected");
+                        throw error::vm_exception(error::ecode::vm_stack_overflow);
                     }
                     u16* ptr = (u16*)offset;
                     GR64(_O1) = *(u16*)ptr;
@@ -100,7 +100,7 @@ namespace gjs {
                 case vmi::ld32: {
                     u64 offset = GR64(integer(_O2)) + _O3ui64;
                     if (offset >= stack_padding_start && offset <= stack_padding_end) {
-                        throw vm_exception(m_ctx, "Stack overflow detected");
+                        throw error::vm_exception(error::ecode::vm_stack_overflow);
                     }
                     u32* ptr = (u32*)offset;
                     GR64(_O1) = *(u32*)ptr;
@@ -109,7 +109,7 @@ namespace gjs {
                 case vmi::ld64: {
                     u64 offset = GR64(integer(_O2)) + _O3ui64;
                     if (offset >= stack_padding_start && offset <= stack_padding_end) {
-                        throw vm_exception(m_ctx, "Stack overflow detected");
+                        throw error::vm_exception(error::ecode::vm_stack_overflow);
                     }
                     u64* ptr = (u64*)offset;
                     GR64(_O1) = *(u64*)ptr;
@@ -118,7 +118,7 @@ namespace gjs {
                 case vmi::st8: {
                     u64 offset = GR64(integer(_O2)) + _O3ui64;
                     if (offset >= stack_padding_start && offset <= stack_padding_end) {
-                        throw vm_exception(m_ctx, "Stack overflow detected");
+                        throw error::vm_exception(error::ecode::vm_stack_overflow);
                     }
                     u8* ptr = (u8*)offset;
                     *ptr = GR8(_O1);
@@ -127,7 +127,7 @@ namespace gjs {
                 case vmi::st16: {
                     u64 offset = GR64(integer(_O2)) + _O3ui64;
                     if (offset >= stack_padding_start && offset <= stack_padding_end) {
-                        throw vm_exception(m_ctx, "Stack overflow detected");
+                        throw error::vm_exception(error::ecode::vm_stack_overflow);
                     }
                     u16* ptr = (u16*)offset;
                     *ptr = GR16(_O1);
@@ -136,7 +136,7 @@ namespace gjs {
                 case vmi::st32: {
                     u64 offset = GR64(integer(_O2)) + _O3ui64;
                     if (offset >= stack_padding_start && offset <= stack_padding_end) {
-                        throw vm_exception(m_ctx, "Stack overflow detected");
+                        throw error::vm_exception(error::ecode::vm_stack_overflow);
                     }
                     u32* ptr = (u32*)offset;
                     *ptr = GR32(_O1);
@@ -145,7 +145,7 @@ namespace gjs {
                 case vmi::st64: {
                     u64 offset = GR64(integer(_O2)) + _O3ui64;
                     if (offset >= stack_padding_start && offset <= stack_padding_end) {
-                        throw vm_exception(m_ctx, "Stack overflow detected");
+                        throw error::vm_exception(error::ecode::vm_stack_overflow);
                     }
                     u64* ptr = (u64*)offset;
                     *ptr = GR64(_O1);
@@ -153,7 +153,7 @@ namespace gjs {
                 }
                 case vmi::mptr: {
                     script_module* mod = m_ctx->context()->module((u32)GRx(vmr::v3, u64));
-                    if (!mod) throw vm_exception(m_ctx, "Invalid module id");
+                    if (!mod) throw error::vm_exception(error::ecode::vm_invalid_module_id);
                     GR64(_O1) = (u64)mod->data()->data(_O2ui);
                     break;
                 }
@@ -627,7 +627,7 @@ namespace gjs {
                 case vmi::jal: {
                     u64 id = _O1ui64;
                     script_function* fn = m_ctx->context()->function(id);
-                    if (!fn) throw vm_exception(m_ctx, "Invalid function ID");
+                    if (!fn) throw error::vm_exception(error::ecode::vm_invalid_function_id);
                     if (fn->is_host) {
                         call_external(fn);
                     }
@@ -642,13 +642,8 @@ namespace gjs {
                     *ip = GRx(_O1, u64) - 1;
                     break;
                 }
-                case vmi::instruction_count: {
-                    throw vm_exception(m_ctx, "Invalid Instruction");
-                    break;
-                }
                 default: {
-                    throw vm_exception(m_ctx, "Invalid Instruction");
-                    // deinitialize?
+                    throw error::vm_exception(error::ecode::vm_invalid_instruction);
                     break;
                 }
             }
@@ -681,10 +676,7 @@ namespace gjs {
                 u64 v3 = m_ctx->state()->registers[(u8)vmr::v3];
                 tp = m_ctx->context()->module(extract_left_u32(v3))->types()->get(extract_right_u32(v3));
                 if (!tp) {
-                    throw vm_exception(m_ctx, format(
-                        "Function '%s' is a method of a sub-type class but no type ID was provided. This is not a user error",
-                        f->name.c_str()
-                    ));
+                    throw error::vm_exception(error::ecode::vm_no_subtype_provided_for_call, f->name.c_str());
                 }
             }
 
@@ -700,10 +692,7 @@ namespace gjs {
                 if (is_ptr) {
                     args.push_back(reinterpret_cast<void*>(*reg));
                 } else {
-                    throw vm_exception(m_ctx, format(
-                        "Function '%s' accepts type '%s' as a pass-by-value parameter. This is unsupported, please change it to a pointer or reference type to make it work",
-                        f->name.c_str(), tp->name.c_str()
-                    ));
+                    throw error::vm_exception(error::ecode::vm_cannot_pass_struct_by_value, f->name.c_str(), tp->name.c_str());
                 }
             }
         }
