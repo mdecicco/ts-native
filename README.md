@@ -27,11 +27,13 @@
 ## Goals
 - To produce a scripting language for games and hobby projects
 - Be as similar in syntax and core functionality to JS as possible
+    - I feel I have strayed from this goal, but so far that's alright
 - Get reasonably close to the speed of a strictly typed language like C++ that is compiled entirely to machine code, with no garbage collector (so it'll be kind of dangerous)
 - Be easy to bind existing C++ interfaces to
 - Be easy to debug in realtime
 - Be reasonably fast when not compiled to machine code
 - Be easy to include into existing projects, with as few dependencies as possible
+    - LLVM is massive and takes roughly forever to compile... I will be working on extracting the native backend and building it as a DLL or something later so that it doesn't need to be included as a build dependency
 - To have VM code that is similar to MIPS assembly (because that's what I learned with and x86 seems really confusing)
 - To have script code be JIT compiled _entirely_ to native code with no slow checks in place, all checks should happen during compilation
 - To have unit tests and be stable at some point
