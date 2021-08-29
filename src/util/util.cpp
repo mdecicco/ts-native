@@ -130,7 +130,7 @@ namespace gjs {
             }
             if (wscount > m.src.col) wscount = m.src.col;
 
-            for (i32 l = i32(m.src.line) - i32(context_line_count);l < m.src.line;l++) {
+            for (i32 l = i32(m.src.line) - i32(context_line_count);l < m.src.line && l < f.lines.size();l++) {
                 if (l < 0) continue;
                 printf("%5d | %s\n", l + 1, f.lines[l].c_str());
             }

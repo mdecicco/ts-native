@@ -596,8 +596,12 @@ namespace gjs {
                     break;
                 }
                 case op::call: {
+                    function_signature* sig = nullptr;
+                    if (i.callee) sig = i.callee->type->signature;
+                    else sig = i.callee_v.type()->signature;
+
                     // If it's a method of a subtype class, pass the subtype ID through $v3
-                    if (i.callee->is_method_of && i.callee->is_method_of->requires_subtype) {
+                    if (sig->method_of && sig->method_of->requires_subtype) {
                         // get subtype from the this obj parameter
                         script_type* st = params[0].type()->sub_type;
                         u64 moduletype = join_u32(st->owner->id(), st->id());
@@ -642,8 +646,8 @@ namespace gjs {
                         if (backup_map.count(ar)) continue; // already backed up by the above loop
 
                         bool will_be_overwritten = false;
-                        for (u8 a1 = 0;a1 < i.callee->type->signature->args.size() && !will_be_overwritten;a1++) {
-                            will_be_overwritten = i.callee->type->signature->args[a1].loc == ar;
+                        for (u8 a1 = 0;a1 < sig->args.size() && !will_be_overwritten;a1++) {
+                            will_be_overwritten = sig->args[a1].loc == ar;
                         }
 
                         if (!will_be_overwritten) continue;
@@ -684,7 +688,7 @@ namespace gjs {
                                 if (was_passed || params[p1].is_spilled() || params[p1].is_imm()) continue;
 
                                 vmr reg = params[p1].type()->is_floating_point ? vmr(u32(vmr::f0) + params[p1].reg_id()) : vmr(u32(vmr::s0) + params[p1].reg_id());
-                                will_overwrite = i.callee->type->signature->args[p].loc == reg;
+                                will_overwrite = sig->args[p].loc == reg;
                             }
 
                             if (will_overwrite) continue;
@@ -694,18 +698,18 @@ namespace gjs {
                             script_type* tp = params[p].type();
                             if (params[p].is_imm()) {
                                 if (tp->is_floating_point) {
-                                    if (!is_fpr(i.callee->type->signature->args[p].loc) && i.callee->is_method_of && i.callee->is_method_of->requires_subtype) {
+                                    if (!is_fpr(sig->args[p].loc) && sig->method_of && sig->method_of->requires_subtype) {
                                         // fp value must be passed through GP register
                                         if (tp->size == sizeof(f64)) m_instructions += encode(vmi::daddi).operand(vmr::f15).operand(vmr::zero).operand(params[p].imm_d());
                                         else m_instructions += encode(vmi::faddi).operand(vmr::f15).operand(vmr::zero).operand(params[p].imm_f());
                                         m_map.append(i.src);
-                                        m_instructions += encode(vmi::mffp).operand(vmr::f15).operand(i.callee->type->signature->args[p].loc);
+                                        m_instructions += encode(vmi::mffp).operand(vmr::f15).operand(sig->args[p].loc);
                                     } else {
-                                        if (tp->size == sizeof(f64)) m_instructions += encode(vmi::daddi).operand(i.callee->type->signature->args[p].loc).operand(vmr::zero).operand(params[p].imm_d());
-                                        else m_instructions += encode(vmi::faddi).operand(i.callee->type->signature->args[p].loc).operand(vmr::zero).operand(params[p].imm_f());
+                                        if (tp->size == sizeof(f64)) m_instructions += encode(vmi::daddi).operand(sig->args[p].loc).operand(vmr::zero).operand(params[p].imm_d());
+                                        else m_instructions += encode(vmi::faddi).operand(sig->args[p].loc).operand(vmr::zero).operand(params[p].imm_f());
                                     }
                                 } else {
-                                    m_instructions += encode(vmi::addui).operand(i.callee->type->signature->args[p].loc).operand(vmr::zero).operand(params[p].imm_u());
+                                    m_instructions += encode(vmi::addui).operand(sig->args[p].loc).operand(vmr::zero).operand(params[p].imm_u());
                                 }
                                 m_map.append(i.src);
                             } else if (params[p].is_spilled()) {
@@ -717,7 +721,7 @@ namespace gjs {
                                     case 8: { ld = vmi::ld64; break; }
                                     default: { break; }
                                 }
-                                m_instructions += encode(ld).operand(i.callee->type->signature->args[p].loc).operand(vmr::sp).operand((u64)params[p].stack_off());
+                                m_instructions += encode(ld).operand(sig->args[p].loc).operand(vmr::sp).operand((u64)params[p].stack_off());
                                 m_map.append(i.src);
                             } else {
                                 vmr reg;
@@ -736,7 +740,7 @@ namespace gjs {
                                             default: { break; }
                                         }
 
-                                        m_instructions += encode(ld).operand(i.callee->type->signature->args[p].loc).operand(vmr::sp).operand((u64)info.addr);
+                                        m_instructions += encode(ld).operand(sig->args[p].loc).operand(vmr::sp).operand((u64)info.addr);
                                         m_map.append(i.src);
                                         continue;
                                     }
@@ -744,15 +748,15 @@ namespace gjs {
                                 else reg = tp->is_floating_point ? vmr(u32(vmr::f0) + params[p].reg_id()) : vmr(u32(vmr::s0) + params[p].reg_id());
 
                                 if (tp->is_floating_point) {
-                                    if (!is_fpr(i.callee->type->signature->args[p].loc) && i.callee->is_method_of && i.callee->is_method_of->requires_subtype) {
+                                    if (!is_fpr(sig->args[p].loc) && sig->method_of && sig->method_of->requires_subtype) {
                                         // fp value must be passed through GP register
-                                        m_instructions += encode(vmi::mffp).operand(reg).operand(i.callee->type->signature->args[p].loc);
+                                        m_instructions += encode(vmi::mffp).operand(reg).operand(sig->args[p].loc);
                                     } else {
-                                        if (tp->size == sizeof(f64)) m_instructions += encode(vmi::dadd).operand(i.callee->type->signature->args[p].loc).operand(vmr::zero).operand(reg);
-                                        else m_instructions += encode(vmi::fadd).operand(i.callee->type->signature->args[p].loc).operand(vmr::zero).operand(reg);
+                                        if (tp->size == sizeof(f64)) m_instructions += encode(vmi::dadd).operand(sig->args[p].loc).operand(vmr::zero).operand(reg);
+                                        else m_instructions += encode(vmi::fadd).operand(sig->args[p].loc).operand(vmr::zero).operand(reg);
                                     }
                                 } else {
-                                    m_instructions += encode(vmi::addu).operand(i.callee->type->signature->args[p].loc).operand(vmr::zero).operand(reg);
+                                    m_instructions += encode(vmi::addu).operand(sig->args[p].loc).operand(vmr::zero).operand(reg);
                                 }
                                 m_map.append(i.src);
                             }
@@ -761,55 +765,59 @@ namespace gjs {
 
                     params.clear();
 
-                    u64 ra = 0;
-                    if (!i.callee->is_host) {
-                        // backup $ra
-                        ra = in.funcs[fidx].stack.alloc(sizeof(u64));
-                        m_instructions += encode(vmi::st64).operand(vmr::ra).operand(vmr::sp).operand(ra);
-                        m_map.append(i.src);
-
-                        // offset $sp
-                        m_instructions += encode(vmi::addui).operand(vmr::sp).operand(vmr::sp).operand(in.funcs[fidx].stack.size());
-                        m_map.append(i.src);
-                    }
-
-                    // do the call
-                    jmap[m_instructions.size()] = i.callee;
-                    m_instructions += encode(vmi::jal).operand((u64)i.callee->id());
+                    // backup $ra
+                    u64 ra = in.funcs[fidx].stack.alloc(sizeof(u64));
+                    m_instructions += encode(vmi::st64).operand(vmr::ra).operand(vmr::sp).operand(ra);
                     m_map.append(i.src);
 
-                    if (!i.callee->is_host) {
-                        // restore $sp
-                        m_instructions += encode(vmi::subui).operand(vmr::sp).operand(vmr::sp).operand(in.funcs[fidx].stack.size());
+                    // offset $sp
+                    m_instructions += encode(vmi::addui).operand(vmr::sp).operand(vmr::sp).operand(in.funcs[fidx].stack.size());
+                    m_map.append(i.src);
+
+                    // do the call
+                    if (i.callee) {
+                        jmap[m_instructions.size()] = i.callee;
+                        m_instructions += encode(vmi::jal).operand((u64)i.callee->id());
+                        m_map.append(i.src);
+                    } else {
+                        // jalr
+                        m_instructions += encode(vmi::jalr).operand(r1);
                         m_map.append(i.src);
                     }
 
+                    // restore $sp
+                    m_instructions += encode(vmi::subui).operand(vmr::sp).operand(vmr::sp).operand(in.funcs[fidx].stack.size());
+                    m_map.append(i.src);
+
                     // store return value if necessary
-                    if (t1) {
-                        if (i.callee->type->signature->returns_pointer) {
-                            m_instructions += encode(vmi::addu).operand(r1).operand(i.callee->type->signature->return_loc).operand(vmr::zero);
+                    
+                    if (sig->return_type->size > 0) {
+                        vmr ret_reg = i.callee ? r1 : r2;
+                        const var& ret_var = i.callee ? o1 : o2;
+                        if (sig->returns_pointer) {
+                            m_instructions += encode(vmi::addu).operand(ret_reg).operand(sig->return_loc).operand(vmr::zero);
                             m_map.append(i.src);
-                        } else if (i.callee->type->signature->returns_on_stack) {
+                        } else if (sig->returns_on_stack) {
                             // return value should have been stored in the implicit
                             // return value pointer passed to the callee
                         } else {
-                            if (t1->is_floating_point) {
-                                if (!is_fpr(i.callee->type->signature->return_loc) && i.callee->is_method_of && i.callee->is_method_of->requires_subtype) {
+                            if (sig->return_type->is_floating_point) {
+                                if (!is_fpr(sig->return_loc) && sig->method_of && sig->method_of->requires_subtype) {
                                     // fp value returned through gp register
-                                    m_instructions += encode(vmi::mtfp).operand(i.callee->type->signature->return_loc).operand(r1);
+                                    m_instructions += encode(vmi::mtfp).operand(sig->return_loc).operand(ret_reg);
                                 } else {
-                                    if (t1->size == sizeof(f64)) m_instructions += encode(vmi::dadd).operand(r1).operand(vmr::zero).operand(i.callee->type->signature->return_loc);
-                                    else m_instructions += encode(vmi::fadd).operand(r1).operand(vmr::zero).operand(i.callee->type->signature->return_loc);
+                                    if (sig->return_type->size == sizeof(f64)) m_instructions += encode(vmi::dadd).operand(ret_reg).operand(vmr::zero).operand(sig->return_loc);
+                                    else m_instructions += encode(vmi::fadd).operand(ret_reg).operand(vmr::zero).operand(sig->return_loc);
                                 }
                             } else {
-                                m_instructions += encode(vmi::addu).operand(r1).operand(i.callee->type->signature->return_loc).operand(vmr::zero);
+                                m_instructions += encode(vmi::addu).operand(ret_reg).operand(sig->return_loc).operand(vmr::zero);
                             }
                             m_map.append(i.src);
                         }
 
-                        if (o1.is_spilled()) {
-                            u8 sz = t1->size;
-                            if (!t1->is_primitive) sz = sizeof(void*);
+                        if (ret_var.is_spilled()) {
+                            u8 sz = sig->return_type->size;
+                            if (!sig->return_type->is_primitive) sz = sizeof(void*);
                             vmi st = vmi::st8;
                             switch (sz) {
                                 case 2: { st = vmi::st16; break; }
@@ -817,17 +825,15 @@ namespace gjs {
                                 case 8: { st = vmi::st64; break; }
                                 default: { break; }
                             }
-                            m_instructions += encode(st).operand(r1).operand(vmr::sp).operand((u64)o1.stack_off());
+                            m_instructions += encode(st).operand(ret_reg).operand(vmr::sp).operand((u64)ret_var.stack_off());
                             m_map.append(i.src);
                         }
                     }
 
-                    if (!i.callee->is_host) {
-                        // restore $ra
-                        in.funcs[fidx].stack.free(ra);
-                        m_instructions += encode(vmi::ld64).operand(vmr::ra).operand(vmr::sp).operand(ra);
-                        m_map.append(i.src);
-                    }
+                    // restore $ra
+                    in.funcs[fidx].stack.free(ra);
+                    m_instructions += encode(vmi::ld64).operand(vmr::ra).operand(vmr::sp).operand(ra);
+                    m_map.append(i.src);
                     
                     // restore backed up registers
                     for (u16 b = 0;b < backup.size();b++) {

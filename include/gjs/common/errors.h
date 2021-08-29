@@ -104,6 +104,8 @@ namespace gjs {
             c_prop_has_no_default_ctor,
             c_compile_finished_with_errors,
             c_invalid_binary_operator,
+            c_object_not_callable,
+            c_call_signature_mismatch,
             __compile_error_end,
 
             __runtime_error_start,
@@ -132,6 +134,7 @@ namespace gjs {
             vm_stack_overflow,
             vm_invalid_module_id,
             vm_invalid_function_id,
+            vm_invalid_callback,
             vm_invalid_instruction,
             vm_no_subtype_provided_for_call,
             vm_cannot_pass_struct_by_value,

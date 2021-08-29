@@ -1,12 +1,14 @@
 import { vec2f, vec3f, vec4f, random } from 'math';
 
+void ()(i32, i8, f32) tv = test_tttt;
+tv(1, 97, 3.14f);
+test_cb(tv);
+
 void tttt(i32 a, i8 b, f32 c) {
 	print(a.toFixed(2));
 	print(b.toFixed(2));
 	print(c.toFixed(2));
 }
-
-test_cb(tttt);
 
 pointer<f32> a;
 a.reset(1.234f);

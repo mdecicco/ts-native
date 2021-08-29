@@ -6,6 +6,7 @@
 #include <gjs/common/script_function.h>
 #include <gjs/common/script_type.h>
 #include <gjs/common/script_module.h>
+#include <gjs/common/function_pointer.h>
 #include <gjs/builtin/script_buffer.h>
 #include <gjs/backends/b_vm.h>
 
@@ -638,8 +639,19 @@ namespace gjs {
                     break;
                 }
                 case vmi::jalr: {
-                    GRx(vmr::ra, u64) = (*ip) + 1;
-                    *ip = GRx(_O1, u64) - 1;
+                    raw_callback** cb = GRx(_O1, raw_callback**);
+                    if (!cb || !*cb) throw error::vm_exception(error::ecode::vm_invalid_callback);
+                    function_pointer* fp = (*cb)->ptr;
+                    if (!fp->target) throw error::vm_exception(error::ecode::vm_invalid_callback);
+
+                    if (fp->target->is_host) {
+                        call_external(fp->target);
+                    }
+                    else {
+                        GRx(vmr::ra, u64) = (*ip) + 1;
+                        *ip = fp->target->access.entry - 1;
+                    }
+
                     break;
                 }
                 default: {
@@ -680,7 +692,7 @@ namespace gjs {
                 }
             }
 
-            if (tp->is_primitive) {
+            if (tp->is_primitive && !tp->signature) {
                 // *reg is some primitive value (integer, decimal, ...)
                 if (is_ptr) {
                     args.push_back(reg);

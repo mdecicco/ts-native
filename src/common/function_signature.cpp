@@ -7,6 +7,7 @@
 
 namespace gjs {
     function_signature::function_signature(script_context* ctx, script_type* tp, bind::wrapped_function* wrapped, bool is_ctor) {
+        method_of = tp;
         return_type = nullptr;
         return_loc = vm_register::v0;
         returns_pointer = false;
@@ -40,7 +41,8 @@ namespace gjs {
         }
     }
 
-    function_signature::function_signature(script_context* ctx, script_type* ret, bool ret_ptr, script_type** argtps, u8 argc, script_type* method_of, bool is_ctor, bool is_static_method) {
+    function_signature::function_signature(script_context* ctx, script_type* ret, bool ret_ptr, script_type** argtps, u8 argc, script_type* _method_of, bool is_ctor, bool is_static_method) {
+        method_of = _method_of;
         return_type = ret;
         return_loc = ret->size == 0 ? vm_register::register_count : vm_register::v0;
         returns_pointer = ret_ptr;

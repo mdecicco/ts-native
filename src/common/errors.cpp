@@ -104,6 +104,8 @@ namespace gjs {
             "Property '%s' is of type '%s', which has no default constructor and must be included in the initializer list of each constructor of type '%s'",
             "Compilation finished with errors",
             "Invalid binary operator",
+            "Object of type '%s' is not callable",
+            "Call does not match expected signature '%s'",
             "", // end compile errors
 
             "", // start runtime errors
@@ -132,6 +134,7 @@ namespace gjs {
             "Stack overflow detected",
             "Invalid module ID",
             "Invalid function ID",
+            "Invalid callback",
             "Invalid instruction",
             "Function '%s' is a method of a sub-type class but no valid type ID was provided. This is not a user error",
             "Function '%s' accepts type '%s' as a pass-by-value parameter. This is unsupported, please change it to a pointer or reference type to make it work",

@@ -53,7 +53,7 @@ namespace gjs {
                 t->signature = new function_signature(sig);
                 t->size = sizeof(void*);
                 t->is_pod = true;
-                t->is_primitive = false;
+                t->is_primitive = true;
                 t->is_host = true;
                 t->is_floating_point = false;
                 t->is_trivially_copyable = true;
@@ -80,7 +80,7 @@ namespace gjs {
             t->signature = new function_signature(sig);
             t->size = sizeof(void*);
             t->is_pod = true;
-            t->is_primitive = false;
+            t->is_primitive = true;
             t->is_host = true;
             t->is_floating_point = false;
             t->is_trivially_copyable = true;

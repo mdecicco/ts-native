@@ -255,13 +255,17 @@ namespace gjs {
                         var ptr = ctx.empty_var(ctx.type("u64"));
                         while (field) {
                             auto info = tp->prop(*field->identifier);
-                            ctx.add(operation::uadd).operand(ptr).operand(obj).operand(ctx.imm(info->offset));
-                            var val = expression_inner(ctx, field);
-                            if (info->type->is_primitive) {
-                                var vc = val.convert(info->type, true);
-                                ctx.add(operation::store).operand(ptr).operand(vc);
+                            if (info) {
+                                ctx.add(operation::uadd).operand(ptr).operand(obj).operand(ctx.imm(info->offset));
+                                var val = expression_inner(ctx, field);
+                                if (info->type->is_primitive) {
+                                    var vc = val.convert(info->type, true);
+                                    ctx.add(operation::store).operand(ptr).operand(vc);
+                                }
+                                else construct_in_place(ctx, ctx.force_cast_var(ptr, info->type), { val });
+                            } else {
+                                ctx.log()->err(ec::c_no_such_property, field->ref, tp->name.c_str(), std::string(*field->identifier).c_str());
                             }
-                            else construct_in_place(ctx, ctx.force_cast_var(ptr, info->type), { val });
 
                             field = field->next;
                         }
@@ -297,13 +301,17 @@ namespace gjs {
                         var ptr = ctx.empty_var(ctx.type("u64"));
                         while (field) {
                             auto info = tp->prop(*field->identifier);
-                            ctx.add(operation::uadd).operand(ptr).operand(obj).operand(ctx.imm(info->offset));
-                            var val = expression_inner(ctx, field->initializer);
-                            if (info->type->is_primitive) {
-                                var vc = val.convert(info->type, true);
-                                ctx.add(operation::store).operand(ptr).operand(vc);
+                            if (info) {
+                                ctx.add(operation::uadd).operand(ptr).operand(obj).operand(ctx.imm(info->offset));
+                                var val = expression_inner(ctx, field->initializer);
+                                if (info->type->is_primitive) {
+                                    var vc = val.convert(info->type, true);
+                                    ctx.add(operation::store).operand(ptr).operand(vc);
+                                }
+                                else construct_in_place(ctx, ctx.force_cast_var(ptr, info->type), { val });
+                            } else {
+                                ctx.log()->err(ec::c_no_such_property, field->ref, tp->name.c_str(), std::string(*field->identifier).c_str());
                             }
-                            else construct_in_place(ctx, ctx.force_cast_var(ptr, info->type), { val });
 
                             field = field->next;
                         }

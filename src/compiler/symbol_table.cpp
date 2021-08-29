@@ -262,6 +262,16 @@ namespace gjs {
             }
             return nullptr;
         }
+        var* symbol_table::get_var(const std::string& name) {
+            symbol_list* l = get(name);
+            if (!l) return nullptr;
+
+            for (auto& t : l->symbols) {
+                if (t.m_var) return t.m_var;
+            }
+
+            return nullptr;
+        }
 
         script_function* symbol_table::get_func(const std::string& name, script_type* ret, const std::vector<script_type*>& args, bool log_errors, bool* was_ambiguous) {
             symbol_list* symbols = get(name);

@@ -151,8 +151,12 @@ namespace gjs {
                 false,   // meta_while_loop
                 false    // meta_do_while_loop
             };
+            
+            function_signature* sig = nullptr;
+            if (i.callee) sig = i.callee->type->signature;
+            else if (i.callee_v.type() && i.callee_v.type()->signature) sig = i.callee_v.type()->signature;
 
-            return s_is_assignment[u32(i.op)] && !(i.op == operation::call && i.callee->type->signature->returns_on_stack);
+            return s_is_assignment[u32(i.op)] && !(i.op == operation::call && sig->returns_on_stack);
         }
 
         tac_instruction::tac_instruction() : op(operation::null), op_idx(0), callee(nullptr) {
@@ -164,6 +168,7 @@ namespace gjs {
             operands[1] = rhs.operands[1];
             operands[2] = rhs.operands[2];
             callee = rhs.callee;
+            callee_v = rhs.callee_v;
             src = rhs.src;
             op_idx = rhs.op_idx;
         }
@@ -179,20 +184,33 @@ namespace gjs {
             operands[op_idx++] = v;
             return *this;
         }
-        
+
         tac_instruction& tac_instruction::func(script_function* f) {
             callee = f;
             return *this;
         }
 
+        tac_instruction& tac_instruction::func(var f) {
+            callee_v = f;
+            return *this;
+        }
+
         std::string tac_instruction::to_string() const {
             std::string out = op_str[(u8)op];
-            if (callee && op == operation::call) {
-                if (callee->type->signature->return_type->size > 0) {
-                    if (callee->type->signature->returns_on_stack) return out + " " + callee->name + " -> @ret";
-                    return out + " " + callee->name + " -> " + operands[0].to_string();
+            if (op == operation::call) {
+                if (callee) {
+                    if (callee->type->signature->return_type->size > 0) {
+                        if (callee->type->signature->returns_on_stack) return out + " " + callee->name + " -> @ret";
+                        return out + " " + callee->name + " -> " + operands[0].to_string();
+                    }
+                    else return out + " " + callee->name;
                 }
-                else return out + " " + callee->name;
+
+                function_signature* sig = callee_v.type()->signature;
+                if (sig->return_type->size > 0) {
+                    if (sig->returns_on_stack) return out + " " + callee_v.to_string() + " -> @ret";
+                    return out + " " + callee_v.to_string() + " -> " + operands[1].to_string();
+                } else return out + " " + callee_v.to_string();
             }
             for (u8 i = 0;i < op_idx;i++) out += " " + operands[i].to_string();
             return out;
@@ -212,6 +230,12 @@ namespace gjs {
         }
 
         tac_wrapper& tac_wrapper::func(script_function* f) {
+            tac_instruction& i = is_global ? ctx->global_code[addr] : ctx->out.code[addr];
+            i.func(f);
+            return *this;
+        }
+
+        tac_wrapper& tac_wrapper::func(var f) {
             tac_instruction& i = is_global ? ctx->global_code[addr] : ctx->out.code[addr];
             i.func(f);
             return *this;

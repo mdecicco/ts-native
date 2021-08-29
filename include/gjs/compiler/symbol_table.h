@@ -89,6 +89,7 @@ namespace gjs {
                 symbol_table* get_module(const std::string& name);
                 symbol_table* get_type(const std::string& name);
                 symbol_table* get_enum(const std::string& name);
+                var* get_var(const std::string& name);
                 script_function* get_func(const std::string& name, script_type* ret, const std::vector<script_type*>& args, bool log_errors = true, bool* was_ambiguous = nullptr);
                 script_function* get_func_strict(const std::string& name, script_type* ret, const std::vector<script_type*>& args, bool log_errors = true);
 

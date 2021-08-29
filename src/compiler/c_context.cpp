@@ -212,96 +212,112 @@ namespace gjs {
             return t ? t->type : nullptr;
         }
 
-        script_type* context::type(parse::ast* ntype) {
-            // todo: imported subtype classes
-            if (ntype->type == parse::ast::node_type::type_identifier) {
-                std::string name = *ntype;
+        script_type* context::type(parse::ast* n) {
+            auto get = [this](parse::ast* ntype) -> script_type* {
+                if (ntype->type == parse::ast::node_type::type_identifier) {
+                    std::string name = *ntype;
 
-                if (name == "subtype") {
-                    if (subtype_replacement) return subtype_replacement;
-                    else {
-                        log()->err(ec::c_invalid_subtype_use, ntype->ref);
-                        return env->global()->types()->get("error_type");
-                    }
-                }
-
-                if (ntype->rvalue) {
-                    // todo: change ntype to member accessor for [module].[type]
-                    symbol_table* mod = symbols.get_module(name);
-                    if (mod) {
-                        symbol_table* type = mod->get_type(*ntype->rvalue);
-                        if (type) return type->type;
-                    }
-
-                    return nullptr;
-                }
-
-                for (u16 i = 0;i < subtype_types.size();i++) {
-                    if (std::string(*subtype_types[i]->identifier) == name) {
-                        if (!ntype->data_type) {
-                            log()->err(ec::c_instantiation_requires_subtype, ntype->ref, name.c_str());
+                    if (name == "subtype") {
+                        if (subtype_replacement) return subtype_replacement;
+                        else {
+                            log()->err(ec::c_invalid_subtype_use, ntype->ref);
                             return env->global()->types()->get("error_type");
                         }
-
-                        script_type* st = type(ntype->data_type);
-
-                        std::string full_name = name + "<" + st->name + ">";
-                        script_type* t = new_types->get(full_name);
-                        if (t) return t;
-
-                        subtype_replacement = st;
-                        script_type* new_tp = class_declaration(*this, subtype_types[i]);
-                        subtype_replacement = nullptr;
-
-                        return new_tp;
                     }
-                }
 
-                script_type* t = type(name);
-                if (!t) return env->global()->types()->get("error_type");
-
-                if (ntype->data_type) {
-                    if (!t->requires_subtype) {
-                        // t is not a subtype class (error)
-                        log()->err(ec::c_unexpected_instantiation_subtype, ntype->data_type->ref, name.c_str());
-                        return env->global()->types()->get("error_type");
-                    } else {
-                        script_type* st = type(ntype->data_type);
-                        std::string ctn = t->name + "<" + st->name + ">";
-                        script_type* ct = type(ctn, false);
-                        if (!ct) ct = new_types->get(ctn);
-                        if (!ct) {
-                            ct = new_types->add(ctn, ctn);
-
-                            // just copy the details
-                            ct->destructor = t->destructor;
-                            ct->methods = t->methods;
-                            ct->properties = t->properties;
-                            ct->base_type = t;
-                            ct->sub_type = st;
-                            ct->is_host = true;
-                            ct->is_builtin = t->is_builtin;
-                            ct->size = t->size;
-                            ct->owner = t->owner;
-                            out.types.push_back(ct);
+                    if (ntype->rvalue) {
+                        // todo: change ntype to member accessor for [module].[type]
+                        symbol_table* mod = symbols.get_module(name);
+                        if (mod) {
+                            symbol_table* type = mod->get_type(*ntype->rvalue);
+                            if (type) return type->type;
                         }
 
-                        return ct;
+                        return nullptr;
                     }
-                } else if (t->requires_subtype) {
-                    log()->err(ec::c_instantiation_requires_subtype, ntype->ref, name.c_str());
-                    return env->global()->types()->get("error_type");
+
+                    for (u16 i = 0;i < subtype_types.size();i++) {
+                        if (std::string(*subtype_types[i]->identifier) == name) {
+                            if (!ntype->data_type) {
+                                log()->err(ec::c_instantiation_requires_subtype, ntype->ref, name.c_str());
+                                return env->global()->types()->get("error_type");
+                            }
+
+                            script_type* st = type(ntype->data_type);
+
+                            std::string full_name = name + "<" + st->name + ">";
+                            script_type* t = new_types->get(full_name);
+                            if (t) return t;
+
+                            subtype_replacement = st;
+                            script_type* new_tp = class_declaration(*this, subtype_types[i]);
+                            subtype_replacement = nullptr;
+
+                            return new_tp;
+                        }
+                    }
+
+                    script_type* t = type(name);
+                    if (!t) return env->global()->types()->get("error_type");
+
+                    if (ntype->data_type) {
+                        if (!t->requires_subtype) {
+                            // t is not a subtype class (error)
+                            log()->err(ec::c_unexpected_instantiation_subtype, ntype->data_type->ref, name.c_str());
+                            return env->global()->types()->get("error_type");
+                        } else {
+                            script_type* st = type(ntype->data_type);
+                            std::string ctn = t->name + "<" + st->name + ">";
+                            script_type* ct = type(ctn, false);
+                            if (!ct) ct = new_types->get(ctn);
+                            if (!ct) {
+                                ct = new_types->add(ctn, ctn);
+
+                                // just copy the details
+                                ct->destructor = t->destructor;
+                                ct->methods = t->methods;
+                                ct->properties = t->properties;
+                                ct->base_type = t;
+                                ct->sub_type = st;
+                                ct->is_host = true;
+                                ct->is_builtin = t->is_builtin;
+                                ct->size = t->size;
+                                ct->owner = t->owner;
+                                out.types.push_back(ct);
+                            }
+
+                            return ct;
+                        }
+                    } else if (t->requires_subtype) {
+                        log()->err(ec::c_instantiation_requires_subtype, ntype->ref, name.c_str());
+                        return env->global()->types()->get("error_type");
+                    }
+
+                    return t;
+                } else if (ntype->type == parse::ast::node_type::identifier) {
+                    return type(*ntype);
+                } else {
+                    // todo:
+                    // [module].[type]
                 }
 
-                return t;
-            } else if (ntype->type == parse::ast::node_type::identifier) {
-                return type(*ntype);
-            } else {
-                // todo:
-                // [module].[type]
+                return nullptr;
+            };
+
+            script_type* tp = get(n);
+            if (!tp) return nullptr;
+
+            if (n->arguments) {
+                std::vector<script_type*> args;
+                parse::ast* a = n->arguments->body;
+                while (a) {
+                    args.push_back(get(a));
+                    a = a->next;
+                }
+                tp = env->types()->get(function_signature(env, tp, !tp->is_primitive, args.data(), (u8)args.size(), nullptr));
             }
 
-            return nullptr;
+            return tp;
         }
 
         script_type* context::class_tp() {

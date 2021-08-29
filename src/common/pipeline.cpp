@@ -89,9 +89,9 @@ namespace gjs {
 
         try {
             std::vector<lex::token> tokens;
-            lex::tokenize(code, module_name, tokens, m_log.files[module_path] = log_file());
+            lex::tokenize(code, module_path, tokens, m_log.files[module_path] = log_file());
 
-            tree = parse::parse(m_ctx, module_name, tokens);
+            tree = parse::parse(m_ctx, module_path, tokens);
             for (u8 i = 0;i < m_ast_steps.size();i++) {
                 m_ast_steps[i](m_ctx, tree);
             }

@@ -51,11 +51,11 @@ namespace gjs {
 
                 u64 size() const;
                 bool has_prop(const std::string& name) const;
-                var prop(const std::string& name) const;
-                var prop_ptr(const std::string& name) const;
+                var prop(const std::string& name, bool log_errors = true) const;
+                var prop_ptr(const std::string& name, bool log_errors = true) const;
                 bool has_any_method(const std::string& name) const;
                 bool has_unambiguous_method(const std::string& name, script_type* ret, const std::vector<script_type*>& args) const;
-                script_function* method(const std::string& name, script_type* ret, const std::vector<script_type*>& args) const;
+                script_function* method(const std::string& name, script_type* ret, const std::vector<script_type*>& args, bool log_errors = true) const;
                 bool convertible_to(script_type* tp) const;
                 var convert(script_type* tp, bool store_imms_in_reg = false) const;
                 void set_mem_ptr(const var& v);

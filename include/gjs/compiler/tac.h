@@ -123,11 +123,13 @@ namespace gjs {
                 
                 tac_instruction& operand(const var& v);
                 tac_instruction& func(script_function* f);
+                tac_instruction& func(var f);
                 std::string to_string() const;
 
                 operation op;
                 var operands[3];
                 script_function* callee;
+                var callee_v;
                 source_ref src;
 
             protected:
@@ -142,6 +144,7 @@ namespace gjs {
 
                 tac_wrapper& operand(const var& v);
                 tac_wrapper& func(script_function* f);
+                tac_wrapper& func(var f);
                 std::string to_string() const;
 
                 operator bool();

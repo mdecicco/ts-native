@@ -251,6 +251,7 @@ namespace gjs {
 
         struct call_info {
             script_function* callee;
+            var callee_v;
             std::vector<var> args;
             std::vector<script_type*> arg_types;
             var this_obj;
@@ -263,10 +264,15 @@ namespace gjs {
 
             // possibilities:
             // [module].[function]
+            // [module].[function pointer]
             // [module].[type].[static function]
+            // [module].[type].[static function pointer]
             // [type].[static function]
+            // [type].[static function pointer]
             // [expression | var].[function]
+            // [expression | var].[function pointer]
             // [function]
+            // [function pointer]
 
             if (is_member_accessor(callee)) {
                 ast* left = callee->lvalue;
@@ -285,25 +291,37 @@ namespace gjs {
                         if (mod) {
                             symbol_table* type = mod->get_type(*lright);
                             if (type) {
+                                // [module].[type].[static function pointer]
+                                var* cv = type->get_var(func_name);
+                                if (cv) out.callee_v = *cv;
+
                                 // [module].[type].[static function]
-                                out.callee = type->get_func(type->type->name + "::" + func_name, nullptr, out.arg_types);
-                                return out.callee != nullptr;
+                                out.callee = type->get_func(type->type->name + "::" + func_name, nullptr, out.arg_types, cv == nullptr);
+                                return out.callee != nullptr || cv != nullptr;
                             }
                         }
                     }
                 } else if (is_identifier(left)) {
-                    // [type].[static function]
                     symbol_table* type = ctx.symbols.get_type(*left);
                     if (type) {
-                        out.callee = type->get_func(type->type->name + "::" + func_name, nullptr, out.arg_types);
-                        return out.callee != nullptr;
+                        // [type].[static function pointer]
+                        var* cv = type->get_var(func_name);
+                        if (cv) out.callee_v = *cv;
+
+                        // [type].[static function]
+                        out.callee = type->get_func(type->type->name + "::" + func_name, nullptr, out.arg_types, cv == nullptr);
+                        return out.callee != nullptr || cv != nullptr;
                     }
 
-                    // [module].[function]
                     symbol_table* mod = ctx.symbols.get_module(*left);
                     if (mod) {
-                        out.callee = mod->get_func(func_name, nullptr, out.arg_types);
-                        return out.callee != nullptr;
+                        // [module].[function pointer]
+                        var* cv = mod->get_var(func_name);
+                        if (cv) out.callee_v = *cv;
+
+                        // [module].[function]
+                        out.callee = mod->get_func(func_name, nullptr, out.arg_types, cv == nullptr);
+                        return out.callee != nullptr || cv != nullptr;
                     }
                 } else if (left->type == nt::type_identifier) {
                     script_type* type = ctx.type(left);
@@ -317,11 +335,15 @@ namespace gjs {
                 // [expression | var].[method]
                 var expr = expression(ctx, left);
                 if (expr.type()->name != "error_type") {
+                    // [expression | var].[function pointer]
+                    out.callee_v = expr.prop(func_name, false);
+                    bool found = out.callee_v.type() != ctx.type("error_type");
+
                     if (!expr.has_unambiguous_method(func_name, nullptr, out.arg_types)) {
                         auto arg_types = out.arg_types;
                         arg_types.insert(arg_types.begin(), expr.type());
                         if (expr.has_unambiguous_method(func_name, nullptr, arg_types)) {
-                            out.callee = expr.method(func_name, nullptr, arg_types);
+                            out.callee = expr.method(func_name, nullptr, arg_types, !found);
                             if (out.callee && out.callee->is_static) {
                                 out.arg_types.insert(out.arg_types.begin(), expr.type());
                                 out.args.insert(out.args.begin(), expr);
@@ -331,13 +353,25 @@ namespace gjs {
                         }
                     }
 
-                    out.callee = expr.method(func_name, nullptr, out.arg_types);
+                    out.callee = expr.method(func_name, nullptr, out.arg_types, !found);
                     out.this_obj = expr;
-                    return out.callee != nullptr;
+                    return out.callee != nullptr || found;
                 }
             } else if (is_identifier(callee)) {
                 // [function]
-                out.callee = ctx.symbols.get_func(*callee, nullptr, out.arg_types);
+                out.callee = ctx.symbols.get_func(*callee, nullptr, out.arg_types, false);
+
+                if (!out.callee) {
+                    // [function pointer]
+                    out.callee_v = ctx.get_var(*callee);
+                    bool found = out.callee_v.type() != ctx.type("error_type");
+                    if (!found) {
+                        out.callee = ctx.symbols.get_func(*callee, nullptr, out.arg_types, true);
+                        return out.callee != nullptr;
+                    }
+                    return true;
+                }
+
                 return out.callee != nullptr;
             }
 
@@ -345,7 +379,7 @@ namespace gjs {
         }
 
         var function_call(context& ctx, ast* n) {
-            call_info cinfo = { nullptr, {}, {}, ctx.error_var() };
+            call_info cinfo = { nullptr, ctx.error_var(), {}, {}, ctx.error_var() };
 
             ast* a = n->arguments;
             while (a) {
@@ -357,7 +391,8 @@ namespace gjs {
 
             if (resolve_function(ctx, n, cinfo)) {
                 var* self = cinfo.this_obj.type()->name == "error_type" ? nullptr : &cinfo.this_obj;
-                return call(ctx, cinfo.callee, cinfo.args, self);
+                if (cinfo.callee) return call(ctx, cinfo.callee, cinfo.args, self);
+                else return call(ctx, cinfo.callee_v, cinfo.args, self);
             }
 
             ctx.push_node(n->callee);
@@ -416,7 +451,7 @@ namespace gjs {
                 ctx.add(operation::call).func(func);
                 return ctx.empty_var(rtp);
             }
-            
+
             // pointer return
             if (func->type->signature->returns_pointer) {
                 var result = ctx.empty_var(ctx.type("data"));
@@ -446,6 +481,117 @@ namespace gjs {
             // basic return
             var ret = ctx.empty_var(rtp);
             ctx.add(operation::call).operand(ret).func(func);
+            return ret;
+        }
+
+        var call(context& ctx, var func, const std::vector<var>& args, const var* self) {
+            function_signature* sig = func.type()->signature;
+            if (sig) {
+                // validate call signature
+                
+                // match argument types
+                if (sig->explicit_argc != args.size()) {
+                    ctx.log()->err(ec::c_call_signature_mismatch, ctx.node()->ref, sig->to_string().c_str());
+                    return ctx.error_var();
+                }
+
+                // prefer strict type matches
+                bool match = true;
+                for (u8 i = 0;i < args.size();i++) {
+                    if (sig->explicit_arg(i).tp->id() != args[i].type()->id()) {
+                        match = false;
+                        break;
+                    }
+                }
+
+                if (!match) {
+                    // check if the arguments are at least convertible
+                    match = true;
+                    for (u8 i = 0;i < args.size();i++) {
+                        if (!has_valid_conversion(ctx, args[i].type(), sig->explicit_arg(i).tp)) {
+                            match = false;
+                            break;
+                        }
+                    }
+
+                    if (!match) {
+                        ctx.log()->err(ec::c_call_signature_mismatch, ctx.node()->ref, sig->to_string().c_str());
+                        return ctx.error_var();
+                    }
+                }
+            } else {
+                ctx.log()->err(ec::c_object_not_callable, ctx.node()->ref, func.type()->name.c_str());
+                return ctx.error_var();
+            }
+
+            // get return value
+            script_type* rtp = sig->return_type;
+            if (rtp->name == "subtype") rtp = self->type()->sub_type;
+            var stack_ret = ctx.empty_var(rtp);
+
+            // pass args
+            for (u8 i = 0;i < sig->args.size();i++) {
+                if (sig->args[i].implicit == function_signature::argument::implicit_type::this_ptr) {
+                    ctx.add(operation::param).operand(*self).func(func);
+                    continue;
+                }
+                if (sig->args[i].implicit == function_signature::argument::implicit_type::moduletype_id) {
+                    u64 moduletype = join_u32(self->type()->sub_type->owner->id(), self->type()->sub_type->id());
+                    ctx.add(operation::param).operand(ctx.imm(moduletype)).func(func);
+                    continue;
+                }
+                if (sig->args[i].implicit == function_signature::argument::implicit_type::ret_addr) {
+                    stack_ret.raise_stack_flag();
+                    ctx.add(operation::stack_alloc).operand(stack_ret).operand(ctx.imm((u64)rtp->size));
+                    ctx.add(operation::param).operand(stack_ret).func(func);
+                    continue;
+                }
+
+                if (sig->args[i].tp->name == "subtype") {
+                    var p = args[i - sig->implicit_argc].convert(self->type()->sub_type);
+                    ctx.add(operation::param).operand(p).func(func);
+                } else {
+                    var p = args[i - sig->implicit_argc].convert(sig->args[i].tp);
+                    ctx.add(operation::param).operand(p).func(func);
+                }
+            }
+
+            // void return
+            if (rtp->size == 0) {
+                // no return
+                ctx.add(operation::call).operand(func).func(func);
+                return ctx.empty_var(rtp);
+            }
+
+            // pointer return
+            if (sig->returns_pointer) {
+                var result = ctx.empty_var(ctx.type("data"));
+                ctx.add(operation::call).operand(func).operand(result).func(func);
+
+                if (rtp->is_primitive) {
+                    // load value from pointer
+                    var ret = ctx.empty_var(rtp);
+                    ret.set_mem_ptr(result);
+                    ctx.add(operation::load).operand(ret).operand(result);
+                    return ret;
+                }
+                else {
+                    // just return the pointer
+                    return result;
+                }
+            }
+
+            // stack return
+            if (sig->returns_on_stack) {
+                // callee will construct return value in $stack_ret (or copy it to $stack_ret),
+                // which is passed as an argument
+                ctx.add(operation::call).operand(func).func(func);
+                return stack_ret;
+            }
+
+            // basic return
+            var ret = ctx.empty_var(rtp);
+            ctx.add(operation::call).operand(func).operand(ret).func(func);
             return ret;
         }
     };

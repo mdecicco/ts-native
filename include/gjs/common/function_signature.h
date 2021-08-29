@@ -40,6 +40,7 @@ namespace gjs {
             std::string to_string() const;
             std::string to_string(const std::string& funcName, script_type* method_of = nullptr, script_module* mod = nullptr) const;
 
+            script_type* method_of;
             script_type* return_type;
             vm_register return_loc;
             bool is_thiscall;

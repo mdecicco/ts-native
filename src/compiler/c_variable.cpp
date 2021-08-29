@@ -198,7 +198,7 @@ namespace gjs {
             return false;
         }
 
-        var var::prop(const std::string& prop) const {
+        var var::prop(const std::string& prop, bool log_errors) const {
             for (u16 i = 0;i < m_type->properties.size();i++) {
                 auto& p = m_type->properties[i];
                 if (p.name == prop) {
@@ -284,11 +284,11 @@ namespace gjs {
                 }
             }
 
-            m_ctx->log()->err(ec::c_no_such_property, m_ctx->node()->ref, m_type->name.c_str(), prop.c_str());
+            if (log_errors) m_ctx->log()->err(ec::c_no_such_property, m_ctx->node()->ref, m_type->name.c_str(), prop.c_str());
             return m_ctx->error_var();
         }
 
-        var var::prop_ptr(const std::string& prop) const {
+        var var::prop_ptr(const std::string& prop, bool log_errors) const {
             for (u16 i = 0;i < m_type->properties.size();i++) {
                 auto& p = m_type->properties[i];
                 if (p.name == prop) {
@@ -312,8 +312,8 @@ namespace gjs {
                 }
             }
             
-            m_ctx->log()->err(ec::c_no_such_property, m_ctx->node()->ref, m_type->name.c_str(), prop.c_str());
-            return var();
+            if (log_errors) m_ctx->log()->err(ec::c_no_such_property, m_ctx->node()->ref, m_type->name.c_str(), prop.c_str());
+            return m_ctx->error_var();
         }
 
         bool var::has_any_method(const std::string& _name) const {
@@ -425,7 +425,7 @@ namespace gjs {
             return false;
         }
 
-        script_function* var::method(const std::string& _name, script_type* ret, const std::vector<script_type*>& args) const {
+        script_function* var::method(const std::string& _name, script_type* ret, const std::vector<script_type*>& args, bool log_errors) const {
             std::vector<script_function*> matches;
 
             for (u16 m = 0;m < m_type->methods.size();m++) {
@@ -503,7 +503,7 @@ namespace gjs {
             }
 
             if (matches.size() > 1) {
-                m_ctx->log()->err(ec::c_ambiguous_method, m_ctx->node()->ref, _name.c_str(), m_type->name.c_str(), arg_tp_str(args).c_str(), !ret ? "<any>" : ret->name.c_str());
+                if (log_errors) m_ctx->log()->err(ec::c_ambiguous_method, m_ctx->node()->ref, _name.c_str(), m_type->name.c_str(), arg_tp_str(args).c_str(), !ret ? "<any>" : ret->name.c_str());
                 return nullptr;
             }
 
@@ -511,7 +511,7 @@ namespace gjs {
                 return matches[0];
             }
 
-            m_ctx->log()->err(ec::c_no_such_method, m_ctx->node()->ref, m_type->name.c_str(), _name.c_str(), arg_tp_str(args).c_str(), !ret ? "<any>" : ret->name.c_str());
+            if (log_errors) m_ctx->log()->err(ec::c_no_such_method, m_ctx->node()->ref, m_type->name.c_str(), _name.c_str(), arg_tp_str(args).c_str(), !ret ? "<any>" : ret->name.c_str());
             return nullptr;
         }
 
@@ -563,6 +563,13 @@ namespace gjs {
                     return ret;
                 }
                 
+                m_ctx->log()->err(ec::c_no_valid_conversion, m_ctx->node()->ref, from->name.c_str(), to->name.c_str());
+                return m_ctx->error_var();
+            }
+
+            if (to->signature) {
+                // the from->id() == to->id() check above handles the only valid case
+                // for function signature types
                 m_ctx->log()->err(ec::c_no_valid_conversion, m_ctx->node()->ref, from->name.c_str(), to->name.c_str());
                 return m_ctx->error_var();
             }

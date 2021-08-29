@@ -68,6 +68,7 @@ int main(int arg_count, const char** args) {
     //raw_callback* rcb = raw_callback::make(&fptr);
     //func(*((callback<t>*)&rcb));
 
+    script_function* test_tttt = ctx.bind(tttt, "test_tttt");
     script_function* test_cb = ctx.bind(func, "test_cb");
 
 
@@ -91,6 +92,7 @@ int main(int arg_count, const char** args) {
     // be.log_instructions(true);
 
     mod->init();
+
     struct f0 { i32 a, b, c; };
     struct f1 { f0 a, b, c; };
 
@@ -112,6 +114,5 @@ int main(int arg_count, const char** args) {
     struct {
         f32 x, y, z, w;
     } v4 = mod->function("v4")->call(nullptr);
-
     return 0;
 }
