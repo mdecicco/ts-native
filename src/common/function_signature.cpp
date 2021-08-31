@@ -18,6 +18,7 @@ namespace gjs {
         return_type = wrapped->return_type;
 
         if (return_type->size == 0) return_loc = vm_register::register_count;
+        else if (return_type->is_floating_point) return_loc = vm_register::f15;
 
         returns_on_stack = !wrapped->ret_is_ptr && !return_type->is_primitive && return_type->size != 0;
         returns_pointer = wrapped->ret_is_ptr;
@@ -51,6 +52,7 @@ namespace gjs {
         implicit_argc = 0;
         is_thiscall = method_of && !is_static_method;
         bool is_subtype_obj_ctor = method_of && method_of->requires_subtype && is_ctor;
+        if (ret->is_floating_point) return_loc = vm_register::f15;
 
         u16 gp_arg = (u16)vm_register::a0;
         u16 fp_arg = (u16)vm_register::f0;

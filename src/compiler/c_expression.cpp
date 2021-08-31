@@ -426,6 +426,9 @@ namespace gjs {
                     ctx.pop_node();
                     return result;
                 }
+                case nt::lambda_expression: {
+                    return lambda_expression(ctx, n);
+                }
                 default: {
                 }
             }

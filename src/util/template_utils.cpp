@@ -4,14 +4,16 @@
 #include <gjs/common/types.h>
 
 namespace gjs {
-    raw_callback* raw_callback::make(function_pointer* fptr) {
-        return new raw_callback({
-            false,
+    void* raw_callback::make(function_pointer* fptr) {
+        raw_callback* p = new raw_callback({
+            true,
             false,
             false,
             { nullptr, nullptr },
             fptr
         });
+
+        return new void*(p);
     }
 
     void* raw_callback::make(u32 fid, void* data, u64 dataSz) {
@@ -22,9 +24,7 @@ namespace gjs {
             { nullptr, nullptr },
             new function_pointer(fid, dataSz)
         });
-        void** out = new void*;
-        *out = p;
 
-        return out;
+        return new void*(p);
     }
 };

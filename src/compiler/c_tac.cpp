@@ -224,25 +224,25 @@ namespace gjs {
         }
 
         tac_wrapper& tac_wrapper::operand(const var& v) {
-            tac_instruction& i = is_global ? ctx->global_code[addr] : ctx->out.code[addr];
+            tac_instruction& i = is_global ? ctx->global_code[addr] : ctx->cur_func_block->code[addr];
             i.operand(v);
             return *this;
         }
 
         tac_wrapper& tac_wrapper::func(script_function* f) {
-            tac_instruction& i = is_global ? ctx->global_code[addr] : ctx->out.code[addr];
+            tac_instruction& i = is_global ? ctx->global_code[addr] : ctx->cur_func_block->code[addr];
             i.func(f);
             return *this;
         }
 
         tac_wrapper& tac_wrapper::func(var f) {
-            tac_instruction& i = is_global ? ctx->global_code[addr] : ctx->out.code[addr];
+            tac_instruction& i = is_global ? ctx->global_code[addr] : ctx->cur_func_block->code[addr];
             i.func(f);
             return *this;
         }
 
         std::string tac_wrapper::to_string() const {
-            tac_instruction& i = is_global ? ctx->global_code[addr] : ctx->out.code[addr];
+            tac_instruction& i = is_global ? ctx->global_code[addr] : ctx->cur_func_block->code[addr];
             return i.to_string();
         }
 

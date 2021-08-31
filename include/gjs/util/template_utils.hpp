@@ -17,6 +17,14 @@ namespace gjs {
     template <typename Cls, typename Ret, typename... Args>
     script_type* thiscall_signature(script_context* ctx);
 
+    template <typename Ret, typename... Args>
+    script_type* signature(script_context* ctx, Ret (*f)(Args...));
+
+    template <typename L, typename Ret, typename ...Args>
+    script_type* signature(script_context* ctx, Ret (L::*f)(Args...));
+
+    template <typename L, typename Ret, typename ...Args>
+    script_type* signature(script_context* ctx, Ret (L::*f)(Args...));
 
     template<class T> struct remove_all { typedef T type; };
     template<class T> struct remove_all<T*> : remove_all<T> {};
@@ -85,8 +93,18 @@ namespace gjs {
         TransientFunctionBase hostFn;
         function_pointer* ptr;
 
-        static raw_callback* make(function_pointer* fptr);
+        static void* make(function_pointer* fptr);
         static void* make(u32 fid, void* data, u64 dataSz);
+
+        template <typename Ret, typename ...Args>
+        static void* make(Ret(*f)(Args...));
+
+        template <typename L, typename Ret, typename ...Args>
+        static void* make(Ret (L::*f)(Args...) const);
+
+        template <typename L>
+        static std::enable_if_t<!std::is_function_v<std::remove_pointer_t<L>>, void*>
+        make(L&& l);
     };
 
     template <typename T>
@@ -100,10 +118,13 @@ namespace gjs {
 
         callback(callback<Ret(*)(Args...)>& rhs);
 
-        callback(Fn f);
+        template <typename F>
+        callback(std::enable_if_t<std::is_invocable_r_v<Ret, F, Args...>, F>&& f);
 
-        template <typename Obj, std::enable_if_t<std::is_invocable_r_v<Ret, Obj, Args...>>>
-        callback(Obj o);
+        using TargetFunctionRef = Ret(Args...);
+        callback(TargetFunctionRef f);
+
+        callback(Fn f);
 
         callback(function_pointer* fptr);
 
@@ -116,6 +137,25 @@ namespace gjs {
     
     template <typename, typename = void> struct is_callback : std::false_type {};
     template <typename T> struct is_callback<T, std::void_t<decltype(T::data)>> : std::is_convertible<decltype(T::data), raw_callback*> {};
+    template <typename T> constexpr bool is_callback_v = is_callback<T>::value;
+    
+    template <typename T>
+    class is_callable_object {
+            typedef char one;
+            typedef long two;
+
+            template <typename C> static one test( decltype(&C::operator()) ) ;
+            template <typename C> static two test(...);
+        public:
+            enum { value = sizeof(test<T>(0)) == sizeof(char) };
+    };
+
+    template <typename T>
+    constexpr bool is_callable_object_v = is_callable_object<T>::value;
+
+    template <typename L>
+    std::enable_if_t<is_callable_object_v<std::remove_reference_t<L>>, script_type*>
+    signature(script_context* ctx, L&& l);
 
     template <typename T>
     inline const char* base_type_name();

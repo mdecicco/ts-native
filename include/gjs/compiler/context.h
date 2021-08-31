@@ -23,6 +23,8 @@ namespace gjs {
                 u32 start = 0;
                 u32 end = 0;
                 parse::ast* input_ref = nullptr;
+                bool is_lambda = false;
+                compilation_output::ir_code code;
             };
 
             struct deferred_node {
@@ -124,6 +126,9 @@ namespace gjs {
             // nested
             void push_block(script_function* f = nullptr);
 
+            // push a new scope block onto the block stack for a lambda function
+            script_function* push_lambda_block(script_type* sigTp);
+
             // pop the most recent scope block from the stack and destructs any stack
             // variables declared within it
             void pop_block();
@@ -142,6 +147,8 @@ namespace gjs {
             // shortcut to the log interface of the compilation pipeline
             compile_log* log();
 
+            // current function block (not necessarily current block)
+            block_context* cur_func_block;
 
             // target script context
             script_context* env;
@@ -170,6 +177,9 @@ namespace gjs {
             // next virtual register ID to use when a variable
             // is instantiated
             u32 next_reg_id;
+
+            // next lambda function id
+            u32 next_lambda_id;
 
             // 'stack' of AST nodes that is kept updated with
             // the compiler's current 'position' in the AST

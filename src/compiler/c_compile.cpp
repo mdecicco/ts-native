@@ -100,7 +100,7 @@ namespace gjs {
             ctx.pop_node();
             ctx.push_node(n->identifier);
             std::string vname = n->type == nt::class_property ? ctx.class_tp()->name + "::" + std::string(*n->identifier) : *n->identifier;
-            var v = ctx.empty_var(tp, vname);
+            var& v = ctx.empty_var(tp, vname);
             ctx.pop_node();
 
             u64 off = u64(-1);
@@ -415,13 +415,14 @@ namespace gjs {
                 case nt::return_statement: { return_statement(ctx, n); break; }
                 case nt::delete_statement: { delete_statement(ctx, n); break; }
                 case nt::scoped_block: { block(ctx, n); break; }
-                case nt::object:
-                case nt::call:
-                case nt::expression:
-                case nt::conditional:
-                case nt::constant:
-                case nt::identifier:
-                case nt::format_expression:
+                case nt::object: [[fallthrough]];
+                case nt::call: [[fallthrough]];
+                case nt::expression: [[fallthrough]];
+                case nt::conditional: [[fallthrough]];
+                case nt::constant: [[fallthrough]];
+                case nt::identifier: [[fallthrough]];
+                case nt::format_expression: [[fallthrough]];
+                case nt::lambda_expression: [[fallthrough]];
                 case nt::operation: { expression(ctx, n); break; }
                 default: {
                     throw exc(ec::c_invalid_node, n->ref);

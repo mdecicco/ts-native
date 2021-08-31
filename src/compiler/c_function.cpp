@@ -224,7 +224,7 @@ namespace gjs {
 
             block(ctx, n->body, false);
 
-            if (ctx.out.code.size() == 0 || ctx.out.code.back().op != operation::ret) {
+            if (ctx.cur_func_block->code.size() == 0 || ctx.cur_func_block->code.back().op != operation::ret) {
                 if (is_dtor) {
                     add_implicit_destructor_code(ctx, n, f->is_method_of);
                 }
@@ -239,6 +239,68 @@ namespace gjs {
             ctx.pop_node();
 
             return f;
+        }
+
+        var lambda_expression(context& ctx, parse::ast* n) {
+            ctx.push_node(n);
+            script_type* ret = nullptr;
+            std::vector<script_type*> arg_types;
+            std::vector<std::string> arg_names;
+
+            ctx.push_node(n->data_type);
+            ret = ctx.type(n->data_type);
+            ctx.pop_node();
+
+            ast* a = n->arguments->body;
+            while (a) {
+                ctx.push_node(a->data_type);
+                arg_types.push_back(ctx.type(a->data_type));
+                ctx.pop_node();
+
+                ctx.push_node(a->identifier);
+                arg_names.push_back(*a->identifier);
+                ctx.pop_node();
+
+                a = a->next;
+            }
+
+            function_signature sig(ctx.env, ret, !ret->is_primitive, arg_types.data(), arg_types.size(), nullptr);
+            script_type* sigTp = ctx.env->types()->get(sig);
+            script_function* fn = ctx.push_lambda_block(sigTp);
+
+            u8 base_idx = 0;
+            // todo:
+            // lambda context...
+
+            for (u8 i = 0;i < arg_types.size();i++) {
+                var& arg = ctx.empty_var(arg_types[i], arg_names[i]);
+                arg.set_arg_idx(base_idx + i);
+            }
+
+            block(ctx, n->body, false);
+
+            if (ctx.cur_func_block->code.size() == 0 || ctx.cur_func_block->code.back().op != operation::ret) {
+                if (fn->type->signature->return_type->size == 0) {
+                    ctx.add(operation::ret);
+                }
+                else ctx.log()->err(ec::c_missing_return_value, n->ref, fn->name.c_str());
+            }
+            ctx.pop_block();
+
+            var out = ctx.empty_var(sigTp);
+            auto dt = ctx.type("data");
+            var dataPtr = ctx.empty_var(dt);
+            ctx.add(operation::eq).operand(dataPtr).operand(ctx.imm((u64)0));
+            var ptr = call(
+                ctx,
+                ctx.function("$makefunc", dt, { ctx.type("u32"), dt, ctx.type("u64") }),
+                { ctx.imm((u64)fn->id()), dataPtr, ctx.imm((u64)0) }, // function id, context data size
+                nullptr
+            );
+            ctx.add(operation::eq).operand(out).operand(ptr);
+
+            ctx.pop_node();
+            return out;
         }
 
         inline bool is_member_accessor(ast* n) {

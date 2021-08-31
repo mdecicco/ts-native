@@ -60,6 +60,7 @@ namespace gjs {
             t.specify_operator("=");
             t.specify_operator("==");
             t.specify_operator("[]");
+            t.specify_operator("=>");
 
             while (!t.at_end(false)) {
                 tokenizer::token tok;
@@ -75,11 +76,19 @@ namespace gjs {
 
                 tok = t.operat0r(false);
                 if (tok) {
-                    out.push_back({
-                        tok.text,
-                        token_type::operation,
-                        source_ref(module, t.lines[tok.line], tok.line, tok.col)
-                    });
+                    if (tok.text == "=>") {
+                        out.push_back({
+                            tok.text,
+                            token_type::right_arrow,
+                            source_ref(module, t.lines[tok.line], tok.line, tok.col)
+                        });
+                    } else {
+                        out.push_back({
+                            tok.text,
+                            token_type::operation,
+                            source_ref(module, t.lines[tok.line], tok.line, tok.col)
+                        });
+                    }
                     continue;
                 }
                 

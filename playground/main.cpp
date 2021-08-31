@@ -35,13 +35,9 @@ void remove_unused_regs_pass (script_context* ctx, compilation_output& in) {
     if (csz > in.code.size()) remove_unused_regs_pass(ctx, in);
 }
 
-void tttt(i32 a, i8 b, f32 c) {
-    printf("%d, '%c', %f\n", a, b, c);
-}
-
-typedef void (*t)(i32, i8, f32);
-void func (callback<t> arg) {
-    arg(1, 'a', 1.0f);
+i32 testCb (callback<i32(*)(i32, i32)> cb) {
+    i32 x = cb(1, 2);
+    return x;
 }
 
 int main(int arg_count, const char** args) {
@@ -49,34 +45,13 @@ int main(int arg_count, const char** args) {
     vm_backend be(&alloc, 8 * 1024 * 1024, 8 * 1024 * 1024);
     script_context ctx(&be);
 
-    int a = 69;
-    char b = 61;
-    float c = 3.14f;
-
-    auto test = [&](int a1, char b1, float c1) {
-        a = a1;
-        b = b1;
-        c = c1;
-    };
-    //script_function* ttt = ctx.bind(tttt, "ttt");
-    //function_pointer fptr(ttt);
-    //func(&fptr);
-
-    //u64 sz0 = sizeof(callback<t>);
-    //u64 sz1 = sizeof(raw_callback);
-
-    //raw_callback* rcb = raw_callback::make(&fptr);
-    //func(*((callback<t>*)&rcb));
-
-    script_function* test_tttt = ctx.bind(tttt, "test_tttt");
-    script_function* test_cb = ctx.bind(func, "test_cb");
-
+    ctx.bind(testCb, "testCb");
 
     be.commit_bindings();
     //be.log_ir(true);
     ctx.io()->set_cwd_from_args(arg_count, args);
     //ctx.compiler()->add_ir_step(remove_unused_regs_pass);
-    //ctx.compiler()->add_ir_step(debug_ir_step);
+    ctx.compiler()->add_ir_step(debug_ir_step);
 
     script_module* mod = ctx.resolve("test");
     if (!mod) {
@@ -84,35 +59,9 @@ int main(int arg_count, const char** args) {
         return -1;
     }
     print_code(&be);
-
-    function_pointer tptr(mod->function("tttt"));
-    auto cb = callback<t>(&tptr);
-    cb(1, 'a', 3.0f);
-
-    // be.log_instructions(true);
+    //be.log_instructions(true);
 
     mod->init();
 
-    struct f0 { i32 a, b, c; };
-    struct f1 { f0 a, b, c; };
-
-    mod->local("y")["a"]["a"] = 55;
-
-    f1 t = mod->function("func")->call(nullptr);
-
-    script_object obj = ctx.instantiate(mod->type("t"), 5);
-    obj.call("print");
-
-    struct {
-        f32 x, y;
-    } vec = mod->function("vec")->call(nullptr);
-
-    struct {
-        f32 x, y;
-    } vec1 = mod->function("vec1")->call(nullptr);
-
-    struct {
-        f32 x, y, z, w;
-    } v4 = mod->function("v4")->call(nullptr);
     return 0;
 }

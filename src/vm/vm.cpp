@@ -645,7 +645,7 @@ namespace gjs {
                     if (!fp->target) throw error::vm_exception(error::ecode::vm_invalid_callback);
 
                     if (fp->target->is_host) {
-                        call_external(fp->target);
+                        call_external(cb);
                     }
                     else {
                         GRx(vmr::ra, u64) = (*ip) + 1;
@@ -710,6 +710,91 @@ namespace gjs {
         }
 
 
+
+        void* ret_addr = nullptr;
+        if (f->type->signature->return_type->size > 0) {
+            if (f->type->signature->returns_on_stack) {
+                // implicit return pointer argument register contains a pointer to a memory location within the stack
+                ret_addr = (void*)m_ctx->state()->registers[stackReturnRegId];
+            } else {
+                // return_loc register will directly contain the return value
+                ret_addr = &(m_ctx->state()->registers[(u8)f->type->signature->return_loc]);
+
+                // make sure there are no left over bits or bytes from the previous value (if it's smaller than 64 bits, there would be)
+                (*(u64*)ret_addr) = 0;
+            }
+        }
+
+        f->access.wrapped->call(m_ctx->context()->call_vm(), ret_addr, args.data());
+    }
+
+    void vm::call_external(raw_callback** cb) {
+        script_function* f = (*cb)->ptr->target;
+        u8 stackReturnRegId = 0;
+
+        std::vector<void*> args;
+        bool hadThis = false;
+        for (u8 a = 0;a < f->type->signature->args.size();a++) {
+            u8 regId = (u8)f->type->signature->args[a].loc;
+            script_type* tp = f->type->signature->args[a].tp;
+            bool is_ptr = f->type->signature->args[a].is_ptr;
+
+            if (f->type->signature->args[a].implicit == function_signature::argument::implicit_type::this_ptr) {
+                args.push_back((*cb)->ptr->self_obj());
+                hadThis = true;
+                continue;
+            }
+
+            if (hadThis && vm_register(regId) >= vmr::a0 && vm_register(regId) <= vmr::a7) {
+                // script code can't account for the 'this' argument of host callbacks, so
+                // it passes arguments as if there is no 'this' argument passed through $a0.
+                // Once the 'this' argument of the callback has been passed, all GP register
+                // arguments after that must be decreased by one in order to map the actual
+                // argument locations to the VM argument locations. For example, if the vm
+                // calls a host callback with the signature void (int, int):
+                // 
+                // VM is calling signature void (int arg0: $a0, int arg1: $a1)
+                // Actual signature is void (TransientFunction<void(int, int)>*: $a0, int arg0: $a1, int arg1: $a2)
+                //
+                // So regId here refers to the argument location of the actual signature,
+                // but needs to refer to the VM provided argument location
+                // This logic doesn't affect FP arguments because the 'this' argument is
+                // always mapped to a GP register.
+                regId--;
+            }
+            u64* reg = &(m_ctx->state()->registers[regId]);
+
+            if (f->type->signature->args[a].implicit == function_signature::argument::implicit_type::ret_addr) {
+                // arg refers to output pointer which is passed to 'call' function and not to the target function directly
+                stackReturnRegId = regId;
+                continue;
+            }
+
+            if (tp->name == "subtype") {
+                // get subtype from $v3
+                u64 v3 = m_ctx->state()->registers[(u8)vmr::v3];
+                tp = m_ctx->context()->module(extract_left_u32(v3))->types()->get(extract_right_u32(v3));
+                if (!tp) {
+                    throw error::vm_exception(error::ecode::vm_no_subtype_provided_for_call, f->name.c_str());
+                }
+            }
+
+            if (tp->is_primitive && !tp->signature) {
+                // *reg is some primitive value (integer, decimal, ...)
+                if (is_ptr) {
+                    args.push_back(reg);
+                } else {
+                    args.push_back(reinterpret_cast<void*>(*reg));
+                }
+            } else {
+                // *reg is a pointer to some structure
+                if (is_ptr) {
+                    args.push_back(reinterpret_cast<void*>(*reg));
+                } else {
+                    throw error::vm_exception(error::ecode::vm_cannot_pass_struct_by_value, f->name.c_str(), tp->name.c_str());
+                }
+            }
+        }
 
         void* ret_addr = nullptr;
         if (f->type->signature->return_type->size > 0) {

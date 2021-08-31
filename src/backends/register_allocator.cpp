@@ -36,8 +36,8 @@ namespace gjs {
         reassign_registers(m_gpLf, m_gpc, fd.begin, fd.end, fidx);
         reassign_registers(m_fpLf, m_fpc, fd.begin, fd.end, fidx);
 
-        // printf("post-alloc[%s]:\n", fd.func->name.c_str());
-        // for (u64 i = fd.begin;i <= fd.end;i++) printf("%3.3d: %s\n", i, m_in.code[i].to_string().c_str());
+        printf("post-alloc[%s]:\n", fd.func->name.c_str());
+        for (u64 i = fd.begin;i <= fd.end;i++) printf("%3.3d: %s\n", i, m_in.code[i].to_string().c_str());
 
         calc_reg_lifetimes(fidx, fd.begin, fd.end);
     }
@@ -68,21 +68,23 @@ namespace gjs {
             }
 
             bool do_calc = is_assignment(m_in.code[i]);
-            do_calc = do_calc && m_in.code[i].operands[0].valid();
-            do_calc = do_calc && !m_in.code[i].operands[0].is_spilled();
-            do_calc = do_calc && !m_in.code[i].operands[0].is_arg();
+            u8 assignedOpIdx = 0;
+            if (m_in.code[i].op == operation::call && !m_in.code[i].callee) assignedOpIdx = 1;
+            do_calc = do_calc && m_in.code[i].operands[assignedOpIdx].valid();
+            do_calc = do_calc && !m_in.code[i].operands[assignedOpIdx].is_spilled();
+            do_calc = do_calc && !m_in.code[i].operands[assignedOpIdx].is_arg();
 
             if (do_calc) {
                 // Determine if this assignment is within an established
                 // live range for the same virtual register id
-                if (!m_in.code[i].operands[0].type()->is_floating_point) {
+                if (!m_in.code[i].operands[assignedOpIdx].type()->is_floating_point) {
                     for (u32 r = 0;r < m_gpLf.size() && do_calc;r++) {
-                        if (m_gpLf[r].reg_id != m_in.code[i].operands[0].m_reg_id) continue;
+                        if (m_gpLf[r].reg_id != m_in.code[i].operands[assignedOpIdx].m_reg_id) continue;
                         if (i < m_gpLf[r].end) do_calc = false;
                     }
                 } else {
                     for (u32 r = 0;r < m_fpLf.size() && do_calc;r++) {
-                        if (m_fpLf[r].reg_id != m_in.code[i].operands[0].m_reg_id) continue;
+                        if (m_fpLf[r].reg_id != m_in.code[i].operands[assignedOpIdx].m_reg_id) continue;
                         if (i < m_fpLf[r].end) do_calc = false;
                     }
                 }
@@ -90,7 +92,7 @@ namespace gjs {
 
             if (!do_calc) continue;
 
-            reg_lifetime l = { m_in.code[i].operands[0].m_reg_id, u32(-1), u32(-1), i, i, m_in.code[i].operands[0].type()->is_floating_point };
+            reg_lifetime l = { m_in.code[i].operands[assignedOpIdx].m_reg_id, u32(-1), u32(-1), i, i, m_in.code[i].operands[assignedOpIdx].type()->is_floating_point };
             for (u64 i1 = i + 1;i1 <= to;i1++) {
                 if (fidx == 0) {
                     // ignore all code within functions other than __init__
@@ -104,10 +106,20 @@ namespace gjs {
                     if (m_in.code[i1].operands[o].m_reg_id == l.reg_id && m_in.code[i1].operands[o].type()->is_floating_point == l.is_fp) break;
                 }
 
+                if (m_in.code[i1].op == operation::call && !m_in.code[i1].callee && m_in.code[i1].callee_v.m_reg_id == l.reg_id && !l.is_fp) {
+                    l.end = i1;
+                    continue;
+                }
+
+                u8 assignedOpIdx = 0;
+                if (m_in.code[i1].op == operation::call && !m_in.code[i1].callee) assignedOpIdx = 1;
+                bool isAssignment = is_assignment(m_in.code[i1]);
+
                 if (o == 3) continue;
-                if (o > 0 || !is_assignment(m_in.code[i1])) l.end = i1;
-                else if (o == 0 && is_assignment(m_in.code[i1])) break;
+                if ((o > 0 && !(o == assignedOpIdx && isAssignment)) || !isAssignment) l.end = i1;
+                else if (o == assignedOpIdx && isAssignment) break;
             }
+
             for (u64 i1 = i + 1;i1 <= to;i1++) {
                 if (fidx == 0) {
                     // ignore all code within functions other than __init__
@@ -205,12 +217,21 @@ namespace gjs {
                         changes.push_back({ c, o, i });
                     }
                 }
+                
+                if (m_in.code[c].op == operation::call && !m_in.code[c].callee && m_in.code[c].callee_v.m_reg_id == regs[i].reg_id && !regs[i].is_fp) {
+                    changes.push_back({ c, u8(-1), i });
+                    continue;
+                }
             }
         }
 
         for (u32 i = 0;i < changes.size();i++) {
             if (regs[changes[i].reg].stack_loc == u32(-1)) {
-                m_in.code[changes[i].addr].operands[changes[i].operand].m_reg_id = regs[changes[i].reg].new_id;
+                if (changes[i].operand == u8(-1)) {
+                    m_in.code[changes[i].addr].callee_v.m_reg_id = regs[changes[i].reg].new_id;
+                } else {
+                    m_in.code[changes[i].addr].operands[changes[i].operand].m_reg_id = regs[changes[i].reg].new_id;
+                }
             } else {
                 m_in.code[changes[i].addr].operands[changes[i].operand].m_stack_loc = regs[changes[i].reg].stack_loc;
             }

@@ -11,19 +11,24 @@ namespace gjs {
 
     template <typename R, typename ...Args>
     template <typename T>
-    TransientFunction<R(Args...)>::TransientFunction(T&& target) {
-        m_Dispatcher = &Dispatch<typename std::decay<T>::type>;
+    TransientFunction<R(Args...)>::TransientFunction(T&& target) : TransientFunctionBase({ &Dispatch<typename std::decay<T>::type>, nullptr }) {
+        // Don't ask me why, but this line absolutely refuses to compile,
+        // But for some reason, initializing it with : TransientFunctionBase({ &Dispatch<typename std::decay<T>::type>, nullptr })
+        // is just fine.
+        // m_Dispatcher = &Dispatch<typename std::decay<T>::type>;
         m_Target = &target;
     }
 
     template <typename R, typename ...Args>
-    TransientFunction<R(Args...)>::TransientFunction(TargetFunctionRef target) {
+    TransientFunction<R(Args...)>::TransientFunction(TargetFunctionRef target) : TransientFunctionBase({ Dispatch<TargetFunctionRef>, nullptr }) {
         static_assert(
             sizeof(void*) == sizeof target, 
-            "It will not be possible to pass functions by reference on this platform. "
-            "Please use explicit function pointers i.e. foo(target) -> foo(&target)"
+            "It will not be possible to pass functions by reference on this platform. Please use explicit function pointers i.e. foo(target) -> foo(&target)"
         );
-        m_Dispatcher = Dispatch<TargetFunctionRef>
+        // Don't ask me why, but this line absolutely refuses to compile,
+        // But for some reason, initializing it with : TransientFunctionBase({ Dispatch<TargetFunctionRef>, nullptr })
+        // is just fine.
+        // m_Dispatcher = &Dispatch<TargetFunctionRef>;
         m_Target = (void*)target;
     }
 
@@ -35,7 +40,7 @@ namespace gjs {
 
     template <typename R, typename ...Args>
     R TransientFunction<R(Args...)>::operator()(Args... args) const {
-        return *((Dispatcher)m_Dispatcher)(m_Target, args...);
+        return ((Dispatcher)m_Dispatcher)(m_Target, args...);
     }
 
     template <typename R, typename... Args>
@@ -45,6 +50,69 @@ namespace gjs {
             out[i] = argTps[i];
         }
     }
+
+    
+    template <typename Ret, typename ...Args>
+    void* raw_callback::make(Ret(*f)(Args...)) {
+        using Fn = TransientFunction<Ret(Args...)>;
+        function_pointer* fptr = new function_pointer(
+            new script_function(
+                script_context::current()->types(),
+                script_context::current()->type<Ret(*)(Args...)>(),
+                bind::wrap<Ret, Fn, Args...>(
+                    script_context::current()->types(),
+                    "operator ()",
+                    &Fn::operator(),
+                    true
+                )
+            )
+        );
+        raw_callback** cb = (raw_callback**)raw_callback::make(fptr);
+        (*cb)->hostFn = {
+            Fn::Dispatch<Fn::TargetFunctionRef>,
+            (void*)f
+        };
+        (*cb)->ptr->bind_this(&(*cb)->hostFn);
+        (*cb)->owns_func = true;
+        (*cb)->owns_ptr = true;
+        return (void*)cb;
+    }
+
+    template <typename L, typename Ret, typename ...Args>
+    void* raw_callback::make(Ret (L::*f)(Args...) const) {
+        using Fn = TransientFunction<Ret(Args...)>;
+        function_pointer* fptr = new function_pointer(
+            new script_function(
+                script_context::current()->types(),
+                script_context::current()->type<Ret(*)(Args...)>(),
+                bind::wrap<Ret, Fn, Args...>(
+                    script_context::current()->types(),
+                    "operator ()",
+                    &Fn::operator(),
+                    true
+                )
+            )
+        );
+        raw_callback** cb = (raw_callback**)raw_callback::make(fptr);
+        (*cb)->hostFn = {
+            &Fn::Dispatch<typename std::decay<L>::type>,
+            nullptr
+        };
+        (*cb)->ptr->bind_this(&(*cb)->hostFn);
+        (*cb)->owns_func = true;
+        (*cb)->owns_ptr = true;
+        return (void*)cb;
+    }
+
+    template <typename L>
+    std::enable_if_t<!std::is_function_v<std::remove_pointer_t<L>>, void*>
+    raw_callback::make(L&& l) {
+        static_assert(is_callable_object<std::remove_reference_t<L>>::value, "Object type L passed to raw_callback::make is not a lambda");
+        raw_callback** cb = (raw_callback**)raw_callback::make(&std::decay_t<decltype(l)>::operator());
+        (*cb)->hostFn.m_Target = (void*)&l;
+        return (void*)cb;
+    }
+
 
     //
     // callback
@@ -58,6 +126,59 @@ namespace gjs {
     callback<Ret(*)(Args...)>::callback(callback<Ret(*)(Args...)>& rhs) {
         data = rhs.data;
         rhs.data = nullptr;
+        if (data && data->free_self) {
+            data->free_self = false;
+
+            // see comment in ~callback()
+            delete (void*)&rhs;
+        }
+    }
+
+    template <typename Ret, typename ...Args>
+    template <typename F>
+    callback<Ret(*)(Args...)>::callback(std::enable_if_t<std::is_invocable_r_v<Ret, F, Args...>, F>&& f) {
+        data = new raw_callback({
+            false,
+            true,
+            true,
+            (TransientFunctionBase)TransientFunction<Ret(Args...)>(f),
+            new function_pointer(
+                new script_function(
+                    script_context::current()->types(),
+                    script_context::current()->type<Ret(*)(Args...)>(),
+                    bind::wrap<Ret, Fn, Args...>(
+                        script_context::current()->types(),
+                        "operator ()",
+                        &Fn::operator(),
+                        true
+                    )
+                )
+            )
+        });
+        data->ptr->bind_this(&data->hostFn);
+    }
+
+    template <typename Ret, typename ...Args>
+    callback<Ret(*)(Args...)>::callback(callback<Ret(*)(Args...)>::TargetFunctionRef f) {
+        data = new raw_callback({
+            false,
+            true,
+            true,
+            TransientFunction<Ret(Args...)>(f),
+            new function_pointer(
+                new script_function(
+                    script_context::current()->types(),
+                    script_context::current()->type<Ret(*)(Args...)>(),
+                    bind::wrap<Ret, Fn, Args...>(
+                        script_context::current()->types(),
+                        "operator ()",
+                        &Fn::operator(),
+                        true
+                    )
+                )
+            )
+        });
+        data->ptr->bind_this(&data->hostFn);
     }
 
     template <typename Ret, typename ...Args>
@@ -76,33 +197,9 @@ namespace gjs {
                         "operator ()",
                         &Fn::operator(),
                         true
-                        );
+                    )
                 )
-            );
-        });
-        data->ptr->bind_this(&data->hostFn);
-    }
-
-    template <typename Ret, typename ...Args>
-    template <typename Obj, std::enable_if_t<std::is_invocable_r_v<Ret, Obj, Args...>>>
-    callback<Ret(*)(Args...)>::callback(Obj o) {
-        data = new raw_callback({
-            false,
-            true,
-            true,
-            (TransientFunctionBase)TransientFunction<Ret(Args...)>(o),
-            new function_pointer(
-                new script_function(
-                    script_context::current()->types(),
-                    script_context::current()->type<Ret(*)(Args...)>(),
-                    bind::wrap<Ret, Fn, Args...>(
-                        script_context::current()->types(),
-                        "operator ()",
-                        &Fn::operator(),
-                        true
-                        );
-                )
-            );
+            )
         });
         data->ptr->bind_this(&data->hostFn);
     }
@@ -160,7 +257,7 @@ namespace gjs {
 
         if (data->ptr->data) {
             if constexpr (std::is_same_v<Ret, void>) data->ptr->target->call(data->ptr->self_obj(), data->ptr->data->data(), args...);
-            else return data->ptr->target->call(scriptFunc->self_obj(), scriptFunc->data->data(), args...);
+            else return data->ptr->target->call(data->ptr->self_obj(), data->ptr->data->data(), args...);
         } else {
             if constexpr (std::is_same_v<Ret, void>) data->ptr->target->call(data->ptr->self_obj(), args...);
             else return data->ptr->target->call(data->ptr->self_obj(), args...);
@@ -214,8 +311,30 @@ namespace gjs {
             (std::is_reference_v<Ret> || std::is_pointer_v<Ret>),
             argTps,
             argc,
-            ctx->type<Cls>
+            ctx->type<Cls>()
         ));
+    }
+
+    template <typename Ret, typename... Args>
+    script_type* signature(script_context* ctx, Ret (*f)(Args...)) {
+        return cdecl_signature<Ret, Args...>(ctx);
+    }
+
+    template <typename L, typename Ret, typename ...Args>
+    script_type* signature(script_context* ctx, Ret (L::*f)(Args...) const) {
+        return cdecl_signature<Ret, Args...>(ctx);
+    }
+
+    template <typename L, typename Ret, typename ...Args>
+    script_type* signature(script_context* ctx, Ret (L::*f)(Args...)) {
+        return cdecl_signature<Ret, Args...>(ctx);
+    }
+
+    template <typename L>
+    std::enable_if_t<is_callable_object_v<std::remove_reference_t<L>>, script_type*>
+    signature(script_context* ctx, L&& l) {
+        static_assert(is_callable_object<std::remove_reference_t<L>>::value, "Object type L passed to raw_callback::make is not a lambda");
+        return signature(ctx, &std::decay_t<decltype(l)>::operator());
     }
 
     template <typename T>
@@ -228,6 +347,8 @@ namespace gjs {
         if constexpr (std::is_class_v<T>) {
             if constexpr (std::is_same_v<T, script_object>) {
                 return arg.self();
+            } else if constexpr (is_callable_object_v<std::remove_reference_t<T>>) {
+                return raw_callback::make(arg);
             } else {
                 // Pass non-pointer struct/class values as pointers to those values
                 // The only way that functions accepting these types could be bound
@@ -235,6 +356,8 @@ namespace gjs {
                 // basically a pointer)
                 return (void*)&arg;
             }
+        } else if constexpr (std::is_function_v<std::remove_pointer_t<T>>) {
+            return raw_callback::make(arg);
         } else {
             if constexpr (std::is_same_v<remove_all<T>::type, script_object>) {
                 if constexpr (std::is_pointer_v<T>) return arg->self();
@@ -251,6 +374,10 @@ namespace gjs {
         if constexpr (std::is_same_v<remove_all<T>::type, script_object>) {
             if constexpr (std::is_pointer_v<T>) return arg->type();
             else return arg.type();
+        } else if constexpr(std::is_function_v<std::remove_pointer_t<T>>) {
+            return signature(ctx, arg);
+        } else if constexpr(is_callable_object_v<std::remove_reference_t<T>>) {
+            return signature(ctx, arg);
         } else {
             return ctx->global()->types()->get<T>();
         }
