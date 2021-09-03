@@ -76,6 +76,15 @@ namespace gjs {
 
         for (u64 c = 0;c < code.size();c++) {
             auto& i = code[c];
+
+            for (u8 o = 0;o < 3;o++) {
+                if (i.operands[o].valid() && i.operands[o].is_arg()) {
+                    auto& arg = cf->type->signature->args[i.operands[o].arg_idx()];
+                    bool isFP = arg.tp->is_floating_point;
+                    arg_lifetime_ends[arg.loc] = c;
+                }
+            }
+
             if (compile::is_assignment(i)) {
                 u8 assignedOpIdx = 0;
                 vmr r[3];
@@ -152,14 +161,6 @@ namespace gjs {
 
                 if (!vm_reg_is_volatile(r[assignedOpIdx]) && r[assignedOpIdx] != cf->type->signature->return_loc) {
                     assigned_non_volatile.insert(r[assignedOpIdx]);
-                }
-            }
-
-            for (u8 o = 0;o < 3;o++) {
-                if (i.operands[o].valid() && i.operands[o].is_arg()) {
-                    auto& arg = cf->type->signature->args[i.operands[o].arg_idx()];
-                    bool isFP = arg.tp->is_floating_point;
-                    arg_lifetime_ends[arg.loc] = c;
                 }
             }
         }
@@ -682,8 +683,8 @@ namespace gjs {
                             // arg is totally unused
                             continue;
                         }
-                        if (alt->getSecond() <= c) {
-                            // arg is already unused or will be unused afterward
+                        if (alt->getSecond() < c) {
+                            // arg is already unused
                             continue;
                         }
 

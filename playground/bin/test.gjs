@@ -27,3 +27,7 @@ for (u32 i = 0;i < 10;i++) {
 }
 
 for (u32 i = 0;i < arr.length;i++) arr[i].print();
+
+void set_some_value(void()(i32) set) {
+	set(69);
+}

@@ -179,7 +179,7 @@ namespace gjs {
 
         char instr_fmt[32] = { 0 };
         u8 addr_w = snprintf(instr_fmt, 32, "%llx", ctx->code()->size());
-        snprintf(instr_fmt, 32, " 0x\%%%d.%dllX: \%%-32s", addr_w, addr_w);
+        snprintf(instr_fmt, 32, " 0x\%%%d.%dllX: \%%-64s", addr_w, addr_w);
         
         std::string last_line = "";
         for (u64 i = 0;i < ctx->code()->size();i++) {

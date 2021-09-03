@@ -64,5 +64,12 @@ int main(int arg_count, const char** args) {
 
     mod->init();
 
+    i32 someVal = 0;
+    mod->function("set_some_value")->call(nullptr, [&someVal](i32 val) {
+        someVal = val;
+    });
+
+    printf("someVal was set to %d.\n", someVal);
+
     return 0;
 }
