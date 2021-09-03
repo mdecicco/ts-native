@@ -100,7 +100,7 @@ namespace gjs {
     std::string function_signature::to_string(const std::string& funcName, script_type* method_of, script_module* mod) const {
         std::string out;
         if (mod) out += mod->name() + "::";
-        if (method_of) out += method_of->name + "::";
+        //if (method_of) out += method_of->name + "::";
         out += funcName + "(";
 
         for (u8 i = 0;i < args.size();i++) {

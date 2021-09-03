@@ -293,7 +293,7 @@ namespace gjs {
                 auto& p = m_type->properties[i];
                 if (p.name == prop) {
                     if (p.flags & u8(bind::property_flags::pf_pointer)) {
-                        var ptr = m_ctx->empty_var(m_ctx->type("u64"));
+                        var ptr = m_ctx->empty_var(p.type);
                         if (p.flags & u8(bind::property_flags::pf_static)) {
                             m_ctx->add(operation::load).operand(ptr).operand(m_ctx->imm(p.offset));
                         } else {
@@ -305,7 +305,7 @@ namespace gjs {
                     if (p.flags & u8(bind::property_flags::pf_static)) {
                         return m_ctx->imm(p.offset);
                     } else {
-                        var ret = m_ctx->empty_var(m_ctx->type("u64"));
+                        var ret = m_ctx->empty_var(p.type);
                         m_ctx->add(operation::uadd).operand(ret).operand(*this).operand(m_ctx->imm(p.offset));
                         return ret;
                     }
@@ -487,15 +487,18 @@ namespace gjs {
                 if (!match) {
                     // check if the arguments are at least convertible
                     match = true;
+                    bool args_strict = true;
                     for (u8 i = 0;i < args.size();i++) {
                         script_type* at = func->type->signature->explicit_arg(i).tp;
                         if (at->name == "subtype") at = m_type->sub_type;
+                        if (at->id() != args[i]->id()) args_strict = false;
                         if (!has_valid_conversion(*m_ctx, args[i], at)) {
                             match = false;
                             break;
                         }
                     }
 
+                    if (ret_tp_strict && args_strict) return func;
                     if (!match) continue;
                 }
 

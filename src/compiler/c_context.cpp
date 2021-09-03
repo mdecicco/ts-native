@@ -20,6 +20,7 @@ namespace gjs {
         context::context(compilation_output& _out, script_context* _env) : out(_out), symbols(this), env(_env) {
             next_reg_id = 0;
             next_lambda_id = 0;
+            next_label_id = 1;
             cur_func_block = nullptr;
             input = nullptr;
             new_types = nullptr;
@@ -355,22 +356,28 @@ namespace gjs {
             if (!compiling_function) {
                 // global code
                 if (compiling_static) {
-                    compilation_output::insert(global_code, global_statics_end, tac_instruction(op, node()->ref));
-                    return tac_wrapper(this, global_statics_end++, true);
+                    compilation_output::insert(out.funcs[0].code, global_statics_end, tac_instruction(op, node()->ref));
+                    return tac_wrapper(this, global_statics_end++, 0);
                 } else {
-                    global_code.push_back(tac_instruction(op, node()->ref));
-                    return tac_wrapper(this, global_code.size() - 1, true);
+                    out.funcs[0].code.push_back(tac_instruction(op, node()->ref));
+                    return tac_wrapper(this, out.funcs[0].code.size() - 1, 0);
                 }
             }
 
-            cur_func_block->code.push_back(tac_instruction(op, node()->ref));
-            return tac_wrapper(this, cur_func_block->code.size() - 1, false);
+            out.funcs[cur_func_block->func_idx].code.push_back(tac_instruction(op, node()->ref));
+            return tac_wrapper(this, out.funcs[cur_func_block->func_idx].code.size() - 1, cur_func_block->func_idx);
+        }
+
+        label_id context::label() {
+            u32 lb = next_label_id++;
+            add(operation::label).label(lb);
+            return lb;
         }
 
         u64 context::code_sz() const {
-            if (!compiling_function) return global_code.size();
+            if (!compiling_function) return out.funcs[0].code.size();
 
-            return cur_func_block->code.size();
+            return out.funcs[cur_func_block->func_idx].code.size();
         }
 
         void context::push_node(parse::ast* node) {
@@ -388,7 +395,8 @@ namespace gjs {
             b->input_ref = node();
 
             if (f) {
-                out.funcs.push_back({ f, gjs::func_stack(), 0, 0, register_allocator(out), node()->ref });
+                b->func_idx = out.funcs.size();
+                out.funcs.push_back({ f, gjs::func_stack(), {}, register_allocator(out), node()->ref });
                 compiling_function = true;
                 cur_func_block = b;
             }
@@ -396,7 +404,7 @@ namespace gjs {
 
         script_function* context::push_lambda_block(script_type* sigTp) {
             block_stack.push_back(new block_context);
-            script_function* f = new script_function(env, format("lambda_%d", next_lambda_id++), global_code.size(), sigTp, nullptr, out.mod);
+            script_function* f = new script_function(env, format("lambda_%d", next_lambda_id++), out.funcs[0].code.size(), sigTp, nullptr, out.mod);
             f->owner = out.mod;
             f->access.entry = 0;
             new_functions.push_back(f);
@@ -405,14 +413,15 @@ namespace gjs {
             b->is_lambda = true;
             b->input_ref = node();
 
-            out.funcs.push_back({ f, gjs::func_stack(), 0, 0, register_allocator(out), node()->ref });
+            b->func_idx = out.funcs.size();
+            out.funcs.push_back({ f, gjs::func_stack(), {}, register_allocator(out), node()->ref });
             compiling_function = true;
             cur_func_block = b;
             return f;
         }
 
         void context::pop_block() {
-            bool lastIsRet = code_sz() > 0 && (compiling_function ? cur_func_block->code : global_code).back().op == operation::ret;
+            bool lastIsRet = code_sz() > 0 && (compiling_function ? out.funcs[cur_func_block->func_idx].code : out.funcs[0].code).back().op == operation::ret;
             u64 postRet = code_sz();
 
             bool func_ended = false;
@@ -454,53 +463,16 @@ namespace gjs {
             if (lastIsRet && postRet != code_sz()) {
                 // extra code was automatically added when popping the last block,
                 // return statement must be moved to be at the end
-                compilation_output::ir_code& code = compiling_function ? cur_func_block->code : global_code;
+                compilation_output::ir_code& code = compiling_function ? out.funcs[cur_func_block->func_idx].code : out.funcs[0].code;
                 auto ret = code[postRet - 1];
                 code.erase(code.begin() + (postRet - 1));
                 code.push_back(ret);
-                if (fidx != u32(-1)) out.funcs[fidx].end = code_sz() - 1;
             }
 
-            if (func_ended && fidx > 0) {
-                // Assign range
-                out.funcs[fidx].begin = out.code.size();
-                out.funcs[fidx].end = out.code.size() + (cur_func_block->code.size() - 1);
-
-                // update jump/branch addresses
-                for (u64 c = 0;c < cur_func_block->code.size();c++) {
-                    tac_instruction& i = cur_func_block->code[c];
-                    switch(i.op) {
-                        case operation::jump:   { i.operands[0].m_imm.u += out.funcs[fidx].begin; break; }
-                        case operation::branch: { i.operands[1].m_imm.u += out.funcs[fidx].begin; break; }
-                        default: { break; }
-                    }
-                }
-
-                // combine code
-                out.code.insert(out.code.end(), cur_func_block->code.begin(), cur_func_block->code.end());
-            }
-            
             delete block_stack.back();
             block_stack.pop_back();
 
             if (func_ended) compiling_function = false;
-
-            if (block_stack.size() == 0) {
-                // global function concluded, combine code and assign __init__ function's range
-                out.funcs[0].begin = out.code.size();
-                out.code.insert(out.code.end(), global_code.begin(), global_code.end());
-                out.funcs[0].end = out.code.size() - 1;
-
-                // update global code jump/branch addresses
-                for (u64 c = out.funcs[0].begin;c <= out.funcs[0].end;c++) {
-                    tac_instruction& i = out.code[c];
-                    switch(i.op) {
-                        case operation::jump:   { i.operands[0].m_imm.u += out.funcs[0].begin; break; }
-                        case operation::branch: { i.operands[1].m_imm.u += out.funcs[0].begin; break; }
-                        default: { break; }
-                    }
-                }
-            }
 
             for (auto i = block_stack.rbegin();i != block_stack.rend();i++) {
                 if ((*i)->func) {
@@ -513,15 +485,6 @@ namespace gjs {
 
         void context::pop_block(const var& preserve) {
             if (block_stack.back()) {
-                script_function* f = block_stack.back()->func;
-                if (f) {
-                    for (u16 i = 0;i < out.funcs.size();i++) {
-                        if (out.funcs[i].func == f) {
-                            out.funcs[i].end = code_sz() - 1;
-                        }
-                    }
-                }
-
                 block_context* b = block_stack.back();
 
                 if (b->stack_objs.size() > 0) {

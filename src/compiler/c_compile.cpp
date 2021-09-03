@@ -47,12 +47,14 @@ namespace gjs {
                 ret_tp = obj.type()->base_type;
             }
 
+            script_type* voidTp = ctx.type("void");
+
             if (args.size() > 0) {
                 if (args.size() == 1 && args[0].type() == obj.type()) {
                     // constructor only required if not POD
-                    if (obj.has_unambiguous_method("constructor", nullptr, arg_types)) {
+                    if (obj.has_unambiguous_method("constructor", voidTp, arg_types)) {
                         // may be pod, but use the constructor anyway
-                        script_function* f = obj.method("constructor", nullptr, arg_types);
+                        script_function* f = obj.method("constructor", voidTp, arg_types);
                         if (f) call(ctx, f, args, &obj);
                     } else if (ret_tp->is_pod || ret_tp->is_trivially_copyable) {
                         // no constructor, but is copyable
@@ -63,17 +65,17 @@ namespace gjs {
                         );
                     } else {
                         // trigger function not found error
-                        obj.method("constructor", nullptr, arg_types);
+                        obj.method("constructor", voidTp, arg_types);
                     }
                 } else {
                     // constructor required
-                    script_function* f = obj.method("constructor", nullptr, arg_types);
+                    script_function* f = obj.method("constructor", voidTp, arg_types);
                     if (f) call(ctx, f, args, &obj);
                 }
             } else {
-                if (obj.has_unambiguous_method("constructor", nullptr, arg_types)) {
+                if (obj.has_unambiguous_method("constructor", voidTp, arg_types)) {
                     // Default constructor
-                    script_function* f = obj.method("constructor", nullptr, arg_types);
+                    script_function* f = obj.method("constructor", voidTp, arg_types);
                     if (f) call(ctx, f, args, &obj);
                 } else {
                     if (obj.has_any_method("constructor")) {
@@ -485,7 +487,7 @@ namespace gjs {
             // return type will be determined by the first global return statement, or it will be void
             script_function* init = new script_function(ctx.env, "__init__", 0, nullptr, nullptr, out.mod);
             ctx.new_functions.push_back(init);
-            ctx.out.funcs.push_back({ init, gjs::func_stack(), 0, 0, register_allocator(out) });
+            ctx.out.funcs.push_back({ init, gjs::func_stack(), {}, register_allocator(out) });
             ctx.push_block();
 
             ast* n = input->body;
@@ -517,9 +519,8 @@ namespace gjs {
                 throw e;
             }
 
-            ctx.out.funcs[0].end = ctx.code_sz();
             if (!init->type) {
-                if (ctx.global_code.size() != 0) {
+                if (ctx.out.funcs[0].code.size() != 0) {
                     init->update_signature(
                          ctx.env->types()->get(function_signature(ctx.env, ctx.type("void"), false, nullptr, 0, nullptr))
                     );
@@ -530,7 +531,7 @@ namespace gjs {
                     ctx.out.funcs[0].func = nullptr;
                 }
             }
-            else if (ctx.global_code.back().op != operation::ret) {
+            else if (ctx.out.funcs[0].code.back().op != operation::ret) {
                 if (init->type->signature->return_type->size == 0) ctx.add(operation::ret);
                 else ctx.log()->err(ec::c_missing_return_value, n->ref, "__init__");
             }

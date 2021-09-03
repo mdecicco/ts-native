@@ -400,22 +400,22 @@ namespace gjs {
                     var tmp0 = expression_inner(ctx, n->lvalue);
                     var result = ctx.empty_var(tmp0.type());
                     result.operator_eq(tmp0);
-                    meta.operand(ctx.imm((u64)ctx.code_sz()));
+                    meta.label(ctx.label());
                     auto& j = ctx.add(operation::jump);
                     // truth body end
 
-                    b.operand(ctx.imm(ctx.code_sz()));
+                    b.label(ctx.label());
 
                     // false body begin
                     var tmp1 = expression_inner(ctx, n->rvalue);
                     result.operator_eq(tmp1);
-                    meta.operand(ctx.imm(ctx.code_sz()));
+                    meta.label(ctx.label());
                     ctx.add(operation::jump).operand(ctx.imm(ctx.code_sz()));
                     // false body end
 
                     // join address
-                    j.operand(ctx.imm(ctx.code_sz()));
-                    meta.operand(ctx.imm(ctx.code_sz()));
+                    j.label(ctx.label());
+                    meta.label(ctx.label());
                     
                     ctx.pop_node();
                     return result;

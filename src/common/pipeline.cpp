@@ -16,44 +16,20 @@ namespace gjs {
     compilation_output::compilation_output(u16 gpN, u16 fpN) : mod(nullptr) {
     }
 
-    void compilation_output::insert(u64 addr, const compile::tac_instruction& i) {
+    void compilation_output::func_def::insert(u64 addr, const compile::tac_instruction& i) {
         compilation_output::insert(code, addr, i);
-
-        for (u16 f = 0;f < funcs.size();f++) {
-            if (funcs[f].begin > addr) funcs[f].begin++;
-            if (funcs[f].end >= addr) funcs[f].end++;
-        }
     }
 
-    void compilation_output::erase(u64 addr) {
+    void compilation_output::func_def::erase(u64 addr) {
         compilation_output::erase(code, addr);
-
-        for (u16 f = 0;f < funcs.size();f++) {
-            if (funcs[f].begin > addr) funcs[f].begin--;
-            if (funcs[f].end >= addr) funcs[f].end--;
-        }
     }
 
     void compilation_output::insert(compilation_output::ir_code& code, u64 addr, const compile::tac_instruction& i) {
         code.insert(code.begin() + addr, i);
-        for (u32 i = 0;i < code.size();i++) {
-            if (code[i].op == compile::operation::branch) {
-                if (code[i].operands[1].imm_u() >= addr) code[i].operands[1].m_imm.u++;
-            } else if (code[i].op == compile::operation::jump) {
-                if (code[i].operands[0].imm_u() >= addr) code[i].operands[0].m_imm.u++;
-            }
-        }
     }
 
     void compilation_output::erase(compilation_output::ir_code& code, u64 addr) {
         code.erase(code.begin() + addr);
-        for (u32 i = 0;i < code.size();i++) {
-            if (code[i].op == compile::operation::branch) {
-                if (code[i].operands[1].imm_u() > addr) code[i].operands[1].m_imm.u--;
-            } else if (code[i].op == compile::operation::jump) {
-                if (code[i].operands[0].imm_u() > addr) code[i].operands[0].m_imm.u--;
-            }
-        }
     }
 
 
@@ -139,8 +115,10 @@ namespace gjs {
         }
         else {
             try {
-                for (u8 i = 0;i < m_ir_steps.size();i++) {
-                   m_ir_steps[i](m_ctx, out);
+                for (u16 f = 0;f < out.funcs.size();f++) {
+                    for (u8 i = 0;i < m_ir_steps.size();i++) {
+                       m_ir_steps[i](m_ctx, out, f);
+                    }
                 }
 
                 if (generator->perform_register_allocation()) {

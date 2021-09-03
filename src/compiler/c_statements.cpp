@@ -166,29 +166,30 @@ namespace gjs {
             ctx.pop_block();
 
             // truth body end
-            meta.operand(ctx.imm((u64)ctx.code_sz()));
+            meta.label(ctx.label());
             auto jmp = ctx.add(operation::jump);
 
             if (n->else_body) {
                 ctx.push_node(n->else_body);
-                branch.operand(ctx.imm((u64)ctx.code_sz()));
+                branch.label(ctx.label());
                 ctx.push_block();
                 any(ctx, n->else_body);
                 ctx.pop_block();
                 ctx.pop_node();
 
                 // false body end
-                meta.operand(ctx.imm((u64)ctx.code_sz()));
-                ctx.add(operation::jump).operand(ctx.imm((u64)ctx.code_sz()));
+                label_id false_end_label = ctx.label();
+                meta.label(false_end_label);
+                ctx.add(operation::jump).label(false_end_label);
             } else {
                 // no false body
-                meta.operand(ctx.imm((u64)0));
-                branch.operand(ctx.imm((u64)ctx.code_sz()));
+                meta.label(0);
+                branch.label(ctx.label());
             }
-            jmp.operand(ctx.imm((u64)ctx.code_sz()));
-
             // join address
-            meta.operand(ctx.imm((u64)ctx.code_sz()));
+            label_id join_label = ctx.label();
+            jmp.label(join_label);
+            meta.label(join_label);
             ctx.pop_node();
         }
     };

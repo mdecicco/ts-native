@@ -19,29 +19,25 @@ namespace gjs {
     namespace parse { struct ast; };
 
     struct compilation_output {
+        typedef std::vector<compile::tac_instruction> ir_code;
         struct func_def {
             script_function* func;
             func_stack stack;
-            u64 begin;
-            u64 end;
+            ir_code code;
             register_allocator regs;
             source_ref ref;
+
+            void insert(u64 address, const compile::tac_instruction& i);
+            void erase(u64 address);
         };
         typedef std::vector<func_def> func_defs;
-        typedef std::vector<compile::tac_instruction> ir_code;
 
         func_defs funcs;
         std::vector<script_type*> types;
         std::vector<script_enum*> enums;
-        ir_code code;
         script_module* mod;
 
         compilation_output(u16 gpN, u16 fpN);
-
-        // will adjust any branch/jump instructions that would be affected
-        // by address changes. Also adjusts function boundaries
-        void insert(u64 address, const compile::tac_instruction& i);
-        void erase(u64 address);
 
         static void insert(compilation_output::ir_code& code, u64 address, const compile::tac_instruction& i);
         static void erase(compilation_output::ir_code& code, u64 address);
@@ -50,8 +46,8 @@ namespace gjs {
 
     class pipeline {
         public:
-            typedef void (*ir_step_func)(script_context* ctx, compilation_output&);
-            typedef void (*ast_step_func)(script_context* ctx, parse::ast*);
+            typedef void (*ir_step_func)(script_context*, compilation_output&, u16);
+            typedef void (*ast_step_func)(script_context*, parse::ast*);
 
             pipeline(script_context* ctx);
             ~pipeline();

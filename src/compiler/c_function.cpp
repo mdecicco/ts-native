@@ -224,7 +224,7 @@ namespace gjs {
 
             block(ctx, n->body, false);
 
-            if (ctx.cur_func_block->code.size() == 0 || ctx.cur_func_block->code.back().op != operation::ret) {
+            if (ctx.out.funcs[ctx.cur_func_block->func_idx].code.size() == 0 || ctx.out.funcs[ctx.cur_func_block->func_idx].code.back().op != operation::ret) {
                 if (is_dtor) {
                     add_implicit_destructor_code(ctx, n, f->is_method_of);
                 }
@@ -279,7 +279,7 @@ namespace gjs {
 
             block(ctx, n->body, false);
 
-            if (ctx.cur_func_block->code.size() == 0 || ctx.cur_func_block->code.back().op != operation::ret) {
+            if (ctx.out.funcs[ctx.cur_func_block->func_idx].code.size() == 0 || ctx.out.funcs[ctx.cur_func_block->func_idx].code.back().op != operation::ret) {
                 if (fn->type->signature->return_type->size == 0) {
                     ctx.add(operation::ret);
                 }
@@ -516,7 +516,7 @@ namespace gjs {
 
             // pointer return
             if (func->type->signature->returns_pointer) {
-                var result = ctx.empty_var(ctx.type("data"));
+                var result = ctx.empty_var(rtp);
                 ctx.add(operation::call).operand(result).func(func);
 
                 if (rtp->is_primitive) {
@@ -627,7 +627,7 @@ namespace gjs {
 
             // pointer return
             if (sig->returns_pointer) {
-                var result = ctx.empty_var(ctx.type("data"));
+                var result = ctx.empty_var(rtp);
                 ctx.add(operation::call).operand(func).operand(result).func(func);
 
                 if (rtp->is_primitive) {

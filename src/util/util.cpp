@@ -231,21 +231,17 @@ namespace gjs {
         }
     }
 
-    void debug_ir_step(script_context* ctx, compilation_output& in) {
-        for (u32 i = 0;i < in.code.size();i++) {
-            for (u32 fn = 0;fn < in.funcs.size();fn++) {
-                if (i == in.funcs[fn].begin) {
-                    script_function* f = in.funcs[fn].func;
-                    printf("\n[%s %s(", f->type->signature->return_type->name.c_str(), f->name.c_str());
-                    for(u8 a = 0;a < f->type->signature->args.size();a++) {
-                        if (a > 0) printf(", ");
-                        printf("%s arg_%d", f->type->signature->args[a].tp->name.c_str(), a);
-                    }
-                    printf(")]\n");
-                    break;
-                }
-            }
-            printf("%3.3d: %s\n", i, in.code[i].to_string().c_str());
+    void debug_ir_step(script_context* ctx, compilation_output& in, u16 f) {
+        script_function* fn = in.funcs[f].func;
+        printf("\n[%s %s(", fn->type->signature->return_type->name.c_str(), fn->name.c_str());
+        for(u8 a = 0;a < fn->type->signature->args.size();a++) {
+            if (a > 0) printf(", ");
+            printf("%s arg_%d", fn->type->signature->args[a].tp->name.c_str(), a);
+        }
+        printf(")]\n");
+
+        for (u32 i = 0;i < in.funcs[f].code.size();i++) {
+            printf("%3.3d: %s\n", i, in.funcs[f].code[i].to_string().c_str());
         }
     }
 

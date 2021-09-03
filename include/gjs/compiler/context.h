@@ -20,11 +20,9 @@ namespace gjs {
                 script_function* func = nullptr;
                 std::list<var> named_vars;
                 std::vector<var> stack_objs;
-                u32 start = 0;
-                u32 end = 0;
                 parse::ast* input_ref = nullptr;
                 bool is_lambda = false;
-                compilation_output::ir_code code;
+                u16 func_idx;
             };
 
             struct deferred_node {
@@ -112,6 +110,9 @@ namespace gjs {
             // that the result would be an operand for
             tac_wrapper add(operation op);
 
+            // Adds a label at the current code position and returns the label id
+            label_id label();
+
             // number of instructions in the current instruction list (either global
             // code or function code)
             u64 code_sz() const;
@@ -171,15 +172,15 @@ namespace gjs {
             // compilation output
             compilation_output& out;
 
-            // code that gets executed by the __init__ function
-            compilation_output::ir_code global_code;
-
             // next virtual register ID to use when a variable
             // is instantiated
             u32 next_reg_id;
 
             // next lambda function id
             u32 next_lambda_id;
+
+            // next code label id
+            u32 next_label_id;
 
             // 'stack' of AST nodes that is kept updated with
             // the compiler's current 'position' in the AST

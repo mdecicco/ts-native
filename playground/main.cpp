@@ -11,28 +11,29 @@
 using namespace gjs;
 using namespace gjs::math;
 
-void remove_unused_regs_pass (script_context* ctx, compilation_output& in) {
-    u64 csz = in.code.size();
-    for (u64 c = 0;c < in.code.size() || c == u64(-1);c++) {
-        if (compile::is_assignment(in.code[c]) && in.code[c].op != compile::operation::call) {
-            u32 assigned_reg = in.code[c].operands[0].reg_id();
+void remove_unused_regs_pass (script_context* ctx, compilation_output& in, u16 f) {
+    compilation_output::ir_code& code = in.funcs[f].code;
+    u64 csz = code.size();
+    for (u64 c = 0;c < code.size() || c == u64(-1);c++) {
+        if (compile::is_assignment(code[c]) && code[c].op != compile::operation::call) {
+            u32 assigned_reg = code[c].operands[0].reg_id();
 
             bool used = false;
-            for (u64 c1 = c + 1;c1 < in.code.size() && !used;c1++) {
-                auto& i = in.code[c1];
+            for (u64 c1 = c + 1;c1 < code.size() && !used;c1++) {
+                auto& i = code[c1];
                 for (u8 o = 0;o < 3 && !used;o++) {
                     used = i.operands[o].valid() && !i.operands[o].is_imm() && i.operands[o].reg_id() == assigned_reg;
                 }
             }
 
             if (!used) {
-                in.erase(c);
+                in.funcs[f].erase(c);
                 c--;
             }
         }
     }
 
-    if (csz > in.code.size()) remove_unused_regs_pass(ctx, in);
+    if (csz > code.size()) remove_unused_regs_pass(ctx, in, f);
 }
 
 i32 testCb (callback<i32(*)(i32, i32)> cb) {

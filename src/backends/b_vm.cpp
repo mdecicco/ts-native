@@ -44,44 +44,15 @@ namespace gjs {
     }
 
     void vm_backend::generate(compilation_output& in) {
-        using vmi = vm_instruction;
-        u64 out_begin = m_instructions.size();
         tac_map tmap;
-        jal_map jmap;
 
         for (u16 f = 0;f < in.funcs.size();f++) {
             if (!in.funcs[f].func) continue;
-            gen_function(in, tmap, jmap, f);
-        }
-
-        // update jump, branch, jal addresses
-        for (u64 c = out_begin;c < m_instructions.size();c++) {
-            switch (m_instructions[c].instr()) {
-                case vmi::jal: {
-                    script_function* f = jmap[c];
-                    if (f->owner->id() != in.mod->id()) break;
-                    [[fallthrough]];
-                }
-                case vmi::jmp: [[fallthrough]];
-                case vmi::beqz: [[fallthrough]];
-                case vmi::bneqz: [[fallthrough]];
-                case vmi::bgtz: [[fallthrough]];
-                case vmi::bgtez: [[fallthrough]];
-                case vmi::bltz: [[fallthrough]];
-                case vmi::bltez: {
-                    u64 addr = m_instructions[c].imm_u();
-                    if (addr < m_instructions.size()) {
-                        // jumps to VM code
-                        m_instructions[c].m_imm = tmap[addr];
-                    }
-                    break;
-                }
-                default: break;
-            }
+            gen_function(in, tmap, f);
         }
     }
     
-    void vm_backend::gen_function(compilation_output& in, tac_map& tmap, jal_map& jmap, u16 fidx) {
+    void vm_backend::gen_function(compilation_output& in, tac_map& tmap, u16 fidx) {
         using op = compile::operation;
         using vmi = vm_instruction;
         using vmr = vm_register;
@@ -92,30 +63,14 @@ namespace gjs {
         std::vector<var> params;
         script_function* cf = in.funcs[fidx].func;
 
-        /*
-        printf("%s\n", in.funcs[fidx].func->name.c_str());
-        for (u64 c = in.funcs[fidx].begin;c <= in.funcs[fidx].end;c++) {
-            if (fidx == 0) {
-                // ignore all code within functions other than __init__
-                bool ignore = false;
-                for (u16 f = 1;f < in.funcs.size() && !ignore;f++) ignore = c >= in.funcs[f].begin && c <= in.funcs[f].end;
-                if (ignore) continue;
-            }
-            const compile::tac_instruction& i = in.code[c];
-            printf("%3.d: %s\n", c, i.to_string().c_str());
-        }
-        */
         u64 out_begin = m_instructions.size();
-        for (u64 c = in.funcs[fidx].begin;c <= in.funcs[fidx].end;c++) {
-            if (fidx == 0) {
-                // ignore all code within functions other than __init__
-                bool ignore = false;
-                for (u16 f = 1;f < in.funcs.size() && !ignore;f++) ignore = c >= in.funcs[f].begin && c <= in.funcs[f].end;
-                if (ignore) continue;
-            }
-
+        auto& code = in.funcs[fidx].code;
+        robin_hood::unordered_map<compile::label_id, address> label_map;
+        struct deferred_label { address idx; compile::label_id label; };
+        std::vector<deferred_label> deferred_label_instrs;
+        for (u64 c = 0;c < code.size();c++) {
             tmap[c] = m_instructions.size();
-            const compile::tac_instruction& i = in.code[c];
+            const compile::tac_instruction& i = code[c];
             const var& o1 = i.operands[0];
             const var& o2 = i.operands[1];
             const var& o3 = i.operands[2];
@@ -618,7 +573,7 @@ namespace gjs {
                     for (u16 l = 0;l < live.size();l++) {
                         if (live[l].begin == c) continue; // return value register does not need to be backed up
                         if (live[l].end > c && !live[l].is_stack()) {
-                            script_type* tp = in.code[live[l].begin].operands[0].type();
+                            script_type* tp = in.funcs[fidx].code[live[l].begin].operands[0].type();
 
                             u8 sz = tp->size;
                             if (!tp->is_primitive) sz = sizeof(void*);
@@ -776,7 +731,6 @@ namespace gjs {
                         m_instructions += encode(vmi::addui).operand(vmr::sp).operand(vmr::sp).operand(in.funcs[fidx].stack.size());
                         m_map.append(i.src);
 
-                        jmap[m_instructions.size()] = i.callee;
                         m_instructions += encode(vmi::jal).operand((u64)i.callee->id());
                         m_map.append(i.src);
                     } else {
@@ -947,6 +901,10 @@ namespace gjs {
 
                     break;
                 }
+                case op::label: {
+                    label_map[i.labels[0]] = m_instructions.size();
+                    break;
+                }
                 case op::branch: {
                     // todo: Why did I add the b* branch instructions if only bneqz is used
                     if (is_fpr(r1)) {
@@ -957,16 +915,35 @@ namespace gjs {
                             m_instructions += encode(vmi::fncmp).operand(vmr::v1).operand(r1).operand(vmr::zero);
                             m_map.append(i.src);
                         }
-                        m_instructions += encode(vmi::bneqz).operand(vmr::v1).operand(o2.imm_u());
+
+                        auto lb = label_map.find(i.labels[0]);
+                        if (lb != label_map.end()) m_instructions += encode(vmi::bneqz).operand(vmr::v1).operand(lb->second);
+                        else {
+                            deferred_label_instrs.push_back({ m_instructions.size(), i.labels[0] });
+                            m_instructions += encode(vmi::bneqz).operand(vmr::v1);
+                        }
+
                         m_map.append(i.src);
                     } else {
-                        m_instructions += encode(vmi::bneqz).operand(r1).operand(o2.imm_u());
+                        auto lb = label_map.find(i.labels[0]);
+                        if (lb != label_map.end()) m_instructions += encode(vmi::bneqz).operand(r1).operand(lb->second);
+                        else {
+                            deferred_label_instrs.push_back({ m_instructions.size(), i.labels[0] });
+                            m_instructions += encode(vmi::bneqz).operand(r1);
+                        }
                         m_map.append(i.src);
                     }
                     break;
                 }
                 case op::jump: {
-                    if (o1.is_imm()) m_instructions += encode(vmi::jmp).operand(o1.imm_u());
+                    if (i.labels[0]) {
+                        auto lb = label_map.find(i.labels[0]);
+                        if (lb != label_map.end()) m_instructions += encode(vmi::jmp).operand(lb->second);
+                        else {
+                            deferred_label_instrs.push_back({ m_instructions.size(), i.labels[0] });
+                            m_instructions += encode(vmi::jmp);
+                        }
+                    }
                     else m_instructions += encode(vmi::jmpr).operand(r1);
                     m_map.append(i.src);
                     break;
@@ -976,6 +953,18 @@ namespace gjs {
                 case op::meta_while_loop: break;
                 case op::meta_do_while_loop: break;
             }
+        }
+
+        for (u32 i = 0;i < deferred_label_instrs.size();i++) {
+            instruction& instr = m_instructions[deferred_label_instrs[i].idx];
+            auto it = label_map.find(deferred_label_instrs[i].label);
+            if (it == label_map.end()) {
+                // todo runtime error
+                break;
+            }
+
+            address addr = it->getSecond();
+            instr.operand(addr);
         }
 
         in.funcs[fidx].func->access.entry = out_begin;
