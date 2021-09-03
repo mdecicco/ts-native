@@ -373,7 +373,6 @@ namespace gjs {
             || x == vmi::dncmpi          \
         )
 
-    #define is_fpr(x) ((x >= vmr::f0 && x <= vmr::f15) || (x >= vmr::fa0 && x <= vmr::fa7))
     #define decode_instr ((vmi)(m_code >> instr_shift))
     #define check_flag(f) (((m_code | flag_mask) ^ flag_mask) & f)
     #define set_flag(f) (m_code |= f)

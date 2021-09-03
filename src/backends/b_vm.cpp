@@ -8,8 +8,6 @@
 #include <gjs/bind/bind.h>
 
 namespace gjs {
-    #define is_fpr(x) ((x >= vmr::f0 && x <= vmr::f15) || (x >= vmr::fa0 && x <= vmr::fa7))
-
     vm_backend::vm_backend(vm_allocator* alloc, u32 stack_size, u32 mem_size) :
         m_vm(this, alloc, stack_size, mem_size), m_instructions(alloc), m_execution_level(0),
         m_log_instructions(false), m_alloc(alloc)
@@ -99,7 +97,7 @@ namespace gjs {
                 if (o1.is_spilled()) {
                     if (!compile::is_assignment(i)) {
                         r[0] = vmr::v0;
-                        if (t1->is_floating_point) r[0] = vmr::f13;
+                        if (t1->is_floating_point) r[0] = vmr::vf0;
                     } else r[0] = vmr::v0;
                 } else if (o1.valid() && !o1.is_imm()) {
                     if (o1.is_arg()) {
@@ -112,7 +110,7 @@ namespace gjs {
 
                 if (o2.is_spilled()) {
                     r[1] = vmr::v1;
-                    if (t2->is_floating_point) r[1] = vmr::f14;
+                    if (t2->is_floating_point) r[1] = vmr::vf1;
                 } else if (o2.valid() && !o2.is_imm()) {
                     if (o2.is_arg()) {
                         r[1] = in.funcs[fidx].func->type->signature->args[o2.arg_idx()].loc;
@@ -124,7 +122,7 @@ namespace gjs {
 
                 if (o3.is_spilled()) {
                     r[2] = vmr::v2;
-                    if (t3->is_floating_point) r[2] = vmr::f15;
+                    if (t3->is_floating_point) r[2] = vmr::vf2;
                 } else if (o3.valid() && !o3.is_imm()) {
                     if (o3.is_arg()) {
                         r[2] = in.funcs[fidx].func->type->signature->args[o3.arg_idx()].loc;
@@ -188,7 +186,7 @@ namespace gjs {
             script_type* t1 = o1.valid() ? o1.type() : nullptr;
             script_type* t2 = o2.valid() ? o2.type() : nullptr;
             script_type* t3 = o3.valid() ? o3.type() : nullptr;
-            
+
             auto arith = [&](vmi rr, vmi ri, vmi ir) {
                 if (o3.is_imm()) {
                     if (t3->is_floating_point) {
@@ -1079,7 +1077,8 @@ namespace gjs {
         // will be removed and replaced with the epilogue, and jmpr $ra will
         // be added back afterward
         address epilog_addr = m_instructions.size() - 1;
-        m_instructions.remove(m_instructions.size() - 1);
+        m_instructions.remove(epilog_addr);
+        m_map.map.erase(m_map.map.begin() + epilog_addr);
 
         // replace all jmpr $ra instructions with jmp epilog_addr
         for (u64 c = 0;c < m_instructions.size();c++) {
@@ -1102,13 +1101,11 @@ namespace gjs {
     }
     
     u16 vm_backend::gp_count() const {
-        return 8;
+        return 16;
     }
 
     u16 vm_backend::fp_count() const {
-        // f13, f14, f15 used for
-        // loading spilled values
-        return 13;
+        return 16;
     }
     
     bool vm_backend::perform_register_allocation() const {

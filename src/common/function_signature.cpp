@@ -8,18 +8,14 @@
 namespace gjs {
     function_signature::function_signature(script_context* ctx, script_type* tp, bind::wrapped_function* wrapped, bool is_ctor) {
         method_of = tp;
-        return_type = nullptr;
-        return_loc = vm_register::v0;
+        return_type = wrapped->return_type;
+        return_loc = return_type->size == 0 ? vm_register::register_count : vm_register::v0;
+        if (return_type->is_floating_point) return_loc = vm_register::vf0;
         returns_pointer = false;
         returns_on_stack = false;
         is_thiscall = false;
         explicit_argc = 0;
         implicit_argc = 0;
-        return_type = wrapped->return_type;
-
-        if (return_type->size == 0) return_loc = vm_register::register_count;
-        else if (return_type->is_floating_point) return_loc = vm_register::f15;
-
         returns_on_stack = !wrapped->ret_is_ptr && !return_type->is_primitive && return_type->size != 0;
         returns_pointer = wrapped->ret_is_ptr;
         is_thiscall = wrapped->pass_this || (tp && !wrapped->is_static_method);
@@ -45,14 +41,14 @@ namespace gjs {
     function_signature::function_signature(script_context* ctx, script_type* ret, bool ret_ptr, script_type** argtps, u8 argc, script_type* _method_of, bool is_ctor, bool is_static_method) {
         method_of = _method_of;
         return_type = ret;
-        return_loc = ret->size == 0 ? vm_register::register_count : vm_register::v0;
+        return_loc = return_type->size == 0 ? vm_register::register_count : vm_register::v0;
+        if (return_type->is_floating_point) return_loc = vm_register::vf0;
         returns_pointer = ret_ptr;
         returns_on_stack = !ret->is_primitive && !ret_ptr && ret->size != 0;
         explicit_argc = 0;
         implicit_argc = 0;
         is_thiscall = method_of && !is_static_method;
         bool is_subtype_obj_ctor = method_of && method_of->requires_subtype && is_ctor;
-        if (ret->is_floating_point) return_loc = vm_register::f15;
 
         u16 gp_arg = (u16)vm_register::a0;
         u16 fp_arg = (u16)vm_register::fa0;
@@ -71,7 +67,7 @@ namespace gjs {
 
     function_signature::function_signature() {
         return_type = nullptr;
-        return_loc = vm_register::v0;
+        return_loc = vm_register::register_count;
         returns_pointer = false;
         returns_on_stack = false;
         is_thiscall = false;

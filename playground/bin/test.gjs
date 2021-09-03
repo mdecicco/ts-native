@@ -1,8 +1,8 @@
 import { vec2f } from 'math';
 
 class some_guy {
-	constructor(f32 x, f32 y) : v(vec2f(x, y)) { }
-	constructor(some_guy g) : v(vec2f(g.v)) { }
+	constructor(f32 x, f32 y) : v(x, y) { }
+	constructor(some_guy g) : v(g.v) { }
 
 	void print() {
 		print('vec2f(' + this.v.x.toFixed(2) + ', ' + this.v.y.toFixed(2) + ')');
