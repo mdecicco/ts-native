@@ -59,7 +59,7 @@
 import { vec2f } from 'math';
 
 class some_guy {
-	constructor(f32 x, f32 y) : v(vec2f(x, y)) { }
+	constructor(f32 x, f32 y) : v(x, y) { }
 	constructor(some_guy g) : v(vec2f(g.v)) { }
 
 	void print() {
@@ -264,32 +264,18 @@ void set_some_value(void()(i32) set) {
  0x0A2: jmpr    $ra
 
 [void test::some_guy::constructor(some_guy @this -> $a0, f32 arg_1 -> $fa0, f32 arg_2 -> $fa1) -> null]
- 0x0A3: st64    $ra, 0($sp)                                             ; void set_some_value(void()(i32) set) {
- 0x0A4: st64    $a1, 8($sp)
- 0x0A5: st64    $s0, 16($sp)
- 0x0A6: st64    $s1, 24($sp)                                            ;       constructor(f32 x, f32 y) : v(vec2f(x, y)) { }
- 0x0A7: addui   $s0, $a0, 0
- 0x0A8: addui   $s1, $sp, 32
- 0x0A9: addu    $a0, $zero, $s1
- 0x0AA: fadd    $fa0, $zero, $fa0
- 0x0AB: fadd    $fa1, $zero, $fa1
- 0x0AC: addui   $sp, $sp, 40
- 0x0AD: jal     void math::vec2f::constructor($vec2f,f32,f32)
- 0x0AE: subui   $sp, $sp, 40
- 0x0AF: addu    $a0, $zero, $s0
- 0x0B0: addu    $a1, $zero, $s1
- 0x0B1: addui   $sp, $sp, 40
- 0x0B2: jal     void math::vec2f::constructor($vec2f,vec2f)
- 0x0B3: subui   $sp, $sp, 40
- 0x0B4: addu    $a0, $zero, $s1
- 0x0B5: addui   $sp, $sp, 40
- 0x0B6: jal     void math::vec2f::destructor($vec2f)
- 0x0B7: subui   $sp, $sp, 40
- 0x0B8: ld64    $ra, 0($sp)
- 0x0B9: ld64    $a1, 8($sp)
- 0x0BA: ld64    $s0, 16($sp)
- 0x0BB: ld64    $s1, 24($sp)
- 0x0BC: jmpr    $ra
+ 0x0A3: st64    $ra, 0($sp)                                             ;       constructor(f32 x, f32 y) : v(x, y) { }
+ 0x0A4: st64    $s0, 8($sp)
+ 0x0A5: addui   $s0, $a0, 0
+ 0x0A6: addu    $a0, $zero, $s0                                         
+ 0x0A7: fadd    $fa0, $zero, $fa0
+ 0x0A8: fadd    $fa1, $zero, $fa1
+ 0x0A9: addui   $sp, $sp, 16
+ 0x0AA: jal     void math::vec2f::constructor($vec2f,f32,f32)
+ 0x0AB: subui   $sp, $sp, 16
+ 0x0AC: ld64    $ra, 0($sp)
+ 0x0AD: ld64    $s0, 8($sp)
+ 0x0AE: jmpr    $ra
 
 [void test::some_guy::constructor(some_guy @this -> $a0, some_guy arg_1 -> $a1) -> null]
  0x0BD: st64    $ra, 0($sp)
