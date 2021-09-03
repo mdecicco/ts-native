@@ -52,12 +52,12 @@ namespace gjs {
         f7        ,
         f8        ,
         f9        ,
-        f10        ,
-        f11        ,
-        f12        ,
-        f13        ,
-        f14        ,
-        f15        ,
+        f10       ,
+        f11       ,
+        f12       ,
+        f13       ,
+        f14       ,
+        f15       ,
 
         // execution context
         ip        ,    // instruction pointer
@@ -66,6 +66,9 @@ namespace gjs {
 
         register_count    // number of registers
     };
+
+    #define vm_reg_is_volatile(r) (r >= vm_register::v0 && r <= vm_register::v3)
+    #define vm_reg_is_arg(r) (r >= vm_register::a0 && r <= vm_register::fa7)
 
     extern const char* register_str[(i32)vm_register::register_count];
 };

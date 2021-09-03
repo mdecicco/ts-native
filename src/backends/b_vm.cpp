@@ -66,8 +66,114 @@ namespace gjs {
         u64 out_begin = m_instructions.size();
         auto& code = in.funcs[fidx].code;
         robin_hood::unordered_map<compile::label_id, address> label_map;
-        struct deferred_label { address idx; compile::label_id label; };
+        struct deferred_label { address idx; compile::label_id label; }; // label == 0 indicates a jump to the function epilogue
         std::vector<deferred_label> deferred_label_instrs;
+
+        // determine registers that need to be handled by the prologue and epilogue
+        robin_hood::unordered_flat_set<vm_register> assigned_non_volatile;
+        // also the end of the lifetimes of the argument registers
+        robin_hood::unordered_map<vm_register, address> arg_lifetime_ends;
+
+        for (u64 c = 0;c < code.size();c++) {
+            auto& i = code[c];
+            if (compile::is_assignment(i)) {
+                u8 assignedOpIdx = 0;
+                vmr r[3];
+                r[0] = r[1] = r[2] = vmr::register_count;
+                const var& o1 = i.operands[0];
+                const var& o2 = i.operands[1];
+                const var& o3 = i.operands[2];
+                script_type* t1 = o1.valid() ? o1.type() : nullptr;
+                script_type* t2 = o2.valid() ? o2.type() : nullptr;
+                script_type* t3 = o3.valid() ? o3.type() : nullptr;
+
+                if (o1.is_spilled()) {
+                    if (!compile::is_assignment(i)) {
+                        r[0] = vmr::v0;
+                        if (t1->is_floating_point) r[0] = vmr::f13;
+                    } else r[0] = vmr::v0;
+                } else if (o1.valid() && !o1.is_imm()) {
+                    if (o1.is_arg()) {
+                        r[0] = in.funcs[fidx].func->type->signature->args[o1.arg_idx()].loc;
+                    } else {
+                        r[0] = vmr((u8)vmr::s0 + o1.reg_id());
+                        if (t1->is_floating_point) r[0] = vmr((u8)vmr::f0 + o1.reg_id());
+                    }
+                }
+
+                if (o2.is_spilled()) {
+                    r[1] = vmr::v1;
+                    if (t2->is_floating_point) r[1] = vmr::f14;
+                } else if (o2.valid() && !o2.is_imm()) {
+                    if (o2.is_arg()) {
+                        r[1] = in.funcs[fidx].func->type->signature->args[o2.arg_idx()].loc;
+                    } else {
+                        r[1] = vmr((u8)vmr::s0 + o2.reg_id());
+                        if (t2->is_floating_point) r[1] = vmr((u8)vmr::f0 + o2.reg_id());
+                    }
+                }
+
+                if (o3.is_spilled()) {
+                    r[2] = vmr::v2;
+                    if (t3->is_floating_point) r[2] = vmr::f15;
+                } else if (o3.valid() && !o3.is_imm()) {
+                    if (o3.is_arg()) {
+                        r[2] = in.funcs[fidx].func->type->signature->args[o3.arg_idx()].loc;
+                    } else {
+                        r[2] = vmr((u8)vmr::s0 + o3.reg_id());
+                        if (t3->is_floating_point) r[2] = vmr((u8)vmr::f0 + o3.reg_id());
+                    }
+                }
+
+                if (i.op == compile::operation::call) {
+                    assigned_non_volatile.insert(vmr::ra);
+                    function_signature* sig = nullptr;
+                    if (i.callee) sig = i.callee->type->signature;
+                    else {
+                        sig = i.callee_v.type()->signature;
+                        assignedOpIdx = 1;
+                    }
+
+                    for (u8 a = 0;a < sig->args.size();a++) {
+                        bool alreadyOwned = false;
+                        for (u8 a1 = 0;a1 < cf->type->signature->args.size();a1++) {
+                            if (sig->args[a].loc == cf->type->signature->args[a1].loc) {
+                                alreadyOwned = true;
+                                break;
+                            }
+                        }
+                        // caller of this function already backed up this register
+                        if (alreadyOwned) continue;
+                        assigned_non_volatile.insert(sig->args[a].loc);
+                    }
+
+                    if (sig->return_type->size == 0) continue;
+                }
+
+                if (!vm_reg_is_volatile(r[assignedOpIdx]) && r[assignedOpIdx] != cf->type->signature->return_loc) {
+                    assigned_non_volatile.insert(r[assignedOpIdx]);
+                }
+            }
+
+            for (u8 o = 0;o < 3;o++) {
+                if (i.operands[o].valid() && i.operands[o].is_arg()) {
+                    auto& arg = cf->type->signature->args[i.operands[o].arg_idx()];
+                    bool isFP = arg.tp->is_floating_point;
+                    arg_lifetime_ends[arg.loc] = c;
+                }
+            }
+        }
+
+        // generate function prologue
+        struct prologueInfo { vmr reg; u64 addr; };
+        std::vector<prologueInfo> prologue;
+        for (auto r : assigned_non_volatile) {
+            u64 addr = in.funcs[fidx].stack.alloc(sizeof(u64));
+            prologue.push_back({ r, addr });
+            m_instructions += encode(vmi::st64).operand(r).operand(vmr::sp).operand(addr);
+            m_map.append(in.funcs[fidx].ref);
+        }
+
         for (u64 c = 0;c < code.size();c++) {
             tmap[c] = m_instructions.size();
             const compile::tac_instruction& i = code[c];
@@ -567,38 +673,19 @@ namespace gjs {
                     struct bk { vmr reg; u64 addr; u64 sz; };
                     std::vector<bk> backup;
                     robin_hood::unordered_map<vm_register, size_t> backup_map;
-                    // Backup registers that were populated before this call
-                    // and will be used after this call
-                    auto live = in.funcs[fidx].regs.get_live(c);
-                    for (u16 l = 0;l < live.size();l++) {
-                        if (live[l].begin == c) continue; // return value register does not need to be backed up
-                        if (live[l].end > c && !live[l].is_stack()) {
-                            script_type* tp = in.funcs[fidx].code[live[l].begin].operands[0].type();
-
-                            u8 sz = tp->size;
-                            if (!tp->is_primitive) sz = sizeof(void*);
-                            vmi st = vmi::st8;
-                            switch (sz) {
-                                case 2: { st = vmi::st16; break; }
-                                case 4: { st = vmi::st32; break; }
-                                case 8: { st = vmi::st64; break; }
-                                default: { break; }
-                            }
-                            vmr reg = live[l].is_fp ? vmr(u32(vmr::f0) + live[l].reg_id) : vmr(u32(vmr::s0) + live[l].reg_id);
-                            u64 sl = in.funcs[fidx].stack.alloc(sz);
-
-                            backup.push_back({ reg, sl, sz });
-                            backup_map[reg] = backup.size() - 1;
-
-                            m_instructions += encode(st).operand(reg).operand(vmr::sp).operand(sl);
-                            m_map.append(i.src);
-                        }
-                    }
-
                     // backup caller's args
                     for (u8 a = 0;a < cf->type->signature->args.size();a++) {
                         vmr ar = in.funcs[fidx].func->type->signature->args[a].loc;
-                        if (backup_map.count(ar)) continue; // already backed up by the above loop
+
+                        auto alt = arg_lifetime_ends.find(ar);
+                        if (alt == arg_lifetime_ends.end()) {
+                            // arg is totally unused
+                            continue;
+                        }
+                        if (alt->getSecond() <= c) {
+                            // arg is already unused or will be unused afterward
+                            continue;
+                        }
 
                         bool will_be_overwritten = false;
                         for (u8 a1 = 0;a1 < sig->args.size() && !will_be_overwritten;a1++) {
@@ -626,6 +713,29 @@ namespace gjs {
                         m_map.append(i.src);
                     }
 
+                    // if callee's return location is a live register, it needs to be backed up
+                    if (sig->return_type->size > 0 && sig->return_loc != vmr::register_count && !vm_reg_is_volatile(sig->return_loc)) {
+                        auto b = backup_map.find(sig->return_loc);
+                        if (b == backup_map.end()) {
+                            // not already backed up
+                            auto live = in.funcs[fidx].regs.get_live(c);
+                            for (auto& lr : live) {
+                                if (lr.end <= c || lr.is_stack()) continue;
+                                vmr reg = vmr(lr.is_fp ? u32(vmr::f0) + lr.reg_id : u32(vmr::s0) + lr.reg_id);
+                                if (reg == sig->return_loc) {
+                                    // callee's return location is currently live, back it up
+                                    u64 sl = in.funcs[fidx].stack.alloc(sizeof(u64));
+                                    backup.push_back({ reg, sl, sizeof(u64) });
+                                    backup_map[reg] = backup.size() - 1;
+                                    m_instructions += encode(vmi::st64).operand(reg).operand(vmr::sp).operand(sl);
+                                    m_map.append(i.src);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+
                     // pass parameters
                     std::vector<u8> passed;
                     while (passed.size() < params.size()) {
@@ -642,7 +752,9 @@ namespace gjs {
                                 for (u8 p2 = 0;p2 < passed.size() && !was_passed;p2++) was_passed = passed[p2] == p1;
                                 if (was_passed || params[p1].is_spilled() || params[p1].is_imm()) continue;
 
-                                vmr reg = params[p1].type()->is_floating_point ? vmr(u32(vmr::f0) + params[p1].reg_id()) : vmr(u32(vmr::s0) + params[p1].reg_id());
+                                vmr reg;
+                                if (params[p1].is_arg()) reg = cf->type->signature->args[params[p1].arg_idx()].loc;
+                                else reg = params[p1].type()->is_floating_point ? vmr(u32(vmr::f0) + params[p1].reg_id()) : vmr(u32(vmr::s0) + params[p1].reg_id());
                                 will_overwrite = sig->args[p].loc == reg;
                             }
 
@@ -681,7 +793,7 @@ namespace gjs {
                             } else {
                                 vmr reg;
                                 if (params[p].is_arg()) {
-                                    reg = in.funcs[fidx].func->type->signature->args[params[p].arg_idx()].loc;
+                                    reg = cf->type->signature->args[params[p].arg_idx()].loc;
                                     auto l = backup_map.find(reg);
                                     if (l != backup_map.end()) {
                                         // argument register was backed up
@@ -700,7 +812,10 @@ namespace gjs {
                                         continue;
                                     }
                                 }
-                                else reg = tp->is_floating_point ? vmr(u32(vmr::f0) + params[p].reg_id()) : vmr(u32(vmr::s0) + params[p].reg_id());
+                                else {
+                                    if (params[p].is_arg()) reg = cf->type->signature->args[params[p].arg_idx()].loc;
+                                    else reg = params[p].type()->is_floating_point ? vmr(u32(vmr::f0) + params[p].reg_id()) : vmr(u32(vmr::s0) + params[p].reg_id());
+                                }
 
                                 if (tp->is_floating_point) {
                                     if (!is_fpr(sig->args[p].loc) && sig->method_of && sig->method_of->requires_subtype) {
@@ -719,11 +834,6 @@ namespace gjs {
                     }
 
                     params.clear();
-
-                    // backup $ra
-                    u64 ra = in.funcs[fidx].stack.alloc(sizeof(u64));
-                    m_instructions += encode(vmi::st64).operand(vmr::ra).operand(vmr::sp).operand(ra);
-                    m_map.append(i.src);
 
                     // do the call
                     if (i.callee) {
@@ -759,30 +869,9 @@ namespace gjs {
                     m_map.append(i.src);
 
                     // store return value if necessary
-                    
                     if (sig->return_type->size > 0) {
                         vmr ret_reg = i.callee ? r1 : r2;
                         const var& ret_var = i.callee ? o1 : o2;
-                        if (sig->returns_pointer) {
-                            m_instructions += encode(vmi::addu).operand(ret_reg).operand(sig->return_loc).operand(vmr::zero);
-                            m_map.append(i.src);
-                        } else if (sig->returns_on_stack) {
-                            // return value should have been stored in the implicit
-                            // return value pointer passed to the callee
-                        } else {
-                            if (sig->return_type->is_floating_point) {
-                                if (!is_fpr(sig->return_loc) && sig->method_of && sig->method_of->requires_subtype) {
-                                    // fp value returned through gp register
-                                    m_instructions += encode(vmi::mtfp).operand(sig->return_loc).operand(ret_reg);
-                                } else {
-                                    if (sig->return_type->size == sizeof(f64)) m_instructions += encode(vmi::dadd).operand(ret_reg).operand(vmr::zero).operand(sig->return_loc);
-                                    else m_instructions += encode(vmi::fadd).operand(ret_reg).operand(vmr::zero).operand(sig->return_loc);
-                                }
-                            } else {
-                                m_instructions += encode(vmi::addu).operand(ret_reg).operand(sig->return_loc).operand(vmr::zero);
-                            }
-                            m_map.append(i.src);
-                        }
 
                         if (ret_var.is_spilled()) {
                             u8 sz = sig->return_type->size;
@@ -794,16 +883,32 @@ namespace gjs {
                                 case 8: { st = vmi::st64; break; }
                                 default: { break; }
                             }
-                            m_instructions += encode(st).operand(ret_reg).operand(vmr::sp).operand((u64)ret_var.stack_off());
+                            m_instructions += encode(st).operand(sig->return_loc).operand(vmr::sp).operand((u64)ret_var.stack_off());
                             m_map.append(i.src);
+                        } else {
+                            if (sig->returns_pointer) {
+                                m_instructions += encode(vmi::addu).operand(ret_reg).operand(sig->return_loc).operand(vmr::zero);
+                                m_map.append(i.src);
+                            } else if (sig->returns_on_stack) {
+                                // return value should have been stored in the implicit
+                                // return value pointer passed to the callee
+                            } else {
+                                if (sig->return_type->is_floating_point) {
+                                    if (!is_fpr(sig->return_loc) && sig->method_of && sig->method_of->requires_subtype) {
+                                        // fp value returned through gp register
+                                        m_instructions += encode(vmi::mtfp).operand(sig->return_loc).operand(ret_reg);
+                                    } else {
+                                        if (sig->return_type->size == sizeof(f64)) m_instructions += encode(vmi::dadd).operand(ret_reg).operand(vmr::zero).operand(sig->return_loc);
+                                        else m_instructions += encode(vmi::fadd).operand(ret_reg).operand(vmr::zero).operand(sig->return_loc);
+                                    }
+                                } else {
+                                    m_instructions += encode(vmi::addu).operand(ret_reg).operand(sig->return_loc).operand(vmr::zero);
+                                }
+                                m_map.append(i.src);
+                            }
                         }
                     }
 
-                    // restore $ra
-                    in.funcs[fidx].stack.free(ra);
-                    m_instructions += encode(vmi::ld64).operand(vmr::ra).operand(vmr::sp).operand(ra);
-                    m_map.append(i.src);
-                    
                     // restore backed up registers
                     for (u16 b = 0;b < backup.size();b++) {
                         vmi ld = vmi::ld8;
@@ -955,6 +1060,8 @@ namespace gjs {
             }
         }
 
+        // update jumps and branches which referred to labels that were not
+        // processed yet at the time of their generation
         for (u32 i = 0;i < deferred_label_instrs.size();i++) {
             instruction& instr = m_instructions[deferred_label_instrs[i].idx];
             auto it = label_map.find(deferred_label_instrs[i].label);
@@ -966,6 +1073,29 @@ namespace gjs {
             address addr = it->getSecond();
             instr.operand(addr);
         }
+
+        // all functions should end with jmpr $ra, that final instruction
+        // will be removed and replaced with the epilogue, and jmpr $ra will
+        // be added back afterward
+        address epilog_addr = m_instructions.size() - 1;
+        m_instructions.remove(m_instructions.size() - 1);
+
+        // replace all jmpr $ra instructions with jmp epilog_addr
+        for (u64 c = 0;c < m_instructions.size();c++) {
+            auto& i = m_instructions[c];
+            if (i.instr() != vmi::jmp || i.op_1r() != vmr::ra) continue;
+            m_instructions[c] = encode(vmi::jmp).operand(epilog_addr);
+        }
+
+        // generate function epilogue
+        for (auto& x : prologue) {
+            m_instructions += encode(vmi::ld64).operand(x.reg).operand(vmr::sp).operand(x.addr);
+            m_map.append(in.funcs[fidx].ref);
+        }
+
+        // add jmpr $ra
+        m_instructions += encode(vmi::jmpr).operand(vmr::ra);
+        m_map.append(in.funcs[fidx].ref);
 
         in.funcs[fidx].func->access.entry = out_begin;
     }

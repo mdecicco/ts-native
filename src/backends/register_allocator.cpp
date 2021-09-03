@@ -36,8 +36,8 @@ namespace gjs {
         reassign_registers(m_gpLf, m_gpc, fidx);
         reassign_registers(m_fpLf, m_fpc, fidx);
 
-        printf("post-alloc[%s]:\n", fd.func->name.c_str());
-        for (u64 i = 0;i < m_in.funcs[fidx].code.size();i++) printf("%3.3d: %s\n", i, m_in.funcs[fidx].code[i].to_string().c_str());
+        // printf("post-alloc[%s]:\n", fd.func->name.c_str());
+        // for (u64 i = 0;i < m_in.funcs[fidx].code.size();i++) printf("%3.3d: %s\n", i, m_in.funcs[fidx].code[i].to_string().c_str());
 
         calc_reg_lifetimes(fidx);
     }

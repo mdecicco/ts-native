@@ -26,7 +26,7 @@ namespace gjs {
         bool is_subtype_obj_ctor = tp && tp->requires_subtype && is_ctor;
 
         u16 gp_arg = (u16)vm_register::a0;
-        u16 fp_arg = (u16)vm_register::f0;
+        u16 fp_arg = (u16)vm_register::fa0;
         if (is_thiscall) args.push_back({ tp, vm_register(gp_arg++), argument::implicit_type::this_ptr, true });
         if (is_subtype_obj_ctor) args.push_back({ ctx->types()->get<u64>(), vm_register(gp_arg++), argument::implicit_type::moduletype_id, false });
         if (returns_on_stack) args.push_back({ ctx->types()->get<void*>(), vm_register(gp_arg++), argument::implicit_type::ret_addr, true });
@@ -55,7 +55,7 @@ namespace gjs {
         if (ret->is_floating_point) return_loc = vm_register::f15;
 
         u16 gp_arg = (u16)vm_register::a0;
-        u16 fp_arg = (u16)vm_register::f0;
+        u16 fp_arg = (u16)vm_register::fa0;
         if (is_thiscall) args.push_back({ method_of, vm_register(gp_arg++), argument::implicit_type::this_ptr, true });
         if (is_subtype_obj_ctor) args.push_back({ ctx->types()->get<u64>(), vm_register(gp_arg++), argument::implicit_type::moduletype_id, false });
         if (returns_on_stack) args.push_back({ ctx->types()->get<void*>(), vm_register(gp_arg++), argument::implicit_type::ret_addr, true });

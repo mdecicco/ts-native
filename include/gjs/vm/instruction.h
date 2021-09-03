@@ -20,10 +20,10 @@ namespace gjs {
         ld16            ,    // load 2 bytes from memory into register              ld16    (dest)   (src)       0      dest = *((u16*)(src + 0))
         ld32            ,    // load 4 bytes from memory into register              ld32    (dest)   (src)       0      dest = *((u32*)(src + 0))
         ld64            ,    // load 8 bytes from memory into register              ld64    (dest)   (src)       0      dest = *((u64*)(src + 0))
-        st8             ,    // store 1 byte in memory from register                store   (src)    (dest)      0xa    dest = *((u8*)(src + 0xa))
-        st16            ,    // store 2 bytes in memory from register               store   (src)    (dest)      0xa    dest = *((u16*)(src + 0xa))
-        st32            ,    // store 4 bytes in memory from register               store   (src)    (dest)      0xa    dest = *((u32*)(src + 0xa))
-        st64            ,    // store 8 bytes in memory from register               store   (src)    (dest)      0xa    dest = *((u64*)(src + 0xa))
+        st8             ,    // store 1 byte in memory from register                store   (src)    (dest)      0xa    *dest = *((u8*)(src + 0xa))
+        st16            ,    // store 2 bytes in memory from register               store   (src)    (dest)      0xa    *dest = *((u16*)(src + 0xa))
+        st32            ,    // store 4 bytes in memory from register               store   (src)    (dest)      0xa    *dest = *((u32*)(src + 0xa))
+        st64            ,    // store 8 bytes in memory from register               store   (src)    (dest)      0xa    *dest = *((u64*)(src + 0xa))
         mptr            ,    // store address of module data in register            mptr    (dest)               0xf    dest = modules[$v3] + 0xf    ($v3 must be module id)
         mtfp            ,    // move from general register to float register        mtfp    (a)      (b)                b = a                        (a must be gp, b must be fp)
         mffp            ,    // move from float register to general register        mffp    (a)      (b)                b = a                        (a must be fp, b must be gp)
@@ -168,4 +168,7 @@ namespace gjs {
     };
 
     extern const char* instruction_str[(i32)vm_instruction::instruction_count];
+
+    #define vm_instr_assigns_r1(i) ((i >= vm_instruction::ld8 && i <= vm_instruction::ld64) || (i >= vm_instruction::add && i <= vm_instruction::srir) || i == vm_instruction::mptr)
+    #define vm_instr_assigns_r2(i) ((i == vm_instruction::mtfp || i == vm_instruction::mffp))
 };
