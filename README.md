@@ -519,3 +519,510 @@ someVal was set to 69.
 Pretty neat
 
 </details>
+
+<details>
+  <summary>Another example</summary>
+
+#### The following script code:
+```
+i32()(i32) addFunc(i32 a) {
+	return (i32 b) : i32 => {
+		print('a was ' + a.toFixed(2));
+		print('b was ' + b.toFixed(2));
+		return a + b;
+	};
+}
+
+void set_some_value(void()(i32) set) {
+	pointer<i32> val;
+	val.reset(0);
+	i32 x = 68;
+	void ()() outer = () : void => {
+		void ()() inner = () : void => {
+			print('x was ' + x.toFixed(2));
+			i32()(i32) add = addFunc(1);
+			i32 z = add(x);
+			print('z was ' + z.toFixed(2));
+			val = z;
+		};
+		inner();
+	};
+
+	outer();
+	
+	set(val.value);
+}
+```
+
+#### Gets compiled to the following:
+```
+ 0x000: term
+
+[i32($data,i32) test::addFunc(i32 arg_0 -> $a0) -> $v0]
+ 0x001: st64    $ra, 0($sp)                                             ; i32()(i32) addFunc(i32 a) {
+ 0x002: st64    $a2, 8($sp)
+ 0x003: st64    $s1, 16($sp)
+ 0x004: st64    $a1, 24($sp)
+ 0x005: st64    $s0, 32($sp)
+ 0x006: st32    $a0, 40($sp)                                            ;       return (i32 b) : i32 => {
+ 0x007: addui   $a0, $zero, 4
+ 0x008: addui   $sp, $sp, 44
+ 0x009: jal     data __global__::alloc(u64)
+ 0x00A: subui   $sp, $sp, 44
+ 0x00B: addu    $s0, $v0, $zero
+ 0x00C: ld32    $a0, 40($sp)
+ 0x00D: addui   $s1, $s0, 0
+ 0x00E: st32    $a0, 0($s1)
+ 0x00F: addui   $a0, $zero, 3829658026
+ 0x010: addu    $a1, $zero, $s0
+ 0x011: addui   $a2, $zero, 4
+ 0x012: addui   $sp, $sp, 40
+ 0x013: jal     data __global__::$makefunc(u32,data,u64)
+ 0x014: subui   $sp, $sp, 40
+ 0x015: addu    $s0, $v0, $zero
+ 0x016: addu    $s1, $s0, $zero
+ 0x017: addu    $v0, $s1, $zero
+ 0x018: ld64    $ra, 0($sp)                                             ; i32()(i32) addFunc(i32 a) {
+ 0x019: ld64    $a2, 8($sp)
+ 0x01A: ld64    $s1, 16($sp)
+ 0x01B: ld64    $a1, 24($sp)
+ 0x01C: ld64    $s0, 32($sp)
+ 0x01D: jmpr    $ra
+
+[i32 test::lambda_0(data @ctx -> $a0, i32 arg_1 -> $a1) -> $v0]
+ 0x01E: st64    $ra, 0($sp)                                             ;       return (i32 b) : i32 => {
+ 0x01F: st64    $s3, 8($sp)
+ 0x020: st64    $a2, 16($sp)
+ 0x021: st64    $s1, 24($sp)
+ 0x022: st64    $s0, 32($sp)
+ 0x023: st64    $s2, 40($sp)
+ 0x024: addui   $s0, $a0, 0
+ 0x025: ld32    $s1, 0($s0)
+ 0x026: addui   $v3, $zero, 2834382347                                  ;               print('a was ' + a.toFixed(2));
+ 0x027: mptr    $s0, 0x0
+ 0x028: addui   $s2, $sp, 48
+ 0x029: st32    $a1, 72($sp)
+ 0x02A: addu    $a0, $zero, $s2
+ 0x02B: addu    $a1, $zero, $s0
+ 0x02C: addui   $a2, $zero, 6
+ 0x02D: addui   $sp, $sp, 76
+ 0x02E: jal     void __global__::string::constructor($string,data,u32)
+ 0x02F: subui   $sp, $sp, 76
+ 0x030: ld32    $a1, 72($sp)
+ 0x031: addui   $s0, $sp, 72
+ 0x032: st32    $a1, 96($sp)
+ 0x033: addu    $a0, $zero, $s0
+ 0x034: addu    $a1, $zero, $s1
+ 0x035: addui   $a2, $zero, 2
+ 0x036: addui   $sp, $sp, 100
+ 0x037: jal     string __global__::i32::toFixed($data,i32,u8)
+ 0x038: subui   $sp, $sp, 100
+ 0x039: ld32    $a1, 96($sp)
+ 0x03A: addui   $s3, $sp, 96
+ 0x03B: st32    $a1, 120($sp)
+ 0x03C: addu    $a0, $zero, $s2
+ 0x03D: addu    $a1, $zero, $s3
+ 0x03E: addu    $a2, $zero, $s0
+ 0x03F: addui   $sp, $sp, 124
+ 0x040: jal     string __global__::string::operator +($string,$data,string)
+ 0x041: subui   $sp, $sp, 124
+ 0x042: ld32    $a1, 120($sp)
+ 0x043: addu    $a0, $zero, $s2
+ 0x044: addui   $sp, $sp, 120
+ 0x045: jal     void __global__::string::destructor($string)
+ 0x046: subui   $sp, $sp, 120
+ 0x047: addu    $a0, $zero, $s0
+ 0x048: addui   $sp, $sp, 120
+ 0x049: jal     void __global__::string::destructor($string)
+ 0x04A: subui   $sp, $sp, 120
+ 0x04B: addu    $a0, $zero, $s3
+ 0x04C: addui   $sp, $sp, 120
+ 0x04D: jal     u32 __global__::print(string)
+ 0x04E: subui   $sp, $sp, 120
+ 0x04F: addu    $s0, $v0, $zero
+ 0x050: addu    $a0, $zero, $s3
+ 0x051: addui   $sp, $sp, 120
+ 0x052: jal     void __global__::string::destructor($string)
+ 0x053: subui   $sp, $sp, 120
+ 0x054: addui   $v3, $zero, 2834382347                                  ;               print('b was ' + b.toFixed(2));
+ 0x055: mptr    $s3, 0x6
+ 0x056: addui   $s0, $sp, 48
+ 0x057: st32    $a1, 72($sp)
+ 0x058: addu    $a0, $zero, $s0
+ 0x059: addu    $a1, $zero, $s3
+ 0x05A: addui   $a2, $zero, 6
+ 0x05B: addui   $sp, $sp, 76
+ 0x05C: jal     void __global__::string::constructor($string,data,u32)
+ 0x05D: subui   $sp, $sp, 76
+ 0x05E: ld32    $a1, 72($sp)
+ 0x05F: addui   $s3, $sp, 72
+ 0x060: st32    $a1, 96($sp)
+ 0x061: addu    $a0, $zero, $s3
+ 0x062: ld32    $a1, 96($sp)
+ 0x063: addui   $a2, $zero, 2
+ 0x064: addui   $sp, $sp, 100
+ 0x065: jal     string __global__::i32::toFixed($data,i32,u8)
+ 0x066: subui   $sp, $sp, 100
+ 0x067: ld32    $a1, 96($sp)
+ 0x068: addui   $s2, $sp, 96
+ 0x069: st32    $a1, 120($sp)
+ 0x06A: addu    $a0, $zero, $s0
+ 0x06B: addu    $a1, $zero, $s2
+ 0x06C: addu    $a2, $zero, $s3
+ 0x06D: addui   $sp, $sp, 124
+ 0x06E: jal     string __global__::string::operator +($string,$data,string)
+ 0x06F: subui   $sp, $sp, 124
+ 0x070: ld32    $a1, 120($sp)
+ 0x071: addu    $a0, $zero, $s0
+ 0x072: addui   $sp, $sp, 120
+ 0x073: jal     void __global__::string::destructor($string)
+ 0x074: subui   $sp, $sp, 120
+ 0x075: addu    $a0, $zero, $s3
+ 0x076: addui   $sp, $sp, 120
+ 0x077: jal     void __global__::string::destructor($string)
+ 0x078: subui   $sp, $sp, 120
+ 0x079: addu    $a0, $zero, $s2
+ 0x07A: addui   $sp, $sp, 120
+ 0x07B: jal     u32 __global__::print(string)
+ 0x07C: subui   $sp, $sp, 120
+ 0x07D: addu    $s3, $v0, $zero
+ 0x07E: addu    $a0, $zero, $s2
+ 0x07F: addui   $sp, $sp, 120
+ 0x080: jal     void __global__::string::destructor($string)
+ 0x081: subui   $sp, $sp, 120
+ 0x082: add     $s2, $s1, $a1                                           ;               return a + b;
+ 0x083: addu    $v0, $s2, $zero
+ 0x084: ld64    $ra, 0($sp)                                             ;       return (i32 b) : i32 => {
+ 0x085: ld64    $s3, 8($sp)
+ 0x086: ld64    $a2, 16($sp)
+ 0x087: ld64    $s1, 24($sp)
+ 0x088: ld64    $s0, 32($sp)
+ 0x089: ld64    $s2, 40($sp)
+ 0x08A: jmpr    $ra
+
+[void test::set_some_value(void($data,i32) arg_0 -> $a0) -> null]
+ 0x08B: st64    $a2, 0($sp)                                             ; void set_some_value(void()(i32) set) {
+ 0x08C: st64    $s1, 8($sp)
+ 0x08D: st64    $s0, 16($sp)
+ 0x08E: st64    $s2, 24($sp)
+ 0x08F: st64    $ra, 32($sp)
+ 0x090: st64    $s3, 40($sp)
+ 0x091: st64    $a1, 48($sp)
+ 0x092: addui   $s0, $sp, 56                                            ;       pointer<i32> val;
+ 0x093: addui   $v3, $zero, 539845417370798810
+ 0x094: st64    $a0, 80($sp)
+ 0x095: addu    $a0, $zero, $s0
+ 0x096: addui   $a1, $zero, 539845417370798810
+ 0x097: addui   $sp, $sp, 88
+ 0x098: jal     void __global__::pointer::constructor($pointer,$u64)
+ 0x099: subui   $sp, $sp, 88
+ 0x09A: ld64    $a0, 80($sp)
+ 0x09B: addui   $v3, $zero, 539845417370798810                          ;       val.reset(0);
+ 0x09C: st64    $a0, 80($sp)
+ 0x09D: addu    $a0, $zero, $s0
+ 0x09E: addui   $a1, $zero, 0
+ 0x09F: addui   $sp, $sp, 88
+ 0x0A0: jal     void __global__::pointer::reset($pointer,subtype)
+ 0x0A1: subui   $sp, $sp, 88
+ 0x0A2: ld64    $a0, 80($sp)
+ 0x0A3: addi    $s1, $zero, 68                                          ;       pointer<i32> val;
+ 0x0A4: st64    $a0, 80($sp)                                            ;       void ()() outer = () : void => {
+ 0x0A5: addui   $a0, $zero, 28
+ 0x0A6: addui   $sp, $sp, 88
+ 0x0A7: jal     data __global__::alloc(u64)
+ 0x0A8: subui   $sp, $sp, 88
+ 0x0A9: addu    $s2, $v0, $zero
+ 0x0AA: ld64    $a0, 80($sp)
+ 0x0AB: addui   $s3, $s2, 0
+ 0x0AC: addui   $v3, $zero, 539845417370798810
+ 0x0AD: st64    $a0, 80($sp)
+ 0x0AE: addu    $a0, $zero, $s3
+ 0x0AF: addui   $a1, $zero, 539845417370798810
+ 0x0B0: addu    $a2, $zero, $s0
+ 0x0B1: addui   $sp, $sp, 88
+ 0x0B2: jal     void __global__::pointer::constructor($pointer,$u64,pointer)
+ 0x0B3: subui   $sp, $sp, 88
+ 0x0B4: ld64    $a0, 80($sp)
+ 0x0B5: addui   $s3, $s2, 24
+ 0x0B6: st32    $s1, 0($s3)
+ 0x0B7: st64    $a0, 80($sp)
+ 0x0B8: addui   $a0, $zero, 3482782382
+ 0x0B9: addu    $a1, $zero, $s2
+ 0x0BA: addui   $a2, $zero, 28
+ 0x0BB: addui   $sp, $sp, 88
+ 0x0BC: jal     data __global__::$makefunc(u32,data,u64)
+ 0x0BD: subui   $sp, $sp, 88
+ 0x0BE: addu    $s2, $v0, $zero
+ 0x0BF: ld64    $a0, 80($sp)
+ 0x0C0: addu    $s3, $s2, $zero
+ 0x0C1: addu    $s2, $s3, $zero                                         ;       pointer<i32> val;
+ 0x0C2: ld64    $s3, 0($s2)                                             ;       outer();
+ 0x0C3: addui   $s3, $s3, 24
+ 0x0C4: ld64    $s3, 0($s3)
+ 0x0C5: addui   $s3, $s3, 0
+ 0x0C6: ld64    $s3, 0($s3)
+ 0x0C7: st64    $a0, 80($sp)
+ 0x0C8: addu    $a0, $zero, $s3
+ 0x0C9: addui   $sp, $sp, 88
+ 0x0CA: jalr    $s2
+ 0x0CB: subui   $sp, $sp, 88
+ 0x0CC: ld64    $a0, 80($sp)
+ 0x0CD: addui   $v3, $zero, 539845417370798810                          ;       set(val.value);
+ 0x0CE: st64    $a0, 80($sp)
+ 0x0CF: addu    $a0, $zero, $s0
+ 0x0D0: addui   $sp, $sp, 88
+ 0x0D1: jal     subtype __global__::pointer::get_value($pointer)
+ 0x0D2: subui   $sp, $sp, 88
+ 0x0D3: addu    $s2, $v0, $zero
+ 0x0D4: ld64    $a0, 80($sp)
+ 0x0D5: ld32    $s3, 0($s2)
+ 0x0D6: ld64    $s2, 0($a0)
+ 0x0D7: addui   $s2, $s2, 24
+ 0x0D8: ld64    $s2, 0($s2)
+ 0x0D9: addui   $s2, $s2, 0
+ 0x0DA: ld64    $s2, 0($s2)
+ 0x0DB: st64    $a0, 80($sp)
+ 0x0DC: addu    $a0, $zero, $s2
+ 0x0DD: addu    $a1, $zero, $s3
+ 0x0DE: ld64    $v0, 80($sp)
+ 0x0DF: addui   $sp, $sp, 88
+ 0x0E0: jalr    $v0
+ 0x0E1: subui   $sp, $sp, 88
+ 0x0E2: ld64    $a0, 80($sp)
+ 0x0E3: addui   $v3, $zero, 539845417370798810                          ;       pointer<i32> val;
+ 0x0E4: addu    $a0, $zero, $s0
+ 0x0E5: addui   $sp, $sp, 80
+ 0x0E6: jal     void __global__::pointer::destructor($pointer)
+ 0x0E7: subui   $sp, $sp, 80
+ 0x0E8: ld64    $a2, 0($sp)                                             ; void set_some_value(void()(i32) set) {
+ 0x0E9: ld64    $s1, 8($sp)
+ 0x0EA: ld64    $s0, 16($sp)
+ 0x0EB: ld64    $s2, 24($sp)
+ 0x0EC: ld64    $ra, 32($sp)
+ 0x0ED: ld64    $s3, 40($sp)
+ 0x0EE: ld64    $a1, 48($sp)
+ 0x0EF: jmpr    $ra
+
+[void test::lambda_1(data @ctx -> $a0) -> null]
+ 0x0F0: st64    $a2, 0($sp)                                             ;       void ()() outer = () : void => {
+ 0x0F1: st64    $s1, 8($sp)
+ 0x0F2: st64    $s0, 16($sp)
+ 0x0F3: st64    $s2, 24($sp)
+ 0x0F4: st64    $ra, 32($sp)
+ 0x0F5: st64    $s3, 40($sp)
+ 0x0F6: st64    $a1, 48($sp)
+ 0x0F7: addui   $s0, $a0, 0
+ 0x0F8: addui   $s1, $a0, 24
+ 0x0F9: ld32    $s2, 0($s1)
+ 0x0FA: addui   $a0, $zero, 28                                          ;               void ()() inner = () : void => {
+ 0x0FB: addui   $sp, $sp, 56
+ 0x0FC: jal     data __global__::alloc(u64)
+ 0x0FD: subui   $sp, $sp, 56
+ 0x0FE: addu    $s1, $v0, $zero
+ 0x0FF: addui   $s3, $s1, 0
+ 0x100: addui   $v3, $zero, 539845417370798810
+ 0x101: addu    $a0, $zero, $s3
+ 0x102: addui   $a1, $zero, 539845417370798810
+ 0x103: addu    $a2, $zero, $s0
+ 0x104: addui   $sp, $sp, 56
+ 0x105: jal     void __global__::pointer::constructor($pointer,$u64,pointer)
+ 0x106: subui   $sp, $sp, 56
+ 0x107: addui   $s0, $s1, 24
+ 0x108: st32    $s2, 0($s0)
+ 0x109: addui   $a0, $zero, 3939210147
+ 0x10A: addu    $a1, $zero, $s1
+ 0x10B: addui   $a2, $zero, 28
+ 0x10C: addui   $sp, $sp, 56
+ 0x10D: jal     data __global__::$makefunc(u32,data,u64)
+ 0x10E: subui   $sp, $sp, 56
+ 0x10F: addu    $s1, $v0, $zero
+ 0x110: addu    $s0, $s1, $zero
+ 0x111: addu    $s1, $s0, $zero
+ 0x112: ld64    $s0, 0($s1)                                             ;               inner();
+ 0x113: addui   $s0, $s0, 24
+ 0x114: ld64    $s0, 0($s0)
+ 0x115: addui   $s0, $s0, 0
+ 0x116: ld64    $s0, 0($s0)
+ 0x117: addu    $a0, $zero, $s0
+ 0x118: addui   $sp, $sp, 56
+ 0x119: jalr    $s1
+ 0x11A: subui   $sp, $sp, 56
+ 0x11B: ld64    $a2, 0($sp)                                             ;       void ()() outer = () : void => {
+ 0x11C: ld64    $s1, 8($sp)
+ 0x11D: ld64    $s0, 16($sp)
+ 0x11E: ld64    $s2, 24($sp)
+ 0x11F: ld64    $ra, 32($sp)
+ 0x120: ld64    $s3, 40($sp)
+ 0x121: ld64    $a1, 48($sp)
+ 0x122: jmpr    $ra
+
+[void test::lambda_2(data @ctx -> $a0) -> null]
+ 0x123: st64    $a2, 0($sp)                                             ;               void ()() inner = () : void => {
+ 0x124: st64    $s1, 8($sp)
+ 0x125: st64    $s4, 16($sp)
+ 0x126: st64    $s0, 24($sp)
+ 0x127: st64    $s2, 32($sp)
+ 0x128: st64    $ra, 40($sp)
+ 0x129: st64    $s3, 48($sp)
+ 0x12A: st64    $a1, 56($sp)
+ 0x12B: addui   $s0, $a0, 0
+ 0x12C: addui   $s1, $a0, 24
+ 0x12D: ld32    $s2, 0($s1)
+ 0x12E: addui   $v3, $zero, 2834382347                                  ;                       print('x was ' + x.toFixed(2));
+ 0x12F: mptr    $s1, 0xC
+ 0x130: addui   $s3, $sp, 64
+ 0x131: addu    $a0, $zero, $s3
+ 0x132: addu    $a1, $zero, $s1
+ 0x133: addui   $a2, $zero, 6
+ 0x134: addui   $sp, $sp, 88
+ 0x135: jal     void __global__::string::constructor($string,data,u32)
+ 0x136: subui   $sp, $sp, 88
+ 0x137: addui   $s1, $sp, 88
+ 0x138: addu    $a0, $zero, $s1
+ 0x139: addu    $a1, $zero, $s2
+ 0x13A: addui   $a2, $zero, 2
+ 0x13B: addui   $sp, $sp, 112
+ 0x13C: jal     string __global__::i32::toFixed($data,i32,u8)
+ 0x13D: subui   $sp, $sp, 112
+ 0x13E: addui   $s4, $sp, 112
+ 0x13F: addu    $a0, $zero, $s3
+ 0x140: addu    $a1, $zero, $s4
+ 0x141: addu    $a2, $zero, $s1
+ 0x142: addui   $sp, $sp, 136
+ 0x143: jal     string __global__::string::operator +($string,$data,string)
+ 0x144: subui   $sp, $sp, 136
+ 0x145: addu    $a0, $zero, $s3
+ 0x146: addui   $sp, $sp, 136
+ 0x147: jal     void __global__::string::destructor($string)
+ 0x148: subui   $sp, $sp, 136
+ 0x149: addu    $a0, $zero, $s1
+ 0x14A: addui   $sp, $sp, 136
+ 0x14B: jal     void __global__::string::destructor($string)
+ 0x14C: subui   $sp, $sp, 136
+ 0x14D: addu    $a0, $zero, $s4
+ 0x14E: addui   $sp, $sp, 136
+ 0x14F: jal     u32 __global__::print(string)
+ 0x150: subui   $sp, $sp, 136
+ 0x151: addu    $s1, $v0, $zero
+ 0x152: addu    $a0, $zero, $s4
+ 0x153: addui   $sp, $sp, 136
+ 0x154: jal     void __global__::string::destructor($string)
+ 0x155: subui   $sp, $sp, 136
+ 0x156: addui   $a0, $zero, 1                                           ;                       i32()(i32) add = addFunc(1);
+ 0x157: addui   $sp, $sp, 64
+ 0x158: jal     i32($data,i32) test::addFunc(i32)
+ 0x159: subui   $sp, $sp, 64
+ 0x15A: addu    $s4, $v0, $zero
+ 0x15B: addu    $s1, $s4, $zero                                         ;                       print('x was ' + x.toFixed(2));
+ 0x15C: ld64    $s4, 0($s1)                                             ;                       i32 z = add(x);
+ 0x15D: addui   $s4, $s4, 24
+ 0x15E: ld64    $s4, 0($s4)
+ 0x15F: addui   $s4, $s4, 0
+ 0x160: ld64    $s4, 0($s4)
+ 0x161: addu    $a0, $zero, $s4
+ 0x162: addu    $a1, $zero, $s2
+ 0x163: addui   $sp, $sp, 64
+ 0x164: jalr    $s1
+ 0x165: subui   $sp, $sp, 64
+ 0x166: addu    $s2, $v0, $zero
+ 0x167: add     $s1, $s2, $zero                                         ;                       print('x was ' + x.toFixed(2));
+ 0x168: addui   $v3, $zero, 2834382347                                  ;                       print('z was ' + z.toFixed(2));
+ 0x169: mptr    $s2, 0x12
+ 0x16A: addui   $s4, $sp, 64
+ 0x16B: addu    $a0, $zero, $s4
+ 0x16C: addu    $a1, $zero, $s2
+ 0x16D: addui   $a2, $zero, 6
+ 0x16E: addui   $sp, $sp, 88
+ 0x16F: jal     void __global__::string::constructor($string,data,u32)
+ 0x170: subui   $sp, $sp, 88
+ 0x171: addui   $s2, $sp, 88
+ 0x172: addu    $a0, $zero, $s2
+ 0x173: addu    $a1, $zero, $s1
+ 0x174: addui   $a2, $zero, 2
+ 0x175: addui   $sp, $sp, 112
+ 0x176: jal     string __global__::i32::toFixed($data,i32,u8)
+ 0x177: subui   $sp, $sp, 112
+ 0x178: addui   $s3, $sp, 112
+ 0x179: addu    $a0, $zero, $s4
+ 0x17A: addu    $a1, $zero, $s3
+ 0x17B: addu    $a2, $zero, $s2
+ 0x17C: addui   $sp, $sp, 136
+ 0x17D: jal     string __global__::string::operator +($string,$data,string)
+ 0x17E: subui   $sp, $sp, 136
+ 0x17F: addu    $a0, $zero, $s4
+ 0x180: addui   $sp, $sp, 136
+ 0x181: jal     void __global__::string::destructor($string)
+ 0x182: subui   $sp, $sp, 136
+ 0x183: addu    $a0, $zero, $s2
+ 0x184: addui   $sp, $sp, 136
+ 0x185: jal     void __global__::string::destructor($string)
+ 0x186: subui   $sp, $sp, 136
+ 0x187: addu    $a0, $zero, $s3
+ 0x188: addui   $sp, $sp, 136
+ 0x189: jal     u32 __global__::print(string)
+ 0x18A: subui   $sp, $sp, 136
+ 0x18B: addu    $s2, $v0, $zero
+ 0x18C: addu    $a0, $zero, $s3
+ 0x18D: addui   $sp, $sp, 136
+ 0x18E: jal     void __global__::string::destructor($string)
+ 0x18F: subui   $sp, $sp, 136
+ 0x190: addui   $v3, $zero, 539845417370798810                          ;                       val = z;
+ 0x191: addu    $a0, $zero, $s0
+ 0x192: addu    $a1, $zero, $s1
+ 0x193: addui   $sp, $sp, 64
+ 0x194: jal     pointer __global__::pointer::operator =($pointer,subtype)
+ 0x195: subui   $sp, $sp, 64
+ 0x196: addu    $s1, $v0, $zero
+ 0x197: ld64    $a2, 0($sp)                                             ;               void ()() inner = () : void => {
+ 0x198: ld64    $s1, 8($sp)
+ 0x199: ld64    $s4, 16($sp)
+ 0x19A: ld64    $s0, 24($sp)
+ 0x19B: ld64    $s2, 32($sp)
+ 0x19C: ld64    $ra, 40($sp)
+ 0x19D: ld64    $s3, 48($sp)
+ 0x19E: ld64    $a1, 56($sp)
+ 0x19F: jmpr    $ra
+```
+
+#### With the following host code
+```
+int main(int arg_count, const char** args) {
+    basic_malloc_allocator alloc;
+    vm_backend be(&alloc, 8 * 1024 * 1024, 8 * 1024 * 1024);
+    script_context ctx(&be);
+
+    be.commit_bindings();
+    ctx.io()->set_cwd_from_args(arg_count, args);
+
+    script_module* mod = ctx.resolve("test");
+    if (!mod) {
+        print_log(&ctx);
+        return -1;
+    }
+    print_code(&be);
+
+    mod->init();
+
+    i32 someVal = 0;
+    mod->function("set_some_value")->call(nullptr, [&someVal](i32 val) {
+        someVal = val;
+    });
+
+    printf("someVal was set to %d.\n", someVal);
+
+    return 0;
+}
+```
+
+#### Producing the following output
+```
+x was 68.00
+a was 1.00
+b was 68.00
+z was 69.00
+someVal was set to 69.
+```
+
+Also pretty neat
+
+</details>
