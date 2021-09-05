@@ -77,9 +77,9 @@ namespace gjs {
             void pop_import();
 
             /*
-             * Takes IR code as a parameter, and modifies it in some way.
-             */
-            void add_ir_step(ir_step_func step);
+            * Takes IR code as a parameter, and modifies it in some way.
+            */
+            void add_ir_step(ir_step_func step, bool execAfterRegisterAlloc = false);
 
             /*
              * Takes the root of the AST as a parameter, and modifies it in some way.
@@ -91,6 +91,7 @@ namespace gjs {
         protected:
             script_context* m_ctx;
             std::vector<ir_step_func> m_ir_steps;
+            std::vector<ir_step_func> m_post_regalloc_ir_steps;
             std::vector<ast_step_func> m_ast_steps;
             std::vector<std::pair<source_ref, std::string>> m_importStack;
             compile_log m_log;

@@ -672,21 +672,39 @@ namespace gjs {
             }
 
             static bool showStackInfo = false;
-            if (m_name.length() > 0) {
-                if (m_type->is_floating_point) {
-                    if (m_stack_id > 0 && showStackInfo) return format("$FP%d (%s) <$sp[%d]>", m_reg_id, m_name.c_str(), m_stack_id);
-                    else return format("$FP%d (%s)", m_reg_id, m_name.c_str());
+            if (is_arg()) {
+                if (m_name.length() > 0) {
+                    if (m_type->is_floating_point) {
+                        if (m_stack_id > 0 && showStackInfo) return format("$FPA%d (%s) <$sp[%d]>", m_arg_idx, m_name.c_str(), m_stack_id);
+                        else return format("$FPA%d (%s)", m_arg_idx, m_name.c_str());
+                    }
+                    if (m_stack_id > 0 && showStackInfo) return format("$GPA%d (%s) <$sp[%d]>", m_arg_idx, m_name.c_str(), m_stack_id);
+                    else return format("$GPA%d (%s)", m_arg_idx, m_name.c_str());
                 }
-                if (m_stack_id > 0 && showStackInfo) return format("$GP%d (%s) <$sp[%d]>", m_reg_id, m_name.c_str(), m_stack_id);
-                else return format("$GP%d (%s)", m_reg_id, m_name.c_str());
-            }
 
-            if (m_type->is_floating_point) {
-                if (m_stack_id > 0 && showStackInfo) return format("$FP%d <$sp[%d]>", m_reg_id, m_stack_id);
-                else return format("$FP%d", m_reg_id);
+                if (m_type->is_floating_point) {
+                    if (m_stack_id > 0 && showStackInfo) return format("$FPA%d <$sp[%d]>", m_arg_idx, m_stack_id);
+                    else return format("$FPA%d", m_arg_idx);
+                }
+                if (m_stack_id > 0 && showStackInfo) return format("$GPA%d <$sp[%d]>", m_arg_idx, m_stack_id);
+                else return format("$GPA%d", m_arg_idx);
+            } else {
+                if (m_name.length() > 0) {
+                    if (m_type->is_floating_point) {
+                        if (m_stack_id > 0 && showStackInfo) return format("$FP%d (%s) <$sp[%d]>", m_reg_id, m_name.c_str(), m_stack_id);
+                        else return format("$FP%d (%s)", m_reg_id, m_name.c_str());
+                    }
+                    if (m_stack_id > 0 && showStackInfo) return format("$GP%d (%s) <$sp[%d]>", m_reg_id, m_name.c_str(), m_stack_id);
+                    else return format("$GP%d (%s)", m_reg_id, m_name.c_str());
+                }
+
+                if (m_type->is_floating_point) {
+                    if (m_stack_id > 0 && showStackInfo) return format("$FP%d <$sp[%d]>", m_reg_id, m_stack_id);
+                    else return format("$FP%d", m_reg_id);
+                }
+                if (m_stack_id > 0 && showStackInfo) return format("$GP%d <$sp[%d]>", m_reg_id, m_stack_id);
+                else return format("$GP%d", m_reg_id);
             }
-            if (m_stack_id > 0 && showStackInfo) return format("$GP%d <$sp[%d]>", m_reg_id, m_stack_id);
-            else return format("$GP%d", m_reg_id);
         }
 
         void var::set_mem_ptr(const var& v) {

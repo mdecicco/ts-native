@@ -102,6 +102,8 @@ namespace gjs {
         template <typename L, typename Ret, typename ...Args>
         static void* make(Ret (L::*f)(Args...) const);
 
+        static void destroy(raw_callback** cbp);
+
         template <typename L>
         static std::enable_if_t<!std::is_function_v<std::remove_pointer_t<L>>, void*>
         make(L&& l);

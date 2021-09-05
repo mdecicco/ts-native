@@ -71,6 +71,12 @@ namespace gjs {
                                 ctx.function("memcopy", ctx.type("void"), { ctx.type("data"), ctx.type("data"), ctx.type("u64") }),
                                 { obj, args[0], ctx.imm((u64)obj.size()) }
                             );
+                        } else if (ret_tp->signature) {
+                            // function pointers are just raw_callback**
+                            var tmp = ctx.empty_var(ctx.type("data"));
+                            ctx.add(operation::load).operand(tmp).operand(args[0]);          // raw_callback* cb = *args[0]
+                            ctx.add(operation::store).operand(obj).operand(tmp);             // *obj = cb
+                            ctx.add(operation::store).operand(args[0]).operand(ctx.imm((u64)0)); // *args[0] = nullptr
                         } else {
                             // trigger function not found error
                             obj.method("constructor", voidTp, arg_types);
@@ -159,14 +165,12 @@ namespace gjs {
                 if (n->initializer) {
                     if (!tp->is_primitive) {
                         ctx.push_node(n->data_type);
-                        if (n->initializer->body->type == nt::operation && n->initializer->body->op == ot::newObj) {
-                            var val = expression(ctx, n->initializer->body);
-                            ctx.add(operation::eq).operand(v).operand(val);
-                        } else {
-                            v.raise_stack_flag();
-                            var val = expression(ctx, n->initializer->body);
-                            ctx.add(operation::eq).operand(v).operand(val);
-                        }
+                        //bool onStack = true;
+                        //onStack = onStack && (n->initializer->body->type != nt::operation || n->initializer->body->op != ot::newObj);
+                        //onStack = onStack && (n->initializer->body->type != nt::lambda_expression);
+                        //if (onStack) v.raise_stack_flag();
+                        var val = expression(ctx, n->initializer->body);
+                        ctx.add(operation::eq).operand(v).operand(val);
                         ctx.pop_node();
                     } else {
                         var val = expression(ctx, n->initializer->body);

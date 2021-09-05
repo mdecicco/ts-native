@@ -335,8 +335,20 @@ namespace gjs {
                     break;
                 }
                 case op::store: {
-                    u8 sz = o2.type()->size;
-                    if (!o2.type()->is_primitive) sz = sizeof(void*);
+                    if (o2.is_imm()) {
+                        if (t2->is_floating_point) {
+                            r2 = vmr::vf0;
+                            if (t2->size == sizeof(f64)) m_instructions += encode(vmi::daddi).operand(r2).operand(vmr::zero).operand(o2.imm_d());
+                            else m_instructions += encode(vmi::faddi).operand(r2).operand(vmr::zero).operand(o2.imm_f());
+                        } else {
+                            r2 = vmr::v0;
+                            m_instructions += encode(vmi::addui).operand(r2).operand(vmr::zero).operand(o2.imm_u());
+                        }
+                        m_map.append(i.src);
+                    }
+                    
+                    u8 sz = t2->size;
+                    if (!t2->is_primitive) sz = sizeof(void*);
                     vmi st = vmi::st8;
                     switch (sz) {
                         case 2: { st = vmi::st16; break; }
@@ -352,13 +364,13 @@ namespace gjs {
                 case op::stack_alloc: {
                     u64 addr = in.funcs[fidx].stack.alloc(o2.imm_u());
                     if (o1.is_spilled()) {
-                        // printf("Allocate[%d][off %d] %d -> 0x%X\n", o1.reg_id(), o1.stack_off(), o2.imm_u(), addr);
+                        printf("Allocate[%d][off %d] %d -> 0x%X\n", o1.reg_id(), o1.stack_off(), o2.imm_u(), addr);
                         stack_stack_addrs[o1.stack_off()] = addr;
                         m_instructions += encode(vmi::addui).operand(r1).operand(vmr::sp).operand(addr);
                         m_map.append(i.src);
                         m_instructions += encode(vmi::st64).operand(r1).operand(vmr::sp).operand((u64)o1.stack_off());
                     } else {
-                        // printf("Allocate[%d][id %d] %d -> 0x%X\n", o1.reg_id(), o1.stack_id(), o2.imm_u(), addr);
+                        printf("Allocate[%d][id %d] %d -> 0x%X\n", o1.reg_id(), o1.stack_id(), o2.imm_u(), addr);
                         reg_stack_addrs[o1.stack_id()] = addr;
                         m_instructions += encode(vmi::addui).operand(r1).operand(vmr::sp).operand(addr);
                     }
@@ -368,12 +380,12 @@ namespace gjs {
                 case op::stack_free: {
                     if (o1.is_spilled()) {
                         auto it = stack_stack_addrs.find(o1.stack_off());
-                        // printf("Free[%d][off %d] %d\n", o1.reg_id(), o1.stack_off(), it->getSecond());
+                        printf("Free[%d][off %d] %d\n", o1.reg_id(), o1.stack_off(), it->getSecond());
                         in.funcs[fidx].stack.free(it->getSecond());
                         stack_stack_addrs.erase(it);
                     } else {
                         auto it = reg_stack_addrs.find(o1.stack_id());
-                        // printf("Free[%d][id %d] %d\n", o1.reg_id(), o1.stack_id(), it->getSecond());
+                        printf("Free[%d][id %d] %d\n", o1.reg_id(), o1.stack_id(), it->getSecond());
                         in.funcs[fidx].stack.free(it->getSecond());
                         reg_stack_addrs.erase(it);
                     }

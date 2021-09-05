@@ -154,6 +154,8 @@ namespace gjs {
 
                 if (fn) {
                     var& out = empty_var(fn->type, fn->name);
+                    out.raise_stack_flag();
+                    add(operation::stack_alloc).operand(out).operand(imm((u64)fn->type->size));
                     auto dt = type("data");
                     var dataPtr = empty_var(dt);
                     add(operation::eq).operand(dataPtr).operand(imm((u64)0));
@@ -163,7 +165,7 @@ namespace gjs {
                         { imm((u64)fn->id()), dataPtr, imm((u64)0) }, // function id, context data size
                         nullptr
                     );
-                    add(operation::eq).operand(out).operand(ptr);
+                    add(operation::store).operand(out).operand(ptr);
 
                     return out;
                 }
@@ -432,7 +434,7 @@ namespace gjs {
                 var& ctx = empty_var(type("data"), "$ctx");
                 ctx.set_arg_idx(0);
 
-                u64 off = 0;
+                u64 off = sizeof(u32) + (sizeof(u64) * captures.size());
                 for (u16 c = 0;c < captures.size();c++) {
                     b->captures.push_back(new capture({ u32(off), captures[c] }));
                     //symbols.set(captures[c]->name(), b->captures.back());

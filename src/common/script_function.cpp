@@ -34,7 +34,7 @@ namespace gjs {
         is_method_of = tp;
         is_thiscall = tp && !wrapped->is_static_method;
         is_subtype_obj_ctor = tp && tp->requires_subtype && is_ctor;
-        type = mgr->get(function_signature(mgr->ctx(), tp, wrapped, is_ctor));
+        type = mgr->get(function_signature(mgr->ctx(), tp, wrapped, is_ctor), "", is_dtor);
         m_id = hash(type->signature->to_string(name, tp, mod));
         access.wrapped = wrapped;
         owner = mod;

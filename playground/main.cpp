@@ -36,6 +36,8 @@ void remove_unused_regs_pass (script_context* ctx, compilation_output& in, u16 f
     if (csz > code.size()) remove_unused_regs_pass(ctx, in, f);
 }
 
+// todo: destruct captured variables
+
 int main(int arg_count, const char** args) {
     basic_malloc_allocator alloc;
     vm_backend be(&alloc, 8 * 1024 * 1024, 8 * 1024 * 1024);
@@ -45,7 +47,8 @@ int main(int arg_count, const char** args) {
     //be.log_ir(true);
     ctx.io()->set_cwd_from_args(arg_count, args);
     //ctx.compiler()->add_ir_step(remove_unused_regs_pass);
-    ctx.compiler()->add_ir_step(debug_ir_step);
+    ctx.compiler()->add_ir_step(debug_ir_step, false);
+    ctx.compiler()->add_ir_step(debug_ir_step, true);
 
     script_module* mod = ctx.resolve("test");
     if (!mod) {
@@ -53,7 +56,7 @@ int main(int arg_count, const char** args) {
         return -1;
     }
     print_code(&be);
-    //be.log_instructions(true);
+    // be.log_instructions(true);
 
     mod->init();
 

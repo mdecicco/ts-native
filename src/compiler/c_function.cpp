@@ -371,11 +371,16 @@ namespace gjs {
             ctx.pop_block();
 
             var out = ctx.empty_var(sigTp);
+            out.raise_stack_flag();
+            ctx.add(operation::stack_alloc).operand(out).operand(ctx.imm(out.size()));
 
             if (captures.size() > 0) {
                 auto dt = ctx.type("data");
                 auto u32t = ctx.type("u32");
                 auto u64t = ctx.type("u64");
+
+                captureDataSize += sizeof(u32); // number of captures
+                captureDataSize += sizeof(u64) * captures.size(); // moduletype ids of captures
                 var dataSz = ctx.imm((u64)captureDataSize);
                 var ctxPtr = call(
                     ctx,
@@ -383,12 +388,22 @@ namespace gjs {
                     { dataSz }
                 );
 
-                u32 off = 0;
+                u32 off = sizeof(u32) + (sizeof(u64) * captures.size());
+                ctx.add(operation::store).operand(ctx.force_cast_var(ctxPtr, u32t)).operand(ctx.imm((u64)captures.size()));
+
+                var copy = ctx.empty_var(dt);
+                var typeIdPtr = ctx.empty_var(dt);
                 for (u16 c = 0;c < captures.size();c++) {
-                    var copy = ctx.empty_var(captures[c]->type());
-                    ctx.add(operation::uadd).operand(copy).operand(ctxPtr).operand(ctx.imm((u64)off));
-                    construct_in_place(ctx, copy, { *captures[c] });
-                    off += captures[c]->type()->size;
+                    script_type* tp = captures[c]->type();
+                    var copyTyped = ctx.force_cast_var(copy, tp);
+                    var typeIdu32 = ctx.force_cast_var(typeIdPtr, u64t);
+
+                    ctx.add(operation::uadd).operand(typeIdu32).operand(ctxPtr).operand(ctx.imm((u64)(sizeof(u32) + (sizeof(u64) * c))));
+                    ctx.add(operation::store).operand(typeIdu32).operand(ctx.imm(join_u32(tp->owner->id(), tp->id())));
+
+                    ctx.add(operation::uadd).operand(copyTyped).operand(ctxPtr).operand(ctx.imm((u64)off));
+                    construct_in_place(ctx, copyTyped, { *captures[c] });
+                    off += tp->size;
                 }
 
                 var ptr = call(
@@ -397,7 +412,7 @@ namespace gjs {
                     { ctx.imm((u64)fn->id()), ctxPtr, dataSz }, // function id, context data size
                     nullptr
                 );
-                ctx.add(operation::eq).operand(out).operand(ptr);
+                ctx.add(operation::store).operand(out).operand(ptr);
             } else {
                 auto dt = ctx.type("data");
                 var dataPtr = ctx.empty_var(dt);
@@ -408,7 +423,7 @@ namespace gjs {
                     { ctx.imm((u64)fn->id()), dataPtr, ctx.imm((u64)0) }, // function id, context data size
                     nullptr
                 );
-                ctx.add(operation::eq).operand(out).operand(ptr);
+                ctx.add(operation::store).operand(out).operand(ptr);
             }
 
             ctx.pop_node();

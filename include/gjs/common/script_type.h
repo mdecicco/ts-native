@@ -29,7 +29,7 @@ namespace gjs {
 
             script_type* get(u32 id);
 
-            script_type* get(const function_signature& sig, const std::string& name = "");
+            script_type* get(const function_signature& sig, const std::string& name = "", bool is_dtor = false);
 
             template <typename T>
             script_type* get(bool do_throw = false) {

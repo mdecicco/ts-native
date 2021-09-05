@@ -1,6 +1,7 @@
 #include <gjs/common/script_function.h>
 #include <gjs/common/script_type.h>
 #include <gjs/common/script_context.h>
+#include <gjs/common/script_module.h>
 #include <gjs/common/function_signature.h>
 #include <gjs/util/util.h>
 #include <gjs/bind/bind.h>
@@ -18,6 +19,11 @@ namespace gjs {
         new_types->m_types_by_id.clear();
 
         for (u16 i = 0;i < all.size();i++) {
+            if (this != all[i]->owner->types()) {
+                all[i]->owner->types()->add(all[i]);
+                continue;
+            }
+
             if (m_types.count(all[i]->name) > 0) {
                 throw error::bind_exception(error::ecode::b_type_already_bound, all[i]->name.c_str());
             }
@@ -40,7 +46,7 @@ namespace gjs {
         return m_types_by_id[id];
     }
 
-    script_type* type_manager::get(const function_signature& sig, const std::string& name) {
+    script_type* type_manager::get(const function_signature& sig, const std::string& name, bool is_dtor) {
         if (this != m_ctx->types()) return m_ctx->types()->get(sig, name);
 
         if (name.length() > 0) {
@@ -52,26 +58,51 @@ namespace gjs {
                 t->internal_name = n;
                 t->signature = new function_signature(sig);
                 t->size = sizeof(void*);
-                t->is_pod = true;
-                t->is_primitive = true;
+                t->is_pod = false;
+                t->is_primitive = false;
                 t->is_host = true;
                 t->is_floating_point = false;
-                t->is_trivially_copyable = true;
-                t->is_unsigned = true;
+                t->is_trivially_copyable = false;
+                t->is_unsigned = false;
                 t->is_builtin = true;
                 m_types[name] = t;
                 m_types_by_id[t->m_id] = t;
 
+                if (!is_dtor) {
+                    void (*ptr)(void*) = reinterpret_cast<void(*)(void*)>(raw_callback::destroy);
+                    auto wrapped = bind::wrap<void, void*>(this, name + "::destructor", ptr);
+                    wrapped->arg_is_ptr.clear();
+                    wrapped->arg_types.clear();
+                    t->destructor = new script_function(this, t, wrapped, false, true, m_ctx->global());
+                }
+
                 return t;
             }
 
-            return m_types[name];
+            script_type* t = m_types[name];
+            if (!t->destructor) {
+                void (*ptr)(void*) = reinterpret_cast<void(*)(void*)>(raw_callback::destroy);
+                auto wrapped = bind::wrap<void, void*>(this, name + "::destructor", ptr);
+                wrapped->arg_is_ptr.clear();
+                wrapped->arg_types.clear();
+                t->destructor = new script_function(this, t, wrapped, false, true, m_ctx->global());
+            }
+            return t;
         }
 
         std::string n = sig.to_string();
         if (m_types.count(n) == 0) {
             script_type* t = m_ctx->types()->get(n);
-            if (t) return t;
+            if (t) {
+                if (!t->destructor) {
+                    void (*ptr)(void*) = reinterpret_cast<void(*)(void*)>(raw_callback::destroy);
+                    auto wrapped = bind::wrap<void, void*>(this, n + "::destructor", ptr);
+                    wrapped->arg_is_ptr.clear();
+                    wrapped->arg_types.clear();
+                    t->destructor = new script_function(this, t, wrapped, false, true, m_ctx->global());
+                }
+                return t;
+            }
 
             t = new script_type();
             t->m_id = hash(n);
@@ -79,15 +110,23 @@ namespace gjs {
             t->internal_name = n;
             t->signature = new function_signature(sig);
             t->size = sizeof(void*);
-            t->is_pod = true;
-            t->is_primitive = true;
+            t->is_pod = false;
+            t->is_primitive = false;
             t->is_host = true;
             t->is_floating_point = false;
-            t->is_trivially_copyable = true;
-            t->is_unsigned = true;
+            t->is_trivially_copyable = false;
+            t->is_unsigned = false;
             t->is_builtin = true;
             m_types[n] = t;
             m_types_by_id[t->m_id] = t;
+
+            if (!is_dtor) {
+                void (*ptr)(void*) = reinterpret_cast<void(*)(void*)>(raw_callback::destroy);
+                auto wrapped = bind::wrap<void, void*>(this, n + "::destructor", ptr);
+                wrapped->arg_is_ptr.clear();
+                wrapped->arg_types.clear();
+                t->destructor = new script_function(this, t, wrapped, false, true, m_ctx->global());
+            }
 
             return t;
         }

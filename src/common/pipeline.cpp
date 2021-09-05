@@ -128,6 +128,12 @@ namespace gjs {
                         out.funcs[i].regs.m_fpc = generator->fp_count();
                         out.funcs[i].regs.process(i);
                     }
+
+                    for (u16 f = 0;f < out.funcs.size();f++) {
+                        for (u8 i = 0;i < m_post_regalloc_ir_steps.size();i++) {
+                            m_post_regalloc_ir_steps[i](m_ctx, out, f);
+                        }
+                    }
                 }
 
                 generator->generate(out);
@@ -179,8 +185,9 @@ namespace gjs {
         m_importStack.pop_back();
     }
 
-    void pipeline::add_ir_step(ir_step_func step) {
-        m_ir_steps.push_back(step);
+    void pipeline::add_ir_step(ir_step_func step, bool execAfterRegisterAlloc) {
+        if (execAfterRegisterAlloc) m_post_regalloc_ir_steps.push_back(step);
+        else m_ir_steps.push_back(step);
     }
 
     void pipeline::add_ast_step(ast_step_func step) {

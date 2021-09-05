@@ -7,7 +7,7 @@
 #include <gjs/common/script_function.h>
 
 namespace gjs {
-    script_pointer::script_pointer(u64 moduletype) : m_type(nullptr), m_data(nullptr), m_refCount(new u32(1)) {
+    script_pointer::script_pointer(u64 moduletype) : m_type(nullptr), m_data(nullptr), m_refCount(nullptr) {
         m_type = resolve_moduletype(moduletype);
     }
 
@@ -26,6 +26,7 @@ namespace gjs {
             m_data = new u8[m_type->size];
             memcpy(m_data, v, m_type->size);
             m_refCount = new u32(1);
+            // printf("Created pointer to %s: 0x%lX\n", m_type->name.c_str(), (u64)m_data);
             return;
         }
 
@@ -49,12 +50,16 @@ namespace gjs {
         if (m_data) release();
         m_data = v.m_data;
         m_refCount = v.m_refCount;
-        if (m_refCount) (*m_refCount)++;
+        if (m_refCount) {
+            (*m_refCount)++;
+            // printf("Increased ref count for 0x%lX to %d\n", (u64)m_data, *m_refCount);
+        }
     }
 
     void script_pointer::release() {
         if (m_refCount) {
             (*m_refCount)--;
+            // printf("Decreased ref count for 0x%lX to %d\n", (u64)m_data, *m_refCount);
             if (*m_refCount == 0) {
                 if (m_data) destruct();
                 delete m_refCount;

@@ -128,8 +128,6 @@ namespace gjs {
         rhs.data = nullptr;
         if (data && data->free_self) {
             data->free_self = false;
-
-            // see comment in ~callback()
             delete (void*)&rhs;
         }
     }
@@ -218,35 +216,7 @@ namespace gjs {
     template <typename Ret, typename ...Args>
     callback<Ret(*)(Args...)>::~callback() {
         if (!data) return;
-        if (data->owns_func && data->ptr) {
-            delete data->ptr->target->access.wrapped;
-            delete data->ptr->target;
-        }
-
-        if (data->owns_ptr && data->ptr) {
-            delete data->ptr;
-        }
-
-        raw_callback* dptr = data;
-        data = nullptr;
-        if (dptr->free_self) {
-            // hear me out...
-            // If free_self is true, then this object was created via raw_callback::make(funcId, data, dataSz)
-            // That function allocates a raw_callback, then allocates a void** and stores the callback in it
-            // That allocated void** IS 'this' here.
-            //
-            // This should only happen when the callback is passed from a script to the host, because the script
-            // can't instantiate the callback<T> to pass to a function, it must generate an equivalent data structure
-            // and pass that as the parameter instead.
-            // Essentially, this is happening:
-            // void fun(callback<T> param) {...}
-            // raw_callback* cb = new raw_callback({ cb_data... }); // this->data
-            // raw_callback** cbp = new raw_callback*(cb);          // this
-            // fun(cbp); // ignore the cast from a pointer type to a non-pointer type, FFIs are black magic
-            delete (void*)this;
-        }
-
-        delete dptr;
+        raw_callback::destroy((raw_callback**)this);
     }
 
     template <typename Ret, typename ...Args>
