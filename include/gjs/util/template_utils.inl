@@ -39,7 +39,7 @@ namespace gjs {
     }
 
     template <typename R, typename ...Args>
-    R TransientFunction<R(Args...)>::operator()(Args... args) const {
+    R TransientFunction<R(Args...)>::operator()(void*, Args... args) const {
         return ((Dispatcher)m_Dispatcher)(m_Target, args...);
     }
 
@@ -58,8 +58,8 @@ namespace gjs {
         function_pointer* fptr = new function_pointer(
             new script_function(
                 script_context::current()->types(),
-                script_context::current()->type<Ret(*)(Args...)>(),
-                bind::wrap<Ret, Fn, Args...>(
+                callback_signature<Ret, Args...>(script_context::current(), (Ret(*)(Args...))nullptr),
+                bind::wrap<Ret, Fn, void*, Args...>(
                     script_context::current()->types(),
                     "operator ()",
                     &Fn::operator(),
@@ -84,8 +84,8 @@ namespace gjs {
         function_pointer* fptr = new function_pointer(
             new script_function(
                 script_context::current()->types(),
-                script_context::current()->type<Ret(*)(Args...)>(),
-                bind::wrap<Ret, Fn, Args...>(
+                callback_signature<Ret, Args...>(script_context::current(), (Ret(*)(Args...))nullptr),
+                bind::wrap<Ret, Fn, void*, Args...>(
                     script_context::current()->types(),
                     "operator ()",
                     &Fn::operator(),
@@ -119,7 +119,7 @@ namespace gjs {
     //
     template <typename Ret, typename ...Args>
     script_type* callback<Ret(*)(Args...)>::type(script_context* ctx) {
-        return cdecl_signature<Ret, Args...>(ctx);
+        return cdecl_signature<Ret, Args...>(ctx, true);
     }
 
     template <typename Ret, typename ...Args>
@@ -145,8 +145,8 @@ namespace gjs {
             new function_pointer(
                 new script_function(
                     script_context::current()->types(),
-                    script_context::current()->type<Ret(*)(Args...)>(),
-                    bind::wrap<Ret, Fn, Args...>(
+                    callback_signature<Ret, Args...>(script_context::current(), (Ret(*)(Args...))nullptr),
+                    bind::wrap<Ret, Fn, void*, Args...>(
                         script_context::current()->types(),
                         "operator ()",
                         &Fn::operator(),
@@ -168,8 +168,8 @@ namespace gjs {
             new function_pointer(
                 new script_function(
                     script_context::current()->types(),
-                    script_context::current()->type<Ret(*)(Args...)>(),
-                    bind::wrap<Ret, Fn, Args...>(
+                    callback_signature<Ret, Args...>(script_context::current(), (Ret(*)(Args...))nullptr),
+                    bind::wrap<Ret, Fn, void*, Args...>(
                         script_context::current()->types(),
                         "operator ()",
                         &Fn::operator(),
@@ -191,8 +191,8 @@ namespace gjs {
             new function_pointer(
                 new script_function(
                     script_context::current()->types(),
-                    script_context::current()->type<Ret(*)(Args...)>(),
-                    bind::wrap<Ret, Fn, Args...>(
+                    callback_signature<Ret, Args...>(script_context::current(), (Ret(*)(Args...))nullptr),
+                    bind::wrap<Ret, Fn, void*, Args...>(
                         script_context::current()->types(),
                         "operator ()",
                         &Fn::operator(),
@@ -255,20 +255,15 @@ namespace gjs {
             throw error::runtime_exception(error::ecode::r_callback_missing_data);
         }
 
-        if (data->ptr->data) {
-            if constexpr (std::is_same_v<Ret, void>) data->ptr->target->call(data->ptr->self_obj(), data->ptr->data->data(), args...);
-            else return data->ptr->target->call(data->ptr->self_obj(), data->ptr->data->data(), args...);
-        } else {
-            if constexpr (std::is_same_v<Ret, void>) data->ptr->target->call(data->ptr->self_obj(), args...);
-            else return data->ptr->target->call(data->ptr->self_obj(), args...);
-        }
+        if constexpr (std::is_same_v<Ret, void>) data->ptr->target->ctx()->call_callback(data, args...);
+        else return data->ptr->target->ctx()->call_callback(data, args...);
     }
 
     //
     // Misc
     //
     template <typename Ret, typename... Args>
-    script_type* cdecl_signature(script_context* ctx) {
+    script_type* cdecl_signature(script_context* ctx, bool is_cb) {
         script_type* rt = ctx->type<Ret>();
         if (!rt) throw error::bind_exception(error::ecode::b_cannot_get_signature_unbound_return, base_type_name<Ret>());
         constexpr i32 argc = std::tuple_size<std::tuple<Args...>>::value;
@@ -287,12 +282,15 @@ namespace gjs {
             (std::is_reference_v<Ret> || std::is_pointer_v<Ret>),
             argTps,
             argc,
-            nullptr
+            nullptr,
+            false,
+            false,
+            is_cb
         ));
     }
 
     template <typename Cls, typename Ret, typename... Args>
-    script_type* thiscall_signature(script_context* ctx) {
+    script_type* thiscall_signature(script_context* ctx, bool is_cb) {
         script_type* rt = ctx->type<Ret>();
         if (!rt) throw error::bind_exception(error::ecode::b_cannot_get_signature_unbound_return, base_type_name<Ret>());
         constexpr i32 argc = std::tuple_size<std::tuple<Args...>>::value;
@@ -311,30 +309,33 @@ namespace gjs {
             (std::is_reference_v<Ret> || std::is_pointer_v<Ret>),
             argTps,
             argc,
-            ctx->type<Cls>()
+            ctx->type<Cls>(),
+            false,
+            false,
+            is_cb
         ));
     }
 
     template <typename Ret, typename... Args>
-    script_type* signature(script_context* ctx, Ret (*f)(Args...)) {
-        return cdecl_signature<Ret, Args...>(ctx);
+    script_type* callback_signature(script_context* ctx, Ret (*f)(Args...)) {
+        return cdecl_signature<Ret, Args...>(ctx, true);
     }
 
     template <typename L, typename Ret, typename ...Args>
-    script_type* signature(script_context* ctx, Ret (L::*f)(Args...) const) {
-        return cdecl_signature<Ret, Args...>(ctx);
+    script_type* callback_signature(script_context* ctx, Ret (L::*f)(Args...) const) {
+        return cdecl_signature<Ret, Args...>(ctx, true);
     }
 
     template <typename L, typename Ret, typename ...Args>
-    script_type* signature(script_context* ctx, Ret (L::*f)(Args...)) {
-        return cdecl_signature<Ret, Args...>(ctx);
+    script_type* callback_signature(script_context* ctx, Ret (L::*f)(Args...)) {
+        return cdecl_signature<Ret, Args...>(ctx, true);
     }
 
     template <typename L>
     std::enable_if_t<is_callable_object_v<std::remove_reference_t<L>>, script_type*>
-    signature(script_context* ctx, L&& l) {
+    callback_signature(script_context* ctx, L&& l) {
         static_assert(is_callable_object<std::remove_reference_t<L>>::value, "Object type L passed to raw_callback::make is not a lambda");
-        return signature(ctx, &std::decay_t<decltype(l)>::operator());
+        return callback_signature(ctx, &std::decay_t<decltype(l)>::operator());
     }
 
     template <typename T>
@@ -375,9 +376,9 @@ namespace gjs {
             if constexpr (std::is_pointer_v<T>) return arg->type();
             else return arg.type();
         } else if constexpr(std::is_function_v<std::remove_pointer_t<T>>) {
-            return signature(ctx, arg);
+            return callback_signature(ctx, arg);
         } else if constexpr(is_callable_object_v<std::remove_reference_t<T>>) {
-            return signature(ctx, arg);
+            return callback_signature(ctx, arg);
         } else {
             return ctx->global()->types()->get<T>();
         }

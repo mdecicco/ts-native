@@ -36,17 +36,10 @@ void remove_unused_regs_pass (script_context* ctx, compilation_output& in, u16 f
     if (csz > code.size()) remove_unused_regs_pass(ctx, in, f);
 }
 
-i32 testCb (callback<i32(*)(i32, i32)> cb) {
-    i32 x = cb(1, 2);
-    return x;
-}
-
 int main(int arg_count, const char** args) {
     basic_malloc_allocator alloc;
     vm_backend be(&alloc, 8 * 1024 * 1024, 8 * 1024 * 1024);
     script_context ctx(&be);
-
-    ctx.bind(testCb, "testCb");
 
     be.commit_bindings();
     //be.log_ir(true);

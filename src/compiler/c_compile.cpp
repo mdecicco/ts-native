@@ -49,39 +49,48 @@ namespace gjs {
 
             script_type* voidTp = ctx.type("void");
 
-            if (args.size() > 0) {
-                if (args.size() == 1 && args[0].type() == obj.type()) {
-                    // constructor only required if not POD
-                    if (obj.has_unambiguous_method("constructor", voidTp, arg_types)) {
-                        // may be pod, but use the constructor anyway
-                        script_function* f = obj.method("constructor", voidTp, arg_types);
-                        if (f) call(ctx, f, args, &obj);
-                    } else if (ret_tp->is_pod || ret_tp->is_trivially_copyable) {
-                        // no constructor, but is copyable
-                        var mem = call(
-                            ctx,
-                            ctx.function("memcopy", ctx.type("void"), { ctx.type("data"), ctx.type("data"), ctx.type("u64") }),
-                            { obj, args[0], ctx.imm((u64)obj.size()) }
-                        );
-                    } else {
-                        // trigger function not found error
-                        obj.method("constructor", voidTp, arg_types);
-                    }
-                } else {
-                    // constructor required
-                    script_function* f = obj.method("constructor", voidTp, arg_types);
-                    if (f) call(ctx, f, args, &obj);
+            if (obj.type()->is_primitive) {
+                if (args.size() > 1) {
+                    // trigger function not found error
+                    obj.method("constructor", voidTp, arg_types);
+                } else if (args.size() == 1) {
+                    ctx.add(operation::store).operand(obj).operand(args[0].convert(obj.type()));
                 }
             } else {
-                if (obj.has_unambiguous_method("constructor", voidTp, arg_types)) {
-                    // Default constructor
-                    script_function* f = obj.method("constructor", voidTp, arg_types);
-                    if (f) call(ctx, f, args, &obj);
-                } else {
-                    if (obj.has_any_method("constructor")) {
-                        ctx.log()->err(ec::c_no_default_constructor, ctx.node()->ref, obj.type()->name.c_str());
+                if (args.size() > 0) {
+                    if (args.size() == 1 && args[0].type() == obj.type()) {
+                        // constructor only required if not POD
+                        if (obj.has_unambiguous_method("constructor", voidTp, arg_types)) {
+                            // may be pod, but use the constructor anyway
+                            script_function* f = obj.method("constructor", voidTp, arg_types);
+                            if (f) call(ctx, f, args, &obj);
+                        } else if (ret_tp->is_pod || ret_tp->is_trivially_copyable) {
+                            // no constructor, but is copyable
+                            var mem = call(
+                                ctx,
+                                ctx.function("memcopy", ctx.type("void"), { ctx.type("data"), ctx.type("data"), ctx.type("u64") }),
+                                { obj, args[0], ctx.imm((u64)obj.size()) }
+                            );
+                        } else {
+                            // trigger function not found error
+                            obj.method("constructor", voidTp, arg_types);
+                        }
                     } else {
-                        // No construction necessary
+                        // constructor required
+                        script_function* f = obj.method("constructor", voidTp, arg_types);
+                        if (f) call(ctx, f, args, &obj);
+                    }
+                } else {
+                    if (obj.has_unambiguous_method("constructor", voidTp, arg_types)) {
+                        // Default constructor
+                        script_function* f = obj.method("constructor", voidTp, arg_types);
+                        if (f) call(ctx, f, args, &obj);
+                    } else {
+                        if (obj.has_any_method("constructor")) {
+                            ctx.log()->err(ec::c_no_default_constructor, ctx.node()->ref, obj.type()->name.c_str());
+                        } else {
+                            // No construction necessary
+                        }
                     }
                 }
             }
@@ -97,6 +106,7 @@ namespace gjs {
         }
 
         u64 variable_declaration(context& ctx, parse::ast* n) {
+            //bool is_captured = is_var_captured(n, n, false);
             ctx.push_node(n->data_type);
             script_type* tp = ctx.type(n->data_type);
             ctx.pop_node();

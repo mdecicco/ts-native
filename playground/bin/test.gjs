@@ -1,33 +1,27 @@
-import { vec2f } from 'math';
-
-class some_guy {
-	constructor(f32 x, f32 y) : v(x, y) { }
-	constructor(some_guy g) : v(g.v) { }
-
-	void print() {
-		print('vec2f(' + this.v.x.toFixed(2) + ', ' + this.v.y.toFixed(2) + ')');
-	}
-
-	vec2f v;
-};
-
-i32()(i32, i32) cb = (i32 a, i32 b) : i32 => {
-	return a + b;
-};
-
-i32 x = testCb(cb);
-print(x.toFixed(2));
-
-some_guy a = some_guy(2, 2);
-a.print();
-
-array<some_guy> arr;
-for (u32 i = 0;i < 10;i++) {
-	arr.push(some_guy(i, i));
+i32()(i32) addFunc(i32 a) {
+	return (i32 b) : i32 => {
+		print('a was ' + a.toFixed(2));
+		print('b was ' + b.toFixed(2));
+		return a + b;
+	};
 }
 
-for (u32 i = 0;i < arr.length;i++) arr[i].print();
-
 void set_some_value(void()(i32) set) {
-	set(69);
+	pointer<i32> val;
+	val.reset(0);
+	i32 x = 68;
+	void ()() outer = () : void => {
+		void ()() inner = () : void => {
+			print('x was ' + x.toFixed(2));
+			i32()(i32) add = addFunc(1);
+			i32 z = add(x);
+			print('z was ' + z.toFixed(2));
+			val = z;
+		};
+		inner();
+	};
+
+	outer();
+	
+	set(val.value);
 }

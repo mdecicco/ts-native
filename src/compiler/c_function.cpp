@@ -18,6 +18,66 @@ namespace gjs {
     using ot = ast::operation_type;
 
     namespace compile {
+        bool is_var_captured(const std::string& vname, parse::ast* root, bool in_lambda) {
+            if (root->type == nt::lambda_expression) {
+                // if lambda has an argument with a name that shadows decl, then decl is not captured
+                ast* a = root->arguments->body;
+                while (a) {
+                    if (std::string(*a->identifier) == vname) {
+                        return false;
+                    }
+                    a = a->next;
+                }
+
+                // scan lambda for usages of decl->identifier
+                return is_var_captured(vname, root->body, true);
+            }
+
+            if (root->type == nt::variable_declaration) {
+                // if a variable is declared with a name that shadows decl, then decl is not captured
+                if (std::string(*root->identifier) == vname) {
+                    return false;
+                }
+
+                if (root->initializer) return is_var_captured(vname, root->initializer, in_lambda);
+                return false;
+            }
+
+            if (in_lambda && root->type == nt::identifier) {
+                // decl is used inside a lambda, it is captured
+                if (std::string(*root) == vname) {
+                    return true;
+                }
+            }
+
+            if (in_lambda && root->arguments && is_var_captured(vname, root->arguments, in_lambda)) return true;
+            if (in_lambda && root->initializer && is_var_captured(vname, root->initializer, in_lambda)) return true;
+            if (in_lambda && root->condition && is_var_captured(vname, root->condition, in_lambda)) return true;
+            if (in_lambda && root->modifier && is_var_captured(vname, root->modifier, in_lambda)) return true;
+            if (in_lambda && root->lvalue && is_var_captured(vname, root->lvalue, in_lambda)) return true;
+            if (in_lambda && root->rvalue && is_var_captured(vname, root->rvalue, in_lambda)) return true;
+
+            parse::ast* n = nullptr;
+
+            n = root->body;
+            while (n) {
+                if (is_var_captured(vname, n, in_lambda)) return true;
+                n = n->next;
+            }
+
+            n = root->else_body;
+            while (n) {
+                if (is_var_captured(vname, n, in_lambda)) return true;
+                n = n->next;
+            }
+
+            n = root->next;
+            while (n) {
+                if (is_var_captured(vname, n, in_lambda)) return true;
+                n = n->next;
+            }
+        }
+
         script_function* function_declaration(context& ctx, ast* n) {
             ctx.push_node(n);
             script_type* ret = nullptr;
@@ -246,6 +306,31 @@ namespace gjs {
             script_type* ret = nullptr;
             std::vector<script_type*> arg_types;
             std::vector<std::string> arg_names;
+            std::vector<var*> captures;
+            robin_hood::unordered_flat_set<std::string> captured;
+            u64 captureDataSize = 0;
+            if (ctx.cur_func_block) {
+                for (auto b = ctx.block_stack.rbegin();b != ctx.block_stack.rend();b++) {
+                    for (auto& nv : (*b)->named_vars) {
+                        if (captured.count(nv.name())) {
+                            // already captured from more recent scope
+                            continue;
+                        }
+
+                        if (is_var_captured(nv.name(), n, false)) {
+                            captures.push_back(&nv);
+                            captured.insert(nv.name());
+                            captureDataSize += nv.type()->size;
+                        }
+                    }
+
+                    if (!(*b)->is_lambda && (*b)->func) {
+                        // going beyond this point would allow capturing global variables, which
+                        // is not necessary since they can be accessed already
+                        break;
+                    }
+                }
+            }
 
             ctx.push_node(n->data_type);
             ret = ctx.type(n->data_type);
@@ -264,14 +349,12 @@ namespace gjs {
                 a = a->next;
             }
 
-            function_signature sig(ctx.env, ret, !ret->is_primitive, arg_types.data(), arg_types.size(), nullptr);
+            function_signature sig(ctx.env, ret, !ret->is_primitive, arg_types.data(), arg_types.size(), nullptr, false, false, true);
             script_type* sigTp = ctx.env->types()->get(sig);
-            script_function* fn = ctx.push_lambda_block(sigTp);
 
-            u8 base_idx = 0;
-            // todo:
-            // lambda context...
+            script_function* fn = ctx.push_lambda_block(sigTp, captures);
 
+            u8 base_idx = 1; // because '$ctx' is always the first argument of a lambda
             for (u8 i = 0;i < arg_types.size();i++) {
                 var& arg = ctx.empty_var(arg_types[i], arg_names[i]);
                 arg.set_arg_idx(base_idx + i);
@@ -288,16 +371,45 @@ namespace gjs {
             ctx.pop_block();
 
             var out = ctx.empty_var(sigTp);
-            auto dt = ctx.type("data");
-            var dataPtr = ctx.empty_var(dt);
-            ctx.add(operation::eq).operand(dataPtr).operand(ctx.imm((u64)0));
-            var ptr = call(
-                ctx,
-                ctx.function("$makefunc", dt, { ctx.type("u32"), dt, ctx.type("u64") }),
-                { ctx.imm((u64)fn->id()), dataPtr, ctx.imm((u64)0) }, // function id, context data size
-                nullptr
-            );
-            ctx.add(operation::eq).operand(out).operand(ptr);
+
+            if (captures.size() > 0) {
+                auto dt = ctx.type("data");
+                auto u32t = ctx.type("u32");
+                auto u64t = ctx.type("u64");
+                var dataSz = ctx.imm((u64)captureDataSize);
+                var ctxPtr = call(
+                    ctx,
+                    ctx.function("alloc", dt, { u32t }),
+                    { dataSz }
+                );
+
+                u32 off = 0;
+                for (u16 c = 0;c < captures.size();c++) {
+                    var copy = ctx.empty_var(captures[c]->type());
+                    ctx.add(operation::uadd).operand(copy).operand(ctxPtr).operand(ctx.imm((u64)off));
+                    construct_in_place(ctx, copy, { *captures[c] });
+                    off += captures[c]->type()->size;
+                }
+
+                var ptr = call(
+                    ctx,
+                    ctx.function("$makefunc", dt, { u32t, dt, u64t }),
+                    { ctx.imm((u64)fn->id()), ctxPtr, dataSz }, // function id, context data size
+                    nullptr
+                );
+                ctx.add(operation::eq).operand(out).operand(ptr);
+            } else {
+                auto dt = ctx.type("data");
+                var dataPtr = ctx.empty_var(dt);
+                ctx.add(operation::eq).operand(dataPtr).operand(ctx.imm((u64)0));
+                var ptr = call(
+                    ctx,
+                    ctx.function("$makefunc", dt, { ctx.type("u32"), dt, ctx.type("u64") }),
+                    { ctx.imm((u64)fn->id()), dataPtr, ctx.imm((u64)0) }, // function id, context data size
+                    nullptr
+                );
+                ctx.add(operation::eq).operand(out).operand(ptr);
+            }
 
             ctx.pop_node();
             return out;
@@ -593,6 +705,29 @@ namespace gjs {
 
             // pass args
             for (u8 i = 0;i < sig->args.size();i++) {
+                if (sig->args[i].implicit == function_signature::argument::implicit_type::capture_data_ptr) {
+                    // func = raw_pointer**
+                    var captureDataPtr = ctx.empty_var(ctx.type("data"));
+                    
+                    // captureDataPtr = *func;
+                    ctx.add(operation::load).operand(captureDataPtr).operand(func);
+
+                    // captureDataPtr = (function_pointer**)&((raw_callback*)captureDataPtr)->ptr
+                    ctx.add(operation::uadd).operand(captureDataPtr).operand(captureDataPtr).operand(ctx.imm((u64)offsetof(raw_callback, ptr)));
+
+                    // captureDataPtr = (function_pointer*)*captureDataPtr
+                    ctx.add(operation::load).operand(captureDataPtr).operand(captureDataPtr);
+
+                    // captureDataPtr = (void**)&((function_pointer*)captureDataPtr)->data
+                    ctx.add(operation::uadd).operand(captureDataPtr).operand(captureDataPtr).operand(ctx.imm((u64)offsetof(function_pointer, data)));
+
+                    // captureDataPtr = (void*)*captureDataPtr
+                    ctx.add(operation::load).operand(captureDataPtr).operand(captureDataPtr);
+
+                    // ayyyy
+                    ctx.add(operation::param).operand(captureDataPtr).func(func);
+                    continue;
+                }
                 if (sig->args[i].implicit == function_signature::argument::implicit_type::this_ptr) {
                     ctx.add(operation::param).operand(*self).func(func);
                     continue;

@@ -18,7 +18,6 @@ namespace gjs {
 
     namespace compile {
         context::context(compilation_output& _out, script_context* _env) : out(_out), symbols(this), env(_env) {
-            next_reg_id = 0;
             next_lambda_id = 0;
             next_label_id = 1;
             cur_func_block = nullptr;
@@ -71,7 +70,7 @@ namespace gjs {
         }
 
         var& context::empty_var(script_type* type, const std::string& name) {
-            var v = var(this, next_reg_id++, type);
+            var v = var(this, cur_func_block->next_reg_id++, type);
             v.m_name = name;
             block()->named_vars.push_back(v);
             symbols.set(name, &block()->named_vars.back());
@@ -79,7 +78,7 @@ namespace gjs {
         }
 
         var context::empty_var(script_type* type) {
-            return var(this, next_reg_id++, type);
+            return var(this, cur_func_block->next_reg_id++, type);
         }
 
         var context::dummy_var(script_type* type) {
@@ -105,6 +104,18 @@ namespace gjs {
                 const script_function* fn = nullptr;
                 for (auto s = syms->symbols.rbegin();s != syms->symbols.rend();s++) {
                     switch (s->sym_type()) {
+                        case symbol::symbol_type::st_capture: {
+                            capture* cap = s->get_capture();
+                            var& v = empty_var(cap->src->type(), name);
+                            // load the value from the context
+                            var& ctx = get_var("$ctx");
+                            var ptr = empty_var(cap->src->type());
+                            add(operation::uadd).operand(ptr).operand(ctx).operand(imm(u64(cap->offset)));
+                            add(operation::load).operand(v).operand(ptr);
+                            v.set_mem_ptr(ptr);
+                            return v;
+                            break;
+                        }
                         case symbol::symbol_type::st_var: {
                             if (s->scope_idx() != 0 || !compiling_function) {
                                 return *s->get_var();
@@ -317,7 +328,7 @@ namespace gjs {
                     args.push_back(get(a));
                     a = a->next;
                 }
-                tp = env->types()->get(function_signature(env, tp, !tp->is_primitive, args.data(), (u8)args.size(), nullptr));
+                tp = env->types()->get(function_signature(env, tp, !tp->is_primitive, args.data(), (u8)args.size(), nullptr, false, false, true));
             }
 
             return tp;
@@ -389,8 +400,8 @@ namespace gjs {
         }
 
         void context::push_block(script_function* f) {
-            block_stack.push_back(new block_context);
-            block_context* b = block();
+            block_context* b = new block_context;
+            block_stack.push_back(b);
             b->func = f;
             b->input_ref = node();
 
@@ -402,7 +413,7 @@ namespace gjs {
             }
         }
 
-        script_function* context::push_lambda_block(script_type* sigTp) {
+        script_function* context::push_lambda_block(script_type* sigTp, std::vector<var*>& captures) {
             block_stack.push_back(new block_context);
             script_function* f = new script_function(env, format("lambda_%d", next_lambda_id++), out.funcs[0].code.size(), sigTp, nullptr, out.mod);
             f->owner = out.mod;
@@ -412,11 +423,34 @@ namespace gjs {
             b->func = f;
             b->is_lambda = true;
             b->input_ref = node();
-
             b->func_idx = out.funcs.size();
             out.funcs.push_back({ f, gjs::func_stack(), {}, register_allocator(out), node()->ref });
             compiling_function = true;
             cur_func_block = b;
+
+            if (captures.size() > 0) {
+                var& ctx = empty_var(type("data"), "$ctx");
+                ctx.set_arg_idx(0);
+
+                u64 off = 0;
+                for (u16 c = 0;c < captures.size();c++) {
+                    b->captures.push_back(new capture({ u32(off), captures[c] }));
+                    //symbols.set(captures[c]->name(), b->captures.back());
+
+                    var& v = empty_var(captures[c]->type(), captures[c]->name());
+
+                    if (captures[c]->type()->is_primitive) {
+                        // load the value from the context
+                        var ptr = empty_var(captures[c]->type());
+                        add(operation::uadd).operand(ptr).operand(ctx).operand(imm(off));
+                        add(operation::load).operand(v).operand(ptr);
+                        v.set_mem_ptr(ptr);
+                    } else {
+                        add(operation::uadd).operand(v).operand(ctx).operand(imm(off));
+                    }
+                    off += captures[c]->type()->size;
+                }
+            }
             return f;
         }
 
@@ -531,7 +565,7 @@ namespace gjs {
             return node_stack[node_stack.size() - 1];
         }
 
-        context::block_context* context::block() {
+        block_context* context::block() {
             return block_stack[block_stack.size() - 1];
         }
 

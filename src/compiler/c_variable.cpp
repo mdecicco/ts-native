@@ -435,11 +435,20 @@ namespace gjs {
                     script_function* mt = m_type->methods[m];
                     auto mparts = split(split(mt->name,":")[1], " \t\n\r");
                     if (mparts.size() == 2 && mparts[0] == "operator" && mparts[1] == mt->type->signature->return_type->name && mt->type->signature->args.size() == 1) {
-                        if (mt->type->signature->return_type->id() == ret->id()) {
-                            return mt;
-                        } else if (has_valid_conversion(*m_ctx, mt->type->signature->return_type, ret)) {
-                            matches.push_back(mt);
-                            continue;
+                        if (mt->type->signature->return_type->name == "subtype") {
+                            if (m_type->sub_type->id() == ret->id()) {
+                                return mt;
+                            } else if (has_valid_conversion(*m_ctx, m_type->sub_type, ret)) {
+                                matches.push_back(mt);
+                                continue;
+                            }
+                        } else {
+                            if (mt->type->signature->return_type->id() == ret->id()) {
+                                return mt;
+                            } else if (has_valid_conversion(*m_ctx, mt->type->signature->return_type, ret)) {
+                                matches.push_back(mt);
+                                continue;
+                            }
                         }
                     }
                 } else if (_name.find_first_of(' ') != std::string::npos) {
@@ -460,8 +469,15 @@ namespace gjs {
                 if (!func) continue;
 
                 // match return type
-                if (ret && !has_valid_conversion(*m_ctx, func->type->signature->return_type, ret)) continue;
-                bool ret_tp_strict = ret ? func->type->signature->return_type->id() == ret->id() : false;
+                if (ret) {
+                    if (ret->base_type && !has_valid_conversion(*m_ctx, func->type->signature->return_type, ret->base_type)) continue;
+                    else if (!ret->base_type && !has_valid_conversion(*m_ctx, func->type->signature->return_type, ret)) continue;
+                }
+                bool ret_tp_strict = false;
+                if (ret) {
+                    if (ret->base_type && func->type->signature->return_type->id() == ret->base_type->id()) ret_tp_strict = true;
+                    else if (!ret->base_type && func->type->signature->return_type->id() == ret->id()) ret_tp_strict = true;
+                }
 
                 // match argument types
                 if (func->type->signature->explicit_argc != args.size()) continue;

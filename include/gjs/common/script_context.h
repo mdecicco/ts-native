@@ -64,9 +64,12 @@ namespace gjs {
             std::string module_name(const std::string& rel_path, const std::string& module_path);
 
             script_module* add_code(const std::string& module_name, const std::string& module_path, const std::string& code);
-            
+
             template <typename... Args>
             script_object call(script_function* func, void* self, Args... args);
+
+            template <typename... Args>
+            script_object call_callback(raw_callback* cb, Args... args);
 
             static script_context* current();
 

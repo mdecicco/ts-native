@@ -22,7 +22,7 @@ namespace gjs {
             true,
             false,
             { nullptr, nullptr },
-            new function_pointer(fid, dataSz)
+            new function_pointer(fid, dataSz, data)
         });
 
         return new void*(p);

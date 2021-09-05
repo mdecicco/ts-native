@@ -8,14 +8,14 @@ namespace gjs {
 
     class function_pointer {
         public:
-            function_pointer(script_function* target, u64 dataSize = 0);
-            function_pointer(u32 func_id, u64 dataSize = 0);
+            function_pointer(script_function* target, u64 dataSize = 0, void* data = nullptr);
+            function_pointer(u32 func_id, u64 dataSize = 0, void* data = nullptr);
             ~function_pointer();
 
             void bind_this(void* self);
             void* self_obj() const;
 
-            script_buffer* data;
+            void* data;
             script_function* target;
 
         protected:

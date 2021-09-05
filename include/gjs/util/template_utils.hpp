@@ -12,19 +12,19 @@ namespace gjs {
     class function_pointer;
 
     template <typename Ret, typename... Args>
-    script_type* cdecl_signature(script_context* ctx);
+    script_type* cdecl_signature(script_context* ctx, bool is_callback = false);
 
     template <typename Cls, typename Ret, typename... Args>
-    script_type* thiscall_signature(script_context* ctx);
+    script_type* thiscall_signature(script_context* ctx, bool is_callback = false);
 
     template <typename Ret, typename... Args>
-    script_type* signature(script_context* ctx, Ret (*f)(Args...));
+    script_type* callback_signature(script_context* ctx, Ret (*f)(Args...));
 
     template <typename L, typename Ret, typename ...Args>
-    script_type* signature(script_context* ctx, Ret (L::*f)(Args...));
+    script_type* callback_signature(script_context* ctx, Ret (L::*f)(Args...));
 
     template <typename L, typename Ret, typename ...Args>
-    script_type* signature(script_context* ctx, Ret (L::*f)(Args...));
+    script_type* callback_signature(script_context* ctx, Ret (L::*f)(Args...));
 
     template<class T> struct remove_all { typedef T type; };
     template<class T> struct remove_all<T*> : remove_all<T> {};
@@ -65,7 +65,7 @@ namespace gjs {
 
         TransientFunction();
 
-        R operator()(Args... args) const;
+        R operator()(void*, Args... args) const;
     };
 
     template <typename R, typename... Args>
@@ -155,7 +155,7 @@ namespace gjs {
 
     template <typename L>
     std::enable_if_t<is_callable_object_v<std::remove_reference_t<L>>, script_type*>
-    signature(script_context* ctx, L&& l);
+    callback_signature(script_context* ctx, L&& l);
 
     template <typename T>
     inline const char* base_type_name();

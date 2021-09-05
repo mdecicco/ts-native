@@ -13,6 +13,7 @@ namespace gjs {
     namespace compile {
         class var;
         struct context;
+        struct capture;
 
         class symbol {
             public:
@@ -21,6 +22,7 @@ namespace gjs {
                     st_type,
                     st_enum,
                     st_var,
+                    st_capture,
                     st_modulevar
                 };
 
@@ -29,6 +31,7 @@ namespace gjs {
                 symbol(script_enum* enum_);
                 symbol(const script_module::local_var* modulevar);
                 symbol(var* var_);
+                symbol(capture* cap);
                 ~symbol();
 
                 symbol_type sym_type() const { return m_stype; }
@@ -37,6 +40,7 @@ namespace gjs {
                 script_enum* get_enum() const { return m_enum; }
                 const script_module::local_var* get_modulevar() const { return m_modulevar; }
                 var* get_var() const { return m_var; }
+                capture* get_capture() const { return m_capture; }
                 u32 scope_idx() const { return m_scope_idx; }
 
             protected:
@@ -47,6 +51,7 @@ namespace gjs {
                 script_enum* m_enum;
                 const script_module::local_var* m_modulevar;
                 var* m_var;
+                capture* m_capture;
                 u32 m_scope_idx;
         };
 
@@ -60,11 +65,13 @@ namespace gjs {
                 symbol* add(script_enum* enum_);
                 symbol* add(const script_module::local_var* modulevar);
                 symbol* add(var* var_);
+                symbol* add(capture* cap);
                 void remove(script_function* func);
                 void remove(script_type* type);
                 void remove(script_enum* enum_);
                 void remove(const script_module::local_var* modulevar);
                 void remove(var* var_);
+                void remove(capture* cap);
                 
                 std::list<symbol> symbols;
                 std::list<symbol_table*> tables;
@@ -82,6 +89,7 @@ namespace gjs {
                 symbol* set(const std::string& name, script_enum* enum_);
                 symbol* set(const std::string& name, const script_module::local_var* modulevar);
                 symbol* set(const std::string& name, var* var_);
+                symbol* set(const std::string& name, capture* cap);
                 symbol_table* nest(const std::string& name);
 
                 symbol_list* get(const std::string& name);
@@ -90,6 +98,7 @@ namespace gjs {
                 symbol_table* get_type(const std::string& name);
                 symbol_table* get_enum(const std::string& name);
                 var* get_var(const std::string& name);
+                capture* get_capture(const std::string& name);
                 script_function* get_func(const std::string& name, script_type* ret, const std::vector<script_type*>& args, bool log_errors = true, bool* was_ambiguous = nullptr);
                 script_function* get_func_strict(const std::string& name, script_type* ret, const std::vector<script_type*>& args, bool log_errors = true);
 

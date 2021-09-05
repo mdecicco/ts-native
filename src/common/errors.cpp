@@ -122,6 +122,7 @@ namespace gjs {
             "Type '%s' has not been bound",
             "Enum '%s' has no value named '%s'",
             "Cannot get the value of pointer<%s> when the value is null",
+            "Cannot set the value of pointer<%s> when the value is null",
             "pointer<%s>::set called with argument of type pointer<%s>",
             "Cannot call method '%s' of null object",
             "Cannot bind 'this' object to pointer to global or static function",

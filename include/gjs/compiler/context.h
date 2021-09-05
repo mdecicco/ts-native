@@ -15,21 +15,28 @@ namespace gjs {
     };
 
     namespace compile {
+        struct block_context {
+            script_function* func = nullptr;
+            std::list<var> named_vars;
+            std::vector<var> stack_objs;
+            std::vector<capture*> captures;
+            parse::ast* input_ref = nullptr;
+            bool is_lambda = false;
+            u32 next_reg_id = 0;
+            u16 func_idx = -1;
+        };
+
+        struct capture {
+            u32 offset;
+            var* src;
+        };
+
+        struct deferred_node {
+            parse::ast* node = 0;
+            script_type* subtype_replacement = 0;
+        };
+
         struct context {
-            struct block_context {
-                script_function* func = nullptr;
-                std::list<var> named_vars;
-                std::vector<var> stack_objs;
-                parse::ast* input_ref = nullptr;
-                bool is_lambda = false;
-                u16 func_idx;
-            };
-
-            struct deferred_node {
-                parse::ast* node = 0;
-                script_type* subtype_replacement = 0;
-            };
-
             context(compilation_output& out, script_context* env);
             ~context();
 
@@ -128,7 +135,7 @@ namespace gjs {
             void push_block(script_function* f = nullptr);
 
             // push a new scope block onto the block stack for a lambda function
-            script_function* push_lambda_block(script_type* sigTp);
+            script_function* push_lambda_block(script_type* sigTp, std::vector<var*>& captures);
 
             // pop the most recent scope block from the stack and destructs any stack
             // variables declared within it
@@ -171,10 +178,6 @@ namespace gjs {
 
             // compilation output
             compilation_output& out;
-
-            // next virtual register ID to use when a variable
-            // is instantiated
-            u32 next_reg_id;
 
             // next lambda function id
             u32 next_lambda_id;

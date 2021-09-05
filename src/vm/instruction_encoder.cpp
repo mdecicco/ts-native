@@ -502,7 +502,11 @@ namespace gjs {
                 if (is_fpr(r)) {
                     reg_val = format("<%f>", *(f32*)&state->registers[(u64)r]);
                 }
-                else reg_val = format("<%lld>", *(i64*)&state->registers[(u64)r]);
+                else {
+                    i64 val = *(i64*)&state->registers[(u64)r];
+                    if (abs(val) > 1000000) reg_val = format("<0x%llX>", (u64)val);
+                    else reg_val = format("<%lld>", val);
+                }
                 return "$" + std::string(register_str[(u64)r]) + reg_val;
             }
 

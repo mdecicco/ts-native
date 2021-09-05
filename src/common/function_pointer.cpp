@@ -7,22 +7,19 @@
 using namespace gjs::error;
 
 namespace gjs {
-    function_pointer::function_pointer(script_function* _target, u64 dataSize) {
-        if (dataSize > 0) data = new script_buffer(dataSize);
-        else data = nullptr;
+    function_pointer::function_pointer(script_function* _target, u64 dataSize, void* _data) {
         m_this = nullptr;
         target = _target;
+        data = _data;
     }
 
-    function_pointer::function_pointer(u32 func_id, u64 dataSize) {
-        if (dataSize > 0) data = new script_buffer(dataSize);
-        else data = nullptr;
+    function_pointer::function_pointer(u32 func_id, u64 dataSize, void* _data) {
         m_this = nullptr;
         target = script_context::current()->function(func_id);
+        data = _data;
     }
 
     function_pointer::~function_pointer() {
-        if (data) delete data;
         data = nullptr;
     }
 

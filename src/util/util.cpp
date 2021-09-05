@@ -200,6 +200,7 @@ namespace gjs {
                     if (arg.implicit != function_signature::argument::implicit_type::not_implicit) {
                         static const char* implicitArgNames[] = {
                             nullptr,
+                            "@ctx",
                             "@this",
                             "@moduletype_id",
                             "@ret"
@@ -233,6 +234,7 @@ namespace gjs {
 
     void debug_ir_step(script_context* ctx, compilation_output& in, u16 f) {
         script_function* fn = in.funcs[f].func;
+        if (!fn) return;
         printf("\n[%s %s(", fn->type->signature->return_type->name.c_str(), fn->name.c_str());
         for(u8 a = 0;a < fn->type->signature->args.size();a++) {
             if (a > 0) printf(", ");

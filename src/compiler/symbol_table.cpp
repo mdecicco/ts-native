@@ -33,6 +33,7 @@ namespace gjs {
             m_enum = nullptr;
             m_modulevar = nullptr;
             m_var = nullptr;
+            m_capture = nullptr;
             m_scope_idx = 0;
         }
 
@@ -43,6 +44,7 @@ namespace gjs {
             m_enum = nullptr;
             m_modulevar = nullptr;
             m_var = nullptr;
+            m_capture = nullptr;
             m_scope_idx = 0;
         }
 
@@ -53,6 +55,7 @@ namespace gjs {
             m_enum = enum_;
             m_modulevar = nullptr;
             m_var = nullptr;
+            m_capture = nullptr;
             m_scope_idx = 0;
         }
 
@@ -63,6 +66,7 @@ namespace gjs {
             m_enum = nullptr;
             m_modulevar = modulevar;
             m_var = nullptr;
+            m_capture = nullptr;
             m_scope_idx = 0;
         }
 
@@ -73,7 +77,19 @@ namespace gjs {
             m_enum = nullptr;
             m_modulevar = nullptr;
             m_var = var_;
+            m_capture = nullptr;
             m_scope_idx = u32(var_->ctx()->block_stack.size() - 1);
+        }
+
+        symbol::symbol(capture* cap) {
+            m_stype = symbol_type::st_capture;
+            m_func = nullptr;
+            m_type = nullptr;
+            m_enum = nullptr;
+            m_modulevar = nullptr;
+            m_var = nullptr;
+            m_capture = cap;
+            m_scope_idx = 0;
         }
 
 
@@ -106,6 +122,11 @@ namespace gjs {
 
         symbol* symbol_list::add(var* var_) {
             symbols.emplace_back(var_);
+            return &symbols.back();
+        }
+
+        symbol* symbol_list::add(capture* cap) {
+            symbols.emplace_back(cap);
             return &symbols.back();
         }
 
@@ -148,6 +169,15 @@ namespace gjs {
         void symbol_list::remove(var* var_) {
             for (auto it = symbols.begin();it != symbols.end();it++) {
                 if (it->sym_type() == symbol::symbol_type::st_var && it->get_var() == var_) {
+                    symbols.erase(it);
+                    return;
+                }
+            }
+        }
+
+        void symbol_list::remove(capture* cap) {
+            for (auto it = symbols.begin();it != symbols.end();it++) {
+                if (it->sym_type() == symbol::symbol_type::st_capture && it->get_capture() == cap) {
                     symbols.erase(it);
                     return;
                 }
@@ -223,6 +253,10 @@ namespace gjs {
             return m_symbols[name].add(var_);
         }
 
+        symbol* symbol_table::set(const std::string& name, capture* cap) {
+            return m_symbols[name].add(cap);
+        }
+
         symbol_table* symbol_table::nest(const std::string& name) {
             m_symbols[name].tables.push_back(new symbol_table(m_ctx));
             return m_symbols[name].tables.back();
@@ -268,6 +302,16 @@ namespace gjs {
 
             for (auto& t : l->symbols) {
                 if (t.m_var) return t.m_var;
+            }
+
+            return nullptr;
+        }
+        capture* symbol_table::get_capture(const std::string& name) {
+            symbol_list* l = get(name);
+            if (!l) return nullptr;
+
+            for (auto& t : l->symbols) {
+                if (t.m_capture) return t.m_capture;
             }
 
             return nullptr;

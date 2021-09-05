@@ -20,6 +20,7 @@ namespace gjs {
             struct argument {
                 enum class implicit_type : u8 {
                     not_implicit = 0,
+                    capture_data_ptr,
                     this_ptr,
                     moduletype_id,
                     ret_addr
@@ -32,7 +33,7 @@ namespace gjs {
             };
 
             function_signature(script_context* ctx, script_type* tp, bind::wrapped_function* wrapped, bool is_ctor = false);
-            function_signature(script_context* ctx, script_type* ret, bool ret_ptr, script_type** args, u8 argc, script_type* method_of, bool is_ctor = false, bool is_static_method = false);
+            function_signature(script_context* ctx, script_type* ret, bool ret_ptr, script_type** args, u8 argc, script_type* method_of, bool is_ctor = false, bool is_static_method = false, bool is_callback = false);
             function_signature();
 
             const argument& explicit_arg(u8 idx) const;

@@ -120,10 +120,13 @@ namespace gjs {
 
         auto ptr = ctx->bind<script_pointer>("pointer");
         ptr.constructor<u64>();
+        ptr.constructor<u64, script_pointer&>();
         ptr.method("reset", &script_pointer::reset);
         ptr.method("share", &script_pointer::share);
         ptr.method("release", &script_pointer::release);
-        ptr.method("operator=", &script_pointer::operator=);
+        ptr.method("operator =", METHOD_PTR(script_pointer, operator=, script_pointer&, const script_pointer&));
+        ptr.method("operator =", METHOD_PTR(script_pointer, operator=, script_pointer&, subtype_t*));
+        ptr.method("operator subtype", &script_pointer::operator gjs::subtype_t *);
         ptr.prop("is_null", &script_pointer::is_null);
         ptr.prop("reference_count", &script_pointer::references);
         ptr.prop("value", &script_pointer::get);

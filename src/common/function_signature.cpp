@@ -24,8 +24,8 @@ namespace gjs {
         u16 gp_arg = (u16)vm_register::a0;
         u16 fp_arg = (u16)vm_register::fa0;
         if (is_thiscall) args.push_back({ tp, vm_register(gp_arg++), argument::implicit_type::this_ptr, true });
-        if (is_subtype_obj_ctor) args.push_back({ ctx->types()->get<u64>(), vm_register(gp_arg++), argument::implicit_type::moduletype_id, false });
-        if (returns_on_stack) args.push_back({ ctx->types()->get<void*>(), vm_register(gp_arg++), argument::implicit_type::ret_addr, true });
+        if (is_subtype_obj_ctor) args.push_back({ ctx->type<u64>(), vm_register(gp_arg++), argument::implicit_type::moduletype_id, false });
+        if (returns_on_stack) args.push_back({ ctx->type<void*>(), vm_register(gp_arg++), argument::implicit_type::ret_addr, true });
         implicit_argc = (u8)args.size();
 
         // args
@@ -38,7 +38,7 @@ namespace gjs {
         }
     }
 
-    function_signature::function_signature(script_context* ctx, script_type* ret, bool ret_ptr, script_type** argtps, u8 argc, script_type* _method_of, bool is_ctor, bool is_static_method) {
+    function_signature::function_signature(script_context* ctx, script_type* ret, bool ret_ptr, script_type** argtps, u8 argc, script_type* _method_of, bool is_ctor, bool is_static_method, bool is_callback) {
         method_of = _method_of;
         return_type = ret;
         return_loc = return_type->size == 0 ? vm_register::register_count : vm_register::v0;
@@ -52,9 +52,10 @@ namespace gjs {
 
         u16 gp_arg = (u16)vm_register::a0;
         u16 fp_arg = (u16)vm_register::fa0;
+        if (is_callback) args.push_back({ ctx->type<void*>(), vm_register(gp_arg++), argument::implicit_type::capture_data_ptr, true });
         if (is_thiscall) args.push_back({ method_of, vm_register(gp_arg++), argument::implicit_type::this_ptr, true });
-        if (is_subtype_obj_ctor) args.push_back({ ctx->types()->get<u64>(), vm_register(gp_arg++), argument::implicit_type::moduletype_id, false });
-        if (returns_on_stack) args.push_back({ ctx->types()->get<void*>(), vm_register(gp_arg++), argument::implicit_type::ret_addr, true });
+        if (is_subtype_obj_ctor) args.push_back({ ctx->type<u64>(), vm_register(gp_arg++), argument::implicit_type::moduletype_id, false });
+        if (returns_on_stack) args.push_back({ ctx->type<void*>(), vm_register(gp_arg++), argument::implicit_type::ret_addr, true });
         implicit_argc = (u8)args.size();
 
         // args
