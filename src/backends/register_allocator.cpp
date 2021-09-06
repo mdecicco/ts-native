@@ -94,41 +94,47 @@ namespace gjs {
             if (!do_calc) continue;
 
             reg_lifetime l = { instr0.operands[assignedOpIdx].m_reg_id, u32(-1), u32(-1), i, i, instr0.operands[assignedOpIdx].type()->is_floating_point };
-            for (u64 i1 = i + 1;i1 < code.size();i1++) {
-                tac_instruction& instr1 = code[i1];
-                u8 o = 0;
-                for (;o < 3;o++) {
-                    if (instr1.operands[o].m_reg_id == l.reg_id && instr1.operands[o].type()->is_floating_point == l.is_fp) break;
-                }
 
-                if (instr1.op == operation::call && !instr1.callee && instr1.callee_v.m_reg_id == l.reg_id && !l.is_fp) {
-                    l.end = i1;
-                    continue;
-                }
+            while (do_calc) {
+                for (u64 i1 = l.end + 1;i1 < code.size();i1++) {
+                    tac_instruction& instr1 = code[i1];
+                    u8 o = 0;
+                    for (;o < 3;o++) {
+                        if (instr1.operands[o].m_reg_id == l.reg_id && instr1.operands[o].type()->is_floating_point == l.is_fp) break;
+                    }
 
-                u8 assignedOpIdx = 0;
-                if (instr1.op == operation::call && !instr1.callee) assignedOpIdx = 1;
-                bool isAssignment = is_assignment(instr1);
-
-                if (o == 3) continue;
-                if ((o > 0 && !(o == assignedOpIdx && isAssignment)) || !isAssignment) l.end = i1;
-                else if (o == assignedOpIdx && isAssignment) break;
-            }
-
-            for (u64 i1 = i + 1;i1 < code.size();i1++) {
-                tac_instruction& instr1 = code[i1];
-                // If a backwards jump goes into a live range,
-                // then that live range must be extended to fit
-                // the jump (if it doesn't already)
-                u64 jaddr = u64(-1);
-
-                if (instr1.op == operation::jump) jaddr = label_map[instr1.labels[0]];
-                else if (instr1.op == operation::branch) jaddr = label_map[instr1.labels[0]];
-
-                if (jaddr != u64(-1)) {
-                    if (jaddr > i1) continue;
-                    if (l.begin < jaddr && l.end >= jaddr && l.end < i1) {
+                    if (instr1.op == operation::call && !instr1.callee && instr1.callee_v.m_reg_id == l.reg_id && !l.is_fp) {
                         l.end = i1;
+                        continue;
+                    }
+
+                    if (o == 3) continue;
+
+                    u8 assignedOpIdx = 0;
+                    if (instr1.op == operation::call && !instr1.callee) assignedOpIdx = 1;
+                    bool isAssignment = is_assignment(instr1);
+
+                    if ((o > 0 && !(o == assignedOpIdx && isAssignment)) || !isAssignment) l.end = i1;
+                    else if (o == assignedOpIdx && isAssignment) break;
+                }
+
+                do_calc = false;
+                for (u64 i1 = l.end + 1;i1 < code.size();i1++) {
+                    tac_instruction& instr1 = code[i1];
+                    // If a backwards jump goes into a live range,
+                    // then that live range must be extended to fit
+                    // the jump (if it doesn't already)
+                    u64 jaddr = u64(-1);
+
+                    if (instr1.op == operation::jump) jaddr = label_map[instr1.labels[0]];
+                    else if (instr1.op == operation::branch) jaddr = label_map[instr1.labels[0]];
+
+                    if (jaddr != u64(-1)) {
+                        if (jaddr > i1) continue;
+                        if (l.begin < jaddr && l.end >= jaddr && l.end < i1) {
+                            l.end = i1;
+                            do_calc = true;
+                        }
                     }
                 }
             }

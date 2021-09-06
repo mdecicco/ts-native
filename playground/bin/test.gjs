@@ -1,27 +1,14 @@
-i32()(i32) addFunc(i32 a) {
-	return (i32 b) : i32 => {
-		print('a was ' + a.toFixed(2));
-		print('b was ' + b.toFixed(2));
-		return a + b;
-	};
+void result(f32 x, i64 y) {
+	print(y.toFixed(2) + ' iterations');
+	print(x.toFixed(2));
 }
+void test() {
+	f32 x = 1;
+	i64 i = 0;
+	for (i = 0;i < 2;i++) {
+		f32 z = i;
+		x = (z + z + 2.0f * z + 1.0f - 0.379f) / x;
+	}
 
-void set_some_value(void()(i32) set) {
-	pointer<i32> val;
-	val.reset(0);
-	i32 x = 68;
-	void ()() outer = () : void => {
-		void ()() inner = () : void => {
-			print('x was ' + x.toFixed(2));
-			i32()(i32) add = addFunc(1);
-			i32 z = add(x);
-			print('z was ' + z.toFixed(2));
-			val = z;
-		};
-		inner();
-	};
-
-	outer();
-	
-	set(val.value);
+	result(x, i);
 }
