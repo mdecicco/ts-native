@@ -1,15 +1,7 @@
 #include <gjs/gjs.h>
 #include <stdio.h>
-// #include <gjs/backends/b_win_x86_64.h>
-#include <gjs/builtin/script_math.h>
-#include <gjs/builtin/script_vec2.h>
-#include <gjs/builtin/script_vec3.h>
-#include <gjs/builtin/script_vec4.h>
-
-#include <type_traits>
 
 using namespace gjs;
-using namespace gjs::math;
 
 void remove_unused_regs_pass (script_context* ctx, compilation_output& in, u16 f) {
     compilation_output::ir_code& code = in.funcs[f].code;
@@ -44,18 +36,18 @@ int main(int arg_count, const char** args) {
     script_context ctx(&be);
 
     be.commit_bindings();
-    //be.log_ir(true);
+    // be.log_ir(true);
     ctx.io()->set_cwd_from_args(arg_count, args);
-    //ctx.compiler()->add_ir_step(remove_unused_regs_pass);
-    ctx.compiler()->add_ir_step(debug_ir_step, false);
-    ctx.compiler()->add_ir_step(debug_ir_step, true);
+    // ctx.compiler()->add_ir_step(remove_unused_regs_pass);
+    // ctx.compiler()->add_ir_step(debug_ir_step, false);
+    // ctx.compiler()->add_ir_step(debug_ir_step, true);
 
     script_module* mod = ctx.resolve("test");
     if (!mod) {
         print_log(&ctx);
         return -1;
     }
-    print_code(&be);
+    // print_code(&be);
     // be.log_instructions(true);
 
     mod->init();

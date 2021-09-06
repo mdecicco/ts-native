@@ -1,10 +1,4 @@
 #pragma once
-#include <gjs/bind/bind.h>
-
-#include <gjs/builtin/script_buffer.h>
-#include <gjs/builtin/script_array.h>
-#include <gjs/builtin/script_string.h>
-
 #include <gjs/common/script_context.h>
 #include <gjs/common/script_function.h>
 #include <gjs/common/script_type.h>

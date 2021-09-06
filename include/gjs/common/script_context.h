@@ -1,14 +1,13 @@
 #pragma once
 #include <gjs/bind/bind.h>
-#include <gjs/common/source_map.h>
 #include <gjs/util/util.h>
+#include <gjs/common/source_map.h>
 #include <gjs/common/pipeline.h>
 #include <gjs/common/script_object.h>
 #include <gjs/common/function_pointer.h>
 
 #include <gjs/util/robin_hood.h>
 #include <string>
-#include <dyncall.h>
 
 
 namespace gjs {
