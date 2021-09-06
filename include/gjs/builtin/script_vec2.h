@@ -29,6 +29,7 @@ namespace gjs {
                 vec2<T> operator / (T rhs) const { return { T(x / rhs), T(y / rhs) }; }
                 vec2<T> operator /= (T rhs) { return { T(x /= rhs), T(y /= rhs) }; }
                 vec2<T> operator - () const { return { T(-x), T(-y) }; }
+                vec2<T> operator = (const vec2<T>& rhs) { x = rhs.x, y = rhs.y; return *this; }
                 T& operator [] (u8 idx) {
                     // todo: runtime exception if idx > 1
                     return (&x)[idx];

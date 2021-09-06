@@ -1,3 +1,9 @@
 [submodule "deps/llvm"]
 	path = deps/llvm
 	url = https://github.com/mdecicco/llvm-project
+[submodule "playground/deps/glfw"]
+	path = playground/deps/glfw
+	url = https://github.com/glfw/glfw.git
+[submodule "playground/deps/imgui"]
+	path = playground/deps/imgui
+	url = https://github.com/ocornut/imgui.git

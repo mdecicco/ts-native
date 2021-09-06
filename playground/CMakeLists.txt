@@ -1,9 +1,12 @@
 cmake_minimum_required(VERSION 3.10)
 project(playground)
 
+add_subdirectory(deps)
+
 set(
     include_dirs
     ${CMAKE_CURRENT_SOURCE_DIR}/../include
+    ${CMAKE_CURRENT_SOURCE_DIR}/deps/imgui
 )
 set(
     library_dirs
@@ -29,6 +32,9 @@ add_executable(playground ${playground_src} ${playground_scripts})
 target_link_libraries(
     playground
     gjs
+    glfw
+    imgui
+    opengl32
 )
 
 set_target_properties(playground PROPERTIES

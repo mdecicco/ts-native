@@ -1,14 +1,17 @@
-void result(f32 x, i64 y) {
-	print(y.toFixed(2) + ' iterations');
-	print(x.toFixed(2));
-}
-void test() {
-	f32 x = 1;
-	i64 i = 0;
-	for (;i < 99999999;i++) {
-		f32 z = i;
-		x = (z + z + 2.0f * z + 1.0f - 0.379f) / x;
-	}
+import { vec2f, cos, sin } from 'math';
 
-	result(x, i);
+void main() {
+	boid b;
+	b.pos = vec2f(200.0f, 200.0f);
+	f32 x = 0.0f;
+	while (dont_exit()) {
+		x += 0.1f;
+		b.facing.x = cos(x);
+		b.facing.y = sin(x);
+		begin_frame();
+		for (u32 i = 0;i < 1;i++) {
+			draw_boid(b);
+		}
+		end_frame();
+	}
 }

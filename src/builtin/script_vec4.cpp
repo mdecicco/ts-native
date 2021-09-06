@@ -36,6 +36,7 @@ namespace gjs {
             v.method("operator /=", METHOD_PTR(vec4<T>, operator /=, vec4<T>, T));
             v.method("operator []", &vec4<T>::operator[]);
             v.method("operator -", CONST_METHOD_PTR(vec4<T>, operator -, vec4<T>));
+            v.method("operator =", &vec4<T>::operator=);
             v.method("dot", &vec4<T>::dot);
             v.method("normalize", &vec4<T>::normalize);
             v.prop("normalized", &vec4<T>::normalized);

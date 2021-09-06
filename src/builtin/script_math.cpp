@@ -8,6 +8,15 @@
 
 #include <cmath>
 
+float _cos(float x) {
+    return cos(x);
+}
+
+double _cos(double x) {
+    double r = cos(x);
+    return r;
+}
+
 namespace gjs {
     namespace math {
         template <typename T>
@@ -48,7 +57,7 @@ namespace gjs {
                 m->bind<f32, f32>(cbrt, "cbrt");
                 m->bind<f64, f64>(ceil, "ceil");
                 m->bind<f32, f32>(ceil, "ceil");
-                m->bind<f64, f64>(cos, "cos");
+                //m->bind<f64, f64>(cos, "cos");
                 m->bind<f32, f32>(cos, "cos");
                 m->bind<f64, f64>(cosh, "cosh");
                 m->bind<f32, f32>(cosh, "cosh");
@@ -104,7 +113,7 @@ namespace gjs {
                 m->bind<i32, i32>(sign, "sign");
                 m->bind<i16, i16>(sign, "sign");
                 m->bind<i8 , i8 >(sign, "sign");
-                m->bind<f64, f64>(sin, "sin");
+                //m->bind<f64, f64>(sin, "sin");
                 m->bind<f32, f32>(sin, "sin");
                 m->bind<f64, f64>(sinh, "sinh");
                 m->bind<f32, f32>(sinh, "sinh");

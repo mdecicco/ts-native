@@ -31,6 +31,7 @@ namespace gjs {
             v.method("operator /=", METHOD_PTR(vec2<T>, operator /=, vec2<T>, T));
             v.method("operator []", &vec2<T>::operator[]);
             v.method("operator -", CONST_METHOD_PTR(vec2<T>, operator -, vec2<T>));
+            v.method("operator =", &vec2<T>::operator=);
             v.method("distance", &vec2<T>::distance);
             v.method("distanceSq", &vec2<T>::distanceSq);
             v.method("dot", &vec2<T>::dot);

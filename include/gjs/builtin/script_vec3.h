@@ -32,6 +32,7 @@ namespace gjs {
                 vec3<T> operator / (T rhs) const { return { T(x / rhs), T(y / rhs), T(z / rhs) }; }
                 vec3<T> operator /= (T rhs) { return { T(x /= rhs), T(y /= rhs), T(z /= rhs) }; }
                 vec3<T> operator - () const { return { T(-x), T(-y), T(-z) }; }
+                vec3<T> operator = (const vec3<T>& rhs) { x = rhs.x, y = rhs.y; z = rhs.z; return *this; }
                 T& operator [] (u8 idx) {
                     // todo: runtime exception if idx > 2
                     return (&x)[idx];

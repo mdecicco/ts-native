@@ -609,6 +609,11 @@ namespace gjs {
             if (rtp->name == "subtype") rtp = self->type()->sub_type;
             var stack_ret = ctx.empty_var(rtp);
 
+            if (func->type->signature->returns_on_stack) {
+                stack_ret.raise_stack_flag();
+                ctx.add(operation::stack_alloc).operand(stack_ret).operand(ctx.imm((u64)rtp->size));
+            }
+
             // pass args
             for (u8 i = 0;i < func->type->signature->args.size();i++) {
                 if (func->type->signature->args[i].implicit == function_signature::argument::implicit_type::this_ptr) {
@@ -621,8 +626,6 @@ namespace gjs {
                     continue;
                 }
                 if (func->type->signature->args[i].implicit == function_signature::argument::implicit_type::ret_addr) {
-                    stack_ret.raise_stack_flag();
-                    ctx.add(operation::stack_alloc).operand(stack_ret).operand(ctx.imm((u64)rtp->size));
                     ctx.add(operation::param).operand(stack_ret).func(func);
                     continue;
                 }
@@ -720,6 +723,11 @@ namespace gjs {
             if (rtp->name == "subtype") rtp = self->type()->sub_type;
             var stack_ret = ctx.empty_var(rtp);
 
+            if (sig->returns_on_stack) {
+                stack_ret.raise_stack_flag();
+                ctx.add(operation::stack_alloc).operand(stack_ret).operand(ctx.imm((u64)rtp->size));
+            }
+
             // pass args
             for (u8 i = 0;i < sig->args.size();i++) {
                 if (sig->args[i].implicit == function_signature::argument::implicit_type::capture_data_ptr) {
@@ -755,8 +763,6 @@ namespace gjs {
                     continue;
                 }
                 if (sig->args[i].implicit == function_signature::argument::implicit_type::ret_addr) {
-                    stack_ret.raise_stack_flag();
-                    ctx.add(operation::stack_alloc).operand(stack_ret).operand(ctx.imm((u64)rtp->size));
                     ctx.add(operation::param).operand(stack_ret).func(func);
                     continue;
                 }

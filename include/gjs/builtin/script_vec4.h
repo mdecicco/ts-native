@@ -32,6 +32,7 @@ namespace gjs {
                 vec4<T> operator / (T rhs) const { return { T(x / rhs), T(y / rhs), T(z / rhs), T(w / rhs) }; }
                 vec4<T> operator /= (T rhs) { return { T(x /= rhs), T(y /= rhs), T(z /= rhs), T(w /= rhs) }; }
                 vec4<T> operator - () const { return { T(-x), T(-y), T(-z), T(-w) }; }
+                vec4<T> operator = (const vec4<T>& rhs) { x = rhs.x, y = rhs.y; z = rhs.z; w = rhs.w; return *this; }
                 T& operator [] (u8 idx) {
                     // todo: runtime exception if idx > 3
                     return (&x)[idx];
