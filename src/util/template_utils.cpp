@@ -1,4 +1,4 @@
-#include <gjs/util/template_utils.hpp>
+#include <gjs/bind/bind.h>
 #include <gjs/common/script_type.h>
 #include <gjs/common/function_pointer.h>
 #include <gjs/common/script_function.h>

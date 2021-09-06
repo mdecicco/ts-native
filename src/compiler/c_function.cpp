@@ -76,6 +76,8 @@ namespace gjs {
                 if (is_var_captured(vname, n, in_lambda)) return true;
                 n = n->next;
             }
+
+            return false;
         }
 
         script_function* function_declaration(context& ctx, ast* n) {
@@ -349,7 +351,7 @@ namespace gjs {
                 a = a->next;
             }
 
-            function_signature sig(ctx.env, ret, !ret->is_primitive, arg_types.data(), arg_types.size(), nullptr, false, false, true);
+            function_signature sig(ctx.env, ret, !ret->is_primitive, arg_types.data(), (u8)arg_types.size(), nullptr, false, false, true);
             script_type* sigTp = ctx.env->types()->get(sig);
 
             script_function* fn = ctx.push_lambda_block(sigTp, captures);
@@ -388,7 +390,7 @@ namespace gjs {
                     { dataSz }
                 );
 
-                u32 off = sizeof(u32) + (sizeof(u64) * captures.size());
+                u32 off = (u32)sizeof(u32) + (u32)(sizeof(u64) * captures.size());
                 ctx.add(operation::store).operand(ctx.force_cast_var(ctxPtr, u32t)).operand(ctx.imm((u64)captures.size()));
 
                 var copy = ctx.empty_var(dt);

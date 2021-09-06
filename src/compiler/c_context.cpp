@@ -131,7 +131,7 @@ namespace gjs {
                             mv = s->get_modulevar();
                             break;
                         }
-                        default: { }
+                        default: { break; }
                     }
                 }
 
@@ -408,7 +408,7 @@ namespace gjs {
             b->input_ref = node();
 
             if (f) {
-                b->func_idx = out.funcs.size();
+                b->func_idx = (u16)out.funcs.size();
                 out.funcs.push_back({ f, gjs::func_stack(), {}, register_allocator(out), node()->ref });
                 compiling_function = true;
                 cur_func_block = b;
@@ -425,7 +425,7 @@ namespace gjs {
             b->func = f;
             b->is_lambda = true;
             b->input_ref = node();
-            b->func_idx = out.funcs.size();
+            b->func_idx = (u16)out.funcs.size();
             out.funcs.push_back({ f, gjs::func_stack(), {}, register_allocator(out), node()->ref });
             compiling_function = true;
             cur_func_block = b;

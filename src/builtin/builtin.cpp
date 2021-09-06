@@ -28,7 +28,7 @@ namespace gjs {
     script_string to_fixed(T self, u8 digits) {
         char fmt[8] = { 0 };
         char out[128] = { 0 };
-        snprintf(fmt, 7, "\%%.%df", digits);
+        snprintf(fmt, 7, "%%.%df", digits);
         i32 out_count = snprintf(out, 127, fmt, double(self));
         return script_string(out, out_count);
     }
