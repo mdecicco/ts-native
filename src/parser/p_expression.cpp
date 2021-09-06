@@ -36,6 +36,7 @@ namespace gjs {
         ast* parse_number(const token& tok);
         ast* parse_string(const token& tok);
         ast* parse_format_expr(context& ctx);
+        ast* parse_lambda_expr(context& ctx);
         void set_node_src(ast* node, const token& tok) { node->src(tok); }
 
 
@@ -498,6 +499,11 @@ namespace gjs {
                 return n;
             }
 
+            n = parse_lambda_expr(ctx);
+            if (n) {
+                return n;
+            }
+
             if (ctx.match({ tt::open_parenth })) {
                 ctx.consume();
                 n = expression(ctx);
@@ -680,6 +686,52 @@ namespace gjs {
             }
 
             return nullptr;
+        }
+
+        ast* parse_lambda_expr(context& ctx) {
+            bool isLambda = false;
+            if (ctx.pattern({ tt::open_parenth, tt::close_parenth, tt::colon, tt::identifier })) {
+                // lambda with no arguments
+                isLambda = true;
+            }
+
+            if (ctx.pattern({ tt::open_parenth, tt::identifier })) {
+                ctx.backup();
+                ctx.consume();
+                ast* argTp0 = parse_type_identifier(ctx, ctx.current(), false);
+
+                if (argTp0) {
+                    // could still be some expression like '(vec4(x, y, z, w) * 2.0f)' or '(someType.staticValue + x)', or any number of other things...
+                    if (ctx.match({ tt::identifier })) {
+                        // (type some_identifier...
+                        // bingo
+                        isLambda = true;
+                    }
+
+                    // this will be parsed again later if isLambda == true
+                    delete argTp0;
+                }
+                ctx.restore();
+            }
+
+            if (!isLambda) return nullptr;
+
+            ast* l = new ast();
+            set_node_src(l, ctx.current());
+            l->type = nt::lambda_expression;
+            l->arguments = argument_list(ctx);
+            if (!ctx.match({ tt:: colon })) throw exc(ec::p_expected_char, ctx.current().src, ':');
+            ctx.consume();
+            l->data_type = type_identifier(ctx);
+
+            if (!ctx.match({ tt::right_arrow })) {
+                throw exc(ec::p_expected_x, ctx.current().src, "'=>'");
+            }
+            ctx.consume();
+
+            l->body = block(ctx);
+
+            return l;
         }
     };
 };

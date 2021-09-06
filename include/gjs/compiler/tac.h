@@ -74,7 +74,8 @@ namespace gjs {
             ret,
             cvt,
 
-            // if op[0] is true: continue, else jump to op[1]
+            label,
+            // if op[0] is true: continue, else jump to label[0]
             branch,
             jump,
             term,
@@ -85,21 +86,21 @@ namespace gjs {
 
             // inserted just before the branch instruction for an if statement
             // operands: 
-            //   op[0] = end of true case block
-            //   op[1] = end of false case block, or 0
-            //   op[2] = post-branch address
+            //   label[0] = end of true case block label
+            //   label[1] = end of false case block label, or 0
+            //   label[2] = post-branch label
             meta_if_branch,
 
             // inserted at the top of a for loop
             // operands:
-            //   op[0] = loop branch address
-            //   op[1] = loop end address
+            //   label[0] = loop branch label
+            //   label[1] = loop end label
             meta_for_loop,
 
             // inserted at the top of a while loop
             // operands:
-            //   op[0] = loop branch address
-            //   op[1] = loop end address
+            //   label[0] = loop branch label
+            //   label[1] = loop end label
             meta_while_loop,
 
             // inserted at the top of a do...while loop
@@ -108,11 +109,14 @@ namespace gjs {
             //     instruction immediately following the
             //     branch (jumps to the top, not out)
             // operands:
-            //   op[0] = loop branch address
+            //   label[0] = loop branch label
             meta_do_while_loop
         };
 
         bool is_assignment(const tac_instruction& i);
+
+        // 0 = invalid
+        typedef u32 label_id;
 
         struct tac_instruction {
             public:
@@ -123,33 +127,40 @@ namespace gjs {
                 
                 tac_instruction& operand(const var& v);
                 tac_instruction& func(script_function* f);
+                tac_instruction& func(var f);
+                tac_instruction& label(label_id label);
                 std::string to_string() const;
 
                 operation op;
                 var operands[3];
+                u16 labels[3];
                 script_function* callee;
+                var callee_v;
                 source_ref src;
 
             protected:
                 u8 op_idx;
+                u16 lb_idx;
         };
 
         struct context;
         struct tac_wrapper {
             public:
                 tac_wrapper();
-                tac_wrapper(context* ctx, u64 addr, bool is_global);
+                tac_wrapper(context* ctx, u64 addr, u16 fidx);
 
                 tac_wrapper& operand(const var& v);
                 tac_wrapper& func(script_function* f);
+                tac_wrapper& func(var f);
+                tac_wrapper& label(label_id label);
                 std::string to_string() const;
 
                 operator bool();
 
             protected:
-                bool is_global;
                 context* ctx;
                 u64 addr;
+                u16 fidx;
         };
     };
 };

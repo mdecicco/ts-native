@@ -55,7 +55,7 @@ namespace gjs {
             m_stack_id = 0;
             m_mem_ptr.valid = false;
             m_mem_ptr.reg = -1;
-            m_flags = bind::pf_none;
+            m_flags = 0;
             m_setter.this_obj = nullptr;
             m_setter.func = nullptr;
         }
@@ -64,7 +64,7 @@ namespace gjs {
             m_ctx = ctx;
             m_is_imm = true;
             m_instantiation = ctx->node()->ref;
-            m_flags = bind::pf_none;
+            m_flags = 0;
             m_reg_id = -1;
             m_imm.i = i;
             m_type = ctx->type("i64");
@@ -81,7 +81,7 @@ namespace gjs {
             m_ctx = ctx;
             m_is_imm = true;
             m_instantiation = ctx->node()->ref;
-            m_flags = bind::pf_none;
+            m_flags = 0;
             m_reg_id = -1;
             m_imm.f = f;
             m_type = ctx->type("f32");
@@ -98,7 +98,7 @@ namespace gjs {
             m_ctx = ctx;
             m_is_imm = true;
             m_instantiation = ctx->node()->ref;
-            m_flags = bind::pf_none;
+            m_flags = 0;
             m_reg_id = -1;
             m_imm.d = d;
             m_type = ctx->type("f64");
@@ -115,7 +115,7 @@ namespace gjs {
             m_ctx = ctx;
             m_is_imm = true;
             m_instantiation = ctx->node()->ref;
-            m_flags = bind::pf_none;
+            m_flags = 0;
             m_reg_id = -1;
             m_type = ctx->type("string");
             m_stack_loc = -1;
@@ -132,7 +132,7 @@ namespace gjs {
             m_ctx = ctx;
             m_is_imm = false;
             m_instantiation = ctx->node()->ref;
-            m_flags = bind::pf_none;
+            m_flags = 0;
             m_reg_id = reg_id;
             m_type = type;
             m_stack_loc = -1;
@@ -148,7 +148,7 @@ namespace gjs {
         var::var() {
             m_ctx = nullptr;
             m_is_imm = false;
-            m_flags = bind::pf_none;
+            m_flags = 0;
             m_reg_id = -1;
             m_type = nullptr;
             m_stack_loc = -1;
@@ -198,7 +198,7 @@ namespace gjs {
             return false;
         }
 
-        var var::prop(const std::string& prop) const {
+        var var::prop(const std::string& prop, bool log_errors) const {
             for (u16 i = 0;i < m_type->properties.size();i++) {
                 auto& p = m_type->properties[i];
                 if (p.name == prop) {
@@ -213,12 +213,12 @@ namespace gjs {
                     } else {
                         var ptr = m_ctx->empty_var(m_ctx->type("u64"));
                         var ret = m_ctx->empty_var(p.type);
-                        if (p.flags & bind::pf_static) {
+                        if (p.flags & u8(bind::property_flags::pf_static)) {
                             if (p.type->is_host) {
                                 // offset points to absolute memory location
                                 m_ctx->add(operation::eq).operand(ptr).operand(m_ctx->imm(p.offset));
                                 
-                                if (p.flags & bind::pf_pointer) {
+                                if (p.flags & u8(bind::property_flags::pf_pointer)) {
                                     // ptr points to a pointer to the value. Get pointer to value in ptr
                                     m_ctx->add(operation::load).operand(ptr).operand(ptr);
 
@@ -251,7 +251,7 @@ namespace gjs {
                             }
                         } else {
                             m_ctx->add(operation::uadd).operand(ptr).operand(*this).operand(m_ctx->imm(p.offset));
-                            if (p.flags & bind::pf_pointer) {
+                            if (p.flags & u8(bind::property_flags::pf_pointer)) {
                                 // ptr points to a pointer to the value. Get pointer to value in ptr
                                 m_ctx->add(operation::load).operand(ptr).operand(ptr);
 
@@ -284,17 +284,17 @@ namespace gjs {
                 }
             }
 
-            m_ctx->log()->err(ec::c_no_such_property, m_ctx->node()->ref, m_type->name.c_str(), prop.c_str());
+            if (log_errors) m_ctx->log()->err(ec::c_no_such_property, m_ctx->node()->ref, m_type->name.c_str(), prop.c_str());
             return m_ctx->error_var();
         }
 
-        var var::prop_ptr(const std::string& prop) const {
+        var var::prop_ptr(const std::string& prop, bool log_errors) const {
             for (u16 i = 0;i < m_type->properties.size();i++) {
                 auto& p = m_type->properties[i];
                 if (p.name == prop) {
-                    if (p.flags & bind::pf_pointer) {
-                        var ptr = m_ctx->empty_var(m_ctx->type("u64"));
-                        if (p.flags & bind::pf_static) {
+                    if (p.flags & u8(bind::property_flags::pf_pointer)) {
+                        var ptr = m_ctx->empty_var(p.type);
+                        if (p.flags & u8(bind::property_flags::pf_static)) {
                             m_ctx->add(operation::load).operand(ptr).operand(m_ctx->imm(p.offset));
                         } else {
                             m_ctx->add(operation::load).operand(ptr).operand(*this).operand(m_ctx->imm(p.offset));
@@ -302,18 +302,18 @@ namespace gjs {
                         return ptr;
                     }
 
-                    if (p.flags & bind::pf_static) {
+                    if (p.flags & u8(bind::property_flags::pf_static)) {
                         return m_ctx->imm(p.offset);
                     } else {
-                        var ret = m_ctx->empty_var(m_ctx->type("u64"));
+                        var ret = m_ctx->empty_var(p.type);
                         m_ctx->add(operation::uadd).operand(ret).operand(*this).operand(m_ctx->imm(p.offset));
                         return ret;
                     }
                 }
             }
             
-            m_ctx->log()->err(ec::c_no_such_property, m_ctx->node()->ref, m_type->name.c_str(), prop.c_str());
-            return var();
+            if (log_errors) m_ctx->log()->err(ec::c_no_such_property, m_ctx->node()->ref, m_type->name.c_str(), prop.c_str());
+            return m_ctx->error_var();
         }
 
         bool var::has_any_method(const std::string& _name) const {
@@ -347,10 +347,10 @@ namespace gjs {
                 if (_name == "<cast>") {
                     script_function* mt = m_type->methods[m];
                     auto mparts = split(split(mt->name,":")[1], " \t\n\r");
-                    if (mparts.size() == 2 && mparts[0] == "operator" && mparts[1] == mt->signature.return_type->name && mt->signature.arg_types.size() == 1) {
-                        if (mt->signature.return_type->id() == ret->id()) {
+                    if (mparts.size() == 2 && mparts[0] == "operator" && mparts[1] == mt->type->signature->return_type->name && mt->type->signature->explicit_argc == 1) {
+                        if (mt->type->signature->return_type->id() == ret->id()) {
                             return mt;
-                        } else if (has_valid_conversion(*m_ctx, mt->signature.return_type, ret)) {
+                        } else if (has_valid_conversion(*m_ctx, mt->type->signature->return_type, ret)) {
                             matches.push_back(mt);
                             continue;
                         }
@@ -371,29 +371,29 @@ namespace gjs {
 
                 if (!func) continue;
 
-                if (_name == "constructor" && func->signature.arg_types.size() == 1 && func->signature.arg_types[0]->id() == m_type->id()) {
+                if (_name == "constructor" && func->type->signature->explicit_argc == 1 && func->type->signature->explicit_arg(0).tp->id() == m_type->id()) {
                     // don't match the copy constructor unless the requested arguments strictly match
                     if (args.size() == 1 && args[0]->id() == m_type->id()) matches.push_back(func);
                     continue;
                 }
 
                 // match return type
-                if (ret && !has_valid_conversion(*m_ctx, ret, func->signature.return_type)) continue;
-                bool ret_tp_strict = ret ? func->signature.return_type->id() == ret->id() : func->signature.return_type->size == 0;
+                if (ret && !has_valid_conversion(*m_ctx, ret, func->type->signature->return_type)) continue;
+                bool ret_tp_strict = ret ? func->type->signature->return_type->id() == ret->id() : func->type->signature->return_type->size == 0;
 
                 // match argument types
-                if (func->signature.arg_types.size() != args.size()) continue;
+                if (func->type->signature->explicit_argc != args.size()) continue;
 
                 // prefer strict type matches
                 bool match = true;
                 for (u8 i = 0;i < args.size();i++) {
-                    if (func->signature.arg_types[i]->name == "subtype") {
+                    if (func->type->signature->explicit_arg(i).tp->name == "subtype") {
                         if (m_type->sub_type->id() != args[i]->id()) {
                             match = false;
                             break;
                         }
                     } else {
-                        if (func->signature.arg_types[i]->id() != args[i]->id()) {
+                        if (func->type->signature->explicit_arg(i).tp->id() != args[i]->id()) {
                             match = false;
                             break;
                         }
@@ -406,7 +406,7 @@ namespace gjs {
                     // check if the arguments are at least convertible
                     match = true;
                     for (u8 i = 0;i < args.size();i++) {
-                        script_type* at = func->signature.arg_types[i];
+                        script_type* at = func->type->signature->explicit_arg(i).tp;
                         if (at->name == "subtype") at = m_type->sub_type;
                         if (!has_valid_conversion(*m_ctx, args[i], at)) {
                             match = false;
@@ -425,7 +425,7 @@ namespace gjs {
             return false;
         }
 
-        script_function* var::method(const std::string& _name, script_type* ret, const std::vector<script_type*>& args) const {
+        script_function* var::method(const std::string& _name, script_type* ret, const std::vector<script_type*>& args, bool log_errors) const {
             std::vector<script_function*> matches;
 
             for (u16 m = 0;m < m_type->methods.size();m++) {
@@ -434,12 +434,21 @@ namespace gjs {
                 if (_name == "<cast>") {
                     script_function* mt = m_type->methods[m];
                     auto mparts = split(split(mt->name,":")[1], " \t\n\r");
-                    if (mparts.size() == 2 && mparts[0] == "operator" && mparts[1] == mt->signature.return_type->name && mt->signature.arg_types.size() == 1) {
-                        if (mt->signature.return_type->id() == ret->id()) {
-                            return mt;
-                        } else if (has_valid_conversion(*m_ctx, mt->signature.return_type, ret)) {
-                            matches.push_back(mt);
-                            continue;
+                    if (mparts.size() == 2 && mparts[0] == "operator" && mparts[1] == mt->type->signature->return_type->name && mt->type->signature->args.size() == 1) {
+                        if (mt->type->signature->return_type->name == "subtype") {
+                            if (m_type->sub_type->id() == ret->id()) {
+                                return mt;
+                            } else if (has_valid_conversion(*m_ctx, m_type->sub_type, ret)) {
+                                matches.push_back(mt);
+                                continue;
+                            }
+                        } else {
+                            if (mt->type->signature->return_type->id() == ret->id()) {
+                                return mt;
+                            } else if (has_valid_conversion(*m_ctx, mt->type->signature->return_type, ret)) {
+                                matches.push_back(mt);
+                                continue;
+                            }
                         }
                     }
                 } else if (_name.find_first_of(' ') != std::string::npos) {
@@ -460,22 +469,29 @@ namespace gjs {
                 if (!func) continue;
 
                 // match return type
-                if (ret && !has_valid_conversion(*m_ctx, func->signature.return_type, ret)) continue;
-                bool ret_tp_strict = ret ? func->signature.return_type->id() == ret->id() : false;
+                if (ret) {
+                    if (ret->base_type && !has_valid_conversion(*m_ctx, func->type->signature->return_type, ret->base_type)) continue;
+                    else if (!ret->base_type && !has_valid_conversion(*m_ctx, func->type->signature->return_type, ret)) continue;
+                }
+                bool ret_tp_strict = false;
+                if (ret) {
+                    if (ret->base_type && func->type->signature->return_type->id() == ret->base_type->id()) ret_tp_strict = true;
+                    else if (!ret->base_type && func->type->signature->return_type->id() == ret->id()) ret_tp_strict = true;
+                }
 
                 // match argument types
-                if (func->signature.arg_types.size() != args.size()) continue;
+                if (func->type->signature->explicit_argc != args.size()) continue;
 
                 // prefer strict type matches
                 bool match = true;
                 for (u8 i = 0;i < args.size();i++) {
-                    if (func->signature.arg_types[i]->name == "subtype") {
+                    if (func->type->signature->explicit_arg(i).tp->name == "subtype") {
                         if (m_type->sub_type->id() != args[i]->id()) {
                             match = false;
                             break;
                         }
                     } else {
-                        if (func->signature.arg_types[i]->id() != args[i]->id()) {
+                        if (func->type->signature->explicit_arg(i).tp->id() != args[i]->id()) {
                             match = false;
                             break;
                         }
@@ -487,15 +503,18 @@ namespace gjs {
                 if (!match) {
                     // check if the arguments are at least convertible
                     match = true;
+                    bool args_strict = true;
                     for (u8 i = 0;i < args.size();i++) {
-                        script_type* at = func->signature.arg_types[i];
+                        script_type* at = func->type->signature->explicit_arg(i).tp;
                         if (at->name == "subtype") at = m_type->sub_type;
+                        if (at->id() != args[i]->id()) args_strict = false;
                         if (!has_valid_conversion(*m_ctx, args[i], at)) {
                             match = false;
                             break;
                         }
                     }
 
+                    if (ret_tp_strict && args_strict) return func;
                     if (!match) continue;
                 }
 
@@ -503,7 +522,7 @@ namespace gjs {
             }
 
             if (matches.size() > 1) {
-                m_ctx->log()->err(ec::c_ambiguous_method, m_ctx->node()->ref, _name.c_str(), m_type->name.c_str(), arg_tp_str(args).c_str(), !ret ? "<any>" : ret->name.c_str());
+                if (log_errors) m_ctx->log()->err(ec::c_ambiguous_method, m_ctx->node()->ref, _name.c_str(), m_type->name.c_str(), arg_tp_str(args).c_str(), !ret ? "<any>" : ret->name.c_str());
                 return nullptr;
             }
 
@@ -511,7 +530,7 @@ namespace gjs {
                 return matches[0];
             }
 
-            m_ctx->log()->err(ec::c_no_such_method, m_ctx->node()->ref, m_type->name.c_str(), _name.c_str(), arg_tp_str(args).c_str(), !ret ? "<any>" : ret->name.c_str());
+            if (log_errors) m_ctx->log()->err(ec::c_no_such_method, m_ctx->node()->ref, m_type->name.c_str(), _name.c_str(), arg_tp_str(args).c_str(), !ret ? "<any>" : ret->name.c_str());
             return nullptr;
         }
 
@@ -563,6 +582,13 @@ namespace gjs {
                     return ret;
                 }
                 
+                m_ctx->log()->err(ec::c_no_valid_conversion, m_ctx->node()->ref, from->name.c_str(), to->name.c_str());
+                return m_ctx->error_var();
+            }
+
+            if (to->signature) {
+                // the from->id() == to->id() check above handles the only valid case
+                // for function signature types
                 m_ctx->log()->err(ec::c_no_valid_conversion, m_ctx->node()->ref, from->name.c_str(), to->name.c_str());
                 return m_ctx->error_var();
             }
@@ -628,6 +654,7 @@ namespace gjs {
                 if (m_name.length() > 0) return format("[$sp + %u] (%s)", m_stack_loc, m_name.c_str());
                 else return format("[$sp + %u]", m_stack_loc);
             }
+
             if (m_is_imm) {
                 if (m_type->is_floating_point) {
                     if (m_type->size == sizeof(f64)) {
@@ -644,13 +671,40 @@ namespace gjs {
                 }
             }
 
-            if (m_name.length() > 0) {
-                if (m_type->is_floating_point) return format("$FP%d (%s)", m_reg_id, m_name.c_str());
-                return format("$GP%d (%s)", m_reg_id, m_name.c_str());
-            }
+            static bool showStackInfo = false;
+            if (is_arg()) {
+                if (m_name.length() > 0) {
+                    if (m_type->is_floating_point) {
+                        if (m_stack_id > 0 && showStackInfo) return format("$FPA%d (%s) <$sp[%d]>", m_arg_idx, m_name.c_str(), m_stack_id);
+                        else return format("$FPA%d (%s)", m_arg_idx, m_name.c_str());
+                    }
+                    if (m_stack_id > 0 && showStackInfo) return format("$GPA%d (%s) <$sp[%d]>", m_arg_idx, m_name.c_str(), m_stack_id);
+                    else return format("$GPA%d (%s)", m_arg_idx, m_name.c_str());
+                }
 
-            if (m_type->is_floating_point) return format("$FP%d", m_reg_id);
-            return format("$GP%d", m_reg_id);
+                if (m_type->is_floating_point) {
+                    if (m_stack_id > 0 && showStackInfo) return format("$FPA%d <$sp[%d]>", m_arg_idx, m_stack_id);
+                    else return format("$FPA%d", m_arg_idx);
+                }
+                if (m_stack_id > 0 && showStackInfo) return format("$GPA%d <$sp[%d]>", m_arg_idx, m_stack_id);
+                else return format("$GPA%d", m_arg_idx);
+            } else {
+                if (m_name.length() > 0) {
+                    if (m_type->is_floating_point) {
+                        if (m_stack_id > 0 && showStackInfo) return format("$FP%d (%s) <$sp[%d]>", m_reg_id, m_name.c_str(), m_stack_id);
+                        else return format("$FP%d (%s)", m_reg_id, m_name.c_str());
+                    }
+                    if (m_stack_id > 0 && showStackInfo) return format("$GP%d (%s) <$sp[%d]>", m_reg_id, m_name.c_str(), m_stack_id);
+                    else return format("$GP%d (%s)", m_reg_id, m_name.c_str());
+                }
+
+                if (m_type->is_floating_point) {
+                    if (m_stack_id > 0 && showStackInfo) return format("$FP%d <$sp[%d]>", m_reg_id, m_stack_id);
+                    else return format("$FP%d", m_reg_id);
+                }
+                if (m_stack_id > 0 && showStackInfo) return format("$GP%d <$sp[%d]>", m_reg_id, m_stack_id);
+                else return format("$GP%d", m_reg_id);
+            }
         }
 
         void var::set_mem_ptr(const var& v) {
@@ -830,42 +884,49 @@ namespace gjs {
                     if ( i[0] && !i[1]) return ctx->imm(av.f + bv.i);
                     if (!i[0] &&  i[1]) return ctx->imm(av.i + bv.f);
                     if (!i[0] && !i[1]) return ctx->imm(av.i + bv.i);
+                    break;
                 }
                 case ot::sub: {
                     if ( i[0] &&  i[1]) return ctx->imm(av.f - bv.f);
                     if ( i[0] && !i[1]) return ctx->imm(av.f - bv.i);
                     if (!i[0] &&  i[1]) return ctx->imm(av.i - bv.f);
                     if (!i[0] && !i[1]) return ctx->imm(av.i - bv.i);
+                    break;
                 }
                 case ot::mul: {
                     if ( i[0] &&  i[1]) return ctx->imm(av.f * bv.f);
                     if ( i[0] && !i[1]) return ctx->imm(av.f * bv.i);
                     if (!i[0] &&  i[1]) return ctx->imm(av.i * bv.f);
                     if (!i[0] && !i[1]) return ctx->imm(av.i * bv.i);
+                    break;
                 }
                 case ot::div: {
                     if ( i[0] &&  i[1]) return ctx->imm(av.f / bv.f);
                     if ( i[0] && !i[1]) return ctx->imm(av.f / bv.i);
                     if (!i[0] &&  i[1]) return ctx->imm(av.i / bv.f);
                     if (!i[0] && !i[1]) return ctx->imm(av.i / bv.i);
+                    break;
                 }
                 case ot::mod: {
                     if ( i[0] &&  i[1]) return ctx->imm(modf(av.f, bv.f));
                     if ( i[0] && !i[1]) return ctx->imm(modf(av.f, bv.f));
-                    if (!i[0] &&  i[1]) return ctx->imm(modf(av.i, bv.f));
-                    if (!i[0] && !i[1]) return ctx->imm(av.i % bv.i);
+                    if (!i[0] &&  i[1]) return ctx->imm(modf(f64(av.i), bv.f));
+                    if (!i[0] && !i[1]) return ctx->imm(f64(av.i % bv.i));
+                    break;
                 }
                 case ot::shiftLeft: {
                     if ( i[0] &&  i[1]) return ctx->imm((i64)av.f << (i64)bv.f);
                     if ( i[0] && !i[1]) return ctx->imm((i64)av.f << bv.i);
                     if (!i[0] &&  i[1]) return ctx->imm(av.i << (i64)bv.f);
                     if (!i[0] && !i[1]) return ctx->imm(av.i << bv.i);
+                    break;
                 }
                 case ot::shiftRight: {
                     if ( i[0] &&  i[1]) return ctx->imm((i64)av.f >> (i64)bv.f);
                     if ( i[0] && !i[1]) return ctx->imm((i64)av.f >> bv.i);
                     if (!i[0] &&  i[1]) return ctx->imm(av.i >> (i64)bv.f);
                     if (!i[0] && !i[1]) return ctx->imm(av.i >> bv.i);
+                    break;
                 }
                 case ot::land: {
                     // 0 == 0.0f, !0 == !0.0f
@@ -901,57 +962,66 @@ namespace gjs {
                     if ( i[0] && !i[1]) return ctx->imm(i64(av.f < f64(bv.i)));
                     if (!i[0] &&  i[1]) return ctx->imm(i64(f64(av.i) < bv.f));
                     if (!i[0] && !i[1]) return ctx->imm(i64(av.i < bv.i));
+                    break;
                 }
                 case ot::greater: {
                     if ( i[0] &&  i[1]) return ctx->imm(i64(av.f > bv.f));
                     if ( i[0] && !i[1]) return ctx->imm(i64(av.f > f64(bv.i)));
                     if (!i[0] &&  i[1]) return ctx->imm(i64(f64(av.i) > bv.f));
                     if (!i[0] && !i[1]) return ctx->imm(i64(av.i > bv.i));
+                    break;
                 }
                 case ot::lessEq: {
                     if ( i[0] &&  i[1]) return ctx->imm(i64(av.f <= bv.f));
                     if ( i[0] && !i[1]) return ctx->imm(i64(av.f <= f64(bv.i)));
                     if (!i[0] &&  i[1]) return ctx->imm(i64(f64(av.i) <= bv.f));
                     if (!i[0] && !i[1]) return ctx->imm(i64(av.i <= bv.i));
+                    break;
                 }
                 case ot::greaterEq: {
                     if ( i[0] &&  i[1]) return ctx->imm(i64(av.f >= bv.f));
                     if ( i[0] && !i[1]) return ctx->imm(i64(av.f >= f64(bv.i)));
                     if (!i[0] &&  i[1]) return ctx->imm(i64(f64(av.i) >= bv.f));
                     if (!i[0] && !i[1]) return ctx->imm(i64(av.i >= bv.i));
+                    break;
                 }
                 case ot::notEq: {
                     if ( i[0] &&  i[1]) return ctx->imm(i64(av.f != bv.f));
                     if ( i[0] && !i[1]) return ctx->imm(i64(av.f != f64(bv.i)));
                     if (!i[0] &&  i[1]) return ctx->imm(i64(f64(av.i) != bv.f));
                     if (!i[0] && !i[1]) return ctx->imm(i64(av.i != bv.i));
+                    break;
                 }
                 case ot::isEq: {
                     if ( i[0] &&  i[1]) return ctx->imm(i64(av.f == bv.f));
                     if ( i[0] && !i[1]) return ctx->imm(i64(av.f == f64(bv.i)));
                     if (!i[0] &&  i[1]) return ctx->imm(i64(f64(av.i) == bv.f));
                     if (!i[0] && !i[1]) return ctx->imm(i64(av.i == bv.i));
+                    break;
                 }
-                case ot::addEq:
-                case ot::subEq:
-                case ot::mulEq:
-                case ot::divEq:
-                case ot::modEq:
-                case ot::shiftLeftEq:
-                case ot::shiftRightEq:
-                case ot::landEq:
-                case ot::lorEq:
-                case ot::bandEq:
-                case ot::borEq:
+                case ot::addEq: [[fallthrough]];
+                case ot::subEq: [[fallthrough]];
+                case ot::mulEq: [[fallthrough]];
+                case ot::divEq: [[fallthrough]];
+                case ot::modEq: [[fallthrough]];
+                case ot::shiftLeftEq: [[fallthrough]];
+                case ot::shiftRightEq: [[fallthrough]];
+                case ot::landEq: [[fallthrough]];
+                case ot::lorEq: [[fallthrough]];
+                case ot::bandEq: [[fallthrough]];
+                case ot::borEq: [[fallthrough]];
                 case ot::bxorEq: {
                     ctx->log()->err(ec::c_no_assign_literal, ctx->node()->ref);
                     return ctx->error_var();
                 }
             }
+
+            ctx->log()->err(ec::c_invalid_binary_operator, ctx->node()->ref);
+            return ctx->error_var();
         }
 
         var do_bin_op(context* ctx, const var& a, const var& b, ot _op) {
-            if (a.flag(bind::pf_write_only) || b.flag(bind::pf_write_only)) {
+            if (a.flag(bind::property_flags::pf_write_only) || b.flag(bind::property_flags::pf_write_only)) {
                 ctx->log()->err(ec::c_no_read_write_only, ctx->node()->ref);
                 return ctx->error_var();
             }
@@ -968,7 +1038,7 @@ namespace gjs {
             else {
                 script_function* f = a.method(std::string("operator ") + ot_str[(u8)_op], a.type(), { b.type() });
                 if (f) {
-                    return call(*ctx, f, { b.convert(f->signature.arg_types[0]) }, &a);
+                    return call(*ctx, f, { b.convert(f->type->signature->explicit_arg(0).tp) }, &a);
                 }
             }
 
@@ -1203,7 +1273,7 @@ namespace gjs {
             }
 
             if (m_type->is_primitive) {
-                if (m_flags & bind::pf_write_only) {
+                if (flag(bind::property_flags::pf_write_only)) {
                     m_ctx->log()->err(ec::c_no_read_write_only, m_ctx->node()->ref);
                     return m_ctx->error_var();
                 }
@@ -1224,11 +1294,11 @@ namespace gjs {
                 return m_ctx->error_var();
             }
 
-            if (m_flags & bind::pf_read_only) {
+            if (flag(bind::property_flags::pf_read_only)) {
                 m_ctx->log()->err(ec::c_no_assign_read_only, m_ctx->node()->ref);
                 return *this;
             }
-            if (rhs.m_flags & bind::pf_write_only) {
+            if (rhs.flag(bind::property_flags::pf_write_only)) {
                 m_ctx->log()->err(ec::c_no_read_write_only, m_ctx->node()->ref);
                 return *this;
             }
@@ -1241,12 +1311,15 @@ namespace gjs {
                     var v = rhs.convert(m_type);
                     m_ctx->add(operation::eq).operand(*this).operand(v);
                     if (m_mem_ptr.valid) {
+                        /*
                         if (v.m_is_imm) {
                             var sv = m_ctx->empty_var(v.m_type);
                             m_ctx->add(operation::eq).operand(sv).operand(v);
                             m_ctx->add(operation::store).operand(var(m_ctx, m_mem_ptr.reg, m_type)).operand(sv);
                         }
                         else m_ctx->add(operation::store).operand(var(m_ctx, m_mem_ptr.reg, m_type)).operand(*this);
+                        */
+                        m_ctx->add(operation::store).operand(var(m_ctx, m_mem_ptr.reg, m_ctx->type("data"))).operand(*this);
                     }
                 } else {
                     script_function* assign = method("operator =", m_type, { rhs.m_type });

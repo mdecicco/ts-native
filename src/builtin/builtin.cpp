@@ -7,6 +7,7 @@
 #include <gjs/builtin/script_buffer.h>
 #include <gjs/common/script_context.h>
 #include <gjs/common/script_module.h>
+#include <gjs/common/function_pointer.h>
 #include <gjs/bind/bind.h>
 #include <gjs/builtin/script_math.h>
 
@@ -52,17 +53,6 @@ namespace gjs {
         auto nt7 = ctx->bind<u8>("u8");
         auto nt8 = ctx->bind<f32>("f32");
         auto nt9 = ctx->bind<f64>("f64");
-
-        bind_number_methods(nt0).finalize(ctx->global());
-        bind_number_methods(nt1).finalize(ctx->global());
-        bind_number_methods(nt2).finalize(ctx->global());
-        bind_number_methods(nt3).finalize(ctx->global());
-        bind_number_methods(nt4).finalize(ctx->global());
-        bind_number_methods(nt5).finalize(ctx->global());
-        bind_number_methods(nt6).finalize(ctx->global());
-        bind_number_methods(nt7).finalize(ctx->global());
-        bind_number_methods(nt8).finalize(ctx->global());
-        bind_number_methods(nt9).finalize(ctx->global());
 
         ctx->bind<bool>("bool").finalize(ctx->global());
 
@@ -130,10 +120,13 @@ namespace gjs {
 
         auto ptr = ctx->bind<script_pointer>("pointer");
         ptr.constructor<u64>();
+        ptr.constructor<u64, script_pointer&>();
         ptr.method("reset", &script_pointer::reset);
         ptr.method("share", &script_pointer::share);
         ptr.method("release", &script_pointer::release);
-        ptr.method("operator=", &script_pointer::operator=);
+        ptr.method("operator =", METHOD_PTR(script_pointer, operator=, script_pointer&, const script_pointer&));
+        ptr.method("operator =", METHOD_PTR(script_pointer, operator=, script_pointer&, subtype_t*));
+        ptr.method("operator subtype", &script_pointer::operator gjs::subtype_t *);
         ptr.prop("is_null", &script_pointer::is_null);
         ptr.prop("reference_count", &script_pointer::references);
         ptr.prop("value", &script_pointer::get);
@@ -175,16 +168,33 @@ namespace gjs {
         tp = buf.finalize(ctx->global());
         tp->is_builtin = true;
 
+        auto fp = ctx->bind<function_pointer>("$funcptr");
+        fp.constructor<u32, u64>();
+        tp = fp.finalize(ctx->global());
+        tp->is_builtin = true;
+
+        ctx->bind<void*, u32, void*, u64>(raw_callback::make, "$makefunc");
         ctx->bind(script_allocate, "alloc");
         ctx->bind(script_free, "free");
         ctx->bind(script_copymem, "memcopy");
         ctx->bind(script_print, "print");
 
+        bind_number_methods(nt0).finalize(ctx->global());
+        bind_number_methods(nt1).finalize(ctx->global());
+        bind_number_methods(nt2).finalize(ctx->global());
+        bind_number_methods(nt3).finalize(ctx->global());
+        bind_number_methods(nt4).finalize(ctx->global());
+        bind_number_methods(nt5).finalize(ctx->global());
+        bind_number_methods(nt6).finalize(ctx->global());
+        bind_number_methods(nt7).finalize(ctx->global());
+        bind_number_methods(nt8).finalize(ctx->global());
+        bind_number_methods(nt9).finalize(ctx->global());
+
         math::bind_math(ctx);
     }
 
     u32 script_print(const script_string& str) {
-        return printf(str.c_str());
+        return printf("%s\n", str.c_str());
     }
 
     void* script_allocate(u64 size) {

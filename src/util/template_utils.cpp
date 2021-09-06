@@ -1,26 +1,49 @@
 #include <gjs/util/template_utils.hpp>
 #include <gjs/common/script_type.h>
+#include <gjs/common/function_pointer.h>
+#include <gjs/common/script_function.h>
 #include <gjs/common/types.h>
 
 namespace gjs {
-    func_signature::func_signature(const std::string& _name, script_type* ret, const std::vector<script_type*>& _arg_types)
-        : name(_name), return_type(ret), arg_types(_arg_types) { }
+    void* raw_callback::make(function_pointer* fptr) {
+        raw_callback* p = new raw_callback({
+            true , // free self
+            false, // owns ptr
+            false, // owns func
+            { nullptr, nullptr },
+            fptr
+        });
 
-    std::string func_signature::to_string() const {
-        std::string sig = "";
+        // printf("Allocated host raw_callback 0x%lX\n", (u64)p);
+        return new void*(p);
+    }
 
-        if (!return_type) sig += "<unbound>";
-        else sig += return_type->name;
+    void* raw_callback::make(u32 fid, void* data, u64 dataSz) {
+        raw_callback* p = new raw_callback({
+            false, // free self
+            true,  // owns ptr
+            false, // owns func
+            { nullptr, nullptr },
+            new function_pointer(fid, dataSz, data)
+        });
 
-        sig += " " + name + "(";
+        // printf("Allocated raw_callback 0x%lX\n", (u64)p);
 
-        for (u8 i = 0;i < arg_types.size();i++) {
-            if (i > 0) sig += ", ";
-            if (!arg_types[i]) sig += "<unbound>";
-            else sig += arg_types[i]->name;
+        return (void*)p;
+    }
+
+    void raw_callback::destroy(raw_callback** cbp) {
+        raw_callback* cb = *cbp;
+        if (cb) {
+            // printf("Destroyed raw_callback 0x%lX\n", (u64)cb);
+            if (cb->owns_func && cb->ptr) {
+                delete cb->ptr->target->access.wrapped;
+                delete cb->ptr->target;
+            }
+
+            if (cb->owns_ptr && cb->ptr) delete cb->ptr;
+            if (cb->free_self) delete (void*)cbp;
+            delete cb;
         }
-
-        sig += ")";
-        return sig;
     }
 };

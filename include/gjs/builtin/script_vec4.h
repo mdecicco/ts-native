@@ -37,7 +37,7 @@ namespace gjs {
                     return (&x)[idx];
                 }
 
-                T mag() const { return sqrt((x * x) + (y * y) + (z * z) + (w * w)); }
+                T mag() const { return (T)sqrt((x * x) + (y * y) + (z * z) + (w * w)); }
                 T magSq() const { return (x * x) + (y * y) + (z * z) + (w * w); }
                 T dot(const vec4<T>& v) const { return (x * v.x) + (y * v.y) + (z * v.z) + (w * v.w); }
                 vec4<T> normalized() const {
@@ -46,7 +46,7 @@ namespace gjs {
                 }
                 void normalize() {
                     T invMag = T(1.0) / mag();
-                    x *= invMag; y *= invMag; z *= invMag; w * invMag;
+                    x *= invMag; y *= invMag; z *= invMag; w *= invMag;
                 }
 
                 vec2<T> xx() const { return { x, x }; }
@@ -138,20 +138,20 @@ namespace gjs {
             public:
                 quat(const vec3<T>& axis, T angleDeg) {
                     T Hrad = d2r(angleDeg * T(0.5));
-                    T sHrad = sin(Hrad);
+                    T sHrad = (T)sin(Hrad);
                     x = axis.x * sHrad;
                     y = axis.y * sHrad;
                     z = axis.z * sHrad;
-                    w = cos(Hrad);
+                    w = (T)cos(Hrad);
                 }
                 quat(const vec3<T>& eulerDeg) {
                     vec3<T> rad(d2r(eulerDeg.x), d2r(eulerDeg.y), d2r(eulerDeg.z));
-                    T c1 = cos(rad.z * T(0.5));
-                    T c2 = cos(rad.y * T(0.5));
-                    T c3 = cos(rad.x * T(0.5));
-                    T s1 = sin(rad.z * T(0.5));
-                    T s2 = sin(rad.y * T(0.5));
-                    T s3 = sin(rad.x * T(0.5));
+                    T c1 = (T)cos(rad.z * T(0.5));
+                    T c2 = (T)cos(rad.y * T(0.5));
+                    T c3 = (T)cos(rad.x * T(0.5));
+                    T s1 = (T)sin(rad.z * T(0.5));
+                    T s2 = (T)sin(rad.y * T(0.5));
+                    T s3 = (T)sin(rad.x * T(0.5));
 
                     x = c1 * c2 * s3 - s1 * s2 * c3;
                     y = c1 * s2 * c3 + s1 * c2 * s3;
@@ -189,7 +189,7 @@ namespace gjs {
                 quat<T> conjugate() const { return { T(-x), T(-y), T(-z), w }; }
                 quat<T> inverse() const { T invMag = T(1) / mag(); return { T(-x * invMag), T(-y * invMag), T(-z * invMag), T(w * invMag) }; }
 
-                T mag() const { return sqrt((x * x) + (y * y) + (z * z) + (w * w)); }
+                T mag() const { return (T)sqrt((x * x) + (y * y) + (z * z) + (w * w)); }
                 T magSq() const { return (x * x) + (y * y) + (z * z) + (w * w); }
 
                 T x, y, z, w;
@@ -328,8 +328,8 @@ namespace gjs {
                 }
                 static mat4<T> rotationX(T deg) {
                     T rad = d2r(deg);
-                    T cosTh = cos(rad);
-                    T sinTh = sin(rad);
+                    T cosTh = (T)cos(rad);
+                    T sinTh = (T)sin(rad);
                     return mat4<T>(
                         T(1), T(0), T(0), T(0),
                         T(0), cosTh, -sinTh, T(0),
@@ -339,8 +339,8 @@ namespace gjs {
                 }
                 static mat4<T> rotationY(T deg) {
                     T rad = d2r(deg);
-                    T cosTh = cos(rad);
-                    T sinTh = sin(rad);
+                    T cosTh = (T)cos(rad);
+                    T sinTh = (T)sin(rad);
                     return mat4<T>(
                         cosTh, T(0), sinTh, T(0),
                         T(0), T(1), T(0), T(0),
@@ -350,8 +350,8 @@ namespace gjs {
                 }
                 static mat4<T> rotationZ(T deg) {
                     T rad = d2r(deg);
-                    T cosTh = cos(rad);
-                    T sinTh = sin(rad);
+                    T cosTh = (T)cos(rad);
+                    T sinTh = (T)sin(rad);
                     return mat4<T>(
                         cosTh, -sinTh, T(0), T(0),
                         sinTh, cosTh, T(0), T(0),
@@ -375,19 +375,19 @@ namespace gjs {
                         T(2) * (t1 + t2) * invS           , (-sq.x + sq.y - sq.z + sq.w) * invS, T(2) * (t5 - t6) * invS            , T(0),
                         T(2) * (t3 - t4) * invS           , T(2) * (t5 + t6) * invS            , (-sq.x - sq.y + sq.z + sq.w) * invS, T(0),
                         T(0), T(0), T(0), T(1)
-                        );
+                    );
                 }
                 static mat4<T> rotation(const vec3<T>& axis, T angleDeg) {
                     return rotationQuat(quat<T>(axis, angleDeg));
                 }
                 static mat4<T> rotationEuler(const vec3<T>& degXYZ) {
                     vec3<T> rad(d2r(degXYZ.x), d2r(degXYZ.y), d2r(degXYZ.z));
-                    T cx = cos(rad.x);
-                    T sx = sin(rad.x);
-                    T cy = cos(rad.y);
-                    T sy = sin(rad.y);
-                    T cz = cos(rad.z);
-                    T sz = sin(rad.z);
+                    T cx = (T)cos(rad.x);
+                    T sx = (T)sin(rad.x);
+                    T cy = (T)cos(rad.y);
+                    T sy = (T)sin(rad.y);
+                    T cz = (T)cos(rad.z);
+                    T sz = (T)sin(rad.z);
 
                     return mat4<T>(
                         cy * cz , sy * sx - cy * sz * cx, cy * sz * sx + sy * cx , T(0),

@@ -28,6 +28,10 @@ namespace gjs {
             // called by script_context after it has been constructed
             virtual void init();
 
+            // do any processing necessary on all bindings once there is nothing left
+            // to bind
+            virtual void commit_bindings() { }
+
         protected:
             friend class script_context;
             /*

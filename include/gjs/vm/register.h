@@ -12,6 +12,10 @@ namespace gjs {
         v1        ,
         v2        ,
         v3        ,
+        vf0       ,
+        vf1       ,
+        vf2       ,
+        vf3       ,
 
         // function arguments
         a0        ,
@@ -40,6 +44,14 @@ namespace gjs {
         s5        ,
         s6        ,
         s7        ,
+        s8        ,
+        s9        ,
+        s10       ,
+        s11       ,
+        s12       ,
+        s13       ,
+        s14       ,
+        s15       ,
 
         // floating point storage
         f0        ,
@@ -52,12 +64,12 @@ namespace gjs {
         f7        ,
         f8        ,
         f9        ,
-        f10        ,
-        f11        ,
-        f12        ,
-        f13        ,
-        f14        ,
-        f15        ,
+        f10       ,
+        f11       ,
+        f12       ,
+        f13       ,
+        f14       ,
+        f15       ,
 
         // execution context
         ip        ,    // instruction pointer
@@ -66,6 +78,10 @@ namespace gjs {
 
         register_count    // number of registers
     };
+
+    #define vm_reg_is_volatile(r) (r >= vm_register::v0 && r <= vm_register::vf3)
+    #define vm_reg_is_arg(r) (r >= vm_register::a0 && r <= vm_register::fa7)
+    #define is_fpr(x) ((x >= vmr::f0 && x <= vmr::f15) || (x >= vmr::fa0 && x <= vmr::fa7) || (x >= vmr::vf0 && x <= vmr::vf3))
 
     extern const char* register_str[(i32)vm_register::register_count];
 };

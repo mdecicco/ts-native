@@ -27,7 +27,7 @@ namespace gjs {
 
         m_all_types = new type_manager(this);
         
-        m_global = create_module("__global__");
+        m_global = create_module("__global__", "builtin/__global__");
         m_host_call_vm = dcNewCallVM(4096);
         m_backend->m_ctx = this;
 
@@ -55,24 +55,20 @@ namespace gjs {
     }
 
     void script_context::add(script_function* func) {
-        u64 addr = 0;
-        if (func->is_host) addr = (u64)func->access.wrapped->func_ptr;
-        else addr = func->access.entry;
-
-        if (m_funcs_by_addr.count(addr) > 0) {
-            throw bind_exception(format("Function '%s' has already been added to the context", func->name.c_str()));
+        if (m_funcs_by_id.count(func->id()) > 0) {
+            throw error::bind_exception(error::ecode::b_function_already_bound, func->name.c_str());
         }
 
-        m_funcs_by_addr[addr] = func;
+        m_funcs_by_id[func->id()] = func;
     }
 
     void script_context::add(script_module* module) {
         if (m_modules.count(module->name()) > 0) {
-            throw bind_exception(format("Module '%s' has already been added to the context", module->name().c_str()));
+            throw error::bind_exception(error::ecode::b_module_already_created, module->name().c_str());
         }
 
         if (m_modules_by_id.count(module->id()) > 0) {
-            throw bind_exception(format("Hash collision binding module '%s' (id: %lu)", module->name().c_str(), module->id()));
+            throw error::bind_exception(error::ecode::b_module_hash_collision, module->name().c_str(), module->id());
         }
 
         m_modules[module->name()] = module;
@@ -117,14 +113,16 @@ namespace gjs {
         }
 
         // Make sure the path is absolute
-        try {
+        // try {
             std::filesystem::path p(out_path);
             out_path = std::filesystem::absolute(p).u8string();
-        } catch(...) {
-            return nullptr;
-        }
+        // } catch(const std::exception& e) {
+        //     return nullptr;
+        // }
 
-        if (!m_io->exists(out_path) || m_io->is_dir(out_path)) return nullptr;
+        if (!m_io->exists(out_path) || m_io->is_dir(out_path)) {
+            throw error::runtime_exception(error::ecode::r_file_not_found, out_path.c_str());
+        }
 
         // check if the module was already loaded
         mod = module(out_path);
@@ -139,9 +137,14 @@ namespace gjs {
             delete [] c_src;
             m_io->close(file);
 
-            return add_code(out_path, src);
+            std::string name = std::filesystem::path(out_path).filename().u8string();
+            u8 extIdx = (u8)name.find_last_of('.');
+            if (extIdx != std::string::npos) name = name.substr(0, extIdx);
+
+            return add_code(name, out_path, src);
         }
 
+        throw error::runtime_exception(error::ecode::r_failed_to_open_file, out_path.c_str());
         return nullptr;
     }
 
@@ -194,8 +197,8 @@ namespace gjs {
         return out_path;
     }
 
-    script_module* script_context::create_module(const std::string& name) {
-        script_module* m = new script_module(this, name);
+    script_module* script_context::create_module(const std::string& name, const std::string& path) {
+        script_module* m = new script_module(this, name, path);
         add(m);
         return m;
     }
@@ -224,27 +227,32 @@ namespace gjs {
     std::vector<script_function*> script_context::functions() const {
         std::vector<script_function*> out;
 
-        for (auto it = m_funcs_by_addr.begin();it != m_funcs_by_addr.end();++it) {
+        for (auto it = m_funcs_by_id.begin();it != m_funcs_by_id.end();++it) {
             out.push_back(it->getSecond());
         }
 
         return out;
     }
 
-    script_function* script_context::function(u64 address) {
-        auto it = m_funcs_by_addr.find(address);
-        if (it == m_funcs_by_addr.end()) return nullptr;
+    script_function* script_context::function(u32 id) {
+        auto it = m_funcs_by_id.find(id);
+        if (it == m_funcs_by_id.end()) return nullptr;
         return it->getSecond();
     }
 
-    script_module* script_context::add_code(const std::string& module, const std::string& code) {
+    script_module* script_context::add_code(const std::string& module_name, const std::string& module_path, const std::string& code) {
         try {
-            return m_pipeline.compile(module, code, m_backend);
+            return m_pipeline.compile(module_name, module_path, code, m_backend);
         } catch (error::exception& e) {
             m_pipeline.log()->errors.push_back({ true, e.code, e.message, e.src });
         } catch (std::exception& e) {
             m_pipeline.log()->errors.push_back({ true, error::ecode::unspecified_error, std::string(e.what()), source_ref("[unknown]", "[unknown]", 0, 0) });
         }
         return false;
+    }
+
+
+    script_context* script_context::current() {
+        return current_ctx();
     }
 };

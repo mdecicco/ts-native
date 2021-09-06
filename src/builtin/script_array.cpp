@@ -43,7 +43,7 @@ namespace gjs {
         }
 
         if (m_type->is_trivially_copyable) {
-            if (m_type->is_primitive) memcpy(m_data + (u64(m_count) * u64(m_type->size)), &elem, m_type->size);
+            if (m_type->is_primitive) memcpy(m_data + (u64(m_count) * u64(m_type->size)), elem, m_type->size);
             else memcpy(m_data + (u64(m_count) * u64(m_type->size)), elem, m_type->size);
         } else {
             script_object obj(m_type, (u8*)elem);

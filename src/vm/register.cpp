@@ -9,6 +9,10 @@ namespace gjs {
         "v1",
         "v2",
         "v3",
+        "vf0",
+        "vf1",
+        "vf2",
+        "vf3",
 
         // function arguments
         "a0",
@@ -37,6 +41,14 @@ namespace gjs {
         "s5",
         "s6",
         "s7",
+        "s8",
+        "s9",
+        "s10",
+        "s11",
+        "s12",
+        "s13",
+        "s14",
+        "s15",
 
         // floating point
         "f0",

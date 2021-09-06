@@ -9,6 +9,7 @@ namespace gjs {
     class script_pointer {
         public:
             script_pointer(u64 moduletype);
+            script_pointer(u64 moduletype, const script_pointer& v);
             ~script_pointer();
 
             void reset(subtype_t* v);
@@ -20,6 +21,12 @@ namespace gjs {
 
             // same as share
             script_pointer& operator=(const script_pointer& o);
+
+            // same as *(get()) = *v
+            script_pointer& operator=(subtype_t* v);
+
+            // same as get
+            operator subtype_t*();
 
         protected:
             void destruct();

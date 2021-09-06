@@ -11,7 +11,7 @@ namespace gjs {
     struct compilation_output;
 
     namespace bind {
-        enum property_flags;
+        enum class property_flags : u8;
     };
 
     namespace compile {
@@ -35,8 +35,8 @@ namespace gjs {
                 inline f64 imm_d() const { return m_imm.d; }
                 inline u32 reg_id() const { return m_reg_id; }
                 inline bool valid() const { return m_ctx != nullptr; }
-                inline bool flag(bind::property_flags f) const { return m_flags & f; }
-                inline void raise_flag(bind::property_flags f) { m_flags |= f; }
+                inline bool flag(bind::property_flags f) const { return m_flags & u8(f); }
+                inline void raise_flag(bind::property_flags f) { m_flags |= u8(f); }
                 inline bool is_stack_obj() const { return m_stack_id != 0; }
                 inline u64 stack_id() const { return m_stack_id; }
                 inline bool is_arg() const { return m_arg_idx != u8(-1); }
@@ -51,11 +51,11 @@ namespace gjs {
 
                 u64 size() const;
                 bool has_prop(const std::string& name) const;
-                var prop(const std::string& name) const;
-                var prop_ptr(const std::string& name) const;
+                var prop(const std::string& name, bool log_errors = true) const;
+                var prop_ptr(const std::string& name, bool log_errors = true) const;
                 bool has_any_method(const std::string& name) const;
                 bool has_unambiguous_method(const std::string& name, script_type* ret, const std::vector<script_type*>& args) const;
-                script_function* method(const std::string& name, script_type* ret, const std::vector<script_type*>& args) const;
+                script_function* method(const std::string& name, script_type* ret, const std::vector<script_type*>& args, bool log_errors = true) const;
                 bool convertible_to(script_type* tp) const;
                 var convert(script_type* tp, bool store_imms_in_reg = false) const;
                 void set_mem_ptr(const var& v);

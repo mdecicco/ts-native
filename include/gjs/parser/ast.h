@@ -40,6 +40,7 @@ namespace gjs {
                 operation,
                 scoped_block,
                 format_expression,
+                lambda_expression,
                 context_type,
                 context_function
             };

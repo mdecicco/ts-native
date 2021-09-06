@@ -2,6 +2,8 @@
 #include <gjs/vm/instruction_encoder.h>
 #include <gjs/backends/b_vm.h>
 #include <gjs/vm/register.h>
+#include <gjs/common/script_context.h>
+#include <gjs/common/script_function.h>
 #include <gjs/util/util.h>
 #include <assert.h>
 
@@ -371,7 +373,6 @@ namespace gjs {
             || x == vmi::dncmpi          \
         )
 
-    #define is_fpr(x) ((x >= vmr::f0 && x <= vmr::f15) || (x >= vmr::fa0 && x <= vmr::fa7))
     #define decode_instr ((vmi)(m_code >> instr_shift))
     #define check_flag(f) (((m_code | flag_mask) ^ flag_mask) & f)
     #define set_flag(f) (m_code |= f)
@@ -480,7 +481,7 @@ namespace gjs {
         std::string out;
         vmi i = instr();
         if (i >= vmi::instruction_count) return "Invalid Instruction";
-
+        
         if (check_instr_type_0(i)) return instruction_str[(u8)i];
 
         auto reg_str = [state, i, ctx](vmr r, i64 offset = 0, bool is_mem = false) {
@@ -498,8 +499,14 @@ namespace gjs {
 
                 std::string reg_val = ""; // "<" + state->registers[(integer)r].to_string() + ">"
 
-                if (is_fpr(r)) reg_val = format("<%f>", *(f32*)&state->registers[(u64)r]);
-                else reg_val = format("<%lld>", *(i64*)&state->registers[(u64)r]);
+                if (is_fpr(r)) {
+                    reg_val = format("<%f>", *(f32*)&state->registers[(u64)r]);
+                }
+                else {
+                    i64 val = *(i64*)&state->registers[(u64)r];
+                    if (abs(val) > 1000000) reg_val = format("<0x%llX>", (u64)val);
+                    else reg_val = format("<%lld>", val);
+                }
                 return "$" + std::string(register_str[(u64)r]) + reg_val;
             }
 
@@ -508,6 +515,15 @@ namespace gjs {
 
         out += instruction_str[(u8)i];
         while (out.length() < 8) out += ' ';
+
+        if (i == vmi::jal && ctx) {
+            script_function* fn = ctx->context()->function((u32)imm_u());
+            if (fn) {
+                out += fn->type->signature->to_string(fn->name, fn->is_method_of, fn->owner);
+                return out;
+            }
+        }
+
         if (check_instr_type_1(i)) {
             u64 o1 = imm_u();
             out += format("0x%llX", o1);

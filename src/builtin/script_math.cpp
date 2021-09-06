@@ -14,7 +14,7 @@ namespace gjs {
         script_type* tp(script_context* ctx) { return ctx->global()->types()->get<T>(); }
 
         void bind_math(script_context* ctx) {
-            script_module* m = ctx->create_module("math");
+            script_module* m = ctx->create_module("math", "builtin/math");
 
             // constants
             script_type* _f64 = tp<f64>(ctx);

@@ -53,7 +53,7 @@ namespace gjs {
 
         void any(context& ctx, parse::ast* n);
 
-        void block(context&ctx, parse::ast* n);
+        void block(context&ctx, parse::ast* n, bool add_null_if_empty = true);
 
         void compile(script_context* env, parse::ast* input, compilation_output& out);
     };

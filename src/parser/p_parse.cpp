@@ -69,6 +69,31 @@ namespace gjs {
                 ctx.consume();
             }
 
+            if (ctx.pattern({ tt::open_parenth, tt::close_parenth, tt::open_parenth })) {
+                // function type
+                n->arguments = new ast();
+                n->arguments->type = nt::function_arguments;
+                n->arguments->src(ctx.current());
+                ctx.consume();
+                ctx.consume();
+                ctx.consume();
+
+                if (ctx.match({ tt::close_parenth })) ctx.consume();
+                else {
+                    ast* b = n->arguments->body = type_identifier(ctx);;
+                    while (ctx.match({ tt::comma })) {
+                        ctx.consume();
+                        b->next = type_identifier(ctx);
+                        b = b->next;
+                    }
+
+                    if (!ctx.match({ tt::close_parenth })) {
+                        throw exc(ec::p_expected_char, ctx.current().src, ')');
+                    }
+                    ctx.consume();
+                }
+            }
+
             return n;
         }
 

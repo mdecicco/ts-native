@@ -9,6 +9,7 @@
 #include <gjs/compiler/compile.h>
 #include <gjs/builtin/script_buffer.h>
 #include <gjs/common/script_module.h>
+#include <gjs/common/function_pointer.h>
 
 namespace gjs {
     using exc = error::exception;
@@ -17,7 +18,9 @@ namespace gjs {
 
     namespace compile {
         context::context(compilation_output& _out, script_context* _env) : out(_out), symbols(this), env(_env) {
-            next_reg_id = 0;
+            next_lambda_id = 0;
+            next_label_id = 1;
+            cur_func_block = nullptr;
             input = nullptr;
             new_types = nullptr;
             subtype_replacement = nullptr;
@@ -67,7 +70,7 @@ namespace gjs {
         }
 
         var& context::empty_var(script_type* type, const std::string& name) {
-            var v = var(this, next_reg_id++, type);
+            var v = var(this, cur_func_block->next_reg_id++, type);
             v.m_name = name;
             block()->named_vars.push_back(v);
             symbols.set(name, &block()->named_vars.back());
@@ -75,7 +78,7 @@ namespace gjs {
         }
 
         var context::empty_var(script_type* type) {
-            return var(this, next_reg_id++, type);
+            return var(this, cur_func_block->next_reg_id++, type);
         }
 
         var context::dummy_var(script_type* type) {
@@ -98,15 +101,32 @@ namespace gjs {
             symbol_list* syms = symbols.get(name);
             if (syms) {
                 const script_module::local_var* mv = nullptr;
+                const script_function* fn = nullptr;
                 for (auto s = syms->symbols.rbegin();s != syms->symbols.rend();s++) {
                     switch (s->sym_type()) {
-                        case symbol::st_var: {
+                        case symbol::symbol_type::st_capture: {
+                            capture* cap = s->get_capture();
+                            var& v = empty_var(cap->src->type(), name);
+                            // load the value from the context
+                            var& ctx = get_var("$ctx");
+                            var ptr = empty_var(cap->src->type());
+                            add(operation::uadd).operand(ptr).operand(ctx).operand(imm(u64(cap->offset)));
+                            add(operation::load).operand(v).operand(ptr);
+                            v.set_mem_ptr(ptr);
+                            return v;
+                            break;
+                        }
+                        case symbol::symbol_type::st_var: {
                             if (s->scope_idx() != 0 || !compiling_function) {
                                 return *s->get_var();
                             }
                             break;
                         }
-                        case symbol::st_modulevar: {
+                        case symbol::symbol_type::st_function: {
+                            fn = s->get_func();
+                            break;
+                        }
+                        case symbol::symbol_type::st_modulevar: {
                             if (mv) break;
                             mv = s->get_modulevar();
                             break;
@@ -130,6 +150,24 @@ namespace gjs {
                     }
 
                     return v;
+                }
+
+                if (fn) {
+                    var& out = empty_var(fn->type, fn->name);
+                    out.raise_stack_flag();
+                    add(operation::stack_alloc).operand(out).operand(imm((u64)fn->type->size));
+                    auto dt = type("data");
+                    var dataPtr = empty_var(dt);
+                    add(operation::eq).operand(dataPtr).operand(imm((u64)0));
+                    var ptr = call(
+                        *this,
+                        function("$makefunc", dt, { type("u32"), dt, type("u64") }),
+                        { imm((u64)fn->id()), dataPtr, imm((u64)0) }, // function id, context data size
+                        nullptr
+                    );
+                    add(operation::store).operand(out).operand(ptr);
+
+                    return out;
                 }
             }
 
@@ -190,96 +228,112 @@ namespace gjs {
             return t ? t->type : nullptr;
         }
 
-        script_type* context::type(parse::ast* ntype) {
-            // todo: imported subtype classes
-            if (ntype->type == parse::ast::node_type::type_identifier) {
-                std::string name = *ntype;
+        script_type* context::type(parse::ast* n) {
+            auto get = [this](parse::ast* ntype) -> script_type* {
+                if (ntype->type == parse::ast::node_type::type_identifier) {
+                    std::string name = *ntype;
 
-                if (name == "subtype") {
-                    if (subtype_replacement) return subtype_replacement;
-                    else {
-                        log()->err(ec::c_invalid_subtype_use, ntype->ref);
-                        return env->global()->types()->get("error_type");
-                    }
-                }
-
-                if (ntype->rvalue) {
-                    // todo: change ntype to member accessor for [module].[type]
-                    symbol_table* mod = symbols.get_module(name);
-                    if (mod) {
-                        symbol_table* type = mod->get_type(*ntype->rvalue);
-                        if (type) return type->type;
-                    }
-
-                    return nullptr;
-                }
-
-                for (u16 i = 0;i < subtype_types.size();i++) {
-                    if (std::string(*subtype_types[i]->identifier) == name) {
-                        if (!ntype->data_type) {
-                            log()->err(ec::c_instantiation_requires_subtype, ntype->ref, name.c_str());
+                    if (name == "subtype") {
+                        if (subtype_replacement) return subtype_replacement;
+                        else {
+                            log()->err(ec::c_invalid_subtype_use, ntype->ref);
                             return env->global()->types()->get("error_type");
                         }
-
-                        script_type* st = type(ntype->data_type);
-
-                        std::string full_name = name + "<" + st->name + ">";
-                        script_type* t = new_types->get(full_name);
-                        if (t) return t;
-
-                        subtype_replacement = st;
-                        script_type* new_tp = class_declaration(*this, subtype_types[i]);
-                        subtype_replacement = nullptr;
-
-                        return new_tp;
                     }
-                }
 
-                script_type* t = type(name);
-                if (!t) return env->global()->types()->get("error_type");
-
-                if (ntype->data_type) {
-                    if (!t->requires_subtype) {
-                        // t is not a subtype class (error)
-                        log()->err(ec::c_unexpected_instantiation_subtype, ntype->data_type->ref, name.c_str());
-                        return env->global()->types()->get("error_type");
-                    } else {
-                        script_type* st = type(ntype->data_type);
-                        std::string ctn = t->name + "<" + st->name + ">";
-                        script_type* ct = type(ctn, false);
-                        if (!ct) ct = new_types->get(ctn);
-                        if (!ct) {
-                            ct = new_types->add(ctn, ctn);
-
-                            // just copy the details
-                            ct->destructor = t->destructor;
-                            ct->methods = t->methods;
-                            ct->properties = t->properties;
-                            ct->base_type = t;
-                            ct->sub_type = st;
-                            ct->is_host = true;
-                            ct->is_builtin = t->is_builtin;
-                            ct->size = t->size;
-                            ct->owner = t->owner;
-                            out.types.push_back(ct);
+                    if (ntype->rvalue) {
+                        // todo: change ntype to member accessor for [module].[type]
+                        symbol_table* mod = symbols.get_module(name);
+                        if (mod) {
+                            symbol_table* type = mod->get_type(*ntype->rvalue);
+                            if (type) return type->type;
                         }
 
-                        return ct;
+                        return nullptr;
                     }
-                } else if (t->requires_subtype) {
-                    log()->err(ec::c_instantiation_requires_subtype, ntype->ref, name.c_str());
-                    return env->global()->types()->get("error_type");
+
+                    for (u16 i = 0;i < subtype_types.size();i++) {
+                        if (std::string(*subtype_types[i]->identifier) == name) {
+                            if (!ntype->data_type) {
+                                log()->err(ec::c_instantiation_requires_subtype, ntype->ref, name.c_str());
+                                return env->global()->types()->get("error_type");
+                            }
+
+                            script_type* st = type(ntype->data_type);
+
+                            std::string full_name = name + "<" + st->name + ">";
+                            script_type* t = new_types->get(full_name);
+                            if (t) return t;
+
+                            subtype_replacement = st;
+                            script_type* new_tp = class_declaration(*this, subtype_types[i]);
+                            subtype_replacement = nullptr;
+
+                            return new_tp;
+                        }
+                    }
+
+                    script_type* t = type(name);
+                    if (!t) return env->global()->types()->get("error_type");
+
+                    if (ntype->data_type) {
+                        if (!t->requires_subtype) {
+                            // t is not a subtype class (error)
+                            log()->err(ec::c_unexpected_instantiation_subtype, ntype->data_type->ref, name.c_str());
+                            return env->global()->types()->get("error_type");
+                        } else {
+                            script_type* st = type(ntype->data_type);
+                            std::string ctn = t->name + "<" + st->name + ">";
+                            script_type* ct = type(ctn, false);
+                            if (!ct) ct = new_types->get(ctn);
+                            if (!ct) {
+                                ct = new_types->add(ctn, ctn);
+
+                                // just copy the details
+                                ct->destructor = t->destructor;
+                                ct->methods = t->methods;
+                                ct->properties = t->properties;
+                                ct->base_type = t;
+                                ct->sub_type = st;
+                                ct->is_host = true;
+                                ct->is_builtin = t->is_builtin;
+                                ct->size = t->size;
+                                ct->owner = t->owner;
+                                out.types.push_back(ct);
+                            }
+
+                            return ct;
+                        }
+                    } else if (t->requires_subtype) {
+                        log()->err(ec::c_instantiation_requires_subtype, ntype->ref, name.c_str());
+                        return env->global()->types()->get("error_type");
+                    }
+
+                    return t;
+                } else if (ntype->type == parse::ast::node_type::identifier) {
+                    return type(*ntype);
+                } else {
+                    // todo:
+                    // [module].[type]
                 }
 
-                return t;
-            } else if (ntype->type == parse::ast::node_type::identifier) {
-                return type(*ntype);
-            } else {
-                // todo:
-                // [module].[type]
+                return nullptr;
+            };
+
+            script_type* tp = get(n);
+            if (!tp) return nullptr;
+
+            if (n->arguments) {
+                std::vector<script_type*> args;
+                parse::ast* a = n->arguments->body;
+                while (a) {
+                    args.push_back(get(a));
+                    a = a->next;
+                }
+                tp = env->types()->get(function_signature(env, tp, !tp->is_primitive, args.data(), (u8)args.size(), nullptr, false, false, true));
             }
 
-            return nullptr;
+            return tp;
         }
 
         script_type* context::class_tp() {
@@ -293,6 +347,7 @@ namespace gjs {
         }
 
         script_function* context::current_function() {
+            /*
             for (u32 i = (u32)node_stack.size() - 1;i > 0;i--) {
                 if (node_stack[i]->type == parse::ast::node_type::function_declaration) {
                     script_type* ret = type(node_stack[i]->data_type);
@@ -305,6 +360,8 @@ namespace gjs {
                     return find_func(*node_stack[i]->identifier, ret, args);
                 }
             }
+            */
+            if (cur_func_block) return cur_func_block->func;
             return nullptr;
         }
 
@@ -312,21 +369,28 @@ namespace gjs {
             if (!compiling_function) {
                 // global code
                 if (compiling_static) {
-                    compilation_output::insert(global_code, global_statics_end, tac_instruction(op, node()->ref));
-                    return tac_wrapper(this, global_statics_end++, true);
+                    compilation_output::insert(out.funcs[0].code, global_statics_end, tac_instruction(op, node()->ref));
+                    return tac_wrapper(this, global_statics_end++, 0);
                 } else {
-                    global_code.push_back(tac_instruction(op, node()->ref));
-                    return tac_wrapper(this, global_code.size() - 1, true);
+                    out.funcs[0].code.push_back(tac_instruction(op, node()->ref));
+                    return tac_wrapper(this, out.funcs[0].code.size() - 1, 0);
                 }
             }
 
-            out.code.push_back(tac_instruction(op, node()->ref));
-            return tac_wrapper(this, out.code.size() - 1, false);
+            out.funcs[cur_func_block->func_idx].code.push_back(tac_instruction(op, node()->ref));
+            return tac_wrapper(this, out.funcs[cur_func_block->func_idx].code.size() - 1, cur_func_block->func_idx);
+        }
+
+        label_id context::label() {
+            u32 lb = next_label_id++;
+            add(operation::label).label(lb);
+            return lb;
         }
 
         u64 context::code_sz() const {
-            if (!compiling_function) return global_code.size();
-            return out.code.size();
+            if (!compiling_function) return out.funcs[0].code.size();
+
+            return out.funcs[cur_func_block->func_idx].code.size();
         }
 
         void context::push_node(parse::ast* node) {
@@ -338,32 +402,78 @@ namespace gjs {
         }
 
         void context::push_block(script_function* f) {
-            block_stack.push_back(new block_context);
-            block()->func = f;
+            block_context* b = new block_context;
+            block_stack.push_back(b);
+            b->func = f;
+            b->input_ref = node();
 
             if (f) {
-                out.funcs.push_back({ f, gjs::func_stack(), out.code.size(), 0, register_allocator(out) });
+                b->func_idx = out.funcs.size();
+                out.funcs.push_back({ f, gjs::func_stack(), {}, register_allocator(out), node()->ref });
                 compiling_function = true;
+                cur_func_block = b;
             }
         }
 
+        script_function* context::push_lambda_block(script_type* sigTp, std::vector<var*>& captures) {
+            block_stack.push_back(new block_context);
+            script_function* f = new script_function(env, format("lambda_%d", next_lambda_id++), out.funcs[0].code.size(), sigTp, nullptr, out.mod);
+            f->owner = out.mod;
+            f->access.entry = 0;
+            new_functions.push_back(f);
+            block_context* b = block();
+            b->func = f;
+            b->is_lambda = true;
+            b->input_ref = node();
+            b->func_idx = out.funcs.size();
+            out.funcs.push_back({ f, gjs::func_stack(), {}, register_allocator(out), node()->ref });
+            compiling_function = true;
+            cur_func_block = b;
+
+            if (captures.size() > 0) {
+                var& ctx = empty_var(type("data"), "$ctx");
+                ctx.set_arg_idx(0);
+
+                u64 off = sizeof(u32) + (sizeof(u64) * captures.size());
+                for (u16 c = 0;c < captures.size();c++) {
+                    b->captures.push_back(new capture({ u32(off), captures[c] }));
+                    //symbols.set(captures[c]->name(), b->captures.back());
+
+                    var& v = empty_var(captures[c]->type(), captures[c]->name());
+
+                    if (captures[c]->type()->is_primitive) {
+                        // load the value from the context
+                        var ptr = empty_var(captures[c]->type());
+                        add(operation::uadd).operand(ptr).operand(ctx).operand(imm(off));
+                        add(operation::load).operand(v).operand(ptr);
+                        v.set_mem_ptr(ptr);
+                    } else {
+                        add(operation::uadd).operand(v).operand(ctx).operand(imm(off));
+                    }
+                    off += captures[c]->type()->size;
+                }
+            }
+            return f;
+        }
+
         void context::pop_block() {
-            bool lastIsRet = out.code.size() > 0 && out.code.back().op == operation::ret;
+            bool lastIsRet = code_sz() > 0 && (compiling_function ? out.funcs[cur_func_block->func_idx].code : out.funcs[0].code).back().op == operation::ret;
             u64 postRet = code_sz();
 
+            bool func_ended = false;
+            u32 fidx = -1;
             if (block_stack.back()) {
+                block_context* b = block_stack.back();
                 script_function* f = block_stack.back()->func;
                 if (f) {
                     for (u16 i = 0;i < out.funcs.size();i++) {
                         if (out.funcs[i].func == f) {
-                            out.funcs[i].end = code_sz() - 1;
+                            fidx = i;
                             break;
                         }
                     }
-                    compiling_function = false;
+                    func_ended = true;
                 }
-
-                block_context* b = block_stack.back();
 
                 if (b->stack_objs.size() > 0) {
                     script_type* void_tp = type("void");
@@ -384,57 +494,33 @@ namespace gjs {
                 for (auto v = b->named_vars.begin();v != b->named_vars.end();v++) {
                     symbols.get(v->name())->remove(&(*v));
                 }
-
-                delete b;
-            }
-
-            block_stack.pop_back();
-
-            if (block_stack.size() == 0) {
-                // global function concluded, combine code and assign __init__ function's range
-                out.funcs[0].begin = out.code.size();
-                out.code.insert(out.code.end(), global_code.begin(), global_code.end());
-                out.funcs[0].end = out.code.size() - 1;
-
-                // update global code jump/branch addresses
-                for (u64 c = out.funcs[0].begin;c <= out.funcs[0].end;c++) {
-                    tac_instruction& i = out.code[c];
-                    switch(i.op) {
-                        case operation::jump: {
-                            i.operands[0].m_imm.u += out.funcs[0].begin;
-                            break;
-                        }
-                        case operation::branch: {
-                            i.operands[1].m_imm.u += out.funcs[1].begin;
-                            break;
-                        }
-                        default: {
-                            break;
-                        }
-                    }
-                }
             }
 
             if (lastIsRet && postRet != code_sz()) {
                 // extra code was automatically added when popping the last block,
                 // return statement must be moved to be at the end
-                auto ret = out.code[postRet - 1];
-                out.code.erase(out.code.begin() + (postRet - 1));
-                out.code.push_back(ret);
+                compilation_output::ir_code& code = compiling_function ? out.funcs[cur_func_block->func_idx].code : out.funcs[0].code;
+                auto ret = code[postRet - 1];
+                code.erase(code.begin() + (postRet - 1));
+                code.push_back(ret);
+            }
+
+            delete block_stack.back();
+            block_stack.pop_back();
+
+            if (func_ended) compiling_function = false;
+
+            for (auto i = block_stack.rbegin();i != block_stack.rend();i++) {
+                if ((*i)->func) {
+                    cur_func_block = (*i);
+                    compiling_function = true;
+                    break;
+                }
             }
         }
 
         void context::pop_block(const var& preserve) {
             if (block_stack.back()) {
-                script_function* f = block_stack.back()->func;
-                if (f) {
-                    for (u16 i = 0;i < out.funcs.size();i++) {
-                        if (out.funcs[i].func == f) {
-                            out.funcs[i].end = code_sz() - 1;
-                        }
-                    }
-                }
-
                 block_context* b = block_stack.back();
 
                 if (b->stack_objs.size() > 0) {
@@ -468,13 +554,20 @@ namespace gjs {
                 delete b;
             }
             block_stack.pop_back();
+
+            for (auto i = block_stack.rbegin();i != block_stack.rend();i++) {
+                if ((*i)->func) {
+                    cur_func_block = (*i);
+                    break;
+                }
+            }
         }
 
         parse::ast* context::node() {
             return node_stack[node_stack.size() - 1];
         }
 
-        context::block_context* context::block() {
+        block_context* context::block() {
             return block_stack[block_stack.size() - 1];
         }
 

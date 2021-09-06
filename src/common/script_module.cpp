@@ -10,10 +10,10 @@
 #include <gjs/backends/backend.h>
 
 namespace gjs {
-    script_module::script_module(script_context* ctx, const std::string& name) : m_ctx(ctx), m_data(nullptr), m_init(nullptr) {
+    script_module::script_module(script_context* ctx, const std::string& name, const std::string& path) : m_ctx(ctx), m_data(nullptr), m_init(nullptr) {
         m_types = new type_manager(ctx);
         m_name = name;
-        m_id = hash(m_name);
+        m_id = hash(path);
         m_data = new script_buffer();
         m_initialized = false;
     }
@@ -123,6 +123,8 @@ namespace gjs {
         for (u32 i = 0;i < m_enums.size();i++) {
             if (m_enums[i]->name() == name) return m_enums[i];
         }
+
+        return nullptr;
     }
 
     void script_module::add(script_function* func) {
@@ -133,18 +135,18 @@ namespace gjs {
             std::vector<u32>& funcs = m_func_map[func->name];
             for (u8 i = 0;i < funcs.size();i++) {
                 script_function* f = m_functions[funcs[i]];
-                bool matches = f->signature.return_type->id() == func->signature.return_type->id();
+                bool matches = f->type->signature->return_type->id() == func->type->signature->return_type->id();
                 if (!matches) continue;
 
-                if (f->signature.arg_types.size() != func->signature.arg_types.size()) continue;
+                if (f->type->signature->explicit_argc != func->type->signature->explicit_argc) continue;
 
                 matches = true;
-                for (u8 a = 0;a < f->signature.arg_types.size() && matches;a++) {
-                    matches = (f->signature.arg_types[a]->id() == func->signature.arg_types[a]->id());
+                for (u8 a = 0;a < f->type->signature->explicit_argc && matches;a++) {
+                    matches = (f->type->signature->explicit_arg(a).tp->id() == func->type->signature->explicit_arg(a).tp->id());
                 }
 
                 if (matches) {
-                    throw bind_exception(format("Function '%s' has already been added to the context", func->name.c_str()));
+                    throw error::bind_exception(error::ecode::b_function_already_added_to_module, func->name.c_str(), m_name.c_str());
                 }
             }
 

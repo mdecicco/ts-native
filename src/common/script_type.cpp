@@ -1,6 +1,8 @@
 #include <gjs/common/script_function.h>
 #include <gjs/common/script_type.h>
 #include <gjs/common/script_context.h>
+#include <gjs/common/script_module.h>
+#include <gjs/common/function_signature.h>
 #include <gjs/util/util.h>
 #include <gjs/bind/bind.h>
 
@@ -17,11 +19,16 @@ namespace gjs {
         new_types->m_types_by_id.clear();
 
         for (u16 i = 0;i < all.size();i++) {
+            if (this != all[i]->owner->types()) {
+                all[i]->owner->types()->add(all[i]);
+                continue;
+            }
+
             if (m_types.count(all[i]->name) > 0) {
-                throw bind_exception(format("Type '%s' already bound", all[i]->name.c_str()));
+                throw error::bind_exception(error::ecode::b_type_already_bound, all[i]->name.c_str());
             }
             if (m_types_by_id.count(all[i]->id()) > 0) {
-                throw bind_exception(format("There was a type id collision while binding type '%s'", all[i]->name.c_str()));
+                throw error::bind_exception(error::ecode::b_type_hash_collision, all[i]->name.c_str());
             }
 
             m_types[all[i]->name] = all[i];
@@ -39,13 +46,101 @@ namespace gjs {
         return m_types_by_id[id];
     }
 
+    script_type* type_manager::get(const function_signature& sig, const std::string& name, bool is_dtor) {
+        if (this != m_ctx->types()) return m_ctx->types()->get(sig, name);
+
+        if (name.length() > 0) {
+            if (m_types.count(name) == 0) {
+                std::string n = sig.to_string();
+                script_type* t = new script_type();
+                t->m_id = hash(n);
+                t->name = name;
+                t->internal_name = n;
+                t->signature = new function_signature(sig);
+                t->size = sizeof(void*);
+                t->is_pod = false;
+                t->is_primitive = false;
+                t->is_host = true;
+                t->is_floating_point = false;
+                t->is_trivially_copyable = false;
+                t->is_unsigned = false;
+                t->is_builtin = true;
+                m_types[name] = t;
+                m_types_by_id[t->m_id] = t;
+
+                if (!is_dtor) {
+                    void (*ptr)(void*) = reinterpret_cast<void(*)(void*)>(raw_callback::destroy);
+                    auto wrapped = bind::wrap<void, void*>(this, name + "::destructor", ptr);
+                    wrapped->arg_is_ptr.clear();
+                    wrapped->arg_types.clear();
+                    t->destructor = new script_function(this, t, wrapped, false, true, m_ctx->global());
+                }
+
+                return t;
+            }
+
+            script_type* t = m_types[name];
+            if (!t->destructor) {
+                void (*ptr)(void*) = reinterpret_cast<void(*)(void*)>(raw_callback::destroy);
+                auto wrapped = bind::wrap<void, void*>(this, name + "::destructor", ptr);
+                wrapped->arg_is_ptr.clear();
+                wrapped->arg_types.clear();
+                t->destructor = new script_function(this, t, wrapped, false, true, m_ctx->global());
+            }
+            return t;
+        }
+
+        std::string n = sig.to_string();
+        if (m_types.count(n) == 0) {
+            script_type* t = m_ctx->types()->get(n);
+            if (t) {
+                if (!t->destructor) {
+                    void (*ptr)(void*) = reinterpret_cast<void(*)(void*)>(raw_callback::destroy);
+                    auto wrapped = bind::wrap<void, void*>(this, n + "::destructor", ptr);
+                    wrapped->arg_is_ptr.clear();
+                    wrapped->arg_types.clear();
+                    t->destructor = new script_function(this, t, wrapped, false, true, m_ctx->global());
+                }
+                return t;
+            }
+
+            t = new script_type();
+            t->m_id = hash(n);
+            t->name = n;
+            t->internal_name = n;
+            t->signature = new function_signature(sig);
+            t->size = sizeof(void*);
+            t->is_pod = false;
+            t->is_primitive = false;
+            t->is_host = true;
+            t->is_floating_point = false;
+            t->is_trivially_copyable = false;
+            t->is_unsigned = false;
+            t->is_builtin = true;
+            m_types[n] = t;
+            m_types_by_id[t->m_id] = t;
+
+            if (!is_dtor) {
+                void (*ptr)(void*) = reinterpret_cast<void(*)(void*)>(raw_callback::destroy);
+                auto wrapped = bind::wrap<void, void*>(this, n + "::destructor", ptr);
+                wrapped->arg_is_ptr.clear();
+                wrapped->arg_types.clear();
+                t->destructor = new script_function(this, t, wrapped, false, true, m_ctx->global());
+            }
+
+            return t;
+        }
+
+        return m_types[n];
+    }
+
     script_type* type_manager::add(const std::string& name, const std::string& internal_name) {
         if (m_types.count(internal_name) > 0) {
-            throw bind_exception(format("Type '%s' already bound", name.c_str()));
+            throw error::bind_exception(error::ecode::b_type_already_bound, name.c_str());
         }
         u32 id = hash(name);
         if (m_types_by_id.count(id) > 0) {
-            throw bind_exception(format("There was a type id collision while binding type '%s'", name.c_str()));
+            throw error::bind_exception(error::ecode::b_type_hash_collision, name.c_str());
         }
 
         script_type* t = new script_type();
@@ -63,11 +158,11 @@ namespace gjs {
     
     void type_manager::add(script_type* type) {
         if (m_types.count(type->internal_name) > 0) {
-            throw bind_exception(format("Type '%s' already bound", type->name.c_str()));
+            throw error::bind_exception(error::ecode::b_type_already_bound, type->name.c_str());
         }
 
         if (m_types_by_id.count(type->id()) > 0) {
-            throw bind_exception(format("There was a type id collision while binding type '%s'", type->name.c_str()));
+            throw error::bind_exception(error::ecode::b_type_hash_collision, type->name.c_str());
         }
 
         m_types[type->internal_name] = type;
@@ -77,7 +172,7 @@ namespace gjs {
     script_type* type_manager::finalize_class(bind::wrapped_class* wrapped, script_module* mod) {
         auto it = m_types.find(wrapped->internal_name);
         if (it == m_types.end()) {
-            throw bind_exception(format("Type '%s' not found and can not be finalized", wrapped->name.c_str()));
+            throw error::bind_exception(error::ecode::b_type_not_found_cannot_finalize, wrapped->name.c_str());
         }
 
         if (wrapped->dtor) {
@@ -101,13 +196,13 @@ namespace gjs {
             t->properties.push_back({
                 i->getSecond()->flags,
                 i->getFirst(),
-                get(i->getSecond()->type.name()),
+                i->getSecond()->type,
                 i->getSecond()->offset,
                 i->getSecond()->getter ? new script_function(this, t, i->getSecond()->getter, false, false, mod) : nullptr,
                 i->getSecond()->setter ? new script_function(this, t, i->getSecond()->setter, false, false, mod) : nullptr
             });
 
-            if (i->getSecond()->type == std::type_index(typeid(subtype_t))) {
+            if (i->getSecond()->type->name == "subtype") {
                 t->requires_subtype = true;
             }
         }
@@ -115,7 +210,7 @@ namespace gjs {
         for (u32 i = 0;i < wrapped->methods.size();i++) {
             bind::wrapped_function* f = wrapped->methods[i];
             for (u8 a = 0;a < f->arg_types.size();a++) {
-                if (f->arg_types[a] == std::type_index(typeid(subtype_t))) {
+                if (f->arg_types[a]->name == "subtype") {
                     t->requires_subtype = true;
                 }
             }
@@ -170,16 +265,20 @@ namespace gjs {
         is_unsigned = false;
         is_builtin = false;
         is_host = false;
+        is_trivially_copyable = false;
         requires_subtype = false;
         owner = nullptr;
         destructor = nullptr;
         m_wrapped = nullptr;
         base_type = nullptr;
         sub_type = nullptr;
+        pass_ret = nullptr;
+        signature = nullptr;
     }
 
     script_type::~script_type() {
         if (m_wrapped) delete m_wrapped;
+        if (signature) delete signature;
     }
 
     script_function* script_type::method(const std::string& _name, script_type* ret, const std::vector<script_type*>& arg_types) {

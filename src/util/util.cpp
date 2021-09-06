@@ -93,14 +93,14 @@ namespace gjs {
                 if (!matched) continue;
             } else if (name != source[i]->name) continue;
 
-            bool matches = ret ? source[i]->signature.return_type->id() == ret->id() : true;
+            bool matches = ret ? source[i]->type->signature->return_type->id() == ret->id() : true;
             if (!matches) continue;
 
-            if (source[i]->signature.arg_types.size() != arg_types.size()) continue;
+            if (source[i]->type->signature->explicit_argc != arg_types.size()) continue;
 
             matches = true;
-            for (u8 a = 0;a < source[i]->signature.arg_types.size() && matches;a++) {
-                matches = (source[i]->signature.arg_types[a]->id() == arg_types[a]->id());
+            for (u8 a = 0;a < source[i]->type->signature->explicit_argc && matches;a++) {
+                matches = (source[i]->type->signature->explicit_arg(a).tp->id() == arg_types[a]->id());
             }
 
             if (matches) return source[i];
@@ -130,7 +130,7 @@ namespace gjs {
             }
             if (wscount > m.src.col) wscount = m.src.col;
 
-            for (i32 l = i32(m.src.line) - i32(context_line_count);l < m.src.line;l++) {
+            for (i32 l = i32(m.src.line) - i32(context_line_count);l < m.src.line && l < f.lines.size();l++) {
                 if (l < 0) continue;
                 printf("%5d | %s\n", l + 1, f.lines[l].c_str());
             }
@@ -165,41 +165,56 @@ namespace gjs {
     }
 
     void print_code(vm_backend* ctx) {
-        robin_hood::unordered_map<u64, script_function*> module_initializers;
+        robin_hood::unordered_map<u64, script_function*> funcsByAddr;
+        auto funcs = ctx->context()->functions();
+        for (u32 i = 0;i < funcs.size();i++) {
+            if (funcs[i]->is_host) continue;
+            funcsByAddr[funcs[i]->access.entry] = funcs[i];
+        }
         auto modules = ctx->context()->modules();
         for (u32 i = 0;i < modules.size();i++) {
             script_function* init = modules[i]->function("__init__");
-            if (init) module_initializers[init->access.entry] = init;
+            if (init) funcsByAddr[init->access.entry] = init;
         }
 
         char instr_fmt[32] = { 0 };
         u8 addr_w = snprintf(instr_fmt, 32, "%llx", ctx->code()->size());
-        snprintf(instr_fmt, 32, " 0x\%%%d.%dllX: \%%-32s", addr_w, addr_w);
+        snprintf(instr_fmt, 32, " 0x\%%%d.%dllX: \%%-64s", addr_w, addr_w);
         
         std::string last_line = "";
         for (u64 i = 0;i < ctx->code()->size();i++) {
-            script_function* f = ctx->context()->function(i);
-            if (!f) {
-                auto init = module_initializers.find(i);
-                if (init != module_initializers.end()) f = init->getSecond();
-            }
+            script_function* f = nullptr;
+            auto p = funcsByAddr.find(i);
+            if (p != funcsByAddr.end()) f = p->getSecond();
 
             if (f) {
-                printf("\n[%s %s::%s(", f->signature.return_type->name.c_str(), f->owner->name().c_str(), f->name.c_str());
-                for(u8 a = 0;a < f->signature.arg_types.size();a++) {
+                u16 implicit_arg_count = 0;
+                if (f->is_method_of) implicit_arg_count++;
+                if (f->is_subtype_obj_ctor) implicit_arg_count++;
+                if (f->type->signature->returns_on_stack) implicit_arg_count++;
+
+                printf("\n[%s %s::%s(", f->type->signature->return_type->name.c_str(), f->owner->name().c_str(), f->name.c_str());
+                for(u8 a = 0;a < f->type->signature->args.size();a++) {
                     if (a > 0) printf(", ");
-                    printf("%s arg_%d -> $%s", f->signature.arg_types[a]->name.c_str(), a, register_str[u8(f->signature.arg_locs[a])]);
+                    auto& arg = f->type->signature->args[a];
+                    if (arg.implicit != function_signature::argument::implicit_type::not_implicit) {
+                        static const char* implicitArgNames[] = {
+                            nullptr,
+                            "@ctx",
+                            "@this",
+                            "@moduletype_id",
+                            "@ret"
+                        };
+                        printf("%s %s -> $%s", arg.tp->name.c_str(), implicitArgNames[u8(arg.implicit)], register_str[u8(arg.loc)]);
+                    } else {
+                        printf("%s arg_%d -> $%s", arg.tp->name.c_str(), a, register_str[u8(arg.loc)]);
+                    }
                 }
                 printf(")");
 
-                if (f->signature.return_type->name == "void") printf(" -> null");
-                else {
-                    if (f->signature.returns_on_stack) {
-                        printf(" -> $%s (stack)", register_str[u8(f->signature.return_loc)]);
-                    } else {
-                        printf(" -> $%s", register_str[u8(f->signature.return_loc)]);
-                    }
-                }
+                if (f->type->signature->return_type->name == "void") printf(" -> null");
+                else if (f->type->signature->returns_on_stack) printf(" -> @ret");
+                else printf(" -> $%s", register_str[u8(f->type->signature->return_loc)]);
                 printf("]\n");
             }
 
@@ -210,38 +225,25 @@ namespace gjs {
                 printf("; %s", src.line_text.c_str());
                 last_line = src.line_text;
             } else if (ins.instr() == vm_instruction::jal) {
-                std::string str;
-                script_function* f = ctx->context()->function(ins.imm_u());
-                if (f) {
-                    str += f->signature.return_type->name + " " + f->owner->name() + "::" + f->name + "(";
-                    for (u8 a = 0;a < f->signature.arg_types.size();a++) {
-                        if ((a > 0 && !f->is_method_of) || (f->is_method_of && a > 1)) str += ", ";
-                        if (a == 0 && f->is_method_of) continue; // skip implicit 'this' parameter
-                        str += f->signature.arg_types[a]->name;
-                    }
-                    str += ")";
-                } else str = "Bad function address";
-                printf("; <- %s", str.c_str());
+                script_function* f = ctx->context()->function((u32)ins.imm_u());
+                if (!f) printf("; <- Bad function ID");
             }
             printf("\n");
         }
     }
 
-    void debug_ir_step(script_context* ctx, compilation_output& in) {
-        for (u32 i = 0;i < in.code.size();i++) {
-            for (u32 fn = 0;fn < in.funcs.size();fn++) {
-                if (i == in.funcs[fn].begin) {
-                    script_function* f = in.funcs[fn].func;
-                    printf("\n[%s %s(", f->signature.return_type->name.c_str(), f->name.c_str());
-                    for(u8 a = 0;a < f->signature.arg_types.size();a++) {
-                        if (a > 0) printf(", ");
-                        printf("%s arg_%d", f->signature.arg_types[a]->name.c_str(), a);
-                    }
-                    printf(")]\n");
-                    break;
-                }
-            }
-            printf("%3.3d: %s\n", i, in.code[i].to_string().c_str());
+    void debug_ir_step(script_context* ctx, compilation_output& in, u16 f) {
+        script_function* fn = in.funcs[f].func;
+        if (!fn) return;
+        printf("\n[%s %s(", fn->type->signature->return_type->name.c_str(), fn->name.c_str());
+        for(u8 a = 0;a < fn->type->signature->args.size();a++) {
+            if (a > 0) printf(", ");
+            printf("%s arg_%d", fn->type->signature->args[a].tp->name.c_str(), a);
+        }
+        printf(")]\n");
+
+        for (u32 i = 0;i < in.funcs[f].code.size();i++) {
+            printf("%3.3d: %s\n", i, in.funcs[f].code[i].to_string().c_str());
         }
     }
 

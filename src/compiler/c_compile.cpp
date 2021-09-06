@@ -47,39 +47,56 @@ namespace gjs {
                 ret_tp = obj.type()->base_type;
             }
 
-            if (args.size() > 0) {
-                if (args.size() == 1 && args[0].type() == obj.type()) {
-                    // constructor only required if not POD
-                    if (obj.has_unambiguous_method("constructor", nullptr, arg_types)) {
-                        // may be pod, but use the constructor anyway
-                        script_function* f = obj.method("constructor", nullptr, arg_types);
-                        if (f) call(ctx, f, args, &obj);
-                    } else if (ret_tp->is_pod || ret_tp->is_trivially_copyable) {
-                        // no constructor, but is copyable
-                        var mem = call(
-                            ctx,
-                            ctx.function("memcopy", ctx.type("void"), { ctx.type("data"), ctx.type("data"), ctx.type("u64") }),
-                            { obj, args[0], ctx.imm((u64)obj.size()) }
-                        );
-                    } else {
-                        // trigger function not found error
-                        obj.method("constructor", nullptr, arg_types);
-                    }
-                } else {
-                    // constructor required
-                    script_function* f = obj.method("constructor", nullptr, arg_types);
-                    if (f) call(ctx, f, args, &obj);
+            script_type* voidTp = ctx.type("void");
+
+            if (obj.type()->is_primitive) {
+                if (args.size() > 1) {
+                    // trigger function not found error
+                    obj.method("constructor", voidTp, arg_types);
+                } else if (args.size() == 1) {
+                    ctx.add(operation::store).operand(obj).operand(args[0].convert(obj.type()));
                 }
             } else {
-                if (obj.has_unambiguous_method("constructor", nullptr, arg_types)) {
-                    // Default constructor
-                    script_function* f = obj.method("constructor", nullptr, arg_types);
-                    if (f) call(ctx, f, args, &obj);
-                } else {
-                    if (obj.has_any_method("constructor")) {
-                        ctx.log()->err(ec::c_no_default_constructor, ctx.node()->ref, obj.type()->name.c_str());
+                if (args.size() > 0) {
+                    if (args.size() == 1 && args[0].type() == obj.type()) {
+                        // constructor only required if not POD
+                        if (obj.has_unambiguous_method("constructor", voidTp, arg_types)) {
+                            // may be pod, but use the constructor anyway
+                            script_function* f = obj.method("constructor", voidTp, arg_types);
+                            if (f) call(ctx, f, args, &obj);
+                        } else if (ret_tp->is_pod || ret_tp->is_trivially_copyable) {
+                            // no constructor, but is copyable
+                            var mem = call(
+                                ctx,
+                                ctx.function("memcopy", ctx.type("void"), { ctx.type("data"), ctx.type("data"), ctx.type("u64") }),
+                                { obj, args[0], ctx.imm((u64)obj.size()) }
+                            );
+                        } else if (ret_tp->signature) {
+                            // function pointers are just raw_callback**
+                            var tmp = ctx.empty_var(ctx.type("data"));
+                            ctx.add(operation::load).operand(tmp).operand(args[0]);          // raw_callback* cb = *args[0]
+                            ctx.add(operation::store).operand(obj).operand(tmp);             // *obj = cb
+                            ctx.add(operation::store).operand(args[0]).operand(ctx.imm((u64)0)); // *args[0] = nullptr
+                        } else {
+                            // trigger function not found error
+                            obj.method("constructor", voidTp, arg_types);
+                        }
                     } else {
-                        // No construction necessary
+                        // constructor required
+                        script_function* f = obj.method("constructor", voidTp, arg_types);
+                        if (f) call(ctx, f, args, &obj);
+                    }
+                } else {
+                    if (obj.has_unambiguous_method("constructor", voidTp, arg_types)) {
+                        // Default constructor
+                        script_function* f = obj.method("constructor", voidTp, arg_types);
+                        if (f) call(ctx, f, args, &obj);
+                    } else {
+                        if (obj.has_any_method("constructor")) {
+                            ctx.log()->err(ec::c_no_default_constructor, ctx.node()->ref, obj.type()->name.c_str());
+                        } else {
+                            // No construction necessary
+                        }
                     }
                 }
             }
@@ -95,12 +112,13 @@ namespace gjs {
         }
 
         u64 variable_declaration(context& ctx, parse::ast* n) {
+            //bool is_captured = is_var_captured(n, n, false);
             ctx.push_node(n->data_type);
             script_type* tp = ctx.type(n->data_type);
             ctx.pop_node();
             ctx.push_node(n->identifier);
             std::string vname = n->type == nt::class_property ? ctx.class_tp()->name + "::" + std::string(*n->identifier) : *n->identifier;
-            var v = ctx.empty_var(tp, vname);
+            var& v = ctx.empty_var(tp, vname);
             ctx.pop_node();
 
             u64 off = u64(-1);
@@ -147,14 +165,12 @@ namespace gjs {
                 if (n->initializer) {
                     if (!tp->is_primitive) {
                         ctx.push_node(n->data_type);
-                        if (n->initializer->body->type == nt::operation && n->initializer->body->op == ot::newObj) {
-                            var val = expression(ctx, n->initializer->body);
-                            ctx.add(operation::eq).operand(v).operand(val);
-                        } else {
-                            v.raise_stack_flag();
-                            var val = expression(ctx, n->initializer->body);
-                            ctx.add(operation::eq).operand(v).operand(val);
-                        }
+                        //bool onStack = true;
+                        //onStack = onStack && (n->initializer->body->type != nt::operation || n->initializer->body->op != ot::newObj);
+                        //onStack = onStack && (n->initializer->body->type != nt::lambda_expression);
+                        //if (onStack) v.raise_stack_flag();
+                        var val = expression(ctx, n->initializer->body);
+                        ctx.add(operation::eq).operand(v).operand(val);
                         ctx.pop_node();
                     } else {
                         var val = expression(ctx, n->initializer->body);
@@ -170,8 +186,8 @@ namespace gjs {
                 }
             }
 
-            if (n->is_const) v.raise_flag(bind::pf_read_only);
-            if (n->is_static) v.raise_flag(bind::pf_static);
+            if (n->is_const) v.raise_flag(bind::property_flags::pf_read_only);
+            if (n->is_static) v.raise_flag(bind::property_flags::pf_static);
 
             return off;
         }
@@ -226,7 +242,7 @@ namespace gjs {
                         u8 flags = 0;
                         u64 offset = tp->size;
                         if (cn->is_static) {
-                            flags |= bind::pf_static;
+                            flags |= u8(bind::property_flags::pf_static);
                             ctx.compiling_static = true;
                             bool prevCompFunc = ctx.compiling_function;
                             ctx.compiling_function = false;
@@ -237,7 +253,7 @@ namespace gjs {
                             if (!p_tp->is_pod) tp->is_pod = false;
                             tp->size += p_tp->size;
                         }
-                        if (cn->is_const) flags |= bind::pf_read_only;
+                        if (cn->is_const) flags |= u8(bind::property_flags::pf_read_only);
 
                         tp->properties.push_back({ flags, name, p_tp, offset, nullptr, nullptr });
 
@@ -336,8 +352,8 @@ namespace gjs {
                         script_type* p_tp = ctx.type(cn->data_type);
                         u8 flags = 0;
                         if (!p_tp->is_pod) tp->is_pod = false;
-                        if (cn->is_static) flags |= bind::pf_static;
-                        if (cn->is_const) flags |= bind::pf_read_only;
+                        if (cn->is_static) flags |= u8(bind::property_flags::pf_static);
+                        if (cn->is_const) flags |= u8(bind::property_flags::pf_read_only);
 
                         tp->properties.push_back({ flags, name, p_tp, tp->size, nullptr, nullptr });
 
@@ -381,8 +397,7 @@ namespace gjs {
                     if (!ev.is_imm()) ctx.log()->err(ec::c_invalid_enum_value_expr, v->body->ref);
                     else {
                         if (ev.type()->is_floating_point) {
-                            if (ev.type()->size == sizeof(f64)) val = ev.imm_d();
-                            else val = ev.imm_f();
+                            ctx.log()->err(ec::c_invalid_enum_value_expr, v->body->ref);
                         } else {
                             if (ev.type()->is_unsigned) val = ev.imm_u();
                             else val = ev.imm_i();
@@ -416,13 +431,14 @@ namespace gjs {
                 case nt::return_statement: { return_statement(ctx, n); break; }
                 case nt::delete_statement: { delete_statement(ctx, n); break; }
                 case nt::scoped_block: { block(ctx, n); break; }
-                case nt::object:
-                case nt::call:
-                case nt::expression:
-                case nt::conditional:
-                case nt::constant:
-                case nt::identifier:
-                case nt::format_expression:
+                case nt::object: [[fallthrough]];
+                case nt::call: [[fallthrough]];
+                case nt::expression: [[fallthrough]];
+                case nt::conditional: [[fallthrough]];
+                case nt::constant: [[fallthrough]];
+                case nt::identifier: [[fallthrough]];
+                case nt::format_expression: [[fallthrough]];
+                case nt::lambda_expression: [[fallthrough]];
                 case nt::operation: { expression(ctx, n); break; }
                 default: {
                     throw exc(ec::c_invalid_node, n->ref);
@@ -430,10 +446,11 @@ namespace gjs {
             }
         }
 
-        void block(context& ctx, ast* b) {
+        void block(context& ctx, ast* b, bool add_null_if_empty) {
+            ctx.push_node(b);
             ctx.push_block();
             ast* n = b->body;
-            if (!n) {
+            if (!n && add_null_if_empty) {
                 ctx.add(operation::null);
             }
 
@@ -442,6 +459,7 @@ namespace gjs {
                 n = n->next;
             }
             ctx.pop_block();
+            ctx.pop_node();
         }
 
         void import_globals(context& ctx) {
@@ -481,11 +499,9 @@ namespace gjs {
             import_globals(ctx);
 
             // return type will be determined by the first global return statement, or it will be void
-            script_function* init = new script_function(ctx.env, "__init__", 0);
-            init->signature.return_loc = vm_register::v0;
-            init->owner = out.mod;
+            script_function* init = new script_function(ctx.env, "__init__", 0, nullptr, nullptr, out.mod);
             ctx.new_functions.push_back(init);
-            ctx.out.funcs.push_back({ init, gjs::func_stack(), 0, 0, register_allocator(out) });
+            ctx.out.funcs.push_back({ init, gjs::func_stack(), {}, register_allocator(out) });
             ctx.push_block();
 
             ast* n = input->body;
@@ -517,10 +533,11 @@ namespace gjs {
                 throw e;
             }
 
-            ctx.out.funcs[0].end = ctx.code_sz();
-            if (!init->signature.return_type) {
-                if (ctx.global_code.size() != 0) {
-                    init->signature.return_type = ctx.type("void");
+            if (!init->type) {
+                if (ctx.out.funcs[0].code.size() != 0) {
+                    init->update_signature(
+                         ctx.env->types()->get(function_signature(ctx.env, ctx.type("void"), false, nullptr, 0, nullptr))
+                    );
                     ctx.add(operation::ret);
                 } else {
                     delete init;
@@ -528,8 +545,8 @@ namespace gjs {
                     ctx.out.funcs[0].func = nullptr;
                 }
             }
-            else if (ctx.global_code.back().op != operation::ret) {
-                if (init->signature.return_type->size == 0) ctx.add(operation::ret);
+            else if (ctx.out.funcs[0].code.back().op != operation::ret) {
+                if (init->type->signature->return_type->size == 0) ctx.add(operation::ret);
                 else ctx.log()->err(ec::c_missing_return_value, n->ref, "__init__");
             }
 

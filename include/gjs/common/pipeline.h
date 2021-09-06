@@ -19,28 +19,25 @@ namespace gjs {
     namespace parse { struct ast; };
 
     struct compilation_output {
+        typedef std::vector<compile::tac_instruction> ir_code;
         struct func_def {
             script_function* func;
             func_stack stack;
-            u64 begin;
-            u64 end;
+            ir_code code;
             register_allocator regs;
+            source_ref ref;
+
+            void insert(u64 address, const compile::tac_instruction& i);
+            void erase(u64 address);
         };
         typedef std::vector<func_def> func_defs;
-        typedef std::vector<compile::tac_instruction> ir_code;
 
         func_defs funcs;
         std::vector<script_type*> types;
         std::vector<script_enum*> enums;
-        ir_code code;
         script_module* mod;
 
         compilation_output(u16 gpN, u16 fpN);
-
-        // will adjust any branch/jump instructions that would be affected
-        // by address changes. Also adjusts function boundaries
-        void insert(u64 address, const compile::tac_instruction& i);
-        void erase(u64 address);
 
         static void insert(compilation_output::ir_code& code, u64 address, const compile::tac_instruction& i);
         static void erase(compilation_output::ir_code& code, u64 address);
@@ -49,8 +46,8 @@ namespace gjs {
 
     class pipeline {
         public:
-            typedef void (*ir_step_func)(script_context* ctx, compilation_output&);
-            typedef void (*ast_step_func)(script_context* ctx, parse::ast*);
+            typedef void (*ir_step_func)(script_context*, compilation_output&, u16);
+            typedef void (*ast_step_func)(script_context*, parse::ast*);
 
             pipeline(script_context* ctx);
             ~pipeline();
@@ -70,7 +67,7 @@ namespace gjs {
              *
              * Returns the compiled module or null
              */
-            script_module* compile(const std::string& module, const std::string& code, backend* generator);
+            script_module* compile(const std::string& module_name, const std::string& module_path, const std::string& code, backend* generator);
 
             /*
              * When a module is loaded, the path/name is pushed to the stack
@@ -80,9 +77,9 @@ namespace gjs {
             void pop_import();
 
             /*
-             * Takes IR code as a parameter, and modifies it in some way.
-             */
-            void add_ir_step(ir_step_func step);
+            * Takes IR code as a parameter, and modifies it in some way.
+            */
+            void add_ir_step(ir_step_func step, bool execAfterRegisterAlloc = false);
 
             /*
              * Takes the root of the AST as a parameter, and modifies it in some way.
@@ -94,6 +91,7 @@ namespace gjs {
         protected:
             script_context* m_ctx;
             std::vector<ir_step_func> m_ir_steps;
+            std::vector<ir_step_func> m_post_regalloc_ir_steps;
             std::vector<ast_step_func> m_ast_steps;
             std::vector<std::pair<source_ref, std::string>> m_importStack;
             compile_log m_log;

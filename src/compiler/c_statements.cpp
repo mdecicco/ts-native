@@ -77,18 +77,22 @@ namespace gjs {
                 f = ctx.out.funcs[0].func;
                 
                 if (n->body) {
-                    if (f->signature.return_type) {
-                        var rv = expression(ctx, n->body).convert(f->signature.return_type);
+                    if (f->type) {
+                        var rv = expression(ctx, n->body).convert(f->type->signature->return_type);
                         ctx.add(operation::ret).operand(rv);
                     } else {
                         var rv = expression(ctx, n->body);
                         ctx.add(operation::ret).operand(rv);
-                        f->signature.return_type = rv.type();
+                        f->update_signature(
+                            ctx.env->types()->get(function_signature(ctx.env, rv.type(), false, nullptr, 0, nullptr))
+                        );
                     }
-                } else if (!f->signature.return_type) {
+                } else if (!f->type) {
                     ctx.add(operation::ret);
-                    f->signature.return_type = ctx.type("void");
-                } else if (f->signature.return_type->size == 0) ctx.add(operation::ret);
+                    f->update_signature(
+                        ctx.env->types()->get(function_signature(ctx.env, ctx.type("void"), false, nullptr, 0, nullptr))
+                    );
+                } else if (f->type->signature->return_type->size == 0) ctx.add(operation::ret);
                 else ctx.log()->err(ec::c_missing_return_value, n->ref, f->name.c_str());
 
                 return;
@@ -102,11 +106,11 @@ namespace gjs {
                     ctx.log()->err(ec::c_no_ctor_return_val, n->ref);
                 } else if (this_tp && f->name == this_tp->name + "::destructor") {
                     ctx.log()->err(ec::c_no_dtor_return_val, n->ref);
-                } else if (f->signature.return_type->size == 0) {
+                } else if (f->type->signature->return_type->size == 0) {
                     ctx.log()->err(ec::c_no_void_return_val, n->ref);
                 } else {
-                    var rv = expression(ctx, n->body).convert(f->signature.return_type, true);
-                    if (f->signature.returns_on_stack) {
+                    var rv = expression(ctx, n->body).convert(f->type->signature->return_type, true);
+                    if (f->type->signature->returns_on_stack) {
                         var& ret_ptr = ctx.get_var("@ret");
                         if (rv.type()->is_primitive) {
                             ctx.add(operation::store).operand(ret_ptr).operand(rv);
@@ -118,7 +122,7 @@ namespace gjs {
                     } else ctx.add(operation::ret).operand(rv);
                 }
             } else {
-                if (f->signature.return_type->size == 0) ctx.add(operation::ret);
+                if (f->type->signature->return_type->size == 0) ctx.add(operation::ret);
                 else ctx.log()->err(ec::c_missing_return_value, n->ref, f->name.c_str());
             }
 
@@ -162,27 +166,30 @@ namespace gjs {
             ctx.pop_block();
 
             // truth body end
-            meta.operand(ctx.imm((u64)ctx.code_sz()));
+            meta.label(ctx.label());
             auto jmp = ctx.add(operation::jump);
 
             if (n->else_body) {
-                branch.operand(ctx.imm((u64)ctx.code_sz()));
+                ctx.push_node(n->else_body);
+                branch.label(ctx.label());
                 ctx.push_block();
                 any(ctx, n->else_body);
                 ctx.pop_block();
+                ctx.pop_node();
 
                 // false body end
-                meta.operand(ctx.imm((u64)ctx.code_sz()));
-                ctx.add(operation::jump).operand(ctx.imm((u64)ctx.code_sz()));
+                label_id false_end_label = ctx.label();
+                meta.label(false_end_label);
+                ctx.add(operation::jump).label(false_end_label);
             } else {
                 // no false body
-                meta.operand(ctx.imm((u64)0));
-                branch.operand(ctx.imm((u64)ctx.code_sz()));
+                meta.label(0);
+                branch.label(ctx.label());
             }
-            jmp.operand(ctx.imm((u64)ctx.code_sz()));
-
             // join address
-            meta.operand(ctx.imm((u64)ctx.code_sz()));
+            label_id join_label = ctx.label();
+            jmp.label(join_label);
+            meta.label(join_label);
             ctx.pop_node();
         }
     };

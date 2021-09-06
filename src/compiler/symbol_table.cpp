@@ -12,12 +12,12 @@ namespace gjs {
 
     namespace compile {
         symbol::~symbol() {
-            if (m_stype == st_var && m_var->is_imm()) {
+            if (m_stype == symbol_type::st_var && m_var->is_imm()) {
                 // imm vars aren't stored anywhere, so
                 // they must be dynamically allocated
                 // specifically for storage in the symbol
                 delete m_var;
-            } else if (m_stype == st_modulevar) {
+            } else if (m_stype == symbol_type::st_modulevar) {
                 // it's unsafe to point to modulevar
                 // records on the modules directly, they
                 // have to be allocated specifically for
@@ -27,53 +27,69 @@ namespace gjs {
         }
 
         symbol::symbol(script_function* func) {
-            m_stype = st_function;
+            m_stype = symbol_type::st_function;
             m_func = func;
             m_type = nullptr;
             m_enum = nullptr;
             m_modulevar = nullptr;
             m_var = nullptr;
+            m_capture = nullptr;
             m_scope_idx = 0;
         }
 
         symbol::symbol(script_type* type) {
-            m_stype = st_type;
+            m_stype = symbol_type::st_type;
             m_func = nullptr;
             m_type = type;
             m_enum = nullptr;
             m_modulevar = nullptr;
             m_var = nullptr;
+            m_capture = nullptr;
             m_scope_idx = 0;
         }
 
         symbol::symbol(script_enum* enum_) {
-            m_stype = st_enum;
+            m_stype = symbol_type::st_enum;
             m_func = nullptr;
             m_type = nullptr;
             m_enum = enum_;
             m_modulevar = nullptr;
             m_var = nullptr;
+            m_capture = nullptr;
             m_scope_idx = 0;
         }
 
         symbol::symbol(const script_module::local_var* modulevar) {
-            m_stype = st_modulevar;
+            m_stype = symbol_type::st_modulevar;
             m_func = nullptr;
             m_type = nullptr;
             m_enum = nullptr;
             m_modulevar = modulevar;
             m_var = nullptr;
+            m_capture = nullptr;
             m_scope_idx = 0;
         }
 
         symbol::symbol(var* var_) {
-            m_stype = st_var;
+            m_stype = symbol_type::st_var;
             m_func = nullptr;
             m_type = nullptr;
             m_enum = nullptr;
             m_modulevar = nullptr;
             m_var = var_;
-            m_scope_idx = var_->ctx()->block_stack.size() - 1;
+            m_capture = nullptr;
+            m_scope_idx = u32(var_->ctx()->block_stack.size() - 1);
+        }
+
+        symbol::symbol(capture* cap) {
+            m_stype = symbol_type::st_capture;
+            m_func = nullptr;
+            m_type = nullptr;
+            m_enum = nullptr;
+            m_modulevar = nullptr;
+            m_var = nullptr;
+            m_capture = cap;
+            m_scope_idx = 0;
         }
 
 
@@ -109,9 +125,14 @@ namespace gjs {
             return &symbols.back();
         }
 
+        symbol* symbol_list::add(capture* cap) {
+            symbols.emplace_back(cap);
+            return &symbols.back();
+        }
+
         void symbol_list::remove(script_function* func) {
             for (auto it = symbols.begin();it != symbols.end();it++) {
-                if (it->sym_type() == symbol::st_function && it->get_func() == func) {
+                if (it->sym_type() == symbol::symbol_type::st_function && it->get_func() == func) {
                     symbols.erase(it);
                     return;
                 }
@@ -120,7 +141,7 @@ namespace gjs {
 
         void symbol_list::remove(script_type* type) {
             for (auto it = symbols.begin();it != symbols.end();it++) {
-                if (it->sym_type() == symbol::st_type && it->get_type() == type) {
+                if (it->sym_type() == symbol::symbol_type::st_type && it->get_type() == type) {
                     symbols.erase(it);
                     return;
                 }
@@ -129,7 +150,7 @@ namespace gjs {
 
         void symbol_list::remove(script_enum* enum_) {
             for (auto it = symbols.begin();it != symbols.end();it++) {
-                if (it->sym_type() == symbol::st_enum && it->get_enum() == enum_) {
+                if (it->sym_type() == symbol::symbol_type::st_enum && it->get_enum() == enum_) {
                     symbols.erase(it);
                     return;
                 }
@@ -138,7 +159,7 @@ namespace gjs {
 
         void symbol_list::remove(const script_module::local_var* modulevar) {
             for (auto it = symbols.begin();it != symbols.end();it++) {
-                if (it->sym_type() == symbol::st_modulevar && it->get_modulevar() == modulevar) {
+                if (it->sym_type() == symbol::symbol_type::st_modulevar && it->get_modulevar() == modulevar) {
                     symbols.erase(it);
                     return;
                 }
@@ -147,7 +168,16 @@ namespace gjs {
 
         void symbol_list::remove(var* var_) {
             for (auto it = symbols.begin();it != symbols.end();it++) {
-                if (it->sym_type() == symbol::st_var && it->get_var() == var_) {
+                if (it->sym_type() == symbol::symbol_type::st_var && it->get_var() == var_) {
+                    symbols.erase(it);
+                    return;
+                }
+            }
+        }
+
+        void symbol_list::remove(capture* cap) {
+            for (auto it = symbols.begin();it != symbols.end();it++) {
+                if (it->sym_type() == symbol::symbol_type::st_capture && it->get_capture() == cap) {
                     symbols.erase(it);
                     return;
                 }
@@ -184,7 +214,11 @@ namespace gjs {
 
             for (u32 f = 0;f < type->methods.size();f++) {
                 script_function* fn = type->methods[f];
-                if (!t->get_func_strict(fn->name, fn->signature.return_type, fn->signature.arg_types, false)) t->set(fn->name, fn);
+                std::vector<script_type*> argTps;
+                for (u8 a = 0;a < fn->type->signature->args.size();a++) {
+                    argTps.push_back(fn->type->signature->args[a].tp);
+                }
+                if (!t->get_func_strict(fn->name, fn->type->signature->return_type, argTps, false)) t->set(fn->name, fn);
             }
 
             // todo
@@ -193,7 +227,7 @@ namespace gjs {
             if (exists) {
                 symbol_list& l = m_symbols[name];
                 for (auto& s : l.symbols) {
-                    if (s.sym_type() == symbol::st_type && s.get_type() == type) return &s;
+                    if (s.sym_type() == symbol::symbol_type::st_type && s.get_type() == type) return &s;
                 }
             }
 
@@ -217,6 +251,10 @@ namespace gjs {
 
         symbol* symbol_table::set(const std::string& name, var* var_) {
             return m_symbols[name].add(var_);
+        }
+
+        symbol* symbol_table::set(const std::string& name, capture* cap) {
+            return m_symbols[name].add(cap);
         }
 
         symbol_table* symbol_table::nest(const std::string& name) {
@@ -258,6 +296,26 @@ namespace gjs {
             }
             return nullptr;
         }
+        var* symbol_table::get_var(const std::string& name) {
+            symbol_list* l = get(name);
+            if (!l) return nullptr;
+
+            for (auto& t : l->symbols) {
+                if (t.m_var) return t.m_var;
+            }
+
+            return nullptr;
+        }
+        capture* symbol_table::get_capture(const std::string& name) {
+            symbol_list* l = get(name);
+            if (!l) return nullptr;
+
+            for (auto& t : l->symbols) {
+                if (t.m_capture) return t.m_capture;
+            }
+
+            return nullptr;
+        }
 
         script_function* symbol_table::get_func(const std::string& name, script_type* ret, const std::vector<script_type*>& args, bool log_errors, bool* was_ambiguous) {
             symbol_list* symbols = get(name);
@@ -268,7 +326,7 @@ namespace gjs {
 
             std::vector<script_function*> all;
             for (auto& s : symbols->symbols) {
-                if (s.sym_type() == symbol::st_function) all.push_back(s.get_func());
+                if (s.sym_type() == symbol::symbol_type::st_function) all.push_back(s.get_func());
             }
 
             std::vector<script_function*> matches;
@@ -276,16 +334,16 @@ namespace gjs {
                 script_function* func = all[f];
 
                 // match return type
-                if (ret && !has_valid_conversion(*m_ctx, func->signature.return_type, ret)) continue;
-                bool ret_tp_strict = ret ? func->signature.return_type->id() == ret->id() : false;
+                if (ret && !has_valid_conversion(*m_ctx, func->type->signature->return_type, ret)) continue;
+                bool ret_tp_strict = ret ? func->type->signature->return_type->id() == ret->id() : false;
 
                 // match argument types
-                if (func->signature.arg_types.size() != args.size()) continue;
+                if (func->type->signature->explicit_argc != args.size()) continue;
 
                 // prefer strict type matches
                 bool match = true;
                 for (u8 i = 0;i < args.size();i++) {
-                    if (func->signature.arg_types[i]->id() != args[i]->id()) {
+                    if (func->type->signature->explicit_arg(i).tp->id() != args[i]->id()) {
                         match = false;
                         break;
                     }
@@ -297,7 +355,7 @@ namespace gjs {
                     // check if the arguments are at least convertible
                     match = true;
                     for (u8 i = 0;i < args.size();i++) {
-                        if (!has_valid_conversion(*m_ctx, args[i], func->signature.arg_types[i])) {
+                        if (!has_valid_conversion(*m_ctx, args[i], func->type->signature->explicit_arg(i).tp)) {
                             match = false;
                             break;
                         }
@@ -332,7 +390,7 @@ namespace gjs {
 
             std::vector<script_function*> all;
             for (auto& s : symbols->symbols) {
-                if (s.sym_type() == symbol::st_function) all.push_back(s.get_func());
+                if (s.sym_type() == symbol::symbol_type::st_function) all.push_back(s.get_func());
             }
 
             std::vector<script_function*> matches;
@@ -340,15 +398,15 @@ namespace gjs {
                 script_function* func = all[f];
 
                 // match return type
-                if (ret && func->signature.return_type->id() != ret->id()) continue;
+                if (ret && func->type->signature->return_type->id() != ret->id()) continue;
 
                 // match argument types
-                if (func->signature.arg_types.size() != args.size()) continue;
+                if (func->type->signature->explicit_argc != args.size()) continue;
 
                 // only strict type matches
                 bool match = true;
                 for (u8 i = 0;i < args.size();i++) {
-                    if (func->signature.arg_types[i]->id() != args[i]->id()) {
+                    if (func->type->signature->explicit_arg(i).tp->id() != args[i]->id()) {
                         match = false;
                         break;
                     }

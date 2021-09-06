@@ -25,6 +25,7 @@ namespace gjs {
             semicolon,
             question_mark,
             member_accessor,
+            right_arrow,
             comma,
             colon,
             eof

@@ -198,35 +198,35 @@ namespace gjs {
         void bind_vec4(script_module* m) {
             bind_v4<f64>(m, "vec4d");
             bind_v4<f32>(m, "vec4f");
-            bind_v4<u64>(m, "vec4u64");
+            //bind_v4<u64>(m, "vec4u64");
             bind_v4<i64>(m, "vec4i64");
-            bind_v4<u32>(m, "vec4u32");
+            //bind_v4<u32>(m, "vec4u32");
             bind_v4<i32>(m, "vec4i32");
-            bind_v4<u16>(m, "vec4u16");
+            //bind_v4<u16>(m, "vec4u16");
             bind_v4<i16>(m, "vec4i16");
-            bind_v4<u8>(m, "vec4u8");
+            //bind_v4<u8>(m, "vec4u8");
             bind_v4<i8>(m, "vec4i8");
 
             bind_quat<f64>(m, "quatd");
             bind_quat<f32>(m, "quatf");
-            bind_quat<u64>(m, "quatu64");
+            //bind_quat<u64>(m, "quatu64");
             bind_quat<i64>(m, "quati64");
-            bind_quat<u32>(m, "quatu32");
+            //bind_quat<u32>(m, "quatu32");
             bind_quat<i32>(m, "quati32");
-            bind_quat<u16>(m, "quatu16");
+            //bind_quat<u16>(m, "quatu16");
             bind_quat<i16>(m, "quati16");
-            bind_quat<u8>(m, "quatu8");
+            //bind_quat<u8>(m, "quatu8");
             bind_quat<i8>(m, "quati8");
 
             bind_m4<f64>(m, "mat4d");
             bind_m4<f32>(m, "mat4f");
-            bind_m4<u64>(m, "mat4u64");
+            //bind_m4<u64>(m, "mat4u64");
             bind_m4<i64>(m, "mat4i64");
-            bind_m4<u32>(m, "mat4u32");
+            //bind_m4<u32>(m, "mat4u32");
             bind_m4<i32>(m, "mat4i32");
-            bind_m4<u16>(m, "mat4u16");
+            //bind_m4<u16>(m, "mat4u16");
             bind_m4<i16>(m, "mat4i16");
-            bind_m4<u8>(m, "mat4u8");
+            //bind_m4<u8>(m, "mat4u8");
             bind_m4<i8>(m, "mat4i8");
         }
     };

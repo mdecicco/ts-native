@@ -15,20 +15,28 @@ namespace gjs {
     };
 
     namespace compile {
+        struct block_context {
+            script_function* func = nullptr;
+            std::list<var> named_vars;
+            std::vector<var> stack_objs;
+            std::vector<capture*> captures;
+            parse::ast* input_ref = nullptr;
+            bool is_lambda = false;
+            u32 next_reg_id = 0;
+            u16 func_idx = -1;
+        };
+
+        struct capture {
+            u32 offset;
+            var* src;
+        };
+
+        struct deferred_node {
+            parse::ast* node = 0;
+            script_type* subtype_replacement = 0;
+        };
+
         struct context {
-            struct block_context {
-                script_function* func = nullptr;
-                std::list<var> named_vars;
-                std::vector<var> stack_objs;
-                u32 start = 0;
-                u32 end = 0;
-            };
-
-            struct deferred_node {
-                parse::ast* node = 0;
-                script_type* subtype_replacement = 0;
-            };
-
             context(compilation_output& out, script_context* env);
             ~context();
 
@@ -109,6 +117,9 @@ namespace gjs {
             // that the result would be an operand for
             tac_wrapper add(operation op);
 
+            // Adds a label at the current code position and returns the label id
+            label_id label();
+
             // number of instructions in the current instruction list (either global
             // code or function code)
             u64 code_sz() const;
@@ -122,6 +133,9 @@ namespace gjs {
             // push a new scope block onto the block stack when the scope should be
             // nested
             void push_block(script_function* f = nullptr);
+
+            // push a new scope block onto the block stack for a lambda function
+            script_function* push_lambda_block(script_type* sigTp, std::vector<var*>& captures);
 
             // pop the most recent scope block from the stack and destructs any stack
             // variables declared within it
@@ -141,6 +155,8 @@ namespace gjs {
             // shortcut to the log interface of the compilation pipeline
             compile_log* log();
 
+            // current function block (not necessarily current block)
+            block_context* cur_func_block;
 
             // target script context
             script_context* env;
@@ -163,12 +179,11 @@ namespace gjs {
             // compilation output
             compilation_output& out;
 
-            // code that gets executed by the __init__ function
-            compilation_output::ir_code global_code;
+            // next lambda function id
+            u32 next_lambda_id;
 
-            // next virtual register ID to use when a variable
-            // is instantiated
-            u32 next_reg_id;
+            // next code label id
+            u32 next_label_id;
 
             // 'stack' of AST nodes that is kept updated with
             // the compiler's current 'position' in the AST

@@ -9,8 +9,6 @@ set(
     include_dirs
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/deps/dyncall/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/deps/llvm/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/build/deps/llvm/include
 )
 set(
     library_dirs
@@ -51,59 +49,15 @@ add_sources("src/backends"  "backends")
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/lib)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/lib)
 
 add_library(gjs ${all_sources})
 
 add_subdirectory("./deps")
 add_subdirectory("./tests")
 add_subdirectory("./playground")
+add_subdirectory("./cli")
 
 target_link_libraries(gjs
     dyncall_s
-    LLVMCore
-    LLVMOrcJIT
-    LLVMSupport
-    LLVMAnalysis
-    LLVMBinaryFormat
-    LLVMCodeGen
-    LLVMDWARFLinker
-    LLVMExecutionEngine
-    LLVMExtensions
-    LLVMFuzzMutate
-    LLVMIRReader
-    LLVMLineEditor
-    LLVMLinker
-    LLVMLTO
-    LLVMMC
-    LLVMObject
-    LLVMObjectYAML
-    LLVMOption
-    LLVMPasses
-    LLVMProfileData
-    LLVMRemarks
-    LLVMTarget
-    LLVMTextAPI
-    LLVMXRay
-    LLVMJITLink
-    LLVMBitReader
-    LLVMBitWriter
-    LLVMBitstreamReader
-    LLVMRuntimeDyld
-    LLVMTransformUtils
-    LLVMMCParser
-    LLVMDemangle
-    LLVMX86AsmParser
-    LLVMX86CodeGen
-    LLVMX86Disassembler
-    LLVMX86Info
-    LLVMX86Desc
-    LLVMCFGuard
-    LLVMGlobalISel
-    LLVMSelectionDAG
-    LLVMDebugInfoCodeView
-    LLVMDebugInfoDWARF
-    LLVMDebugInfoMSF
-    LLVMMCParser
-    LLVMScalarOpts
-    LLVMMCDisassembler
 )

@@ -60,6 +60,7 @@ namespace gjs {
             t.specify_operator("=");
             t.specify_operator("==");
             t.specify_operator("[]");
+            t.specify_operator("=>");
 
             while (!t.at_end(false)) {
                 tokenizer::token tok;
@@ -75,11 +76,19 @@ namespace gjs {
 
                 tok = t.operat0r(false);
                 if (tok) {
-                    out.push_back({
-                        tok.text,
-                        token_type::operation,
-                        source_ref(module, t.lines[tok.line], tok.line, tok.col)
-                    });
+                    if (tok.text == "=>") {
+                        out.push_back({
+                            tok.text,
+                            token_type::right_arrow,
+                            source_ref(module, t.lines[tok.line], tok.line, tok.col)
+                        });
+                    } else {
+                        out.push_back({
+                            tok.text,
+                            token_type::operation,
+                            source_ref(module, t.lines[tok.line], tok.line, tok.col)
+                        });
+                    }
                     continue;
                 }
                 
@@ -252,14 +261,14 @@ namespace gjs {
                 }
 
                 tok = t.any_token();
-                if (tok) throw parse_exception(format("Unknown token '%s'", tok.text.c_str()), t, tok);
+                if (tok) throw error::exception(error::ecode::l_unknown_token, source_ref(module, t.lines[tok.line], tok.line, tok.col), tok.text.c_str());
             }
 
             if (t.lines.size()) {
                 out.push_back({
                     "",
                     token_type::eof,
-                    source_ref(module, t.lines[t.lines.size() - 1], t.lines.size() - 1, t.lines[t.lines.size() - 1].length())
+                    source_ref(module, t.lines[t.lines.size() - 1], u16(t.lines.size() - 1), u16(t.lines[t.lines.size() - 1].length()))
                 });
             }
         }

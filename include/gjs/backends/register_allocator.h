@@ -45,8 +45,8 @@ namespace gjs {
 
         protected:
             friend class pipeline;
-            void calc_reg_lifetimes(u16 fidx, u64 from, u64 to);
-            void reassign_registers(std::vector<reg_lifetime>& regs, u16 k, u64 from, u64 to, u16 fidx);
+            void calc_reg_lifetimes(u16 fidx);
+            void reassign_registers(std::vector<reg_lifetime>& regs, u16 k, u16 fidx);
 
             u16 m_gpc;
             u16 m_fpc;

@@ -28,7 +28,7 @@ namespace gjs {
     void script_enum::set(const std::string& value_name, i64 value) {
         auto it = m_values.find(value_name);
         if (it != m_values.end()) {
-            throw bind_exception(format("Value '%s' is already set on enum '%s'", value_name.c_str(), m_name.c_str()));
+            throw error::bind_exception(error::ecode::b_enum_value_exists, value_name.c_str(), m_name.c_str());
         }
 
         m_values[value_name] = value;

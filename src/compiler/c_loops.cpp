@@ -17,12 +17,12 @@ namespace gjs {
 
             tac_wrapper b;
             auto meta = ctx.add(operation::meta_for_loop);
-            u64 cond_addr = ctx.code_sz();
+            label_id cond_label = ctx.label();
             if (n->condition) {
                 var cond = expression(ctx, n->condition);
-                meta.operand(ctx.imm((u64)ctx.code_sz()));
+                meta.label(ctx.label());
                 b = ctx.add(operation::branch).operand(cond);
-            }
+            } else meta.label(0);
 
             ctx.push_block();
             any(ctx, n->body);
@@ -32,10 +32,10 @@ namespace gjs {
                 var m = expression(ctx, n->modifier);
             }
 
-            meta.operand(ctx.imm((u64)ctx.code_sz()));
-            ctx.add(operation::jump).operand(ctx.imm(cond_addr));
+            meta.label(ctx.label());
+            ctx.add(operation::jump).label(cond_label);
 
-            if (b) b.operand(ctx.imm((u64)ctx.code_sz()));
+            if (b) b.label(ctx.label());
 
             if (n->initializer && n->initializer->type == parse::ast::node_type::variable_declaration) ctx.pop_block();
             ctx.pop_node();
@@ -44,18 +44,18 @@ namespace gjs {
         void while_loop(context& ctx, parse::ast* n) {
             ctx.push_node(n);
             auto m = ctx.add(operation::meta_while_loop);
-            u64 cond_addr = ctx.code_sz();
+            label_id cond_label = ctx.label();
             var cond = expression(ctx, n->condition);
-            m.operand(ctx.imm((u64)ctx.code_sz()));
+            m.label(ctx.label()); // branch label
             auto b = ctx.add(operation::branch).operand(cond);
 
             ctx.push_block();
             any(ctx, n->body);
             ctx.pop_block();
 
-            m.operand(ctx.imm((u64)ctx.code_sz()));
-            ctx.add(operation::jump).operand(ctx.imm(cond_addr));
-            b.operand(ctx.imm((u64)ctx.code_sz()));
+            m.label(ctx.label()); // end label
+            ctx.add(operation::jump).label(cond_label);
+            b.label(ctx.label()); // post-loop label
 
             ctx.pop_node();
         }
@@ -64,19 +64,18 @@ namespace gjs {
             ctx.push_node(n);
 
             auto m = ctx.add(operation::meta_do_while_loop);
-            u64 start_addr = ctx.code_sz();
+            label_id start_label = ctx.label();
 
             ctx.push_block();
             any(ctx, n->body);
             ctx.pop_block();
 
             var cond = expression(ctx, n->condition);
-            m.operand(ctx.imm((u64)ctx.code_sz()));
+            m.label(ctx.label()); // branch label
             auto b = ctx.add(operation::branch).operand(cond);
 
-            ctx.add(operation::jump).operand(ctx.imm(start_addr));
-
-            b.operand(ctx.imm((u64)ctx.code_sz()));
+            ctx.add(operation::jump).label(start_label);
+            b.label(ctx.label()); // post-loop label
 
             ctx.pop_node();
         }

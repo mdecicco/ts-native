@@ -6,19 +6,21 @@
 namespace gjs {
     class vm_allocator;
     class vm_backend;
+    struct raw_callback;
     class vm {
         public:
             vm(vm_backend* ctx, vm_allocator* alloc, u32 stack_size, u32 mem_size);
             ~vm();
 
-            void execute(const instruction_array& code, address entry);
+            void execute(const instruction_array& code, address entry, bool nested);
 
             vm_allocator* alloc;
             vm_state state;
 
         protected:
             friend class script_function;
-            void call_external(u64 addr);
+            void call_external(script_function* fn);
+            void call_external(raw_callback** fn);
             vm_backend* m_ctx;
             u32 m_stack_size;
     };
