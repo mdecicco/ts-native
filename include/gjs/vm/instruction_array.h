@@ -14,6 +14,7 @@ namespace gjs {
 
             inline instruction operator[](u64 index) const { return m_instructions[index]; }
             inline instruction& operator[](u64 index) { return m_instructions[index]; }
+            inline const instruction* ptr() const { return m_instructions; }
             inline void set(u64 index, const instruction& i) { m_instructions[index] = i; }
             inline u64 size() const { return m_count; }
             void remove(u64 from, u64 to);

@@ -61,15 +61,15 @@ namespace gjs {
         u64 stack_padding_start = ((u64)state.memory[0]) + m_stack_size;
         u64 stack_padding_end = stack_padding_start + STACK_PADDING_SIZE;
 
-        instruction i;
         u64* ip = &GRx(vmr::ip, u64);
         u64 cs = code.size();
         bool term = false;
+        const instruction* iptr = code.ptr();
+        iptr += *ip;
+        bool log = m_ctx->log_instructions();
         while ((*ip) <= cs && !term) {
-            i = code[*ip];
-            if (m_ctx->log_instructions()) {
-                printf("0x%2.2llx: %s\n", *ip, i.to_string(m_ctx).c_str());
-            }
+            const instruction& i = *iptr;
+            if (log) printf("0x%2.2llx: %s\n", *ip, i.to_string(m_ctx).c_str());
 
             vmi instr = i.instr();
             switch (instr) {
@@ -594,35 +594,55 @@ namespace gjs {
                     break;
                 }
                 case vmi::beqz: {
-                    if(GRi(_O1)) *ip = _O2ui - 1;
+                    if(GRi(_O1)) {
+                        *ip = _O2ui - 1;
+                        iptr = code.ptr() + *ip;
+                    }
                     break;
                 }
                 case vmi::bneqz: {
-                    if(!GRi(_O1)) *ip = _O2ui - 1;
+                    if(!GRi(_O1)) {
+                        *ip = _O2ui - 1;
+                        iptr = code.ptr() + *ip;
+                    }
                     break;
                 }
                 case vmi::bgtz: {
-                    if(GRi(_O1) <= 0) *ip = _O2ui - 1;
+                    if(GRi(_O1) <= 0) {
+                        *ip = _O2ui - 1;
+                        iptr = code.ptr() + *ip;
+                    }
                     break;
                 }
                 case vmi::bgtez: {
-                    if(GRi(_O1) < 0) *ip = _O2ui - 1;
+                    if(GRi(_O1) < 0) {
+                        *ip = _O2ui - 1;
+                        iptr = code.ptr() + *ip;
+                    }
                     break;
                 }
                 case vmi::bltz: {
-                    if(GRi(_O1) >= 0) *ip = _O2ui - 1;
+                    if(GRi(_O1) >= 0) {
+                        *ip = _O2ui - 1;
+                        iptr = code.ptr() + *ip;
+                    }
                     break;
                 }
                 case vmi::bltez: {
-                    if(GRi(_O1) > 0) *ip = _O2ui - 1;
+                    if(GRi(_O1) > 0) {
+                        *ip = _O2ui - 1;
+                        iptr = code.ptr() + *ip;
+                    }
                     break;
                 }
                 case vmi::jmp: {
                     *ip = _O1ui - 1;
+                    iptr = code.ptr() + *ip;
                     break;
                 }
                 case vmi::jmpr: {
                     *ip = GRx(_O1, u64) - 1;
+                    iptr = code.ptr() + *ip;
                     break;
                 }
                 case vmi::jal: {
@@ -635,6 +655,7 @@ namespace gjs {
                     else {
                         GRx(vmr::ra, u64) = (*ip) + 1;
                         *ip = fn->access.entry - 1;
+                        iptr = code.ptr() + *ip;
                     }
                     break;
                 }
@@ -650,6 +671,7 @@ namespace gjs {
                     else {
                         GRx(vmr::ra, u64) = (*ip) + 1;
                         *ip = fp->target->access.entry - 1;
+                        iptr = code.ptr() + *ip;
                     }
 
                     break;
@@ -661,6 +683,7 @@ namespace gjs {
             }
 
             (*ip)++;
+            iptr++;
         }
 
         GR64(vmr::ip) = prev.ip;
