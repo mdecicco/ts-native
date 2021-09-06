@@ -91,7 +91,9 @@ void set_some_value(void()(i32) set) {
 }
 ```
 
-#### Gets compiled to the following:
+<details>
+  <summary>Gets compiled to this</summary>
+
 ```
   0x000: term
 
@@ -464,6 +466,8 @@ void set_some_value(void()(i32) set) {
  0x172: jmpr    $ra
 ```
 
+</details>
+
 #### With the following host code
 ```
 i32 testCb (callback<i32(*)(i32, i32)> cb) {
@@ -554,7 +558,9 @@ void set_some_value(void()(i32) set) {
 }
 ```
 
-#### Gets compiled to the following:
+<details>
+  <summary>Gets compiled to the following</summary>
+
 ```
  0x000: term
 
@@ -983,6 +989,8 @@ void set_some_value(void()(i32) set) {
  0x19E: ld64    $a1, 56($sp)
  0x19F: jmpr    $ra
 ```
+
+</details>
 
 #### With the following host code
 ```
