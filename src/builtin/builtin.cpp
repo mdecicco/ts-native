@@ -111,7 +111,9 @@ namespace gjs {
 
         auto arr = ctx->bind<script_array>("array");
         arr.constructor<u64>();
+        arr.constructor<u64, const script_array&>();
         arr.method("push", &script_array::push);
+        arr.method("clear", &script_array::clear);
         arr.method("operator []", &script_array::operator[]);
         arr.prop("length", &script_array::length);
         tp = arr.finalize(ctx->global());

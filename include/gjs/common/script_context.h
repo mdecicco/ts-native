@@ -68,6 +68,9 @@ namespace gjs {
             script_object call(script_function* func, void* self, Args... args);
 
             template <typename... Args>
+            script_object call(u64 moduletype_id, script_function* func, void* self, Args... args);
+
+            template <typename... Args>
             script_object call_callback(raw_callback* cb, Args... args);
 
             static script_context* current();

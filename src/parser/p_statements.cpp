@@ -52,7 +52,6 @@ namespace gjs {
             ctx.consume();
 
             if (ctx.match({ tt::semicolon })) {
-                ctx.consume();
                 return stmt;
             }
 

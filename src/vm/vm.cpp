@@ -66,10 +66,19 @@ namespace gjs {
         bool term = false;
         const instruction* iptr = code.ptr();
         iptr += *ip;
-        bool log = m_ctx->log_instructions();
+        bool logInstrs = m_ctx->log_instructions();
+        bool logLines = m_ctx->log_lines();
+        u32 lastLoggedLn = -1;
         while ((*ip) <= cs && !term) {
             const instruction& i = *iptr;
-            if (log) printf("0x%2.2llx: %s\n", *ip, i.to_string(m_ctx).c_str());
+            if (logLines) {
+                source_ref ref = m_ctx->map()->get(*ip);
+                if (ref.line != lastLoggedLn) printf("\n\n%s\n", ref.line_text.c_str());
+                lastLoggedLn = ref.line;
+            }
+            if (logInstrs) {
+                printf("0x%2.2llx: %s\n", *ip, i.to_string(m_ctx).c_str());
+            }
 
             vmi instr = i.instr();
             switch (instr) {

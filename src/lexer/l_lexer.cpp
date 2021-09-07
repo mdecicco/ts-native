@@ -56,6 +56,7 @@ namespace gjs {
             t.specify_operator("<=");
             t.specify_operator(">");
             t.specify_operator(">=");
+            t.specify_operator("!=");
             t.specify_operator("!");
             t.specify_operator("=");
             t.specify_operator("==");

@@ -303,7 +303,7 @@ namespace gjs {
         template <typename... Args, std::enable_if_t<sizeof...(Args) != 0, int>>
         wrap_class<Cls>& wrap_class<Cls>::constructor() {
             methods.push_back(wrap_constructor<Cls, Args...>(types->ctx()->types(), name));
-            if (!dtor) dtor = wrap_destructor<Cls>(types->ctx()->types(), name);
+            if (!dtor && !std::is_trivially_destructible_v<Cls>) dtor = wrap_destructor<Cls>(types->ctx()->types(), name);
             return *this;
         }
 
@@ -311,7 +311,7 @@ namespace gjs {
         template <typename... Args, std::enable_if_t<sizeof...(Args) == 0, int>>
         wrap_class<Cls>& wrap_class<Cls>::constructor() {
             methods.push_back(wrap_constructor<Cls, Args...>(types->ctx()->types(), name));
-            if (!dtor) dtor = wrap_destructor<Cls>(types->ctx()->types(), name);
+            if (!dtor && !std::is_trivially_destructible_v<Cls>) dtor = wrap_destructor<Cls>(types->ctx()->types(), name);
             return *this;
         }
 

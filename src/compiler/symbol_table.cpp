@@ -335,7 +335,7 @@ namespace gjs {
 
                 // match return type
                 if (ret && !has_valid_conversion(*m_ctx, func->type->signature->return_type, ret)) continue;
-                bool ret_tp_strict = ret ? func->type->signature->return_type->id() == ret->id() : false;
+                bool ret_tp_strict = ret ? func->type->signature->return_type->id() == ret->id() : true;
 
                 // match argument types
                 if (func->type->signature->explicit_argc != args.size()) continue;

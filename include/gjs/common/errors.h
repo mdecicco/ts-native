@@ -129,6 +129,7 @@ namespace gjs {
             r_file_not_found,
             r_failed_to_open_file,
             r_callback_missing_data,
+            r_array_index_out_of_range,
             __runtime_error_end,
 
             __vm_error_start,

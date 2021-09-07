@@ -73,11 +73,11 @@ namespace gjs {
             "label",
             "branch",
             "jump",
-            "term",
-            "meta_if_branch",
-            "meta_for_loop",
-            "meta_while_loop",
-            "meta_do_while_loop"
+            "term"
+            //"meta_if_branch",
+            //"meta_for_loop",
+            //"meta_while_loop",
+            //"meta_do_while_loop"
         };
 
         bool is_assignment(const tac_instruction& i) {
@@ -148,11 +148,11 @@ namespace gjs {
                 false,   // label
                 false,   // branch
                 false,   // jump
-                false,   // term
-                false,   // meta_if_branch
-                false,   // meta_for_loop
-                false,   // meta_while_loop
-                false    // meta_do_while_loop
+                false    // term
+                //false,   // meta_if_branch
+                //false,   // meta_for_loop
+                //false,   // meta_while_loop
+                //false    // meta_do_while_loop
             };
             
             function_signature* sig = nullptr;

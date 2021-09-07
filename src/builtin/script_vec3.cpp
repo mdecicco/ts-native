@@ -17,7 +17,6 @@ namespace gjs {
             v.constructor<const vec2<T>&>();
             v.constructor<const vec2<T>&, T>();
             v.constructor<T, const vec2<T>&>();
-            v.constructor<const vec3<T>&>();
             v.method("operator +", CONST_METHOD_PTR(vec3<T>, operator +, vec3<T>, const vec3<T>&));
             v.method("operator +", CONST_METHOD_PTR(vec3<T>, operator +, vec3<T>, T));
             v.method("operator +=", METHOD_PTR(vec3<T>, operator +=, vec3<T>, const vec3<T>&));
@@ -60,6 +59,7 @@ namespace gjs {
             script_type* tp = v.finalize(mod);
             tp->owner = mod;
             tp->is_builtin = true;
+            tp->is_trivially_copyable = true;
 
             mod->bind<vec3<T>, const vec3<T>&, const vec3<T>&>(min, "min");
             mod->bind<vec3<T>, const vec3<T>&, const vec3<T>&>(max, "max");

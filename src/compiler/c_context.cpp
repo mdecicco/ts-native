@@ -382,6 +382,17 @@ namespace gjs {
         }
 
         label_id context::label() {
+            if (!compiling_function) {
+                // global code
+                if (compiling_static) {
+                    if (out.funcs[0].code[global_statics_end - 1].op == operation::label) return out.funcs[0].code[global_statics_end - 1].labels[0];
+                } else {
+                    if (out.funcs[0].code.back().op == operation::label) return out.funcs[0].code.back().labels[0];
+                }
+            }
+
+            if (out.funcs[cur_func_block->func_idx].code.back().op == operation::label) return out.funcs[cur_func_block->func_idx].code.back().labels[0];
+
             u32 lb = next_label_id++;
             add(operation::label).label(lb);
             return lb;

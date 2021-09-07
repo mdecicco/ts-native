@@ -16,7 +16,7 @@ namespace gjs {
     class file_interface {
         public:
             file_interface(io_interface* io);
-            ~file_interface() { }
+            virtual ~file_interface() { }
 
             inline io_interface* owner() const { return m_owner; }
             const script_string& filename() const { return m_filename; }
@@ -47,7 +47,7 @@ namespace gjs {
     class io_interface {
         public:
             io_interface() { }
-            ~io_interface() { }
+            virtual ~io_interface() { }
 
             virtual file_interface* open(const script_string& file, io_open_mode mode) = 0;
             virtual void close(file_interface* file) = 0;
@@ -64,7 +64,7 @@ namespace gjs {
     class basic_io_interface : public io_interface {
         public:
             basic_io_interface();
-            ~basic_io_interface();
+            virtual ~basic_io_interface();
 
             virtual file_interface* open(const script_string& file, io_open_mode mode);
             virtual void close(file_interface* file);
@@ -77,7 +77,7 @@ namespace gjs {
     class basic_file_interface : public file_interface {
         public:
             basic_file_interface(io_interface* io);
-            ~basic_file_interface();
+            virtual ~basic_file_interface();
 
             virtual bool set_position(u64 pos);
             virtual u64 get_position();

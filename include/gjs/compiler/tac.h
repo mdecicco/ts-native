@@ -89,19 +89,19 @@ namespace gjs {
             //   label[0] = end of true case block label
             //   label[1] = end of false case block label, or 0
             //   label[2] = post-branch label
-            meta_if_branch,
+            // meta_if_branch,
 
             // inserted at the top of a for loop
             // operands:
             //   label[0] = loop branch label
             //   label[1] = loop end label
-            meta_for_loop,
+            // meta_for_loop,
 
             // inserted at the top of a while loop
             // operands:
             //   label[0] = loop branch label
             //   label[1] = loop end label
-            meta_while_loop,
+            // meta_while_loop,
 
             // inserted at the top of a do...while loop
             //   note:
@@ -110,7 +110,7 @@ namespace gjs {
             //     branch (jumps to the top, not out)
             // operands:
             //   label[0] = loop branch label
-            meta_do_while_loop
+            // meta_do_while_loop
         };
 
         bool is_assignment(const tac_instruction& i);
@@ -133,7 +133,7 @@ namespace gjs {
 
                 operation op;
                 var operands[3];
-                u16 labels[3];
+                label_id labels[3];
                 script_function* callee;
                 var callee_v;
                 source_ref src;

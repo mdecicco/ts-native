@@ -129,6 +129,7 @@ namespace gjs {
             "Could not find file '%s'",
             "Could not open file '%s' or file is empty",
             "Callback is missing callee data. This is not a user error",
+            "Array index <%d> out of range (length = %d)",
             "", // end runtime errors
 
             "", // vm errors

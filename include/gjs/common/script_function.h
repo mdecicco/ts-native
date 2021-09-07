@@ -28,6 +28,11 @@ namespace gjs {
                 return m_ctx->call(this, self, args...);
             }
 
+            template <typename... Args>
+            script_object call(u64 moduletype_id, void* self, Args... args) {
+                return m_ctx->call(moduletype_id, this, self, args...);
+            }
+
             std::string name;
             bool is_host;
             bool is_static;

@@ -21,7 +21,7 @@ set (all_sources "")
 macro(add_sources group dir)
     set(_all "")
 
-    file(GLOB _inc "include/gjs/${dir}/*.h" "include/gjs/${dir}/*.hpp")
+    file(GLOB _inc "include/gjs/${dir}/*.h" "include/gjs/${dir}/*.hpp" "include/gjs/${dir}/*.inl")
     list(APPEND _all ${_inc})
 
     file(GLOB _src "src/${dir}/*.cpp")
@@ -46,6 +46,7 @@ add_sources("src/common"    "common")
 add_sources("src/builtin"   "builtin")
 add_sources("src/bind"      "bind")
 add_sources("src/backends"  "backends")
+add_sources("src/optimize"  "optimize")
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/lib)

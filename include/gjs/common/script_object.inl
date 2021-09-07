@@ -12,13 +12,29 @@ namespace gjs {
 
         script_function* ctor = nullptr;
 
+        script_type* thisTp = m_type;
+        if (thisTp->base_type && thisTp->base_type->is_host) thisTp = thisTp->base_type;
+
         constexpr u8 ac = std::tuple_size<std::tuple<Args...>>::value;
         if constexpr (ac > 0) {
-            ctor = m_type->method("constructor", nullptr, { arg_type(ctx, args)... });
+            std::vector<script_type*> arg_types = { arg_type(ctx, args)... };
+            for (u8 a = 0;a < arg_types.size();a++) {
+                if (arg_types[a]->base_type && arg_types[a]->base_type->is_host) {
+                    arg_types[a] = arg_types[a]->base_type;
+                }
+            }
+
+            ctor = thisTp->method("constructor", nullptr, arg_types);
         } else ctor = m_type->method("constructor", nullptr, {});
 
         m_self = new u8[type->size];
-        if (ctor) ctor->call(m_self, args...);
+        if (ctor) {
+            if (m_type->base_type && m_type->is_host) {
+                script_type* st = m_type->sub_type;
+                ctor->call(join_u32(st->owner->id(), st->id()), m_self, args...);
+            }
+            else ctor->call(m_self, args...);
+        }
         else throw error::runtime_exception(error::ecode::r_invalid_object_constructor, type->name.c_str());
     }
 
@@ -35,14 +51,30 @@ namespace gjs {
 
         script_function* ctor = nullptr;
 
+        script_type* thisTp = m_type;
+        if (thisTp->base_type && thisTp->base_type->is_host) thisTp = thisTp->base_type;
+
         constexpr u8 ac = std::tuple_size<std::tuple<Args...>>::value;
         if constexpr (ac > 0) {
-            ctor = m_type->method("constructor", nullptr, { arg_type(ctx, args)... });
-        } else ctor = m_type->method("constructor", nullptr, {});
+            std::vector<script_type*> arg_types = { arg_type(ctx, args)... };
+            for (u8 a = 0;a < arg_types.size();a++) {
+                if (arg_types[a]->base_type && arg_types[a]->base_type->is_host) {
+                    arg_types[a] = arg_types[a]->base_type;
+                }
+            }
+
+            ctor = thisTp->method("constructor", nullptr, arg_types);
+        } else ctor = thisTp->method("constructor", nullptr, {});
 
         m_self = ptr;
-        if (ctor) ctor->call(m_self, args...);
-        else throw error::runtime_exception(error::ecode::r_invalid_object_constructor, type->name.c_str());
+        if (ctor) {
+            if (m_type->base_type && m_type->is_host) {
+                script_type* st = m_type->sub_type;
+                ctor->call(join_u32(st->owner->id(), st->id()), m_self, args...);
+            }
+            else ctor->call(m_self, args...);
+        }
+        else throw error::runtime_exception(error::ecode::r_invalid_object_constructor, thisTp->name.c_str());
     }
 
     template <typename Ret, typename... Args>

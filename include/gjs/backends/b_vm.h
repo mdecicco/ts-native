@@ -23,6 +23,8 @@ namespace gjs {
             inline bool is_executing    () const { return m_execution_level > 0; }
             inline bool log_instructions() const { return m_log_instructions; }
             inline void log_instructions(bool doLog) { m_log_instructions = doLog; }
+            inline bool log_lines() const { return m_log_lines; }
+            inline void log_lines(bool doLog) { m_log_lines = doLog; }
 
             void execute(address entry);
 
@@ -43,5 +45,6 @@ namespace gjs {
             source_map m_map;
             u16 m_execution_level;
             bool m_log_instructions;
+            bool m_log_lines;
     };
 };

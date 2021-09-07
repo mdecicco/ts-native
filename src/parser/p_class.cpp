@@ -208,7 +208,7 @@ namespace gjs {
                             // like 'i32 operator += (...' or 'vec3f operator * (...'
                             add_to_body(function_declaration(ctx));
                             continue;
-                        } else if (ctx.pattern({ tt::identifier, tt::identifier, tt::semicolon })) {
+                        } else {
                             // like 'i32 x;' or 'f32 y;'
                             ast* decl = new ast();
                             decl->type = nt::class_property;
@@ -218,7 +218,7 @@ namespace gjs {
                             ctx.consume(); // ;
                             add_to_body(decl);
                             continue;
-                        } 
+                        }
 
                         throw exc(ec::p_expected_class_prop_or_meth, ctx.current().src);
                     } else {

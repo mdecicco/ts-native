@@ -252,31 +252,33 @@ namespace gjs {
                         i = i->next;
                         ctx.pop_node();
                     }
+                }
 
-                    for (u32 i = 0;i < f->is_method_of->properties.size();i++) {
-                        auto& p = f->is_method_of->properties[i];
-                        bool found = false;
-                        for (u32 in = 0;in < initializedNames.size();in++) {
-                            if (initializedNames[in] == p.name) {
-                                found = true;
+                for (u32 i = 0;i < f->is_method_of->properties.size();i++) {
+                    auto& p = f->is_method_of->properties[i];
+                    bool found = false;
+                    for (u32 in = 0;in < initializedNames.size();in++) {
+                        if (initializedNames[in] == p.name) {
+                            found = true;
+                            break;
+                        }
+                    }
+
+                    if (found) continue;
+
+                    /*
+                    bool found_default = false;
+                    for (u32 m = 0;m < p.type->methods.size();m++) {
+                        if (p.type->methods[m]->name.find("::constructor") != std::string::npos) {
+                            if (p.type->methods[m]->type->signature->explicit_argc == 0) {
+                                found_default = true;
                                 break;
                             }
                         }
+                    }
+                    */
 
-                        if (found) continue;
-
-                        /*
-                        bool found_default = false;
-                        for (u32 m = 0;m < p.type->methods.size();m++) {
-                            if (p.type->methods[m]->name.find("::constructor") != std::string::npos) {
-                                if (p.type->methods[m]->type->signature->explicit_argc == 0) {
-                                    found_default = true;
-                                    break;
-                                }
-                            }
-                        }
-                        */
-
+                    if (!p.type->is_primitive) {
                         if (!p.type->method<void>("constructor")) {
                             ctx.log()->err(ec::c_prop_has_no_default_ctor, n->initializer->ref, p.name.c_str(), p.type->name.c_str(), f->is_method_of->name.c_str());
                         }

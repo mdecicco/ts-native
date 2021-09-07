@@ -10,7 +10,7 @@
 namespace gjs {
     vm_backend::vm_backend(vm_allocator* alloc, u32 stack_size, u32 mem_size) :
         m_vm(this, alloc, stack_size, mem_size), m_instructions(alloc), m_execution_level(0),
-        m_log_instructions(false), m_alloc(alloc)
+        m_log_instructions(false), m_alloc(alloc), m_log_lines(false)
     {
         m_instructions += encode(vm_instruction::term);
         m_map.append("[internal code]", "", 0, 0);
@@ -64,6 +64,7 @@ namespace gjs {
         u64 out_begin = m_instructions.size();
         auto& code = in.funcs[fidx].code;
         robin_hood::unordered_map<compile::label_id, address> label_map;
+        robin_hood::unordered_map<compile::label_id, address> ir_label_map;
         struct deferred_label { address idx; compile::label_id label; }; // label == 0 indicates a jump to the function epilogue
         std::vector<deferred_label> deferred_label_instrs;
 
@@ -71,6 +72,10 @@ namespace gjs {
         robin_hood::unordered_flat_set<vm_register> assigned_non_volatile;
         // also the end of the lifetimes of the argument registers
         robin_hood::unordered_map<vm_register, address> arg_lifetime_ends;
+
+        for (u64 i = 0;i < code.size();i++) {
+            if (code[i].op == compile::operation::label) ir_label_map[code[i].labels[0]] = i;
+        }
 
         for (u64 c = 0;c < code.size();c++) {
             auto& i = code[c];
@@ -80,6 +85,24 @@ namespace gjs {
                     auto& arg = cf->type->signature->args[i.operands[o].arg_idx()];
                     bool isFP = arg.tp->is_floating_point;
                     arg_lifetime_ends[arg.loc] = c;
+                }
+            }
+
+            // If a backwards jump goes into a live range,
+            // then that live range must be extended to fit
+            // the jump (if it doesn't already)
+            u64 jaddr = u64(-1);
+
+            if (i.op == compile::operation::jump) jaddr = ir_label_map[i.labels[0]];
+            else if (i.op == compile::operation::branch) jaddr = ir_label_map[i.labels[0]];
+
+            if (jaddr != u64(-1)) {
+                if (jaddr > c) continue;
+
+                for (auto& r : arg_lifetime_ends) {
+                    if (r.getSecond() >= jaddr && r.getSecond() < c) {
+                        r.second = c;
+                    }
                 }
             }
 
@@ -1064,10 +1087,10 @@ namespace gjs {
                     m_map.append(i.src);
                     break;
                 }
-                case op::meta_if_branch: break;
-                case op::meta_for_loop: break;
-                case op::meta_while_loop: break;
-                case op::meta_do_while_loop: break;
+                //case op::meta_if_branch: break;
+                //case op::meta_for_loop: break;
+                //case op::meta_while_loop: break;
+                //case op::meta_do_while_loop: break;
             }
         }
 

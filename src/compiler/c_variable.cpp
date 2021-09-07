@@ -473,8 +473,10 @@ namespace gjs {
                     if (ret->base_type && !has_valid_conversion(*m_ctx, func->type->signature->return_type, ret->base_type)) continue;
                     else if (!ret->base_type && !has_valid_conversion(*m_ctx, func->type->signature->return_type, ret)) continue;
                 }
-                bool ret_tp_strict = false;
+
+                bool ret_tp_strict = true;
                 if (ret) {
+                    ret_tp_strict = false;
                     if (ret->base_type && func->type->signature->return_type->id() == ret->base_type->id()) ret_tp_strict = true;
                     else if (!ret->base_type && func->type->signature->return_type->id() == ret->id()) ret_tp_strict = true;
                 }
@@ -862,7 +864,7 @@ namespace gjs {
             union { f64 f; i64 i; } bv;
             bool i[2] = { false, false };
             if (a.type()->is_floating_point) {
-                if (a.type()->size == sizeof(f64)) av.f = a.imm_d();
+                if (a.type()->size == (u32)sizeof(f64)) av.f = a.imm_d();
                 else av.f = a.imm_f();
                 i[0] = true;
             } else {
@@ -870,7 +872,7 @@ namespace gjs {
                 else av.i = a.imm_i();
             }
             if (b.type()->is_floating_point) {
-                if (b.type()->size == sizeof(f64)) bv.f = b.imm_d();
+                if (b.type()->size == (u32)sizeof(f64)) bv.f = b.imm_d();
                 else bv.f = b.imm_f();
                 i[1] = true;
             } else {
@@ -880,34 +882,66 @@ namespace gjs {
 
             switch (op) {
                 case ot::add: {
-                    if ( i[0] &&  i[1]) return ctx->imm(av.f + bv.f);
-                    if ( i[0] && !i[1]) return ctx->imm(av.f + bv.i);
+                    if (i[0] && i[1]) {
+                        if (a.type()->size == (u32)sizeof(f64)) return ctx->imm(av.f + bv.f);
+                        else return ctx->imm((f32)(av.f + bv.f));
+                    }
+                    if (i[0] && !i[1]) {
+                        if (a.type()->size == (u32)sizeof(f64)) return ctx->imm(av.f + bv.i);
+                        else return ctx->imm((f32)(av.f + bv.i));
+                    }
                     if (!i[0] &&  i[1]) return ctx->imm(av.i + bv.f);
                     if (!i[0] && !i[1]) return ctx->imm(av.i + bv.i);
                     break;
                 }
                 case ot::sub: {
-                    if ( i[0] &&  i[1]) return ctx->imm(av.f - bv.f);
-                    if ( i[0] && !i[1]) return ctx->imm(av.f - bv.i);
+                    if (i[0] && i[1]) {
+                        if (a.type()->size == (u32)sizeof(f64)) return ctx->imm(av.f - bv.f);
+                        else return ctx->imm((f32)(av.f - bv.f));
+                    }
+                    if (i[0] && !i[1]) {
+                        if (a.type()->size == (u32)sizeof(f64)) return ctx->imm(av.f - bv.i);
+                        else return ctx->imm((f32)(av.f - bv.i));
+                    }
                     if (!i[0] &&  i[1]) return ctx->imm(av.i - bv.f);
                     if (!i[0] && !i[1]) return ctx->imm(av.i - bv.i);
                     break;
                 }
                 case ot::mul: {
-                    if ( i[0] &&  i[1]) return ctx->imm(av.f * bv.f);
-                    if ( i[0] && !i[1]) return ctx->imm(av.f * bv.i);
+                    if (i[0] && i[1]) {
+                        if (a.type()->size == (u32)sizeof(f64)) return ctx->imm(av.f * bv.f);
+                        else return ctx->imm((f32)(av.f * bv.f));
+                    }
+                    if (i[0] && !i[1]) {
+                        if (a.type()->size == (u32)sizeof(f64)) return ctx->imm(av.f * bv.i);
+                        else return ctx->imm((f32)(av.f * bv.i));
+                    }
                     if (!i[0] &&  i[1]) return ctx->imm(av.i * bv.f);
                     if (!i[0] && !i[1]) return ctx->imm(av.i * bv.i);
                     break;
                 }
                 case ot::div: {
-                    if ( i[0] &&  i[1]) return ctx->imm(av.f / bv.f);
-                    if ( i[0] && !i[1]) return ctx->imm(av.f / bv.i);
+                    if (i[0] && i[1]) {
+                        if (a.type()->size == (u32)sizeof(f64)) return ctx->imm(av.f / bv.f);
+                        else return ctx->imm((f32)(av.f / bv.f));
+                    }
+                    if (i[0] && !i[1]) {
+                        if (a.type()->size == (u32)sizeof(f64)) return ctx->imm(av.f / bv.i);
+                        else return ctx->imm((f32)(av.f / bv.i));
+                    }
                     if (!i[0] &&  i[1]) return ctx->imm(av.i / bv.f);
                     if (!i[0] && !i[1]) return ctx->imm(av.i / bv.i);
                     break;
                 }
                 case ot::mod: {
+                    if (i[0] && i[1]) {
+                        if (a.type()->size == (u32)sizeof(f64)) return ctx->imm(modf(av.f, bv.f));
+                        else return ctx->imm((f32)modf(av.f, bv.f));
+                    }
+                    if (i[0] && !i[1]) {
+                        if (a.type()->size == (u32)sizeof(f64)) return ctx->imm(modf(av.f, (f64)bv.i));
+                        else return ctx->imm((f32)modf(av.f, (f64)bv.i));
+                    }
                     if ( i[0] &&  i[1]) return ctx->imm(modf(av.f, bv.f));
                     if ( i[0] && !i[1]) return ctx->imm(modf(av.f, bv.f));
                     if (!i[0] &&  i[1]) return ctx->imm(modf(f64(av.i), bv.f));
@@ -1028,8 +1062,89 @@ namespace gjs {
 
             if (a.is_imm() && b.is_imm()) return solve_imm_bin_op(ctx, a, b, _op);
 
+            static bool resultIsBoolean[] = {
+                false, // null
+                false, // load
+                false, // store
+                false, // stack_alloc
+                false, // stack_free
+                false, // module_data
+                false, // iadd
+                false, // isub
+                false, // imul
+                false, // idiv
+                false, // imod
+                false, // uadd
+                false, // usub
+                false, // umul
+                false, // udiv
+                false, // umod
+                false, // fadd
+                false, // fsub
+                false, // fmul
+                false, // fdiv
+                false, // fmod
+                false, // dadd
+                false, // dsub
+                false, // dmul
+                false, // ddiv
+                false, // dmod
+                false, // sl
+                false, // sr
+                true , // land
+                true , // lor
+                true , // band
+                true , // bor
+                true , // bxor
+                true , // ilt
+                true , // igt
+                true , // ilte
+                true , // igte
+                true , // incmp
+                true , // icmp
+                true , // ult
+                true , // ugt
+                true , // ulte
+                true , // ugte
+                true , // uncmp
+                true , // ucmp
+                true , // flt
+                true , // fgt
+                true , // flte
+                true , // fgte
+                true , // fncmp
+                true , // fcmp
+                true , // dlt
+                true , // dgt
+                true , // dlte
+                true , // dgte
+                true , // dncmp
+                true , // dcmp
+                false, // eq
+                false, // neg
+                false, // call
+                false, // param
+                false, // ret
+                false, // cvt
+                false, // label
+                false, // branch
+                false, // jump
+                false, // term
+                false, // meta_if_branch
+                false, // meta_for_loop
+                false, // meta_while_loop
+                false  // meta_do_while_loop
+            };
+
             operation op = get_op(_op, a.type());
             if ((u8)op) {
+                if (resultIsBoolean[(u8)op]) {
+                    var ret = ctx->empty_var(ctx->type("bool"));
+                    var v = b.convert(a.type());
+                    ctx->add(op).operand(ret).operand(a).operand(v);
+                    return ret;
+                }
+
                 var ret = ctx->empty_var(a.type());
                 var v = b.convert(a.type());
                 ctx->add(op).operand(ret).operand(a).operand(v);

@@ -334,7 +334,7 @@ namespace gjs {
                 else if (cur.text == "++") op->op = op::preInc;
                 op->rvalue = unary(ctx);
                 if (!op->rvalue && (op->op == op::not || op->op == op::negate)) throw exc(ec::p_expected_expression, cur.src);
-                if (!op->rvalue || (op->rvalue->type != nt::identifier && op->rvalue->op != op::member && op->rvalue->op != op::index)) {
+                if ((op->op == op::preDec || op->op == op::preInc) && (!op->rvalue || (op->rvalue->type != nt::identifier && op->rvalue->op != op::member && op->rvalue->op != op::index))) {
                     throw exc(ec::p_expected_assignable, op->rvalue ? op->rvalue->ref : ctx.current().src);
                 }
 
@@ -411,7 +411,7 @@ namespace gjs {
                 op->op = cur == tt::open_bracket ? op::index : op::member;
                 op->lvalue = ret;
                 if (cur == tt::open_bracket) {
-                    op->rvalue = primary(ctx);
+                    op->rvalue = expression(ctx);
                     if (!op->rvalue) throw exc(ec::p_expected_expression, ctx.current().src);
                 } else {
                     if (ctx.match({ tt::identifier })) op->rvalue = identifier(ctx);

@@ -158,7 +158,7 @@ namespace gjs {
         void if_statement(context& ctx, parse::ast* n) {
             ctx.push_node(n);
             var cond = expression(ctx, n->condition);
-            auto meta = ctx.add(operation::meta_if_branch);
+            //auto meta = ctx.add(operation::meta_if_branch);
             auto branch = ctx.add(operation::branch).operand(cond);
 
             ctx.push_block();
@@ -166,30 +166,33 @@ namespace gjs {
             ctx.pop_block();
 
             // truth body end
-            meta.label(ctx.label());
-            auto jmp = ctx.add(operation::jump);
+            //meta.label(ctx.label());
+            tac_wrapper* jmp = nullptr;
 
             if (n->else_body) {
-                ctx.push_node(n->else_body);
+                jmp = &ctx.add(operation::jump);
                 branch.label(ctx.label());
+
+                ctx.push_node(n->else_body);
                 ctx.push_block();
                 any(ctx, n->else_body);
                 ctx.pop_block();
                 ctx.pop_node();
 
                 // false body end
-                label_id false_end_label = ctx.label();
-                meta.label(false_end_label);
-                ctx.add(operation::jump).label(false_end_label);
+                //label_id false_end_label = ctx.label();
+                //meta.label(false_end_label);
             } else {
                 // no false body
-                meta.label(0);
+                //meta.label(0);
                 branch.label(ctx.label());
             }
             // join address
-            label_id join_label = ctx.label();
-            jmp.label(join_label);
-            meta.label(join_label);
+            if (jmp) {
+                label_id join_label = ctx.label();
+                jmp->label(join_label);
+            }
+            //meta.label(join_label);
             ctx.pop_node();
         }
     };

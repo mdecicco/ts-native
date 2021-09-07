@@ -8,9 +8,11 @@ namespace gjs {
     class script_array {
         public:
             script_array(u64 moduletype);
+            script_array(u64 moduletype, const script_array& o);
             ~script_array();
 
             void push(subtype_t* elem);
+            void clear();
             subtype_t* operator[](u32 idx);
             u32 length() const;
 

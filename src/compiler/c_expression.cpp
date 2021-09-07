@@ -148,7 +148,7 @@ namespace gjs {
                                     ctx.log()->err(ec::c_type_is_not_value, n->lvalue->ref);
                                     break;
                                 }
-                                default: { }
+                                default: { break; }
                             }
                         }
                         else ctx.log()->err(ec::c_symbol_not_found_in_module, n->lvalue->ref, std::string(*n->rvalue).c_str(), name.c_str());
@@ -393,14 +393,14 @@ namespace gjs {
                 case nt::conditional: {
                     ctx.push_node(n);
                     var cond = expression_inner(ctx, n->condition);
-                    auto& meta = ctx.add(operation::meta_if_branch);
+                    //auto& meta = ctx.add(operation::meta_if_branch);
                     auto& b = ctx.add(operation::branch).operand(cond);
 
                     // truth body begin
                     var tmp0 = expression_inner(ctx, n->lvalue);
                     var result = ctx.empty_var(tmp0.type());
                     result.operator_eq(tmp0);
-                    meta.label(ctx.label());
+                    //meta.label(ctx.label());
                     auto& j = ctx.add(operation::jump);
                     // truth body end
 
@@ -409,13 +409,12 @@ namespace gjs {
                     // false body begin
                     var tmp1 = expression_inner(ctx, n->rvalue);
                     result.operator_eq(tmp1);
-                    meta.label(ctx.label());
-                    ctx.add(operation::jump).operand(ctx.imm(ctx.code_sz()));
+                    //meta.label(ctx.label());
                     // false body end
 
                     // join address
                     j.label(ctx.label());
-                    meta.label(ctx.label());
+                    //meta.label(ctx.label());
                     
                     ctx.pop_node();
                     return result;
