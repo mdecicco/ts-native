@@ -66,10 +66,10 @@ namespace gjs {
             "dcmp",
             "eq",
             "neg",
+            "cvt",
             "call",
             "param",
             "ret",
-            "cvt",
             "label",
             "branch",
             "jump",
@@ -141,10 +141,10 @@ namespace gjs {
                 true,    // dcmp
                 true,    // eq
                 true,    // neg
+                true ,   // cvt
                 true,    // call (not an assignment when call returns on stack)
                 false,   // param
                 false,   // ret
-                false,   // cvt
                 false,   // label
                 false,   // branch
                 false,   // jump
@@ -227,9 +227,34 @@ namespace gjs {
                     return out + " " + callee_v.to_string() + " -> " + operands[1].to_string();
                 } else return out + " " + callee_v.to_string();
             }
-            for (u8 i = 0;i < op_idx;i++) out += " " + operands[i].to_string();
+            for (u8 i = 0;i < op_idx;i++) {
+                if (!operands[i].valid()) break;
+                out += " " + operands[i].to_string();
+            }
+
             for (u8 i = 0;i < lb_idx;i++) out += format(" label_%d", labels[i]);
             return out;
+        }
+
+        const var* tac_instruction::assignsTo() const {
+            if (!is_assignment(*this)) return nullptr;
+
+            u8 assignedOpIdx = 0;
+            if (op == operation::call && !callee) assignedOpIdx = 1;
+            if (operands[assignedOpIdx].valid() && !operands[assignedOpIdx].is_spilled() && !operands[assignedOpIdx].is_arg()) return &operands[assignedOpIdx];
+            
+            return nullptr;
+        }
+
+        bool tac_instruction::involves(u32 reg_id, bool excludeAssignment) const {
+            if (operands[2].valid() && operands[2].m_reg_id == reg_id) return true;
+
+            bool assigns = is_assignment(*this);
+            u8 assignedOpIdx = 0;
+            if (op == operation::call && !callee) assignedOpIdx = 1;
+            if ((!excludeAssignment || !assigns || assignedOpIdx != 0) && operands[0].valid() && operands[0].m_reg_id == reg_id) return true;
+            if ((!excludeAssignment || !assigns || assignedOpIdx != 1) && operands[1].valid() && operands[1].m_reg_id == reg_id) return true;
+            return false;
         }
 
         tac_wrapper::tac_wrapper() : ctx(nullptr), addr(0), fidx(0) {

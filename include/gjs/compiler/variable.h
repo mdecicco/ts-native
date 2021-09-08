@@ -14,6 +14,10 @@ namespace gjs {
         enum class property_flags : u8;
     };
 
+    namespace optimize {
+        struct liveness;
+    };
+
     namespace compile {
         struct context;
 
@@ -24,6 +28,7 @@ namespace gjs {
                 var(const var& v);
                 ~var();
 
+                inline void invalidate() { m_ctx = nullptr; }
                 inline std::string name() const { return m_name; }
                 inline source_ref instantiation() const { return m_instantiation; }
                 inline void set_code_ref(const source_ref& ref) { m_instantiation = ref; }
@@ -111,6 +116,7 @@ namespace gjs {
                 friend struct context;
                 friend class register_allocator;
                 friend struct compilation_output;
+                friend struct optimize::liveness;
 
                 var();
                 var(context* ctx, u64 u);

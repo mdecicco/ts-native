@@ -69,10 +69,10 @@ namespace gjs {
             dcmp,
             eq,
             neg,
+            cvt,
             call,
             param,
             ret,
-            cvt,
 
             label,
             // if op[0] is true: continue, else jump to label[0]
@@ -130,6 +130,8 @@ namespace gjs {
                 tac_instruction& func(var f);
                 tac_instruction& label(label_id label);
                 std::string to_string() const;
+                const var* assignsTo() const;
+                bool involves(u32 reg_id, bool excludeAssignment = false) const;
 
                 operation op;
                 var operands[3];

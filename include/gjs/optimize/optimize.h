@@ -1,31 +1,18 @@
 #pragma once
 #include <gjs/common/types.h>
-#include <vector>
+#include <gjs/util/robin_hood.h>
 
 namespace gjs {
     class script_context;
     struct compilation_output;
 
+    namespace compile {
+        typedef u32 label_id;
+    };
+
     namespace optimize {
-        struct cfg;
-        struct basic_block {
-            address begin;
-            address end;
-            std::vector<u32> from;
-            std::vector<u32> to;
-
-            basic_block* flows_from(u8 idx, cfg* graph);
-            basic_block* flows_to(u8 idx, cfg* graph);
-            bool is_loop(cfg* graph);
-        };
-
-        struct cfg {
-            std::vector<basic_block> blocks;
-
-            basic_block* blockAtAddr(address a);
-            u32 blockIdxAtAddr(address a);
-            void build(compilation_output& in, u16 fidx);
-        };
+        typedef robin_hood::unordered_map<compile::label_id, address> label_map;
+        void build_label_map(compilation_output& in, u16 fidx, label_map& lmap);
 
         void test_step(script_context* ctx, compilation_output& in, u16 fidx);
     };

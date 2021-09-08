@@ -149,7 +149,7 @@ void update_boid(f32 dt, boid b, u32 selfIdx, array<boid> boids, vec2f wsz, Sear
 void main() {
 	vec2f wsz = window_size();
 	array<boid> boids;
-	for (u32 i = 0;i < 100;i++) {
+	for (u32 i = 0;i < 250;i++) {
 		boids.push(create_boid(wsz));
 	}
 

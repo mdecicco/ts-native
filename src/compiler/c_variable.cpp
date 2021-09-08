@@ -179,6 +179,7 @@ namespace gjs {
         }
 
         var::~var() {
+            m_ctx = nullptr;
             m_setter.this_obj = nullptr;
             m_setter.func = nullptr;
         }
