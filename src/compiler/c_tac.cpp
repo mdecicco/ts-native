@@ -164,6 +164,7 @@ namespace gjs {
 
         tac_instruction::tac_instruction() : op(operation::null), op_idx(0), lb_idx(0), callee(nullptr) {
             labels[0] = labels[1] = labels[2] = 0;
+            types[0] = types[1] = types[2] = nullptr;
         }
 
         tac_instruction::tac_instruction(const tac_instruction& rhs) {
@@ -171,6 +172,9 @@ namespace gjs {
             operands[0] = rhs.operands[0];
             operands[1] = rhs.operands[1];
             operands[2] = rhs.operands[2];
+            types[0] = rhs.types[0];
+            types[1] = rhs.types[1];
+            types[2] = rhs.types[2];
             labels[0] = rhs.labels[0];
             labels[1] = rhs.labels[1];
             labels[2] = rhs.labels[2];
@@ -183,6 +187,7 @@ namespace gjs {
 
         tac_instruction::tac_instruction(operation _op, const source_ref& _src) : op(_op), src(_src), op_idx(0), lb_idx(0), callee(nullptr) {
             labels[0] = labels[1] = labels[2] = 0;
+            types[0] = types[1] = types[2] = nullptr;
         }
 
         tac_instruction::~tac_instruction() {
@@ -190,6 +195,7 @@ namespace gjs {
 
         tac_instruction& tac_instruction::operand(const var& v) {
             if (op_idx == 3) return *this;
+            types[op_idx] = v.type();
             operands[op_idx++] = v;
             return *this;
         }

@@ -47,7 +47,9 @@ namespace gjs {
             }
         }
 
-        void test_step(script_context* ctx, compilation_output& in, u16 fidx) {
+        bool constexpr verbose = false;
+
+        void ir_phase_1(script_context* ctx, compilation_output& in, u16 fidx) {
             auto& code = in.funcs[fidx].code;
             if (code.size() == 0) return;
 
@@ -68,8 +70,73 @@ namespace gjs {
             for (auto& b : g.blocks) {
                 do {
                     allChanges = 0;
+
+                    // copy propagation
+                    {
+                        changes = 0;
+                        robin_hood::unordered_map<u32, var*> assignMap;
+                        robin_hood::unordered_map<u32, u32> assignAddrMap;
+                        for (address i = b.begin;i < b.end;i++) {
+                            if (code[i].op == op::eq) {
+                                u32 r = code[i].operands[0].reg_id();
+                                if (!code[i].operands[1].is_imm() && !code[i].operands[1].is_arg()) {
+                                    auto it = assignMap.find(code[i].operands[1].reg_id());
+                                    if (it != assignMap.end()) {
+                                        var *v = it->getSecond();
+                                        u32 assAddr = assignAddrMap[code[i].operands[1].reg_id()];
+                                        if constexpr (verbose) {
+                                            printf("\n\npropagating...\n");
+                                            printf("[%d] %s\n...", assAddr, code[assAddr].to_string().c_str());
+                                            printf("\n[%d] %s <- ", i, code[i].to_string().c_str());
+                                        }
+
+                                        code[i].operands[1] = *v;
+                                        code[i].operands[1].force_cast(code[i].types[1]);
+                                        if constexpr (verbose) printf("%s\n", code[i].to_string().c_str());
+                                        assignMap[r] = v;
+                                        assignAddrMap[r] = i;
+                                        changes++;
+                                    } else {
+                                        assignMap[r] = &code[i].operands[1];
+                                        assignAddrMap[r] = i;
+                                    }
+                                } else {
+                                    assignMap[r] = &code[i].operands[1];
+                                    assignAddrMap[r] = i;
+                                }
+
+                                continue;
+                            }
+
+                            const var* assigned = code[i].assignsTo();
+
+                            for (u8 o = 0;o < 3;o++) {
+                                var& v = code[i].operands[o];
+                                if (!v.valid()) break;
+                                if (v.is_arg() || v.is_imm() || v.is_spilled() || (assigned && v.reg_id() == assigned->reg_id())) continue;
+                                auto it = assignMap.find(v.reg_id());
+                                if (it != assignMap.end()) {
+                                    if constexpr (verbose) printf("propagating: [%d] %s -> ", i, code[i].to_string().c_str());
+                                    code[i].operands[o] = *it->second;
+                                    code[i].operands[o].force_cast(code[i].types[o]);
+                                    if constexpr (verbose) printf("%s\n", code[i].to_string().c_str());
+                                }
+                            }
+
+                            if (assigned) {
+                                // Register assigned to expression result that is evaluated at runtime.
+                                // This means that the new value of the register can't be stored in assignMap.
+                                // It also means that the register will no longer hold whatever value assignMap
+                                // has for the register after this instruction, so that value must be forgotten.
+                                assignMap.erase(assigned->reg_id());
+                                assignAddrMap.erase(assigned->reg_id());
+                            }
+                        }
+                        allChanges += changes;
+                    }
+
                     // common subexpression elimination
-                    do {
+                    {
                         changes = 0;
                         assignments.clear();
                         assignmentAddrs.clear();
@@ -121,13 +188,13 @@ namespace gjs {
                              
                                     if (doUpdate) {
                                         u32 begin = assignmentAddrs[a];
-                                        // printf("\n\neliminating...\n[%d] %s\n...\n[%d] %s <- ", begin, exp.to_string().c_str(), i, code[i].to_string().c_str());
+                                        if constexpr (verbose) printf("\n\neliminating...\n[%d] %s\n...\n[%d] %s <- ", begin, exp.to_string().c_str(), i, code[i].to_string().c_str());
                                         const var& prev = exp.operands[0];
                                         code[i].op = operation::eq;
                                         code[i].operands[1] = exp.operands[0];
                                         code[i].operands[2].invalidate();
                                         changes++;
-                                        // printf("%s\n", code[i].to_string().c_str());
+                                        if constexpr (verbose) printf("%s\n", code[i].to_string().c_str());
                                 
                                         changedAddrs.push_back({ i, begin });
                                     }
@@ -138,127 +205,84 @@ namespace gjs {
                             assignmentAddrs.push_back(i);
                         }
                         allChanges += changes;
-                    } while (changes > 0);
-
-                    // copy propagation
-                    do {
-                        changes = 0;
-                        robin_hood::unordered_map<u32, var*> assignMap;
-                        robin_hood::unordered_map<u32, u32> assignAddrMap;
-                        for (address i = b.begin;i < b.end;i++) {
-                            if (code[i].op == op::eq) {
-                                u32 r = code[i].operands[0].reg_id();
-                                if (!code[i].operands[1].is_imm() && !code[i].operands[1].is_arg()) {
-                                    auto it = assignMap.find(code[i].operands[1].reg_id());
-                                    if (it != assignMap.end()) {
-                                        var *v = it->getSecond();
-                                        u32 assAddr = assignAddrMap[code[i].operands[1].reg_id()];
-                                        // printf("\n\npropagating...\n");
-                                        // printf("[%d] %s\n...", assAddr, code[assAddr].to_string().c_str());
-                                        // printf("\n[%d] %s <- ", i, code[i].to_string().c_str());
-
-                                        code[i].operands[1] = *v;
-                                        // printf("%s\n", code[i].to_string().c_str());
-                                        assignMap[r] = v;
-                                        assignAddrMap[r] = i;
-                                        changes++;
-                                    } else {
-                                        assignMap[r] = &code[i].operands[1];
-                                        assignAddrMap[r] = i;
-                                    }
-                                } else {
-                                    assignMap[r] = &code[i].operands[1];
-                                    assignAddrMap[r] = i;
-                                }
-
-                                continue;
-                            }
-
-                            const var* assigned = code[i].assignsTo();
-                            if (assigned) {
-                                // Register assigned to expression result that is evaluated at runtime.
-                                // This means that the new value of the register can't be stored in assignMap.
-                                // It also means that the register will no longer hold whatever value assignMap
-                                // has for the register after this instruction, so that value must be forgotten.
-                                assignMap.erase(assigned->reg_id());
-                                assignAddrMap.erase(assigned->reg_id());
-                            }
-                        }
-                        allChanges += changes;
-                    } while (changes > 0);
-
-                    // dead code elimination
-                    do {
-                        changes = 0;
-                        l.build(in, fidx, lmap);
-                        std::vector<u32> deadAddrs;
-                        for (auto& r : l.lifetimes) {
-                            if (r.usage_count == 0) {
-                                // printf("dead: [%d] %s\n", r.begin, code[r.begin].to_string().c_str());
-                                deadAddrs.push_back(r.begin);
-                            }
-                        }
-
-                        changes = deadAddrs.size();
-                        if (changes > 0) {
-                            std::sort(deadAddrs.begin(), deadAddrs.end(), [](u32 a, u32 b) { return a > b; });
-                            for (u32 addr : deadAddrs) {
-                                for (auto& b1 : g.blocks) {
-                                    if (b1.begin >= addr) {
-                                        b1.begin--;
-                                        b1.end--;
-                                    } else if (b1.end >= addr) b1.end--;
-                                }
-                                code.erase(code.begin() + addr);
-                            }
-
-                            lmap.clear();
-                            build_label_map(in, fidx, lmap);
-                        }
-
-                        allChanges += changes;
-                    } while (changes > 0);
+                    }
                 } while (allChanges > 0);
             }
-            
-            return;
-            l.build(in, fidx, lmap);
 
-            printf("\n\n\n\n---------------- %s ----------------\n", in.funcs[fidx].func->name.c_str());
-            for (u32 b = 0;b < g.blocks.size();b++) {
-                printf("[block %d%s]\n", b, g.blocks[b].is_loop(&g) ? " <loop>" : "");
-                for (address i = g.blocks[b].begin;i < g.blocks[b].end;i++) {
-                    bool found = false;
-                    for (u32 c = 0;c < changedAddrs.size();c++) {
-                        if (changedAddrs[c].first == i) {
-                            printf("<%d>\t[%d] ", changedAddrs[c].second, i);
-                            found = true;
-                            break;
+            if constexpr (verbose) {
+                l.build(in, fidx, lmap);
+
+                printf("\n\n\n\n---------------- %s ----------------\n", in.funcs[fidx].func->name.c_str());
+                for (u32 b = 0;b < g.blocks.size();b++) {
+                    printf("[block %d%s]\n", b, g.blocks[b].is_loop(&g) ? " <loop>" : "");
+                    for (address i = g.blocks[b].begin;i < g.blocks[b].end;i++) {
+                        bool found = false;
+                        for (u32 c = 0;c < changedAddrs.size();c++) {
+                            if (changedAddrs[c].first == i) {
+                                printf("<%d>\t[%d] ", changedAddrs[c].second, i);
+                                found = true;
+                                break;
+                            }
                         }
-                    }
-                    if (!found) printf("\t[%d] ", i);
+                        if (!found) printf("\t[%d] ", i);
                     
-                    printf(code[i].to_string().c_str());
+                        printf(code[i].to_string().c_str());
 
-                    const var* assigns = code[i].assignsTo();
-                    if (assigns) {
-                        reg_lifetime* range = l.get_live_range(assigns->reg_id(), i);
-                        if (range) printf(" <live until %d>", range->end);
+                        const var* assigns = code[i].assignsTo();
+                        if (assigns) {
+                            reg_lifetime* range = l.get_live_range(assigns->reg_id(), i);
+                            if (range) printf(" <live until %d>", range->end);
+                        }
+                        printf("\n");
                     }
-                    printf("\n");
+                    printf("Incoming: ");
+                    for (u32 i = 0;i < g.blocks[b].from.size();i++) {
+                        if (i > 0) printf(", ");
+                        printf("%d", g.blocks[b].from[i]);
+                    }
+                    printf("\nOutgoing: ");
+                    for (u32 i = 0;i < g.blocks[b].to.size();i++) {
+                        if (i > 0) printf(", ");
+                        printf("%d", g.blocks[b].to[i]);
+                    }
+                    printf("\n\n\n");
                 }
-                printf("Incoming: ");
-                for (u32 i = 0;i < g.blocks[b].from.size();i++) {
-                    if (i > 0) printf(", ");
-                    printf("%d", g.blocks[b].from[i]);
-                }
-                printf("\nOutgoing: ");
-                for (u32 i = 0;i < g.blocks[b].to.size();i++) {
-                    if (i > 0) printf(", ");
-                    printf("%d", g.blocks[b].to[i]);
-                }
-                printf("\n\n\n");
             }
+        }
+
+        void dead_code(script_context* ctx, compilation_output& in, u16 fidx) {
+            auto& code = in.funcs[fidx].code;
+            if (code.size() == 0) return;
+
+            label_map lmap;
+            build_label_map(in, fidx, lmap);
+
+            liveness l;
+            u32 changes = 0;
+
+            do {
+                changes = 0;
+                l.build(in, fidx, lmap);
+
+                std::vector<u32> deadAddrs;
+                for (auto& r : l.lifetimes) {
+                    if (r.usage_count == 0) {
+                        if constexpr (verbose) printf("dead: [%d] %s\n", r.begin, code[r.begin].to_string().c_str());
+                        deadAddrs.push_back(r.begin);
+                    }
+                }
+
+                changes = deadAddrs.size();
+                if (changes > 0) {
+                    std::sort(deadAddrs.begin(), deadAddrs.end(), [](u32 a, u32 b) { return a > b; });
+                    for (u32 addr : deadAddrs) {
+                        code.erase(code.begin() + addr);
+                    }
+
+                    lmap.clear();
+                    build_label_map(in, fidx, lmap);
+                }
+            } while (changes > 0);
         }
     };
 };

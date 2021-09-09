@@ -107,8 +107,9 @@ int main(int arg_count, const char** args) {
     be.commit_bindings();
     ctx.io()->set_cwd_from_args(arg_count, args);
     // ctx.compiler()->add_ir_step(debug_ir_step, false);
-    ctx.compiler()->add_ir_step(optimize::test_step, false);
-    ctx.compiler()->add_ir_step(debug_ir_step, false);
+    ctx.compiler()->add_ir_step(optimize::ir_phase_1, false);
+    ctx.compiler()->add_ir_step(optimize::dead_code, false);
+    // ctx.compiler()->add_ir_step(debug_ir_step, false);
     ctx.compiler()->add_ir_step(debug_ir_step, true);
 
     script_module* mod = ctx.resolve("test");

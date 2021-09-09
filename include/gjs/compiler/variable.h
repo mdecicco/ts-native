@@ -48,6 +48,7 @@ namespace gjs {
                 inline u8 arg_idx() const { return m_arg_idx; }
                 inline void set_arg_idx(u8 idx) { m_arg_idx = idx; }
                 inline context* ctx() { return m_ctx; }
+                inline void force_cast(script_type* to) { m_type = to; }
 
                 // used by code generation phase when generating load instructions
                 // for 'spilled' variables

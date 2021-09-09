@@ -132,6 +132,7 @@ namespace gjs {
 
                 operation op;
                 var operands[3];
+                script_type* types[3];
                 label_id labels[3];
                 script_function* callee;
                 var callee_v;
