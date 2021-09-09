@@ -2,8 +2,8 @@
 #include <gjs/common/types.h>
 
 namespace gjs {
-    // number of bits needed to store instruction id: 7
-    // max number of instructions 127
+    // number of bits needed to store instruction id: 8
+    // max number of instructions 255
     enum class vm_instruction {
         null         = 0,    // do nothing
         term            ,    // terminate execution
@@ -39,6 +39,7 @@ namespace gjs {
         div             ,    // divide register by another                          div     (dest)   (a)         (b)    dest = a / b
         divi            ,    // divide register by immediate value                  divi    (dest)   (a)         1.0    dest = a / 1
         divir           ,    // divide immediate value by register                  divir   (dest)   (a)         1.0    dest = 1 / a
+        neg             ,    // negate register and store in another                neg     (dest)   (a)                dest = -a
 
         // unsigned integer arithmetic
         addu            ,    // add two registers                                   addu    (dest)   (a)         (b)    dest = a + b
@@ -78,6 +79,7 @@ namespace gjs {
         fdiv            ,    // divide register by another                          fdiv    (dest)   (a)         (b)    dest = a / b
         fdivi           ,    // divide register by immediate value                  fdivi   (dest)   (a)         1.0    dest = a / 1.0
         fdivir          ,    // divide immediate value by register                  fdivir  (dest)   (a)         1.0    dest = 1.0 / a
+        negf            ,    // negate register and store in another                negf    (dest)   (a)                dest = -a
         // f64
         dadd            ,    // add two registers                                   fadd    (dest)   (a)         (b)    dest = a + b
         daddi           ,    // add register and immediate value                    faddi   (dest)   (a)         1.0    dest = a + 1.0
@@ -89,6 +91,7 @@ namespace gjs {
         ddiv            ,    // divide register by another                          fdiv    (dest)   (a)         (b)    dest = a / b
         ddivi           ,    // divide register by immediate value                  fdivi   (dest)   (a)         1.0    dest = a / 1.0
         ddivir          ,    // divide immediate value by register                  fdivir  (dest)   (a)         1.0    dest = 1.0 / a
+        negd            ,    // negate register and store in another                negd    (dest)   (a)                dest = -a
 
         // comparison (need unsigned counterparts still)
         lt              ,    // check if register less than register                lt      (dest)   (a)         (b)    dest = a < b

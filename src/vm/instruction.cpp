@@ -29,6 +29,7 @@ namespace gjs {
         "div",
         "divi",
         "divir",
+        "neg",
 
         // unsigned arithmetic
         "addu",
@@ -67,6 +68,7 @@ namespace gjs {
         "fdiv",
         "fdivi",
         "fdivir",
+        "negf",
         "dadd",
         "daddi",
         "dsub",
@@ -77,6 +79,7 @@ namespace gjs {
         "ddiv",
         "ddivi",
         "ddivir",
+        "negd",
 
         // comparison
         "lt",

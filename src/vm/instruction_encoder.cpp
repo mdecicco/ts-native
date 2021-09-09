@@ -56,11 +56,14 @@ namespace gjs {
             || x == vmi::mptr                 \
         )
 
-    // mtfp, mffp
+    // mtfp, mffp, neg*
     #define check_instr_type_4(x)             \
         (                                     \
                x == vmi::mtfp                 \
             || x == vmi::mffp                 \
+            || x == vmi::neg                  \
+            || x == vmi::negf                 \
+            || x == vmi::negd                 \
         )
 
     // ld*, st*
@@ -233,6 +236,8 @@ namespace gjs {
             || x == vmi::dmuli                \
             || x == vmi::ddivi                \
             || x == vmi::ddivir               \
+            || x == vmi::negf                 \
+            || x == vmi::negd                 \
         )
 
     // cvt_*, ld*, st*
@@ -305,6 +310,8 @@ namespace gjs {
             || x == vmi::dgte                 \
             || x == vmi::dcmp                 \
             || x == vmi::dncmp                \
+            || x == vmi::negf                 \
+            || x == vmi::negd                 \
         )
 
     #define third_operand_must_be_fpr(x)      \

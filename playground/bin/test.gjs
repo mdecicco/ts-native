@@ -75,8 +75,17 @@ boid create_boid(vec2f wsz) {
 }
 
 void update_boid(f32 dt, boid b, u32 selfIdx, array<boid> boids, vec2f wsz, SearchGrid grid, array<u32> neighborIndices) {
+	f32 maxSpeed = max_speed();
+	f32 minSpeed = min_speed();
+	f32 cohesionFac = cohesion_fac();
+	f32 separationFac = separation_fac();
+	f32 alignFac = align_fac();
+	f32 wanderFac = wander_fac();
+	f32 minDist = min_dist();
+	f32 detectionRadius = detection_radius();
+
 	neighborIndices.clear();
-	grid.find_neighbors(wsz, b.position, 50.0f, boids, neighborIndices, selfIdx);
+	grid.find_neighbors(wsz, b.position, detectionRadius, boids, neighborIndices, selfIdx);
 
 	u32 neighborCount = neighborIndices.length;
 	f32 nc = neighborCount;
@@ -91,7 +100,7 @@ void update_boid(f32 dt, boid b, u32 selfIdx, array<boid> boids, vec2f wsz, Sear
 			cohesion += boids[bidx].position;
 			vec2f delta = boids[bidx].position - b.position;
 			f32 dist = delta.length;
-			if (dist < 20.0f) {
+			if (dist < minDist) {
 				delta.normalize();
 				delta /= dist;
 				separation += delta;
@@ -105,38 +114,38 @@ void update_boid(f32 dt, boid b, u32 selfIdx, array<boid> boids, vec2f wsz, Sear
 
 		align /= nc;
 		align.normalize();
-		align *= 130.0f;
+		align *= maxSpeed;
 		align -= b.velocity;
 		
 		if (sc > 0.0f) {
 			separation /= sc;
 			separation.normalize();
-			separation *= -130.0f;
+			separation *= -maxSpeed;
 			separation -= b.velocity;
 		}
 
-		b.acceleration += cohesion * 1.6f;
-		b.acceleration += align * 1.5f;
-		b.acceleration += separation * 1.6f;
+		b.acceleration += cohesion * cohesionFac;
+		b.acceleration += align * alignFac;
+		b.acceleration += separation * separationFac;
 	}
 	
 	b.wander += random(-15.0f, 15.0f);
-	vec2f wander = vec2f.fromAngleLength(b.wander, 130.0f);
+	vec2f wander = vec2f.fromAngleLength(b.wander, maxSpeed);
 	wander *= max(0.0f, 5.0f - min(nc, 5.0f)) / 5.0f;
-	b.acceleration += wander * 1.2f;
+	b.acceleration += wander * wanderFac;
 
 	b.velocity *= 0.8f;
 	b.velocity += b.acceleration * dt;
 	
 	f32 speed = b.velocity.length;
-	if (speed > 130.0f) {
+	if (speed > maxSpeed) {
 		b.velocity /= speed;
-		b.velocity *= 130.0f;
+		b.velocity *= maxSpeed;
 	}
 
-	if (speed < 20.0f) {
+	if (speed < minSpeed) {
 		b.velocity /= speed;
-		b.velocity *= 20.0f;
+		b.velocity *= minSpeed;
 	}
 
 	b.position += b.velocity * dt;

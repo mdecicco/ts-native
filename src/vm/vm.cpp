@@ -215,6 +215,10 @@ namespace gjs {
                     GRx(_O1, i64) = _O3i / GRx(_O2, i64);
                     break;
                 }
+                case vmi::neg: {
+                    GRi(_O1) = -GRi(_O2);
+                    break;
+                }
                 case vmi::addu: {
                     GRx(_O1, u64) = GRx(_O2, u64) + GRx(_O3, u64);
                     break;
@@ -362,6 +366,10 @@ namespace gjs {
                     GRf(_O1) = _O3f / GRf(_O2);
                     break;
                 }
+                case vmi::negf: {
+                    GRf(_O1) = -GRf(_O2);
+                    break;
+                }
                 case vmi::dadd: {
                     GRd(_O1) = GRd(_O2) + GRd(_O3);
                     break;
@@ -400,6 +408,10 @@ namespace gjs {
                 }
                 case vmi::ddivir: {
                     GRd(_O1) = _O3d / GRd(_O2);
+                    break;
+                }
+                case vmi::negd: {
+                    GRd(_O1) = -GRd(_O2);
                     break;
                 }
                 case vmi::and: {

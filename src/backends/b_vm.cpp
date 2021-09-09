@@ -250,7 +250,7 @@ namespace gjs {
                 if (o1.is_spilled()) {
                     if (!compile::is_assignment(i)) {
                         r1 = vmr::v0;
-                        if (t1->is_floating_point) r1 = vmr::f13;
+                        if (t1->is_floating_point) r1 = vmr::vf0;
 
                         u8 sz = t1->size;
                         if (!t1->is_primitive) sz = sizeof(void*);
@@ -275,7 +275,7 @@ namespace gjs {
 
                 if (o2.is_spilled()) {
                     r2 = vmr::v1;
-                    if (t2->is_floating_point) r2 = vmr::f14;
+                    if (t2->is_floating_point) r2 = vmr::vf1;
 
                     u8 sz = t2->size;
                     if (!t2->is_primitive) sz = sizeof(void*);
@@ -299,7 +299,7 @@ namespace gjs {
 
                 if (o3.is_spilled()) {
                     r3 = vmr::v2;
-                    if (t3->is_floating_point) r3 = vmr::f15;
+                    if (t3->is_floating_point) r3 = vmr::vf2;
 
                     u8 sz = t3->size;
                     if (!o3.type()->is_primitive) sz = sizeof(void*);
@@ -687,7 +687,14 @@ namespace gjs {
                     break;
                 }
                 case op::neg: {
-                    // todo
+                    if (o2.type()->is_floating_point) {
+                        if (o2.size() == sizeof(f64)) m_instructions += encode(vmi::negd).operand(r1).operand(r2);
+                        else m_instructions += encode(vmi::negf).operand(r1).operand(r2);
+                        m_map.append(i.src);
+                    } else if (!o2.type()->is_unsigned) {
+                        m_instructions += encode(vmi::neg).operand(r1).operand(r2);
+                        m_map.append(i.src);
+                    }
                     break;
                 }
                 case op::call: {

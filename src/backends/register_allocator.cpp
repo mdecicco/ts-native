@@ -202,7 +202,7 @@ namespace gjs {
                 tac_instruction& instr = m_in.funcs[fidx].code[c];
 
                 for (u8 o = 0;o < 3;o++) {
-                    if (instr.operands[o].m_reg_id == regs[i].reg_id) {
+                    if (instr.operands[o].m_reg_id == regs[i].reg_id && instr.operands[o].type()->is_floating_point == regs[i].is_fp) {
                         changes.push_back({ c, o, i });
                     }
                 }
