@@ -37,7 +37,7 @@ namespace gjs {
 
     #define STACK_PADDING_SIZE 8
 
-    vm::vm(vm_backend* ctx, vm_allocator* allocator, u32 stack_size, u32 mem_size) : m_ctx(ctx), alloc(allocator), state(mem_size), m_stack_size(stack_size) {
+    vm::vm(vm_backend* ctx, vm_allocator* allocator, u32 stack_size, u32 mem_size) : m_ctx(ctx), alloc(allocator), state(mem_size), m_stack_size(stack_size), m_subtype_t(nullptr) {
     }
 
     vm::~vm() {
@@ -90,7 +90,7 @@ namespace gjs {
                     break;
                 }
                 case vmi::ld8: {
-                    u64 offset = GR64(integer(_O2)) + _O3ui64;
+                    u64 offset = GR64(u64(_O2)) + _O3ui64;
                     if (offset >= stack_padding_start && offset <= stack_padding_end) {
                         throw error::vm_exception(error::ecode::vm_stack_overflow);
                     }
@@ -99,7 +99,7 @@ namespace gjs {
                     break;
                 }
                 case vmi::ld16: {
-                    u64 offset = GR64(integer(_O2)) + _O3ui64;
+                    u64 offset = GR64(u64(_O2)) + _O3ui64;
                     if (offset >= stack_padding_start && offset <= stack_padding_end) {
                         throw error::vm_exception(error::ecode::vm_stack_overflow);
                     }
@@ -108,7 +108,7 @@ namespace gjs {
                     break;
                 }
                 case vmi::ld32: {
-                    u64 offset = GR64(integer(_O2)) + _O3ui64;
+                    u64 offset = GR64(u64(_O2)) + _O3ui64;
                     if (offset >= stack_padding_start && offset <= stack_padding_end) {
                         throw error::vm_exception(error::ecode::vm_stack_overflow);
                     }
@@ -117,7 +117,7 @@ namespace gjs {
                     break;
                 }
                 case vmi::ld64: {
-                    u64 offset = GR64(integer(_O2)) + _O3ui64;
+                    u64 offset = GR64(u64(_O2)) + _O3ui64;
                     if (offset >= stack_padding_start && offset <= stack_padding_end) {
                         throw error::vm_exception(error::ecode::vm_stack_overflow);
                     }
@@ -126,7 +126,7 @@ namespace gjs {
                     break;
                 }
                 case vmi::st8: {
-                    u64 offset = GR64(integer(_O2)) + _O3ui64;
+                    u64 offset = GR64(u64(_O2)) + _O3ui64;
                     if (offset >= stack_padding_start && offset <= stack_padding_end) {
                         throw error::vm_exception(error::ecode::vm_stack_overflow);
                     }
@@ -135,7 +135,7 @@ namespace gjs {
                     break;
                 }
                 case vmi::st16: {
-                    u64 offset = GR64(integer(_O2)) + _O3ui64;
+                    u64 offset = GR64(u64(_O2)) + _O3ui64;
                     if (offset >= stack_padding_start && offset <= stack_padding_end) {
                         throw error::vm_exception(error::ecode::vm_stack_overflow);
                     }
@@ -144,7 +144,7 @@ namespace gjs {
                     break;
                 }
                 case vmi::st32: {
-                    u64 offset = GR64(integer(_O2)) + _O3ui64;
+                    u64 offset = GR64(u64(_O2)) + _O3ui64;
                     if (offset >= stack_padding_start && offset <= stack_padding_end) {
                         throw error::vm_exception(error::ecode::vm_stack_overflow);
                     }
@@ -153,7 +153,7 @@ namespace gjs {
                     break;
                 }
                 case vmi::st64: {
-                    u64 offset = GR64(integer(_O2)) + _O3ui64;
+                    u64 offset = GR64(u64(_O2)) + _O3ui64;
                     if (offset >= stack_padding_start && offset <= stack_padding_end) {
                         throw error::vm_exception(error::ecode::vm_stack_overflow);
                     }
@@ -655,7 +655,7 @@ namespace gjs {
                     break;
                 }
                 case vmi::jal: {
-                    u32 id = (u32)_O1ui64;
+                    function_id id = (function_id)_O1ui64;
                     script_function* fn = m_ctx->context()->function(id);
                     if (!fn) throw error::vm_exception(error::ecode::vm_invalid_function_id);
                     if (fn->is_host) {
@@ -700,24 +700,28 @@ namespace gjs {
     }
 
     void vm::call_external(script_function* f) {
+        if (!m_subtype_t) m_subtype_t = m_ctx->context()->type<subtype_t>();
         u8 stackReturnRegId = 0;
 
-        std::vector<void*> args;
-        for (u8 a = 0;a < f->type->signature->args.size();a++) {
-            u8 regId = (u8)f->type->signature->args[a].loc;
-            script_type* tp = f->type->signature->args[a].tp;
-            bool is_ptr = f->type->signature->args[a].is_ptr;
-            u64* reg = &(m_ctx->state()->registers[regId]);
+        void* args[16];
+        u8 ac = (u8)f->type->signature->args.size();
+        u64* registers = m_ctx->state()->registers;
+        u8 targetArg = 0;
+        for (u8 a = 0;a < ac;a++) {
+            auto& arg = f->type->signature->args[a];
+            u8 regId = (u8)arg.loc;
+            script_type* tp = arg.tp;
+            u64* reg = &(registers[regId]);
 
-            if (f->type->signature->args[a].implicit == function_signature::argument::implicit_type::ret_addr) {
+            if (arg.implicit == function_signature::argument::implicit_type::ret_addr) {
                 // arg refers to output pointer which is passed to 'call' function and not to the target function directly
                 stackReturnRegId = regId;
                 continue;
             }
 
-            if (tp->name == "subtype") {
+            if (tp == m_subtype_t) {
                 // get subtype from $v3
-                u64 v3 = m_ctx->state()->registers[(u8)vmr::v3];
+                u64 v3 = registers[(u8)vmr::v3];
                 tp = m_ctx->context()->module(extract_left_u32(v3))->types()->get(extract_right_u32(v3));
                 if (!tp) {
                     throw error::vm_exception(error::ecode::vm_no_subtype_provided_for_call, f->name.c_str());
@@ -726,53 +730,55 @@ namespace gjs {
 
             if (tp->is_primitive && !tp->signature) {
                 // *reg is some primitive value (integer, decimal, ...)
-                if (is_ptr) {
-                    args.push_back(reg);
+                if (arg.is_ptr) {
+                    args[targetArg++] = reg;
                 } else {
-                    args.push_back(reinterpret_cast<void*>(*reg));
+                    args[targetArg++] = reinterpret_cast<void*>(*reg);
                 }
             } else {
                 // *reg is a pointer to some structure
-                if (is_ptr) {
-                    args.push_back(reinterpret_cast<void*>(*reg));
+                if (arg.is_ptr) {
+                    args[targetArg++] = reinterpret_cast<void*>(*reg);
                 } else {
                     throw error::vm_exception(error::ecode::vm_cannot_pass_struct_by_value, f->name.c_str(), tp->name.c_str());
                 }
             }
         }
 
-
-
         void* ret_addr = nullptr;
         if (f->type->signature->return_type->size > 0) {
             if (f->type->signature->returns_on_stack) {
                 // implicit return pointer argument register contains a pointer to a memory location within the stack
-                ret_addr = (void*)m_ctx->state()->registers[stackReturnRegId];
+                ret_addr = (void*)registers[stackReturnRegId];
             } else {
                 // return_loc register will directly contain the return value
-                ret_addr = &(m_ctx->state()->registers[(u8)f->type->signature->return_loc]);
+                ret_addr = &(registers[(u8)f->type->signature->return_loc]);
 
                 // make sure there are no left over bits or bytes from the previous value (if it's smaller than 64 bits, there would be)
                 (*(u64*)ret_addr) = 0;
             }
         }
 
-        f->access.wrapped->call(m_ctx->context()->call_vm(), ret_addr, args.data());
+        f->access.wrapped->call(m_ctx->context()->call_vm(), ret_addr, args);
     }
 
     void vm::call_external(raw_callback** cb) {
+        if (!m_subtype_t) m_subtype_t = m_ctx->context()->type<subtype_t>();
         script_function* f = (*cb)->ptr->target;
         u8 stackReturnRegId = 0;
 
-        std::vector<void*> args;
+        void* args[16];
+        u8 ac = (u8)f->type->signature->args.size();
+        u8 targetArg = 0;
+        u64* registers = m_ctx->state()->registers;
         bool hadThis = false;
-        for (u8 a = 0;a < f->type->signature->args.size();a++) {
-            u8 regId = (u8)f->type->signature->args[a].loc;
-            script_type* tp = f->type->signature->args[a].tp;
-            bool is_ptr = f->type->signature->args[a].is_ptr;
+        for (u8 a = 0;a < ac;a++) {
+            auto& arg = f->type->signature->args[a];
+            u8 regId = (u8)arg.loc;
+            script_type* tp = arg.tp;
 
-            if (f->type->signature->args[a].implicit == function_signature::argument::implicit_type::this_ptr) {
-                args.push_back((*cb)->ptr->self_obj());
+            if (arg.implicit == function_signature::argument::implicit_type::this_ptr) {
+                args[targetArg++] = (*cb)->ptr->self_obj();
                 hadThis = true;
                 continue;
             }
@@ -794,17 +800,17 @@ namespace gjs {
                 // always mapped to a GP register.
                 regId--;
             }
-            u64* reg = &(m_ctx->state()->registers[regId]);
+            u64* reg = &(registers[regId]);
 
-            if (f->type->signature->args[a].implicit == function_signature::argument::implicit_type::ret_addr) {
+            if (arg.implicit == function_signature::argument::implicit_type::ret_addr) {
                 // arg refers to output pointer which is passed to 'call' function and not to the target function directly
                 stackReturnRegId = regId;
                 continue;
             }
 
-            if (tp->name == "subtype") {
+            if (tp == m_subtype_t) {
                 // get subtype from $v3
-                u64 v3 = m_ctx->state()->registers[(u8)vmr::v3];
+                u64 v3 = registers[(u8)vmr::v3];
                 tp = m_ctx->context()->module(extract_left_u32(v3))->types()->get(extract_right_u32(v3));
                 if (!tp) {
                     throw error::vm_exception(error::ecode::vm_no_subtype_provided_for_call, f->name.c_str());
@@ -813,15 +819,15 @@ namespace gjs {
 
             if (tp->is_primitive && !tp->signature) {
                 // *reg is some primitive value (integer, decimal, ...)
-                if (is_ptr) {
-                    args.push_back(reg);
+                if (arg.is_ptr) {
+                    args[targetArg++] = reg;
                 } else {
-                    args.push_back(reinterpret_cast<void*>(*reg));
+                    args[targetArg++] = reinterpret_cast<void*>(*reg);
                 }
             } else {
                 // *reg is a pointer to some structure
-                if (is_ptr) {
-                    args.push_back(reinterpret_cast<void*>(*reg));
+                if (arg.is_ptr) {
+                    args[targetArg++] = reinterpret_cast<void*>(*reg);
                 } else {
                     throw error::vm_exception(error::ecode::vm_cannot_pass_struct_by_value, f->name.c_str(), tp->name.c_str());
                 }
@@ -832,16 +838,16 @@ namespace gjs {
         if (f->type->signature->return_type->size > 0) {
             if (f->type->signature->returns_on_stack) {
                 // implicit return pointer argument register contains a pointer to a memory location within the stack
-                ret_addr = (void*)m_ctx->state()->registers[stackReturnRegId];
+                ret_addr = (void*)registers[stackReturnRegId];
             } else {
                 // return_loc register will directly contain the return value
-                ret_addr = &(m_ctx->state()->registers[(u8)f->type->signature->return_loc]);
+                ret_addr = &(registers[(u8)f->type->signature->return_loc]);
 
                 // make sure there are no left over bits or bytes from the previous value (if it's smaller than 64 bits, there would be)
                 (*(u64*)ret_addr) = 0;
             }
         }
 
-        f->access.wrapped->call(m_ctx->context()->call_vm(), ret_addr, args.data());
+        f->access.wrapped->call(m_ctx->context()->call_vm(), ret_addr, args);
     }
 };

@@ -35,9 +35,12 @@ namespace gjs {
                                 // it also depends on the value of the register.
                                 l.usage_count++;
                                 l.end = i1;
+                                continue;
                             }
+
                             break;
                         }
+
                         if (code[i1].involves(l.reg_id)) {
                             l.end = i1;
                             l.usage_count++;

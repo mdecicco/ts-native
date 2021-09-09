@@ -479,12 +479,12 @@ namespace gjs {
                 if (check_instr_type_5(i) && is_mem) mem = &state->memory;
 
                 if (mem) {
-                    std::string val = (*mem)[(integer)state->registers[(integer)r] + offset].to_string();
-                    return "$" + std::string(register_str[(integer)r]) + "<" + val + ">";
+                    std::string val = (*mem)[(u64)state->registers[(u64)r] + offset].to_string();
+                    return "$" + std::string(register_str[(u64)r]) + "<" + val + ">";
                 }
                 */
 
-                std::string reg_val = ""; // "<" + state->registers[(integer)r].to_string() + ">"
+                std::string reg_val = ""; // "<" + state->registers[(u64)r].to_string() + ">"
 
                 if (is_fpr(r)) {
                     reg_val = format("<%f>", *(f32*)&state->registers[(u64)r]);
@@ -526,7 +526,7 @@ namespace gjs {
             out += reg_str(o1);
             out += ", ";
 
-            integer o2 = imm_u();
+            u64 o2 = imm_u();
             out += format("0x%llX", o2);
         } else if (check_instr_type_4(i)) {
             vmr o1 = op_1r();

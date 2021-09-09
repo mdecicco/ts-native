@@ -136,12 +136,28 @@ namespace gjs {
                     }
                 }
 
+                // temporarily give the functions their future ids so that
+                // the generator can associate functions with IDs if it needs
+                // to
+                function_id next = m_ctx->functions().size();
+                for (u16 i = 1;i < out.funcs.size();i++) {
+                    if (out.funcs[i].func) out.funcs[i].func->m_id = next + i;
+                }
+
                 generator->generate(out);
+
+                // reset so the context can accept them
+                for (u16 i = 1;i < out.funcs.size();i++) {
+                    if (out.funcs[i].func) out.funcs[i].func->m_id = 0;
+                }
 
                 if (m_log.errors.size() == 0) {
                     out.mod->m_init = out.funcs[0].func;
 
-                    for (u16 i = 1;i < out.funcs.size();i++) out.mod->add(out.funcs[i].func);
+                    for (u16 i = 1;i < out.funcs.size();i++) {
+                        if (!out.funcs[i].func) continue;
+                        out.mod->add(out.funcs[i].func);
+                    }
                     for (u16 i = 0;i < out.enums.size();i++) out.mod->m_enums.push_back(out.enums[i]);
                     m_ctx->add(out.mod);
                 } else {
@@ -153,6 +169,7 @@ namespace gjs {
             } catch (error::exception& e) {
                 for (u16 i = 0;i < out.enums.size();i++) delete out.enums[i];
                 for (u16 i = 0;i < out.funcs.size();i++) {
+                    if (!out.funcs[i].func) continue;
                     delete out.funcs[i].func;
                 }
                 out.funcs.clear();
@@ -163,6 +180,7 @@ namespace gjs {
             } catch (std::exception& e) {
                 for (u16 i = 0;i < out.enums.size();i++) delete out.enums[i];
                 for (u16 i = 0;i < out.funcs.size();i++) {
+                    if (!out.funcs[i].func) continue;
                     delete out.funcs[i].func;
                 }
                 out.funcs.clear();

@@ -22,7 +22,6 @@ namespace gjs {
         access.entry = addr;
 
         owner = mod;
-        if (type) m_id = hash(type->signature->to_string(name, method_of, mod));
     }
 
     script_function::script_function(type_manager* mgr, script_type* tp, bind::wrapped_function* wrapped, bool is_ctor, bool is_dtor, script_module* mod) {
@@ -35,7 +34,7 @@ namespace gjs {
         is_thiscall = tp && !wrapped->is_static_method;
         is_subtype_obj_ctor = tp && tp->requires_subtype && is_ctor;
         type = mgr->get(function_signature(mgr->ctx(), tp, wrapped, is_ctor), "", is_dtor);
-        m_id = hash(type->signature->to_string(name, tp, mod));
+        m_id = 0;
         access.wrapped = wrapped;
         owner = mod;
 
@@ -46,16 +45,14 @@ namespace gjs {
     }
 
     void script_function::update_signature(script_type* sig) {
-        if (m_id) return;
         type = sig;
-        m_id = hash(type->signature->to_string(name, is_method_of, owner));
     }
 
     script_context* script_function::ctx() const {
         return m_ctx;
     }
 
-    u32 script_function::id() const {
+    function_id script_function::id() const {
         return m_id;
     }
 };

@@ -63,9 +63,9 @@ namespace gjs {
 
         u64 out_begin = m_instructions.size();
         auto& code = in.funcs[fidx].code;
-        robin_hood::unordered_map<compile::label_id, address> label_map;
-        robin_hood::unordered_map<compile::label_id, address> ir_label_map;
-        struct deferred_label { address idx; compile::label_id label; }; // label == 0 indicates a jump to the function epilogue
+        robin_hood::unordered_map<label_id, address> label_map;
+        robin_hood::unordered_map<label_id, address> ir_label_map;
+        struct deferred_label { address idx; label_id label; }; // label == 0 indicates a jump to the function epilogue
         std::vector<deferred_label> deferred_label_instrs;
 
         // determine registers that need to be handled by the prologue and epilogue

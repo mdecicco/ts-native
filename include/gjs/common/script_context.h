@@ -41,8 +41,8 @@ namespace gjs {
             script_module* module(const std::string& name);
             script_module* module(u32 id);
             std::vector<script_module*> modules() const;
-            std::vector<script_function*> functions() const;
-            script_function* function(u32 id);
+            const std::vector<script_function*>& functions() const;
+            script_function* function(function_id id);
 
             void add(script_function* func);
             void add(script_module* module);
@@ -78,7 +78,7 @@ namespace gjs {
         protected:
             robin_hood::unordered_map<std::string, script_module*> m_modules;
             robin_hood::unordered_map<u32, script_module*> m_modules_by_id;
-            robin_hood::unordered_map<u32, script_function*> m_funcs_by_id;
+            std::vector<script_function*> m_funcs;
             type_manager* m_all_types;
 
             pipeline m_pipeline;

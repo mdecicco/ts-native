@@ -4,6 +4,9 @@
 namespace gjs {
     class script_type;
     struct subtype_t;
+    namespace compile {
+        class var;
+    };
 
     class script_array {
         public:
@@ -17,6 +20,7 @@ namespace gjs {
             u32 length() const;
 
         protected:
+            friend class compile::var;
             u64 m_size;
             u32 m_count;
             u32 m_capacity;

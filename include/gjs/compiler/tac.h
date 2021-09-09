@@ -115,9 +115,6 @@ namespace gjs {
 
         bool is_assignment(const tac_instruction& i);
 
-        // 0 = invalid
-        typedef u32 label_id;
-
         struct tac_instruction {
             public:
                 tac_instruction();

@@ -59,7 +59,7 @@ namespace gjs {
         m_gpLf.clear();
         m_fpLf.clear();
 
-        robin_hood::unordered_map<compile::label_id, address> label_map;
+        robin_hood::unordered_map<label_id, address> label_map;
         compilation_output::ir_code& code = m_in.funcs[fidx].code;
         for (u64 i = 0;i < code.size();i++) {
             if (code[i].op == operation::label) label_map[code[i].labels[0]] = i;
@@ -81,12 +81,12 @@ namespace gjs {
                 if (!instr0.operands[assignedOpIdx].type()->is_floating_point) {
                     for (u32 r = 0;r < m_gpLf.size() && do_calc;r++) {
                         if (m_gpLf[r].reg_id != instr0.operands[assignedOpIdx].m_reg_id) continue;
-                        if (i < m_gpLf[r].end) do_calc = false;
+                        if (m_gpLf[r].begin <= i && m_gpLf[r].end > i) do_calc = false;
                     }
                 } else {
                     for (u32 r = 0;r < m_fpLf.size() && do_calc;r++) {
                         if (m_fpLf[r].reg_id != instr0.operands[assignedOpIdx].m_reg_id) continue;
-                        if (i < m_fpLf[r].end) do_calc = false;
+                        if (m_fpLf[r].begin <= i && m_fpLf[r].end > i) do_calc = false;
                     }
                 }
             }
@@ -97,25 +97,23 @@ namespace gjs {
 
             while (do_calc) {
                 for (u64 i1 = l.end + 1;i1 < code.size();i1++) {
-                    tac_instruction& instr1 = code[i1];
-                    u8 o = 0;
-                    for (;o < 3;o++) {
-                        if (instr1.operands[o].m_reg_id == l.reg_id && instr1.operands[o].type()->is_floating_point == l.is_fp) break;
+                    const var* assigned = code[i1].assignsTo();
+                    if (assigned && assigned->m_reg_id == l.reg_id) {
+                        if (code[i1].op == operation::cvt || code[i1].involves(l.reg_id, true)) {
+                            // if the operation is cvt, the instruction depends on the value of the register,
+                            // so the lifetime of register must be continued.
+                            // likewise, if the instruction involves the register's value beyond just assigning it,
+                            // it also depends on the value of the register.
+                            l.end = i1;
+                            continue;
+                        }
+                        
+                        break;
                     }
 
-                    if (instr1.op == operation::call && !instr1.callee && instr1.callee_v.m_reg_id == l.reg_id && !l.is_fp) {
+                    if (code[i1].involves(l.reg_id)) {
                         l.end = i1;
-                        continue;
                     }
-
-                    if (o == 3) continue;
-
-                    u8 assignedOpIdx = 0;
-                    if (instr1.op == operation::call && !instr1.callee) assignedOpIdx = 1;
-                    bool isAssignment = is_assignment(instr1);
-
-                    if ((o > 0 && !(o == assignedOpIdx && isAssignment)) || !isAssignment) l.end = i1;
-                    else if (o == assignedOpIdx && isAssignment) break;
                 }
 
                 do_calc = false;

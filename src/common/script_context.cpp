@@ -55,11 +55,12 @@ namespace gjs {
     }
 
     void script_context::add(script_function* func) {
-        if (m_funcs_by_id.count(func->id()) > 0) {
+        if (func->m_id > 0) {
             throw error::bind_exception(error::ecode::b_function_already_bound, func->name.c_str());
         }
 
-        m_funcs_by_id[func->id()] = func;
+        m_funcs.push_back(func);
+        func->m_id = m_funcs.size();
     }
 
     void script_context::add(script_module* module) {
@@ -224,20 +225,13 @@ namespace gjs {
 
         return out;
     }
-    std::vector<script_function*> script_context::functions() const {
-        std::vector<script_function*> out;
-
-        for (auto it = m_funcs_by_id.begin();it != m_funcs_by_id.end();++it) {
-            out.push_back(it->getSecond());
-        }
-
-        return out;
+    const std::vector<script_function*>& script_context::functions() const {
+        return m_funcs;
     }
 
-    script_function* script_context::function(u32 id) {
-        auto it = m_funcs_by_id.find(id);
-        if (it == m_funcs_by_id.end()) return nullptr;
-        return it->getSecond();
+    script_function* script_context::function(function_id id) {
+        if (id == 0 || id > m_funcs.size()) return nullptr;
+        return m_funcs[id - 1];
     }
 
     script_module* script_context::add_code(const std::string& module_name, const std::string& module_path, const std::string& code) {

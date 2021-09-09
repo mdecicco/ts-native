@@ -47,12 +47,14 @@ namespace gjs {
             } access;
 
             script_context* ctx() const;
-            u32 id() const;
+            function_id id() const;
 
             script_module* owner;
         protected:
+            friend class script_context;
+            friend class pipeline;
             script_context* m_ctx;
-            u32 m_id;
+            function_id m_id;
     };
 };
 

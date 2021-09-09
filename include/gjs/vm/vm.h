@@ -6,6 +6,7 @@
 namespace gjs {
     class vm_allocator;
     class vm_backend;
+    class script_type;
     struct raw_callback;
     class vm {
         public:
@@ -23,6 +24,9 @@ namespace gjs {
             void call_external(raw_callback** fn);
             vm_backend* m_ctx;
             u32 m_stack_size;
+
+            // cached to prevent string comparisons for every function call
+            script_type* m_subtype_t;
     };
 };
 

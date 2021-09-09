@@ -9,6 +9,7 @@
 #include <gjs/common/script_type.h>
 #include <gjs/common/script_function.h>
 #include <gjs/common/script_module.h>
+#include <gjs/builtin/script_array.h>
 #include <gjs/util/robin_hood.h>
 
 namespace gjs {
@@ -200,6 +201,16 @@ namespace gjs {
         }
 
         var var::prop(const std::string& prop, bool log_errors) const {
+            if (m_type->is_host && m_type->base_type && m_type->base_type->name == "array" && prop == "length") {
+                // optimization specifically for array length access
+                var v = m_ctx->empty_var(m_ctx->type("u32"));
+                var ptr = m_ctx->empty_var(m_ctx->type("data"));
+                m_ctx->add(operation::uadd).operand(ptr).operand(*this).operand(m_ctx->imm((u64)offsetof(script_array, m_count)));
+                m_ctx->add(operation::load).operand(v).operand(ptr);
+                v.m_flags = (u8)bind::property_flags::pf_read_only;
+                return v;
+            }
+
             for (u16 i = 0;i < m_type->properties.size();i++) {
                 auto& p = m_type->properties[i];
                 if (p.name == prop) {
@@ -1447,6 +1458,31 @@ namespace gjs {
         }
 
         var var::operator [] (const var& rhs) const {
+            if (m_type->is_host && m_type->base_type && m_type->base_type->name == "array") {
+                // optimization specifically for array element access
+                var v = m_ctx->empty_var(m_type->sub_type);
+                var ptr = m_ctx->empty_var(m_ctx->type("data"));
+                // ptr = &this.m_data
+                m_ctx->add(operation::uadd).operand(ptr).operand(*this).operand(m_ctx->imm((u64)offsetof(script_array, m_data)));
+                
+                // ptr = *ptr
+                m_ctx->add(operation::load).operand(ptr).operand(ptr);
+
+                // ptr += (idx * elem_size)
+                var off = m_ctx->empty_var(m_ctx->type("u64"));
+                m_ctx->add(operation::umul).operand(off).operand(rhs).operand(m_ctx->imm((u64)v.size()));
+                m_ctx->add(operation::uadd).operand(ptr).operand(ptr).operand(off);
+
+                if (v.type()->is_primitive) {
+                    m_ctx->add(operation::load).operand(v).operand(ptr);
+                    v.set_mem_ptr(ptr);
+                    return v;
+                } else {
+                    m_ctx->add(operation::eq).operand(v).operand(ptr);
+                    return v;
+                }
+            }
+
             script_function* f = method("operator []", nullptr, { rhs.type() });
             if (f) {
                 return call(*m_ctx, f, { rhs }, this);

@@ -199,7 +199,7 @@ namespace gjs {
             vm_backend* be = (vm_backend*)ctx->generator();
             if (be->is_executing()) {
                 raised_from_script = true;
-                src = be->map()->get((address)be->state()->registers[(integer)vm_register::ip]);
+                src = be->map()->get((address)be->state()->registers[(u64)vm_register::ip]);
             } else raised_from_script = false;
         }
     };
