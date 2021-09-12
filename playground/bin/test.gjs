@@ -117,7 +117,7 @@ void update_boid(f32 dt, boid b, u32 selfIdx, array<boid> boids, vec2f wsz, Sear
 		align *= maxSpeed;
 		align -= b.velocity;
 		
-		if (sc > 0.0f) {
+		if (sc > 0.0f && separation.lengthSq > 0.0f) {
 			separation /= sc;
 			separation.normalize();
 			separation *= -maxSpeed;
@@ -153,6 +153,7 @@ void update_boid(f32 dt, boid b, u32 selfIdx, array<boid> boids, vec2f wsz, Sear
 	if (b.position.y > wsz.y + 20.0f) b.position.y = -20.0f;
 	if (b.position.x < -20.0f) b.position.x = wsz.x + 20.0f;
 	if (b.position.y < -20.0f) b.position.y = wsz.y + 20.0f;
+	// draw_boid(b);
 }
 
 void main() {

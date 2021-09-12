@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <time.h>
 #include <chrono>
+#include <thread>
 
 #include "ui.h"
 
@@ -27,6 +28,9 @@ typedef struct boid {
     f32 wander;
 };
 static f32 bscale = 25.0f;
+void pf(f32 f) {
+    printf("%.2f\n", f);
+}
 void draw_boid(const boid& b) {
     ImDrawList* dl = ImGui::GetWindowDrawList();
     vec2<f32> facing = b.velocity.normalized();
@@ -81,10 +85,13 @@ void begin() {
 
 void end() {
     auto currentTime = std::chrono::high_resolution_clock::now();
-    u64 ms = std::chrono::duration_cast<std::chrono::microseconds>(currentTime - frameStartTime).count();
-    dt = f32(ms) / 1000000.0f;
+    u64 us = std::chrono::duration_cast<std::chrono::microseconds>(currentTime - frameStartTime).count();
+    dt = f32(us) / 1000000.0f;
     ImGui::Text("Frame Time: %.2fms", dt * 1000.0);
     ImGui::Text("FPS: %.2f", 1.0 / dt);
+    f32 diff = ((1.0f / 60.0f) * 1000.0f) - (dt * 1000.0f);
+    std::this_thread::sleep_for(std::chrono::milliseconds((i32)diff));
+    dt = 1.0f / 60.0f;
     ImGui::PushItemWidth(300.0f);
     ImGui::DragFloat("Max Speed"   , &maxSpeed       , 1.0f, 0.1f , 1000.0f, "%.2f", 1.0f);
     ImGui::DragFloat("Min Speed"   , &minSpeed       , 1.0f, 0.1f , 1000.0f, "%.2f", 1.0f);
@@ -116,13 +123,6 @@ void log_update(script_context* ctx, compilation_output& in, u16 fidx) {
     if (fidx != 2) return;
     debug_ir_step(ctx, in, fidx);
 }
-void test(const math::vec2<f32>& v) {
-    printf("%.2f, %.2f\n", v.x, v.y);
-}
-math::vec2<f32> pf(const math::vec2<f32>& v, f32 f) {
-    printf("%.2f\n", f);
-    return v;
-}
 
 int main(int arg_count, const char** args) {
     srand(time(nullptr));
@@ -131,7 +131,6 @@ int main(int arg_count, const char** args) {
     // vm_backend be(&alloc, 8 * 1024 * 1024, 8 * 1024 * 1024);
     x86_backend be;
     script_context ctx(&be);
-    ctx.bind(test, "test");
     ctx.bind(pf, "pf");
 
     ctx.bind(deltaT, "deltaT");
@@ -158,13 +157,13 @@ int main(int arg_count, const char** args) {
 
     be.commit_bindings();
     ctx.io()->set_cwd_from_args(arg_count, args);
-    ctx.compiler()->add_ir_step(optimize::ir_phase_1, false);
+    // ctx.compiler()->add_ir_step(optimize::ir_phase_1, false);
     ctx.compiler()->add_ir_step(optimize::dead_code, false);
     ctx.compiler()->add_ir_step(debug_ir_step, false);
-    //ctx.compiler()->add_ir_step(log_update, false);
-    //ctx.compiler()->add_ir_step(log_update, true);
+    // ctx.compiler()->add_ir_step(log_update, false);
+    // ctx.compiler()->add_ir_step(log_update, true);
 
-    script_module* mod = ctx.resolve("test1");
+    script_module* mod = ctx.resolve("test");
     if (!mod) {
         print_log(&ctx);
         return -1;
@@ -180,8 +179,7 @@ int main(int arg_count, const char** args) {
 
     mod->init();
 
-    i64 x = mod->function("main")->call(nullptr, 5);
-    printf("%d\n", x);
+    mod->function("main")->call(nullptr);
 
     shutdown_ui();
 

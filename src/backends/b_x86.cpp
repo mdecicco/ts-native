@@ -47,7 +47,7 @@ namespace gjs {
             }
         }
 
-        return Type::kIdU64;
+        return Type::kIdUIntPtr;
     }
 
     Imm v2imm(const compile::var& v) {
@@ -119,7 +119,7 @@ namespace gjs {
 
         for (u8 a = 0;a < cfSig->args.size();a++) {
             if (f->is_host && cfSig->args[a].implicit == function_signature::argument::implicit_type::ret_addr) continue;
-            if (cfSig->args[a].is_ptr) fsb.addArg(Type::kIdU64);
+            if (cfSig->args[a].is_ptr) fsb.addArg(Type::kIdUIntPtr);
             else fsb.addArg(convertType(cfSig->args[a].tp));
         }
     }
@@ -525,6 +525,25 @@ namespace gjs {
             u32 t3i = convertType(t3);
 
             auto setResult = [&](x86::Reg result) {
+                x86::Reg dest;
+                if (o1.is_arg()) dest = args[o1.arg_idx()];
+                else {
+                    auto it = regs.find(o1.reg_id());
+                    if (it != regs.end()) dest = it->second;
+                }
+
+                if (dest.isValid()) {
+                    if (o1.type()->is_floating_point) {
+                        if (result.isXmm()) {
+                            cc.movq(dest.as<x86::Xmm>(), result.as<x86::Xmm>());
+                        } else {
+                            cc.movq(dest.as<x86::Xmm>(), result.as<x86::Gp>());
+                        }
+                    } else {
+                        cc.mov(dest.as<x86::Gp>(), result.as<x86::Gp>());
+                    }
+                }
+
                 if (o1.is_arg()) args[o1.arg_idx()] = result;
                 else regs[o1.reg_id()] = result;
             };
@@ -545,6 +564,7 @@ namespace gjs {
                     // load dest_var var_addr imm_offset
                     x86::Mem src;
                     if (o2.is_imm()) src = cc.intptr_ptr(o2.imm_u());
+                    else if (o2.is_arg()) src = cc.intptr_ptr(args[o2.arg_idx()].as<x86::Gp>(), o3.is_imm() ? o3.imm_u() : 0);
                     else src = cc.intptr_ptr(regs[o2.reg_id()].as<x86::Gp>(), o3.is_imm() ? o3.imm_u() : 0);
 
                     if (t1->is_floating_point) cc.movd(v2r(o1).as<x86::Xmm>(), src);
@@ -1214,15 +1234,15 @@ namespace gjs {
                 case op::neg: {
                     if (t1->is_floating_point) {
                         if (t1->size == sizeof(f64)) {
-                            u64 a = 0x8000000000000000;
-                            auto c_80 = cc.newConst(ConstPool::kScopeGlobal, &a, 8);
+                            u64 a[2] = { 8000000000000000, 0x8000000000000000 };
+                            auto c_80 = cc.newConst(ConstPool::kScopeGlobal, &a, 16);
                             x86::Xmm r = cc.newXmm();
                             cc.movsd(r, v2r(o2).as<x86::Xmm>());
                             cc.xorps(r, c_80);
                             setResult(r);
                         } else {
-                            u64 a = 0x4016000000000000;
-                            auto c_4016 = cc.newConst(ConstPool::kScopeGlobal, &a, 8);
+                            u64 a[2] = { 0x8000000080000000, 0x8000000080000000 };
+                            auto c_4016 = cc.newConst(ConstPool::kScopeGlobal, a, 16);
                             x86::Xmm r = cc.newXmm();
                             cc.movss(r, v2r(o2).as<x86::Xmm>());
                             cc.xorps(r, c_4016);
@@ -1370,7 +1390,6 @@ namespace gjs {
                     }
 
                     if (sig->return_type->size > 0 && !sig->returns_on_stack) {
-                        // if it's not a stack return it's a primitive, but I'll check just for my own sanity...
                         if (sig->return_type->is_primitive) {
                             if (sig->return_type->is_floating_point) {
                                 x86::Xmm r = cc.newXmm();
@@ -1381,6 +1400,10 @@ namespace gjs {
                                 call->setRet(0, r);
                                 setResult(r);
                             }
+                        } else if (sig->returns_pointer) {
+                            x86::Reg r = cc.newReg(convertType(sig->return_type));
+                            call->setRet(0, r);
+                            setResult(r);
                         }
                     }
 
