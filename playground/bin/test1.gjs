@@ -1,18 +1,6 @@
-void test() {
-	print('test');
+i64 main(i32 y) {
+	for (u32 i = 0;i < 10;i++) {
+		y++;
+	}
+	return y;
 }
-
-class some {
-	i32 x;
-
-	void test() {
-		print(this.x.toFixed(2));
-	}
-
-	static void ayy() {
-		print('yo');
-	}
-};
-
-some x;
-x.x = 65;

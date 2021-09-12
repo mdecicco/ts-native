@@ -1,4 +1,5 @@
 #include <gjs/gjs.h>
+#include <gjs/backends/b_x86.h>
 #include <gjs/optimize/optimize.h>
 #include <gjs/builtin/script_vec2.h>
 #include <gjs/builtin/script_vec3.h>
@@ -115,13 +116,23 @@ void log_update(script_context* ctx, compilation_output& in, u16 fidx) {
     if (fidx != 2) return;
     debug_ir_step(ctx, in, fidx);
 }
+void test(const math::vec2<f32>& v) {
+    printf("%.2f, %.2f\n", v.x, v.y);
+}
+math::vec2<f32> pf(const math::vec2<f32>& v, f32 f) {
+    printf("%.2f\n", f);
+    return v;
+}
 
 int main(int arg_count, const char** args) {
     srand(time(nullptr));
 
-    basic_malloc_allocator alloc;
-    vm_backend be(&alloc, 8 * 1024 * 1024, 8 * 1024 * 1024);
+    // basic_malloc_allocator alloc;
+    // vm_backend be(&alloc, 8 * 1024 * 1024, 8 * 1024 * 1024);
+    x86_backend be;
     script_context ctx(&be);
+    ctx.bind(test, "test");
+    ctx.bind(pf, "pf");
 
     ctx.bind(deltaT, "deltaT");
     ctx.bind(running, "running");
@@ -147,13 +158,13 @@ int main(int arg_count, const char** args) {
 
     be.commit_bindings();
     ctx.io()->set_cwd_from_args(arg_count, args);
-    // ctx.compiler()->add_ir_step(debug_ir_step, false);
     ctx.compiler()->add_ir_step(optimize::ir_phase_1, false);
     ctx.compiler()->add_ir_step(optimize::dead_code, false);
-    ctx.compiler()->add_ir_step(log_update, false);
-    ctx.compiler()->add_ir_step(log_update, true);
+    ctx.compiler()->add_ir_step(debug_ir_step, false);
+    //ctx.compiler()->add_ir_step(log_update, false);
+    //ctx.compiler()->add_ir_step(log_update, true);
 
-    script_module* mod = ctx.resolve("test");
+    script_module* mod = ctx.resolve("test1");
     if (!mod) {
         print_log(&ctx);
         return -1;
@@ -169,7 +180,8 @@ int main(int arg_count, const char** args) {
 
     mod->init();
 
-    mod->function("main")->call(nullptr);
+    i64 x = mod->function("main")->call(nullptr, 5);
+    printf("%d\n", x);
 
     shutdown_ui();
 

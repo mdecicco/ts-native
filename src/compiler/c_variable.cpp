@@ -1105,9 +1105,9 @@ namespace gjs {
                 false, // sr
                 true , // land
                 true , // lor
-                true , // band
-                true , // bor
-                true , // bxor
+                false, // band
+                false, // bor
+                false, // bxor
                 true , // ilt
                 true , // igt
                 true , // ilte
@@ -1134,10 +1134,10 @@ namespace gjs {
                 true , // dcmp
                 false, // eq
                 false, // neg
+                false, // cvt
                 false, // call
                 false, // param
                 false, // ret
-                false, // cvt
                 false, // label
                 false, // branch
                 false, // jump
@@ -1169,7 +1169,7 @@ namespace gjs {
                 }
             }
 
-            return ctx->dummy_var(a.type());
+            return ctx->error_var();
         }
 
         var var::operator + (const var& rhs) const {

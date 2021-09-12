@@ -45,6 +45,7 @@ namespace gjs {
                 inline bool is_stack_obj() const { return m_stack_id != 0; }
                 inline u64 stack_id() const { return m_stack_id; }
                 inline bool is_arg() const { return m_arg_idx != u8(-1); }
+                inline bool is_reg() const { return m_reg_id != u32(-1); }
                 inline u8 arg_idx() const { return m_arg_idx; }
                 inline void set_arg_idx(u8 idx) { m_arg_idx = idx; }
                 inline context* ctx() { return m_ctx; }
