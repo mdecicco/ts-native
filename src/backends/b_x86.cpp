@@ -407,6 +407,7 @@ namespace gjs {
         ch.setErrorHandler(&eh);
         ch.setLogger(&sl);
         x86::Compiler cc(&ch);
+        // cc.addValidationOptions(BaseEmitter::kValidationOptionIntermediate);
 
         func_label_map flabels;
         for (u16 f = 0;f < in.funcs.size();f++) {
@@ -585,7 +586,7 @@ namespace gjs {
                 }
                 case op::stack_alloc: {
                     x86::Mem m = cc.newStack(o2.imm_u(), 4);
-                    x86::Gp r = cc.newUInt64();
+                    x86::Gp r = cc.newIntPtr();
                     cc.lea(r, m);
                     setResult(r);
                     break;

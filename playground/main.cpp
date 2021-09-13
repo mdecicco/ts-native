@@ -62,6 +62,7 @@ f32 alignFac = 180.0f;
 f32 wanderFac = 120.0f;
 f32 minDist = 20.0f;
 f32 detectionRadius = 50.0f;
+i32 agentCount = 500;
 
 f32 max_speed() { return maxSpeed; }
 f32 min_speed() { return minSpeed; }
@@ -71,6 +72,7 @@ f32 align_fac() { return alignFac * 0.01f; }
 f32 wander_fac() { return wanderFac * 0.01f; }
 f32 min_dist() { return minDist; }
 f32 detection_radius() { return detectionRadius; }
+u32 agent_count() { return agentCount; }
 
 void begin() {
     frameStartTime = std::chrono::high_resolution_clock::now();
@@ -101,6 +103,7 @@ void end() {
     ImGui::DragFloat("Wander"      , &wanderFac      , 1.0f, 10.0f, 1000.0f, "%.2f", 1.0f);
     ImGui::DragFloat("Min Distance", &minDist        , 1.0f, 0.1f , 100.0f , "%.2f", 1.0f);
     ImGui::DragFloat("Radius"      , &detectionRadius, 1.0f, 0.1f , 100.0f , "%.2f", 1.0f);
+    ImGui::DragInt  ("Agents"      , &agentCount     , 1.0f, 1    , 2000   , "%d"         );
     ImGui::PopItemWidth();
     ImGui::End();
     ImGui::PopStyleVar();
@@ -146,6 +149,7 @@ int main(int arg_count, const char** args) {
     ctx.bind(wander_fac, "wander_fac");
     ctx.bind(min_dist, "min_dist");
     ctx.bind(detection_radius, "detection_radius");
+    ctx.bind(agent_count, "agent_count");
     ctx.bind<boid>("boid")
         .prop("position", &boid::position)
         .prop("velocity", &boid::velocity)

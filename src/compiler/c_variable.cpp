@@ -1471,8 +1471,10 @@ namespace gjs {
         }
 
         var var::operator [] (const var& rhs) const {
-            if (false && m_type->is_host && m_type->base_type && m_type->base_type->name == "array") {
+            if (m_type->is_host && m_type->base_type && m_type->base_type->name == "array") {
+                script_type* u64t = m_ctx->type("u64");
                 // optimization specifically for array element access
+                var idx = rhs.convert(u64t);
                 var v = m_ctx->empty_var(m_type->sub_type);
                 var ptr = m_ctx->empty_var(m_ctx->type("data"));
                 // ptr = &this.m_data
@@ -1482,8 +1484,8 @@ namespace gjs {
                 m_ctx->add(operation::load).operand(ptr).operand(ptr);
 
                 // ptr += (idx * elem_size)
-                var off = m_ctx->empty_var(m_ctx->type("u64"));
-                m_ctx->add(operation::umul).operand(off).operand(rhs).operand(m_ctx->imm((u64)v.size()));
+                var off = m_ctx->empty_var(u64t);
+                m_ctx->add(operation::umul).operand(off).operand(idx).operand(m_ctx->imm((u64)v.size()));
                 m_ctx->add(operation::uadd).operand(ptr).operand(ptr).operand(off);
 
                 if (v.type()->is_primitive) {
