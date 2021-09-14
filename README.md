@@ -11,18 +11,10 @@
 
 ## Setup
 1. `git clone --recurse-submodules https://github.com/mdecicco/gjs.git`
-2. If building for a 64-bit architecture then do the following when configuring with CMake
-    - In the "Specify generator for this project" window
-        - Enter `host=x64` in the 'argument to -T' input (or just pass `-Thost=x64` if using the command line)
-3. Then before generating the project, set `LLVM_TARGETS_TO_BUILD` to either `'all'` or one or more of the following
-    - `X86`
-    - `PowerPC` (untested)
-    - `AArch64` (untested)
-    - `ARM` (untested)
-    - `Mips` (untested)
-    - `SystemZ` (untested)
-
-    This is (presumably) for enabling JIT compilation support for the selected architecture(s). The more you select, the older you'll be when the compilation finishes.
+2. In cmake config:
+    a. Check 'ASMJIT_NO_FOREIGN'
+    b. Check 'ASMJIT_STATIC'
+    c. Hit configure again
 
 ## Goals
 - To produce a scripting language for games and hobby projects
@@ -33,7 +25,6 @@
 - Be easy to debug in realtime
 - Be reasonably fast when not compiled to machine code
 - Be easy to include into existing projects, with as few dependencies as possible
-    - LLVM is massive and takes roughly forever to compile... I will be working on extracting the native backend and building it as a DLL or something later so that it doesn't need to be included as a build dependency
 - To have VM code that is similar to MIPS assembly (because that's what I learned with and x86 seems really confusing)
 - To have script code be JIT compiled _entirely_ to native code with no slow checks in place, all checks should happen during compilation
 - To have unit tests and be stable at some point
@@ -50,6 +41,7 @@
 
 ## Supported backends
 - VM (software): Should be used while debugging code
+- x86: Untested
 - x86_64: JIT Compiles code to native 64 bit x86 code for better performance
 
 
