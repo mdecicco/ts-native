@@ -11,10 +11,9 @@
 
 ## Setup
 1. `git clone --recurse-submodules https://github.com/mdecicco/gjs.git`
-In cmake config:
-2. Check 'ASMJIT_NO_FOREIGN'
-3. Check 'ASMJIT_STATIC'
-4. Hit configure again
+2. (in CMake config) Check 'ASMJIT_NO_FOREIGN'
+3. (in CMake config) Check 'ASMJIT_STATIC'
+4. (in CMake config) Hit configure again
 
 ## Goals
 - To produce a scripting language for games and hobby projects
