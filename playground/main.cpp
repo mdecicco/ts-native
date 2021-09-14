@@ -161,9 +161,9 @@ int main(int arg_count, const char** args) {
 
     be.commit_bindings();
     ctx.io()->set_cwd_from_args(arg_count, args);
-    // ctx.compiler()->add_ir_step(optimize::ir_phase_1, false);
+    ctx.compiler()->add_ir_step(optimize::ir_phase_1, false);
     ctx.compiler()->add_ir_step(optimize::dead_code, false);
-    ctx.compiler()->add_ir_step(debug_ir_step, false);
+    // ctx.compiler()->add_ir_step(debug_ir_step, false);
     // ctx.compiler()->add_ir_step(log_update, false);
     // ctx.compiler()->add_ir_step(log_update, true);
 
@@ -180,9 +180,7 @@ int main(int arg_count, const char** args) {
         return 1;
     }
 
-
     mod->init();
-
     mod->function("main")->call(nullptr);
 
     shutdown_ui();

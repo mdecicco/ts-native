@@ -18,3 +18,4 @@ x64/
 lib
 deps/*.rar
 w64/
+imgui.ini
