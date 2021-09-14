@@ -94,6 +94,26 @@ namespace gjs {
                 }
             }
 
+            while (ctx.match_s({ "[]", "*" })) {
+                if (ctx.current().text == "*") {
+                    ctx.consume();
+                    ast* arrTp = new ast();
+                    arrTp->type = nt::type_identifier;
+                    arrTp->src(t);
+                    arrTp->set("pointer");
+                    arrTp->data_type = n;
+                    n = arrTp;
+                } else {
+                    ctx.consume();
+                    ast* arrTp = new ast();
+                    arrTp->type = nt::type_identifier;
+                    arrTp->src(t);
+                    arrTp->set("array");
+                    arrTp->data_type = n;
+                    n = arrTp;
+                }
+            }
+
             return n;
         }
 

@@ -28,9 +28,6 @@ typedef struct boid {
     f32 wander;
 };
 static f32 bscale = 25.0f;
-void pf(f32 f) {
-    printf("%.2f\n", f);
-}
 void draw_boid(const boid& b) {
     ImDrawList* dl = ImGui::GetWindowDrawList();
     vec2<f32> facing = b.velocity.normalized();
@@ -122,11 +119,6 @@ vec2<f32> window_size() {
     return vec2<f32>(w, h);
 }
 
-void log_update(script_context* ctx, compilation_output& in, u16 fidx) {
-    if (fidx != 2) return;
-    debug_ir_step(ctx, in, fidx);
-}
-
 int main(int arg_count, const char** args) {
     srand(time(nullptr));
 
@@ -134,7 +126,6 @@ int main(int arg_count, const char** args) {
     // vm_backend be(&alloc, 8 * 1024 * 1024, 8 * 1024 * 1024);
     x86_backend be;
     script_context ctx(&be);
-    ctx.bind(pf, "pf");
 
     ctx.bind(deltaT, "deltaT");
     ctx.bind(running, "running");
@@ -163,9 +154,6 @@ int main(int arg_count, const char** args) {
     ctx.io()->set_cwd_from_args(arg_count, args);
     ctx.compiler()->add_ir_step(optimize::ir_phase_1, false);
     ctx.compiler()->add_ir_step(optimize::dead_code, false);
-    // ctx.compiler()->add_ir_step(debug_ir_step, false);
-    // ctx.compiler()->add_ir_step(log_update, false);
-    // ctx.compiler()->add_ir_step(log_update, true);
 
     script_module* mod = ctx.resolve("test");
     if (!mod) {

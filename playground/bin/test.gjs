@@ -6,7 +6,7 @@ class SearchGrid {
 		this.hDivs = hDivs;
 		u32 c = wDivs * hDivs;
 		for (u32 s = 0;s < c;s++) {
-			this.spaces.push(array<u32>());
+			this.spaces.push(u32[]());
 		}
 	}
 
@@ -60,7 +60,7 @@ class SearchGrid {
 		this.find_neighbors_in_cell(gx + 1, gy + 1, pos, radius, boids, out, selfIdx);
 	}
 	
-	array<array<u32> > spaces;
+	u32[][] spaces;
 	i32 wDivs;
 	i32 hDivs;
 };
@@ -157,13 +157,13 @@ void update_boid(f32 dt, boid b, u32 selfIdx, array<boid> boids, vec2f wsz, Sear
 
 void main() {
 	vec2f wsz = window_size();
-	array<boid> boids;
+	boid[] boids;
 	for (u32 i = 0;i < 2000;i++) {
 		boids.push(create_boid(wsz));
 	}
 
 	SearchGrid grid = SearchGrid(10, 10);
-	array<u32> neighborIndices;
+	u32[] neighborIndices;
 
 	while (running()) {
 		u32 count = agent_count();
