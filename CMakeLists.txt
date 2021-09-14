@@ -9,6 +9,7 @@ set(
     include_dirs
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/deps/dyncall/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/deps/asmjit/src
 )
 set(
     library_dirs
@@ -61,4 +62,5 @@ add_subdirectory("./cli")
 
 target_link_libraries(gjs
     dyncall_s
+    asmjit
 )

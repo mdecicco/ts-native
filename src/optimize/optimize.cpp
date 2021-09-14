@@ -144,6 +144,12 @@ namespace gjs {
                             // if the var is assigned externally (no rvalue) then do nothing
                             if (code[i].op == op::cvt || code[i].op == op::stack_alloc || code[i].op == op::call) continue;
 
+                            // If the var is being loaded from an address then do nothing, it's unclear how to
+                            // tell if the data at the address being loaded from would be changed in some way.
+                            // It must be assumed that two identical load instructions separated by one or more
+                            // instruction would not produce the same value in the destination register
+                            if (code[i].op == op::load) continue;
+
                             // if the var was not assigned with a binary expression then do nothing
                             if (code[i].op == op::eq) continue;
 
@@ -266,7 +272,7 @@ namespace gjs {
 
                 std::vector<u32> deadAddrs;
                 for (auto& r : l.lifetimes) {
-                    if (r.usage_count == 0) {
+                    if (r.usage_count == 0 && code[r.begin].op != op::call) {
                         if constexpr (verbose) printf("dead: [%d] %s\n", r.begin, code[r.begin].to_string().c_str());
                         deadAddrs.push_back(r.begin);
                     }

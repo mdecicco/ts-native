@@ -75,6 +75,30 @@ namespace gjs {
                     continue;
                 }
 
+                tok = t.line_comment();
+                if (tok) {
+                    /*
+                    out.push_back({
+                        tok.text,
+                        token_type::line_comment,
+                        source_ref(module, t.lines[tok.line], tok.line, tok.col)
+                    });
+                    */
+                    continue;
+                }
+
+                tok = t.block_comment();
+                if (tok) {
+                    /*
+                    out.push_back({
+                        tok.text,
+                        token_type::block_comment,
+                        source_ref(module, t.lines[tok.line], tok.line, tok.col)
+                    });
+                    */
+                    continue;
+                }
+
                 tok = t.operat0r(false);
                 if (tok) {
                     if (tok.text == "=>") {
@@ -128,26 +152,6 @@ namespace gjs {
                             source_ref(module, t.lines[tok.line], tok.line, tok.col)
                         });
                     }
-                    continue;
-                }
-                
-                tok = t.line_comment();
-                if (tok) {
-                    out.push_back({
-                        tok.text,
-                        token_type::operation,
-                        source_ref(module, t.lines[tok.line], tok.line, tok.col)
-                    });
-                    continue;
-                }
-
-                tok = t.block_comment();
-                if (tok) {
-                    out.push_back({
-                        tok.text,
-                        token_type::operation,
-                        source_ref(module, t.lines[tok.line], tok.line, tok.col)
-                    });
                     continue;
                 }
 

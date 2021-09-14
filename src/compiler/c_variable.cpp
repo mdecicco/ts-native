@@ -1066,7 +1066,7 @@ namespace gjs {
             return ctx->error_var();
         }
 
-        var do_bin_op(context* ctx, const var& a, const var& b, ot _op) {
+        var do_bin_op(context* ctx, const var& a, const var& b, ot _op, bool* usedCustomOperator = nullptr) {
             if (a.flag(bind::property_flags::pf_write_only) || b.flag(bind::property_flags::pf_write_only)) {
                 ctx->log()->err(ec::c_no_read_write_only, ctx->node()->ref);
                 return ctx->error_var();
@@ -1105,9 +1105,9 @@ namespace gjs {
                 false, // sr
                 true , // land
                 true , // lor
-                true , // band
-                true , // bor
-                true , // bxor
+                false, // band
+                false, // bor
+                false, // bxor
                 true , // ilt
                 true , // igt
                 true , // ilte
@@ -1134,10 +1134,10 @@ namespace gjs {
                 true , // dcmp
                 false, // eq
                 false, // neg
+                false, // cvt
                 false, // call
                 false, // param
                 false, // ret
-                false, // cvt
                 false, // label
                 false, // branch
                 false, // jump
@@ -1165,11 +1165,12 @@ namespace gjs {
             else {
                 script_function* f = a.method(std::string("operator ") + ot_str[(u8)_op], a.type(), { b.type() });
                 if (f) {
+                    if (usedCustomOperator) *usedCustomOperator = true;
                     return call(*ctx, f, { b.convert(f->type->signature->explicit_arg(0).tp) }, &a);
                 }
             }
 
-            return ctx->dummy_var(a.type());
+            return ctx->error_var();
         }
 
         var var::operator + (const var& rhs) const {
@@ -1221,74 +1222,86 @@ namespace gjs {
         }
 
         var var::operator += (const var& rhs) const {
-            var result = do_bin_op(m_ctx, *this, rhs, ot::addEq);
-            operator_eq(result);
+            bool usedCustom = false;
+            var result = do_bin_op(m_ctx, *this, rhs, ot::addEq, &usedCustom);
+            if (!usedCustom) operator_eq(result);
             return result;
         }
 
         var var::operator -= (const var& rhs) const {
-            var result = do_bin_op(m_ctx, *this, rhs, ot::subEq);
-            operator_eq(result);
+            bool usedCustom = false;
+            var result = do_bin_op(m_ctx, *this, rhs, ot::subEq, &usedCustom);
+            if (!usedCustom) operator_eq(result);
             return result;
         }
 
         var var::operator *= (const var& rhs) const {
-            var result = do_bin_op(m_ctx, *this, rhs, ot::mulEq);
-            operator_eq(result);
+            bool usedCustom = false;
+            var result = do_bin_op(m_ctx, *this, rhs, ot::mulEq, &usedCustom);
+            if (!usedCustom) operator_eq(result);
             return result;
         }
 
         var var::operator /= (const var& rhs) const {
-            var result = do_bin_op(m_ctx, *this, rhs, ot::divEq);
-            operator_eq(result);
+            bool usedCustom = false;
+            var result = do_bin_op(m_ctx, *this, rhs, ot::divEq, &usedCustom);
+            if (!usedCustom) operator_eq(result);
             return result;
         }
 
         var var::operator %= (const var& rhs) const {
-            var result = do_bin_op(m_ctx, *this, rhs, ot::modEq);
-            operator_eq(result);
+            bool usedCustom = false;
+            var result = do_bin_op(m_ctx, *this, rhs, ot::modEq, &usedCustom);
+            if (!usedCustom) operator_eq(result);
             return result;
         }
 
         var var::operator <<= (const var& rhs) const {
-            var result = do_bin_op(m_ctx, *this, rhs, ot::shiftLeftEq);
-            operator_eq(result);
+            bool usedCustom = false;
+            var result = do_bin_op(m_ctx, *this, rhs, ot::shiftLeftEq, &usedCustom);
+            if (!usedCustom) operator_eq(result);
             return result;
         }
 
         var var::operator >>= (const var& rhs) const {
-            var result = do_bin_op(m_ctx, *this, rhs, ot::shiftRightEq);
-            operator_eq(result);
+            bool usedCustom = false;
+            var result = do_bin_op(m_ctx, *this, rhs, ot::shiftRightEq, &usedCustom);
+            if (!usedCustom) operator_eq(result);
             return result;
         }
 
         var var::operator_landEq (const var& rhs) const {
-            var result = do_bin_op(m_ctx, *this, rhs, ot::landEq);
-            operator_eq(result);
+            bool usedCustom = false;
+            var result = do_bin_op(m_ctx, *this, rhs, ot::landEq, &usedCustom);
+            if (!usedCustom) operator_eq(result);
             return result;
         }
 
         var var::operator_lorEq (const var& rhs) const {
-            var result = do_bin_op(m_ctx, *this, rhs, ot::lorEq);
-            operator_eq(result);
+            bool usedCustom = false;
+            var result = do_bin_op(m_ctx, *this, rhs, ot::lorEq, &usedCustom);
+            if (!usedCustom) operator_eq(result);
             return result;
         }
 
         var var::operator &= (const var& rhs) const {
-            var result = do_bin_op(m_ctx, *this, rhs, ot::bandEq);
-            operator_eq(result);
+            bool usedCustom = false;
+            var result = do_bin_op(m_ctx, *this, rhs, ot::bandEq, &usedCustom);
+            if (!usedCustom) operator_eq(result);
             return result;
         }
 
         var var::operator |= (const var& rhs) const {
-            var result = do_bin_op(m_ctx, *this, rhs, ot::borEq);
-            operator_eq(result);
+            bool usedCustom = false;
+            var result = do_bin_op(m_ctx, *this, rhs, ot::borEq, &usedCustom);
+            if (!usedCustom) operator_eq(result);
             return result;
         }
 
         var var::operator ^= (const var& rhs) const {
-            var result = do_bin_op(m_ctx, *this, rhs, ot::bxorEq);
-            operator_eq(result);
+            bool usedCustom = false;
+            var result = do_bin_op(m_ctx, *this, rhs, ot::bxorEq, &usedCustom);
+            if (!usedCustom) operator_eq(result);
             return result;
         }
 
@@ -1459,7 +1472,9 @@ namespace gjs {
 
         var var::operator [] (const var& rhs) const {
             if (m_type->is_host && m_type->base_type && m_type->base_type->name == "array") {
+                script_type* u64t = m_ctx->type("u64");
                 // optimization specifically for array element access
+                var idx = rhs.convert(u64t);
                 var v = m_ctx->empty_var(m_type->sub_type);
                 var ptr = m_ctx->empty_var(m_ctx->type("data"));
                 // ptr = &this.m_data
@@ -1469,8 +1484,8 @@ namespace gjs {
                 m_ctx->add(operation::load).operand(ptr).operand(ptr);
 
                 // ptr += (idx * elem_size)
-                var off = m_ctx->empty_var(m_ctx->type("u64"));
-                m_ctx->add(operation::umul).operand(off).operand(rhs).operand(m_ctx->imm((u64)v.size()));
+                var off = m_ctx->empty_var(u64t);
+                m_ctx->add(operation::umul).operand(off).operand(idx).operand(m_ctx->imm((u64)v.size()));
                 m_ctx->add(operation::uadd).operand(ptr).operand(ptr).operand(off);
 
                 if (v.type()->is_primitive) {

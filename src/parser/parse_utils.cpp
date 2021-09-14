@@ -667,7 +667,7 @@ namespace gjs {
     tokenizer::token tokenizer::line_comment() {
         whitespace();
         if (m_idx + 1ull >= m_input.size()) return token();
-        if (m_input[m_idx] != '/' && m_input[m_idx + 1ull] != '/') return token();
+        if (m_input[m_idx] != '/' || m_input[m_idx + 1ull] != '/') return token();
         token out = { m_line, m_col, "", module };
         while (!at_end(false)) {
             if (m_input[m_idx] == '\n' || m_input[m_idx] == '\r') break;
@@ -681,7 +681,7 @@ namespace gjs {
     tokenizer::token tokenizer::block_comment() {
         whitespace();
         if (m_idx + 1ull >= m_input.size()) return token();
-        if (m_input[m_idx] != '/' && m_input[m_idx + 1ull] != '*') return token();
+        if (m_input[m_idx] != '/' || m_input[m_idx + 1ull] != '*') return token();
         token out = { m_line, m_col, "", module };
         bool lastWasNewLine = false;
         while (!at_end(false)) {

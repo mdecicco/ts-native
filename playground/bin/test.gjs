@@ -117,7 +117,7 @@ void update_boid(f32 dt, boid b, u32 selfIdx, array<boid> boids, vec2f wsz, Sear
 		align *= maxSpeed;
 		align -= b.velocity;
 		
-		if (sc > 0.0f) {
+		if (sc > 0.0f && separation.lengthSq > 0.0f) {
 			separation /= sc;
 			separation.normalize();
 			separation *= -maxSpeed;
@@ -158,7 +158,7 @@ void update_boid(f32 dt, boid b, u32 selfIdx, array<boid> boids, vec2f wsz, Sear
 void main() {
 	vec2f wsz = window_size();
 	array<boid> boids;
-	for (u32 i = 0;i < 250;i++) {
+	for (u32 i = 0;i < 2000;i++) {
 		boids.push(create_boid(wsz));
 	}
 
@@ -166,12 +166,13 @@ void main() {
 	array<u32> neighborIndices;
 
 	while (running()) {
+		u32 count = agent_count();
 		begin_frame();
 		f32 dt = deltaT();
 		wsz = window_size();
 		grid.build(wsz, boids);
 
-		u32 l = boids.length;
+		u32 l = agent_count();
 		for (u32 i = 0;i < l;i++) {
 			update_boid(dt, boids[i], i, boids, wsz, grid, neighborIndices);
 			draw_boid(boids[i]);
