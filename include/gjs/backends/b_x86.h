@@ -21,9 +21,9 @@ namespace gjs {
             virtual u16 gp_count() const;
             virtual u16 fp_count() const;
             virtual bool perform_register_allocation() const;
+            virtual void call(script_function* func, void* ret, void** args);
 
         protected:
-            virtual void call(script_function* func, void* ret, void** args);
 
             typedef robin_hood::unordered_map<script_function*, asmjit::Label*> func_label_map;
             void gen_function(compilation_output& in, u16 fidx, asmjit::x86::Compiler& cc, asmjit::FuncSignature& fs, func_label_map& flabels);

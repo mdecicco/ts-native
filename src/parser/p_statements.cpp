@@ -2,9 +2,12 @@
 #include <gjs/parser/ast.h>
 #include <gjs/parser/context.h>
 #include <gjs/common/errors.h>
+#include <gjs/common/pipeline.h>
 #include <gjs/common/script_context.h>
 #include <gjs/common/script_module.h>
 #include <gjs/common/script_type.h>
+#include <gjs/common/type_manager.h>
+#include <gjs/util/util.h>
 
 namespace gjs {
     using tt = lex::token_type;

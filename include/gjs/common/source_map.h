@@ -1,8 +1,8 @@
 #pragma once
-#include <vector>
-#include <string>
 #include <gjs/common/types.h>
 #include <gjs/common/source_ref.h>
+#include <vector>
+#include <string>
 
 namespace gjs {
     struct source_map {

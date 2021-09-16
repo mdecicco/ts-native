@@ -5,12 +5,13 @@
 #include <gjs/common/script_context.h>
 #include <gjs/common/script_type.h>
 #include <gjs/common/script_module.h>
+#include <gjs/bind/bind.h>
 
 namespace gjs {
     namespace math {
         template <typename T>
         void bind_v4(script_module* mod, const char* name) {
-            auto v = mod->bind<vec4<T>>(name);
+            auto v = bind<vec4<T>>(mod, name);
             v.constructor();
             v.constructor<T>();
             v.constructor<T, T, T, T>();
@@ -126,14 +127,14 @@ namespace gjs {
             tp->is_builtin = true;
             tp->is_trivially_copyable = true;
 
-            mod->bind<vec4<T>, const vec4<T>&, const vec4<T>&>(min, "min");
-            mod->bind<vec4<T>, const vec4<T>&, const vec4<T>&>(max, "max");
-            mod->bind<vec4<T>, const vec4<T>&, const vec4<T>&>(random, "random");
+            bind<vec4<T>, const vec4<T>&, const vec4<T>&>(mod, min, "min");
+            bind<vec4<T>, const vec4<T>&, const vec4<T>&>(mod, max, "max");
+            bind<vec4<T>, const vec4<T>&, const vec4<T>&>(mod, random, "random");
         }
 
         template <typename T>
         void bind_quat(script_module* mod, const char* name) {
-            auto v = mod->bind<quat<T>>(name);
+            auto v = bind<quat<T>>(mod, name);
             v.constructor<const vec3<T>&, T>();
             v.constructor<const vec3<T>&>();
             v.method("operator *", CONST_METHOD_PTR(quat<T>, operator *, quat<T>, const quat<T>&));
@@ -154,7 +155,7 @@ namespace gjs {
 
         template <typename T>
         void bind_m4(script_module* mod, const char* name) {
-            auto v = mod->bind<mat4<T>>(name);
+            auto v = bind<mat4<T>>(mod, name);
             v.constructor();
             v.constructor<T>();
             v.constructor<T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T>();

@@ -32,9 +32,9 @@ namespace gjs {
             virtual u16 gp_count() const;
             virtual u16 fp_count() const;
             virtual bool perform_register_allocation() const;
+            virtual void call(script_function* func, void* ret, void** args);
 
         protected:
-            virtual void call(script_function* func, void* ret, void** args);
             typedef robin_hood::unordered_map<u64, u64> tac_map;
             typedef robin_hood::unordered_map<u64, script_function*> jal_map;
             void gen_function(compilation_output& in, tac_map& tmap, u16 fidx);

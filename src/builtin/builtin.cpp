@@ -1,5 +1,6 @@
 #include <gjs/common/script_function.h>
 #include <gjs/common/script_type.h>
+#include <gjs/common/type_manager.h>
 #include <gjs/builtin/builtin.h>
 #include <gjs/builtin/script_pointer.h>
 #include <gjs/builtin/script_array.h>
@@ -34,30 +35,30 @@ namespace gjs {
     }
 
     template <typename T>
-    bind::pseudo_class<T>& bind_number_methods(bind::pseudo_class<T>& tp) {
+    ffi::pseudo_class<T>& bind_number_methods(ffi::pseudo_class<T>& tp) {
         tp.method("toFixed", to_fixed<T>);
         return tp;
     }
 
     void init_context(script_context* ctx) {
         set_builtin_context(ctx);
-        auto str = ctx->bind<script_string>("string");
+        auto str = bind<script_string>(ctx, "string");
 
-        auto nt0 = ctx->bind<i64>("i64");
-        auto nt1 = ctx->bind<u64>("u64");
-        auto nt2 = ctx->bind<i32>("i32");
-        auto nt3 = ctx->bind<u32>("u32");
-        auto nt4 = ctx->bind<i16>("i16");
-        auto nt5 = ctx->bind<u16>("u16");
-        auto nt6 = ctx->bind<i8>("i8");
-        auto nt7 = ctx->bind<u8>("u8");
-        auto nt8 = ctx->bind<f32>("f32");
-        auto nt9 = ctx->bind<f64>("f64");
+        auto nt0 = bind<i64>(ctx, "i64");
+        auto nt1 = bind<u64>(ctx, "u64");
+        auto nt2 = bind<i32>(ctx, "i32");
+        auto nt3 = bind<u32>(ctx, "u32");
+        auto nt4 = bind<i16>(ctx, "i16");
+        auto nt5 = bind<u16>(ctx, "u16");
+        auto nt6 = bind<i8>(ctx, "i8");
+        auto nt7 = bind<u8>(ctx, "u8");
+        auto nt8 = bind<f32>(ctx, "f32");
+        auto nt9 = bind<f64>(ctx, "f64");
 
-        ctx->bind<bool>("bool").finalize(ctx->global());
+        bind<bool>(ctx, "bool").finalize(ctx->global());
 
         if (typeid(char) != typeid(i8)) {
-            ctx->bind<char>("___char").finalize(ctx->global());
+            bind<char>(ctx, "___char").finalize(ctx->global());
         }
 
         script_type* tp = nullptr;
@@ -80,10 +81,10 @@ namespace gjs {
         tp->is_builtin = true;
         tp->size = 0;
 
-        tp = ctx->bind<subtype_t>("subtype").finalize(ctx->global());
+        tp = bind<subtype_t>(ctx, "subtype").finalize(ctx->global());
         tp->is_builtin = true;
 
-        tp = ctx->bind<std::string>("___std_str").finalize(ctx->global());
+        tp = bind<std::string>(ctx, "___std_str").finalize(ctx->global());
         tp->size = sizeof(std::string);
 
         str.constructor();
@@ -109,7 +110,7 @@ namespace gjs {
         tp = str.finalize(ctx->global());
         tp->is_builtin = true;
 
-        auto arr = ctx->bind<script_array>("array");
+        auto arr = bind<script_array>(ctx, "array");
         arr.constructor<u64>();
         arr.constructor<u64, const script_array&>();
         arr.method("push", &script_array::push);
@@ -120,7 +121,7 @@ namespace gjs {
         tp->requires_subtype = true;
         tp->is_builtin = true;
 
-        auto ptr = ctx->bind<script_pointer>("pointer");
+        auto ptr = bind<script_pointer>(ctx, "pointer");
         ptr.constructor<u64>();
         ptr.constructor<u64, script_pointer&>();
         ptr.method("reset", &script_pointer::reset);
@@ -136,7 +137,7 @@ namespace gjs {
         tp->requires_subtype = true;
         tp->is_builtin = true;
 
-        auto buf = ctx->bind<script_buffer>("buffer");
+        auto buf = bind<script_buffer>(ctx, "buffer");
         buf.constructor();
         buf.constructor<u64>();
         buf.method("write", METHOD_PTR(script_buffer, write, void, void*, u64));
@@ -170,16 +171,16 @@ namespace gjs {
         tp = buf.finalize(ctx->global());
         tp->is_builtin = true;
 
-        auto fp = ctx->bind<function_pointer>("$funcptr");
+        auto fp = bind<function_pointer>(ctx, "$funcptr");
         fp.constructor<u32, u64>();
         tp = fp.finalize(ctx->global());
         tp->is_builtin = true;
 
-        ctx->bind<void*, u32, void*, u64>(raw_callback::make, "$makefunc");
-        ctx->bind(script_allocate, "alloc");
-        ctx->bind(script_free, "free");
-        ctx->bind(script_copymem, "memcopy");
-        ctx->bind(script_print, "print");
+        bind<void*, u32, void*, u64>(ctx, raw_callback::make, "$makefunc");
+        bind(ctx, script_allocate, "alloc");
+        bind(ctx, script_free, "free");
+        bind(ctx, script_copymem, "memcopy");
+        bind(ctx, script_print, "print");
 
         bind_number_methods(nt0).finalize(ctx->global());
         bind_number_methods(nt1).finalize(ctx->global());

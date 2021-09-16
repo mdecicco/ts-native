@@ -5,6 +5,7 @@
 #include <gjs/compiler/tac.h>
 #include <gjs/common/pipeline.h>
 #include <gjs/common/script_function.h>
+#include <gjs/common/script_type.h>
 
 namespace gjs {
     using namespace compile;
@@ -45,6 +46,8 @@ namespace gjs {
             } else {
                 if (a.reg_id() != b.reg_id()) return false;
             }
+
+            return true;
         }
 
         bool constexpr verbose = false;
@@ -86,23 +89,23 @@ namespace gjs {
                                         u32 assAddr = assignAddrMap[code[i].operands[1].reg_id()];
                                         if constexpr (verbose) {
                                             printf("\n\npropagating...\n");
-                                            printf("[%d] %s\n...", assAddr, code[assAddr].to_string().c_str());
-                                            printf("\n[%d] %s <- ", i, code[i].to_string().c_str());
+                                            printf("[%lu] %s\n...", assAddr, code[assAddr].to_string().c_str());
+                                            printf("\n[%llu] %s <- ", i, code[i].to_string().c_str());
                                         }
 
                                         code[i].operands[1] = *v;
                                         code[i].operands[1].force_cast(code[i].types[1]);
                                         if constexpr (verbose) printf("%s\n", code[i].to_string().c_str());
                                         assignMap[r] = v;
-                                        assignAddrMap[r] = i;
+                                        assignAddrMap[r] = (u32)i;
                                         changes++;
                                     } else {
                                         assignMap[r] = &code[i].operands[1];
-                                        assignAddrMap[r] = i;
+                                        assignAddrMap[r] = (u32)i;
                                     }
                                 } else {
                                     assignMap[r] = &code[i].operands[1];
-                                    assignAddrMap[r] = i;
+                                    assignAddrMap[r] = (u32)i;
                                 }
 
                                 continue;
@@ -116,7 +119,7 @@ namespace gjs {
                                 if (v.is_arg() || v.is_imm() || v.is_spilled() || (assigned && v.reg_id() == assigned->reg_id())) continue;
                                 auto it = assignMap.find(v.reg_id());
                                 if (it != assignMap.end()) {
-                                    if constexpr (verbose) printf("propagating: [%d] %s -> ", i, code[i].to_string().c_str());
+                                    if constexpr (verbose) printf("propagating: [%llu] %s -> ", i, code[i].to_string().c_str());
                                     code[i].operands[o] = *it->second;
                                     code[i].operands[o].force_cast(code[i].types[o]);
                                     if constexpr (verbose) printf("%s\n", code[i].to_string().c_str());
@@ -194,7 +197,7 @@ namespace gjs {
                              
                                     if (doUpdate) {
                                         u32 begin = assignmentAddrs[a];
-                                        if constexpr (verbose) printf("\n\neliminating...\n[%d] %s\n...\n[%d] %s <- ", begin, exp.to_string().c_str(), i, code[i].to_string().c_str());
+                                        if constexpr (verbose) printf("\n\neliminating...\n[%lu] %s\n...\n[%llu] %s <- ", begin, exp.to_string().c_str(), i, code[i].to_string().c_str());
                                         const var& prev = exp.operands[0];
                                         code[i].op = operation::eq;
                                         code[i].operands[1] = exp.operands[0];
@@ -202,13 +205,13 @@ namespace gjs {
                                         changes++;
                                         if constexpr (verbose) printf("%s\n", code[i].to_string().c_str());
                                 
-                                        changedAddrs.push_back({ i, begin });
+                                        changedAddrs.push_back({ (u32)i, begin });
                                     }
                                 }
                             }
 
                             assignments.push_back(&code[i]);
-                            assignmentAddrs.push_back(i);
+                            assignmentAddrs.push_back((u32)i);
                         }
                         allChanges += changes;
                     }
@@ -225,26 +228,26 @@ namespace gjs {
                         bool found = false;
                         for (u32 c = 0;c < changedAddrs.size();c++) {
                             if (changedAddrs[c].first == i) {
-                                printf("<%d>\t[%d] ", changedAddrs[c].second, i);
+                                printf("<%lu>\t[%lld] ", changedAddrs[c].second, i);
                                 found = true;
                                 break;
                             }
                         }
-                        if (!found) printf("\t[%d] ", i);
+                        if (!found) printf("\t[%llu] ", i);
                     
                         printf(code[i].to_string().c_str());
 
                         const var* assigns = code[i].assignsTo();
                         if (assigns) {
                             reg_lifetime* range = l.get_live_range(assigns->reg_id(), i);
-                            if (range) printf(" <live until %d>", range->end);
+                            if (range) printf(" <live until %llu>", range->end);
                         }
                         printf("\n");
                     }
                     printf("Incoming: ");
                     for (u32 i = 0;i < g.blocks[b].from.size();i++) {
                         if (i > 0) printf(", ");
-                        printf("%d", g.blocks[b].from[i]);
+                        printf("%lu", g.blocks[b].from[i]);
                     }
                     printf("\nOutgoing: ");
                     for (u32 i = 0;i < g.blocks[b].to.size();i++) {
@@ -273,12 +276,12 @@ namespace gjs {
                 std::vector<u32> deadAddrs;
                 for (auto& r : l.lifetimes) {
                     if (r.usage_count == 0 && code[r.begin].op != op::call) {
-                        if constexpr (verbose) printf("dead: [%d] %s\n", r.begin, code[r.begin].to_string().c_str());
-                        deadAddrs.push_back(r.begin);
+                        if constexpr (verbose) printf("dead: [%llu] %s\n", r.begin, code[r.begin].to_string().c_str());
+                        deadAddrs.push_back((u32)r.begin);
                     }
                 }
 
-                changes = deadAddrs.size();
+                changes = (u32)deadAddrs.size();
                 if (changes > 0) {
                     std::sort(deadAddrs.begin(), deadAddrs.end(), [](u32 a, u32 b) { return a > b; });
                     for (u32 addr : deadAddrs) {

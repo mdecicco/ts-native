@@ -4,11 +4,16 @@
 #include <string.h>
 #include <gjs/common/script_context.h>
 #include <gjs/common/script_function.h>
+#include <gjs/common/function_signature.h>
 #include <gjs/common/script_type.h>
+#include <gjs/common/type_manager.h>
 #include <gjs/common/script_module.h>
 #include <gjs/common/function_pointer.h>
 #include <gjs/builtin/script_buffer.h>
 #include <gjs/backends/b_vm.h>
+#include <gjs/util/util.h>
+#include <gjs/util/typeof.h>
+#include <gjs/bind/ffi.h>
 
 namespace gjs {
     #define vmi vm_instruction
@@ -712,7 +717,7 @@ namespace gjs {
     }
 
     void vm::call_external(script_function* f) {
-        if (!m_subtype_t) m_subtype_t = m_ctx->context()->type<subtype_t>();
+        if (!m_subtype_t) m_subtype_t = type_of<subtype_t>(m_ctx->context());
         u8 stackReturnRegId = 0;
 
         void* args[16];
@@ -775,7 +780,7 @@ namespace gjs {
     }
 
     void vm::call_external(raw_callback** cb) {
-        if (!m_subtype_t) m_subtype_t = m_ctx->context()->type<subtype_t>();
+        if (!m_subtype_t) m_subtype_t = type_of<subtype_t>(m_ctx->context());
         script_function* f = (*cb)->ptr->target;
         u8 stackReturnRegId = 0;
 

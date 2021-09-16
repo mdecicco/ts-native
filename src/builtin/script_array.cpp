@@ -4,6 +4,7 @@
 #include <gjs/common/script_module.h>
 #include <gjs/backends/backend.h>
 #include <gjs/common/script_context.h>
+#include <gjs/common/script_object.h>
 #include <gjs/util/util.h>
 
 namespace gjs {
@@ -28,7 +29,7 @@ namespace gjs {
                     else memcpy(m_data + (u64(m_count) * u64(m_type->size)), elem, m_type->size);
                 } else {
                     script_object obj(m_type, (u8*)elem);
-                    m_type->owner->context()->construct_at(m_type, m_data + (u64(m_count) * u64(m_type->size)), obj);
+                    construct_at(m_type, m_data + (u64(m_count) * u64(m_type->size)), obj);
                 }
             }
         }
@@ -38,7 +39,7 @@ namespace gjs {
         if (m_data) {
             if (m_type->destructor) {
                 for (u32 i = 0;i < m_count;i++) {
-                    m_type->destructor->call(m_data + (u64(i) * u64(m_type->size)));
+                    call(m_type->destructor, m_data + (u64(i) * u64(m_type->size)));
                 }
             }
             delete [] m_data;
@@ -57,8 +58,8 @@ namespace gjs {
             else {
                 for (u32 i = 0;i < m_count;i++) {
                     script_object obj(m_type, m_data + (u64(i) * u64(m_type->size)));
-                    m_type->owner->context()->construct_at(m_type, newData + (u64(i) * u64(m_type->size)), obj);
-                    if (m_type->destructor) m_type->destructor->call(m_data + (u64(i) * u64(m_type->size)));
+                    construct_at(m_type, newData + (u64(i) * u64(m_type->size)), obj);
+                    if (m_type->destructor) call(m_type->destructor, m_data + (u64(i) * u64(m_type->size)));
                 }
             }
             delete [] m_data;
@@ -70,7 +71,7 @@ namespace gjs {
             else memcpy(m_data + (u64(m_count) * u64(m_type->size)), elem, m_type->size);
         } else {
             script_object obj(m_type, (u8*)elem);
-            m_type->owner->context()->construct_at(m_type, m_data + (u64(m_count) * u64(m_type->size)), obj);
+            construct_at(m_type, m_data + (u64(m_count) * u64(m_type->size)), obj);
         }
         m_count++;
     }

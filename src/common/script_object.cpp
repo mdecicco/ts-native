@@ -2,10 +2,22 @@
 #include <gjs/common/script_type.h>
 #include <gjs/common/script_function.h>
 #include <gjs/common/script_module.h>
-#include <gjs/backends/backend.h>
 #include <gjs/common/script_context.h>
+#include <gjs/backends/backend.h>
+#include <gjs/bind/calling.h>
 
 namespace gjs {
+    script_object::script_object(script_context* ctx) {
+        m_ctx = ctx;
+        m_mod = nullptr;
+        m_type = nullptr;
+        m_self = nullptr;
+        m_owns_ptr = false;
+        m_destructed = false;
+        m_propInfo = nullptr;
+        m_refCount = new u32(1);
+    }
+
     script_object::script_object(script_type* type, u8* ptr) {
         m_ctx = type->owner->context();
         m_mod = nullptr;
@@ -38,17 +50,6 @@ namespace gjs {
         m_refCount = o.m_refCount;
         m_propInfo = o.m_propInfo;
         if (m_refCount) (*m_refCount)++;
-    }
-
-    script_object::script_object(script_context* ctx) {
-        m_ctx = ctx;
-        m_mod = nullptr;
-        m_type = nullptr;
-        m_self = nullptr;
-        m_owns_ptr = false;
-        m_destructed = false;
-        m_propInfo = nullptr;
-        m_refCount = new u32(1);
     }
 
     script_object::script_object(const property_accessor& prop) {
@@ -84,7 +85,7 @@ namespace gjs {
                 if (!m_self) return;
 
                 script_function* dtor = m_type->method("destructor", nullptr, { m_type });
-                if (dtor) m_ctx->call(dtor, (void*)m_self);
+                if (dtor) gjs::call(dtor, (void*)m_self);
                 if (m_owns_ptr) delete [] m_self;
             }
         }
@@ -104,8 +105,14 @@ namespace gjs {
         return script_object({ *this, p });
     }
 
-    bool script_object::is_null() const {
-        return m_self == nullptr;
+    void script_object::set_self(void* self) {
+        if (m_self) {
+            // todo
+            // runtime exception
+        }
+
+        m_self = (u8*)self;
+        m_owns_ptr = true;
     }
 
     bool script_object::assign(const script_object& rhs) {
@@ -118,14 +125,14 @@ namespace gjs {
 
         if (m_propInfo && m_propInfo->prop->setter) {
             if (rhs.m_type == m_type) {
-                m_propInfo->prop->setter->call(m_propInfo->obj, rhs);
+                gjs::call(m_propInfo->prop->setter, m_propInfo->obj, rhs);
             } else {
                 // look for applicable copy constructor,
                 // create a new object of type m_type from
                 // from rhs, pass it to setter
 
                 script_function* ctor = m_type->method("constructor", nullptr, { rhs.m_type });
-                if (ctor) m_propInfo->prop->setter->call(m_self, script_object(m_ctx, m_type, rhs));
+                if (ctor) gjs::call(m_propInfo->prop->setter, m_self, script_object(m_ctx, m_type, rhs));
                 else return false;
             }
 
@@ -133,9 +140,9 @@ namespace gjs {
                 // destruct m_self, replace with result of
                 // of getter
 
-                if (m_type->destructor) m_type->destructor->call(m_self);
-                script_object newVal = m_propInfo->prop->getter->call(m_self);
-                cpy_ctor->call(m_self, newVal);
+                if (m_type->destructor) gjs::call(m_type->destructor, m_self);
+                script_object newVal = gjs::call(m_propInfo->prop->getter, m_self);
+                gjs::call(cpy_ctor, m_self, newVal);
             }
 
             return true;
@@ -143,7 +150,7 @@ namespace gjs {
             // look for operator= on m_type
             script_function* opEq = m_type->method("operator =", nullptr, { rhs.m_type });
             if (opEq) {
-                opEq->call(m_self, rhs);
+                gjs::call(opEq, m_self, rhs);
             } else if (rhs.m_type == m_type) {
                 // failing that, look for applicable copy
                 // constructor, and if it exists, destruct
@@ -151,8 +158,8 @@ namespace gjs {
 
                 script_function* cpy_from_ctor = m_type->method("constructor", nullptr, { rhs.m_type });
                 if (cpy_from_ctor) {
-                    if (m_type->destructor) m_type->destructor->call(m_self);
-                    cpy_from_ctor->call(m_self, rhs);
+                    if (m_type->destructor) gjs::call(m_type->destructor, m_self);
+                    gjs::call(cpy_from_ctor, m_self, rhs);
                 } else return false;
             }
 
@@ -160,9 +167,9 @@ namespace gjs {
                 // destruct m_self, replace with result of
                 // of getter
 
-                if (m_type->destructor) m_type->destructor->call(m_self);
-                script_object newVal = m_propInfo->prop->getter->call(m_self);
-                cpy_ctor->call(m_self, newVal);
+                if (m_type->destructor) gjs::call(m_type->destructor, m_self);
+                script_object newVal = gjs::call(m_propInfo->prop->getter, m_self);
+                gjs::call(cpy_ctor, m_self, newVal);
             }
 
             return true;
@@ -171,15 +178,14 @@ namespace gjs {
         return false;
     }
 
-
     script_object property_accessor::get() const {
-        if (!(prop->flags & u8(bind::property_flags::pf_write_only)) && !prop->getter && !prop->setter) {
+        if (!(prop->flags & u8(property_flags::pf_write_only)) && !prop->getter && !prop->setter) {
             u8* ptr = (((u8*)obj.m_self) + prop->offset);
             return script_object(obj.m_ctx, obj.m_mod, prop->type, ptr);
         }
 
         if (prop->getter) {
-            return obj.context()->call(prop->getter, obj.m_self);
+            return gjs::call(prop->getter, obj.m_self);
         }
 
         throw error::runtime_exception(error::ecode::r_cannot_read_object_property, prop->name.c_str(), obj.type()->name.c_str());

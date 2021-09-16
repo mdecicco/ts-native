@@ -75,7 +75,7 @@ namespace gjs {
                 // is desired. But if it doesn't exist, it is not desired
                 // to log a second error about a non-existent property not
                 // being static.
-                if (dummy.has_prop(pname) && !ret.flag(bind::property_flags::pf_static)) {
+                if (dummy.has_prop(pname) && !ret.flag(property_flags::pf_static)) {
                     ctx.log()->err(ec::c_class_property_not_static, n->rvalue->ref, tp->name.c_str(), pname.c_str());
                 }
                 return ret;

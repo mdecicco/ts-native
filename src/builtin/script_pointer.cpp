@@ -5,6 +5,7 @@
 #include <gjs/backends/backend.h>
 #include <gjs/common/script_context.h>
 #include <gjs/common/script_function.h>
+#include <gjs/bind/calling.h>
 
 namespace gjs {
     script_pointer::script_pointer(u64 moduletype) : m_type(nullptr), m_data(nullptr), m_refCount(nullptr) {
@@ -38,7 +39,7 @@ namespace gjs {
             release();
             m_data = new u8[m_type->size];
             m_refCount = new u32(1);
-            cpy_from_ctor->call<const script_object&>(m_data, script_object(m_type, (u8*)v));
+            call<const script_object&>(cpy_from_ctor, m_data, script_object(m_type, (u8*)v));
         }
     }
 
@@ -103,7 +104,7 @@ namespace gjs {
         // exists, destruct m_data and reconstruct it with rhs
         script_function* assign_op = m_type->method("operator =", nullptr, { m_type });
         if (assign_op) {
-            assign_op->call<const script_object&>(m_data, script_object(m_type, (u8*)v));
+            call<const script_object&>(assign_op, m_data, script_object(m_type, (u8*)v));
             return *this;
         }
 
@@ -111,8 +112,8 @@ namespace gjs {
         // exists, destruct m_data and reconstruct it with rhs
         script_function* cpy_from_ctor = m_type->method("constructor", nullptr, { m_type });
         if (cpy_from_ctor) {
-            if (m_type->destructor) m_type->destructor->call((void*)m_data);
-            cpy_from_ctor->call<const script_object&>(m_data, script_object(m_type, (u8*)v));
+            if (m_type->destructor) call(m_type->destructor, (void*)m_data);
+            call<const script_object&>(cpy_from_ctor, m_data, script_object(m_type, (u8*)v));
             return *this;
         }
 
@@ -129,7 +130,7 @@ namespace gjs {
     }
 
     void script_pointer::destruct() {
-        if (m_type->destructor) m_type->destructor->call((void*)m_data);
+        if (m_type->destructor) call(m_type->destructor, (void*)m_data);
         delete [] m_data;
         m_data = nullptr;
     }

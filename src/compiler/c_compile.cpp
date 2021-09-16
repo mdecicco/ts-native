@@ -4,7 +4,9 @@
 #include <gjs/parser/ast.h>
 #include <gjs/common/script_context.h>
 #include <gjs/common/script_type.h>
+#include <gjs/common/type_manager.h>
 #include <gjs/common/script_function.h>
+#include <gjs/common/function_signature.h>
 #include <gjs/common/script_module.h>
 #include <gjs/common/script_enum.h>
 #include <gjs/common/errors.h>
@@ -186,8 +188,8 @@ namespace gjs {
                 }
             }
 
-            if (n->is_const) v.raise_flag(bind::property_flags::pf_read_only);
-            if (n->is_static) v.raise_flag(bind::property_flags::pf_static);
+            if (n->is_const) v.raise_flag(property_flags::pf_read_only);
+            if (n->is_static) v.raise_flag(property_flags::pf_static);
 
             return off;
         }
@@ -242,7 +244,7 @@ namespace gjs {
                         u8 flags = 0;
                         u64 offset = tp->size;
                         if (cn->is_static) {
-                            flags |= u8(bind::property_flags::pf_static);
+                            flags |= u8(property_flags::pf_static);
                             ctx.compiling_static = true;
                             bool prevCompFunc = ctx.compiling_function;
                             ctx.compiling_function = false;
@@ -253,7 +255,7 @@ namespace gjs {
                             if (!p_tp->is_pod) tp->is_pod = false;
                             tp->size += p_tp->size;
                         }
-                        if (cn->is_const) flags |= u8(bind::property_flags::pf_read_only);
+                        if (cn->is_const) flags |= u8(property_flags::pf_read_only);
 
                         tp->properties.push_back({ flags, name, p_tp, offset, nullptr, nullptr });
 
@@ -352,8 +354,8 @@ namespace gjs {
                         script_type* p_tp = ctx.type(cn->data_type);
                         u8 flags = 0;
                         if (!p_tp->is_pod) tp->is_pod = false;
-                        if (cn->is_static) flags |= u8(bind::property_flags::pf_static);
-                        if (cn->is_const) flags |= u8(bind::property_flags::pf_read_only);
+                        if (cn->is_static) flags |= u8(property_flags::pf_static);
+                        if (cn->is_const) flags |= u8(property_flags::pf_read_only);
 
                         tp->properties.push_back({ flags, name, p_tp, tp->size, nullptr, nullptr });
 
@@ -535,9 +537,7 @@ namespace gjs {
 
             if (!init->type) {
                 if (ctx.out.funcs[0].code.size() != 0) {
-                    init->update_signature(
-                         ctx.env->types()->get(function_signature(ctx.env, ctx.type("void"), false, nullptr, 0, nullptr))
-                    );
+                    init->type = ctx.env->types()->get(function_signature(ctx.env, ctx.type("void"), false, nullptr, 0, nullptr));
                     ctx.add(operation::ret);
                 } else {
                     delete init;
