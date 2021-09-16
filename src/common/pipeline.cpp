@@ -6,6 +6,7 @@
 #include <gjs/common/script_function.h>
 #include <gjs/common/script_enum.h>
 #include <gjs/backends/register_allocator.h>
+#include <gjs/util/util.h>
 
 #include <gjs/compiler/compile.h>
 #include <gjs/lexer/lexer.h>

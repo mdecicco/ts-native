@@ -9,6 +9,7 @@ namespace gjs {
     class script_type;
     class type_manager;
     class script_context;
+    class script_module;
     class function_pointer;
 
     template <typename Ret, typename... Args>
@@ -167,9 +168,12 @@ namespace gjs {
 
     template <typename T>
     script_type* arg_type(script_context* ctx, T& arg);
-    
+
     template <typename Ret, typename ...Args>
     script_function* function_search(script_context* ctx, const std::string& name, const std::vector<script_function*>& source);
+
+    template <typename Ret, typename ...Args>
+    script_function* function_search(script_module* mod, const std::string& name);
 };
 
 #include <gjs/util/template_utils.inl>

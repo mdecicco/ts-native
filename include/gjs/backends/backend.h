@@ -32,11 +32,7 @@ namespace gjs {
             // to bind
             virtual void commit_bindings() { }
 
-        protected:
-            friend class script_context;
             /*
-             * Called from the context's function call helper
-             *
              * This function is responsible for passing the arguments in the
              * correct way to the function, whether it be a script function
              * or a host function. It also needs to take the return value of
@@ -54,6 +50,8 @@ namespace gjs {
              */
             virtual void call(script_function* func, void* ret, void** args) = 0;
 
+        protected:
+            friend class script_context;
             script_context* m_ctx;
     };
 };

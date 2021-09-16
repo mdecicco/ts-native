@@ -3,13 +3,16 @@
 #include <gjs/parser/ast.h>
 #include <gjs/common/script_context.h>
 #include <gjs/common/script_type.h>
+#include <gjs/common/type_manager.h>
 #include <gjs/common/script_function.h>
+#include <gjs/common/function_signature.h>
 #include <gjs/common/errors.h>
 #include <gjs/common/warnings.h>
 #include <gjs/compiler/compile.h>
 #include <gjs/builtin/script_buffer.h>
 #include <gjs/common/script_module.h>
 #include <gjs/common/function_pointer.h>
+#include <gjs/util/util.h>
 
 namespace gjs {
     using exc = error::exception;

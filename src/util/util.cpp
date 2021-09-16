@@ -3,7 +3,9 @@
 #include <gjs/common/script_context.h>
 #include <gjs/backends/b_vm.h>
 #include <gjs/common/script_function.h>
+#include <gjs/common/function_signature.h>
 #include <gjs/common/script_type.h>
+#include <gjs/common/type_manager.h>
 #include <gjs/common/script_module.h>
 #include <gjs/common/errors.h>
 #include <stdio.h>
@@ -248,6 +250,6 @@ namespace gjs {
     }
 
     script_type* resolve_moduletype(u64 moduletype) {
-        return current_ctx()->module(extract_left_u32(moduletype))->types()->get(extract_right_u32(moduletype));
+        return script_context::current()->module(extract_left_u32(moduletype))->types()->get(extract_right_u32(moduletype));
     }
 };

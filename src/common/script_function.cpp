@@ -1,5 +1,6 @@
 #include <gjs/common/script_function.h>
 #include <gjs/common/script_type.h>
+#include <gjs/common/type_manager.h>
 #include <gjs/common/script_context.h>
 #include <gjs/common/script_module.h>
 #include <gjs/vm/register.h>
@@ -24,7 +25,7 @@ namespace gjs {
         owner = mod;
     }
 
-    script_function::script_function(type_manager* mgr, script_type* tp, bind::wrapped_function* wrapped, bool is_ctor, bool is_dtor, script_module* mod) {
+    script_function::script_function(type_manager* mgr, script_type* tp, ffi::wrapped_function* wrapped, bool is_ctor, bool is_dtor, script_module* mod) {
         m_ctx = mgr->m_ctx;
 
         name = wrapped->name;
@@ -42,10 +43,6 @@ namespace gjs {
             if (!owner) owner = mgr->m_ctx->global();
             owner->add(this);
         }
-    }
-
-    void script_function::update_signature(script_type* sig) {
-        type = sig;
     }
 
     script_context* script_function::ctx() const {

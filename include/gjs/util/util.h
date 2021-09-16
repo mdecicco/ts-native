@@ -1,7 +1,7 @@
 #pragma once
+#include <gjs/common/types.h>
 #include <vector>
 #include <string>
-#include <gjs/common/types.h>
 
 namespace gjs {
     class script_context;

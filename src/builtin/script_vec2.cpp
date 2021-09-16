@@ -3,12 +3,13 @@
 #include <gjs/common/script_context.h>
 #include <gjs/common/script_type.h>
 #include <gjs/common/script_module.h>
+#include <gjs/bind/bind.h>
 
 namespace gjs {
     namespace math {
         template <typename T>
         void bind_v2(script_module* mod, const char* name) {
-            auto v = mod->bind<vec2<T>>(name);
+            auto v = bind<vec2<T>>(mod, name);
             v.constructor();
             v.constructor<T>();
             v.constructor<T, T>();
@@ -47,14 +48,14 @@ namespace gjs {
             tp->is_builtin = true;
             tp->is_trivially_copyable = true;
 
-            mod->bind<vec2<T>, const vec2<T>&, const vec2<T>&>(min, "min");
-            mod->bind<vec2<T>, const vec2<T>&, const vec2<T>&>(max, "max");
-            mod->bind<vec2<T>, const vec2<T>&, const vec2<T>&>(random, "random");
+            bind<vec2<T>, const vec2<T>&, const vec2<T>&>(mod, min, "min");
+            bind<vec2<T>, const vec2<T>&, const vec2<T>&>(mod, max, "max");
+            bind<vec2<T>, const vec2<T>&, const vec2<T>&>(mod, random, "random");
         }
 
         template <typename T>
         void bind_m2(script_module* mod, const char* name) {
-            auto v = mod->bind<mat2<T>>(name);
+            auto v = bind<mat2<T>>(mod, name);
             v.constructor();
             v.constructor<T>();
             v.constructor<T, T, T, T>();

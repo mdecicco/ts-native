@@ -3,12 +3,15 @@
 #include <gjs/compiler/function.h>
 #include <gjs/parser/ast.h>
 #include <gjs/common/script_type.h>
+#include <gjs/common/type_manager.h>
 #include <gjs/common/script_function.h>
+#include <gjs/common/function_signature.h>
 #include <gjs/common/compile_log.h>
 #include <gjs/common/errors.h>
 #include <gjs/common/script_context.h>
 #include <gjs/common/script_module.h>
 #include <gjs/common/script_enum.h>
+#include <gjs/util/util.h>
 
 namespace gjs {
     using ec = error::ecode;
@@ -83,15 +86,11 @@ namespace gjs {
                     } else {
                         var rv = expression(ctx, n->body);
                         ctx.add(operation::ret).operand(rv);
-                        f->update_signature(
-                            ctx.env->types()->get(function_signature(ctx.env, rv.type(), false, nullptr, 0, nullptr))
-                        );
+                        f->type = ctx.env->types()->get(function_signature(ctx.env, rv.type(), false, nullptr, 0, nullptr));
                     }
                 } else if (!f->type) {
                     ctx.add(operation::ret);
-                    f->update_signature(
-                        ctx.env->types()->get(function_signature(ctx.env, ctx.type("void"), false, nullptr, 0, nullptr))
-                    );
+                    f->type = ctx.env->types()->get(function_signature(ctx.env, ctx.type("void"), false, nullptr, 0, nullptr));
                 } else if (f->type->signature->return_type->size == 0) ctx.add(operation::ret);
                 else ctx.log()->err(ec::c_missing_return_value, n->ref, f->name.c_str());
 

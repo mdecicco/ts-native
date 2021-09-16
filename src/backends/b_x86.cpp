@@ -2,9 +2,12 @@
 #include <gjs/compiler/tac.h>
 #include <gjs/common/script_type.h>
 #include <gjs/common/script_function.h>
+#include <gjs/common/function_signature.h>
 #include <gjs/common/script_context.h>
 #include <gjs/common/script_module.h>
 #include <gjs/builtin/script_buffer.h>
+#include <gjs/bind/bind.h>
+#include <gjs/util/util.h>
 #include <asmjit/asmjit.h>
 
 using namespace asmjit;
@@ -435,8 +438,6 @@ namespace gjs {
         void* addr = nullptr;
         Error err = m_rt->add(&addr, &ch);
 
-        String content = std::move(sl.content());
-        printf("%s\n", content.data());
         if (err) {
             String content = std::move(sl.content());
             printf("%s\n", content.data());
@@ -565,8 +566,8 @@ namespace gjs {
                     // load dest_var var_addr imm_offset
                     x86::Mem src;
                     if (o2.is_imm()) src = cc.intptr_ptr(o2.imm_u());
-                    else if (o2.is_arg()) src = cc.intptr_ptr(args[o2.arg_idx()].as<x86::Gp>(), o3.is_imm() ? o3.imm_u() : 0);
-                    else src = cc.intptr_ptr(regs[o2.reg_id()].as<x86::Gp>(), o3.is_imm() ? o3.imm_u() : 0);
+                    else if (o2.is_arg()) src = cc.intptr_ptr(args[o2.arg_idx()].as<x86::Gp>(), o3.is_imm() ? (i32)o3.imm_u() : 0);
+                    else src = cc.intptr_ptr(regs[o2.reg_id()].as<x86::Gp>(), o3.is_imm() ? (i32)o3.imm_u() : 0);
 
                     if (t1->is_floating_point) cc.movd(v2r(o1).as<x86::Xmm>(), src);
                     else cc.mov(v2r(o1).as<x86::Gp>(), src);
@@ -585,7 +586,7 @@ namespace gjs {
                     break;
                 }
                 case op::stack_alloc: {
-                    x86::Mem m = cc.newStack(o2.imm_u(), 4);
+                    x86::Mem m = cc.newStack((u32)o2.imm_u(), 4);
                     x86::Gp r = cc.newIntPtr();
                     cc.lea(r, m);
                     setResult(r);
@@ -595,10 +596,10 @@ namespace gjs {
                     break;
                 }
                 case op::module_data: {
-                    script_module* mod = o2.imm_u() == in.mod->id() ? in.mod : m_ctx->module(o2.imm_u());
+                    script_module* mod = o2.imm_u() == in.mod->id() ? in.mod : m_ctx->module((u32)o2.imm_u());
                     if (mod) {
                         auto m = METHOD_PTR(script_buffer, data, void*, u64);
-                        auto md = &bind::call_class_method<void*, script_buffer, void* (script_buffer::*)(u64), script_buffer*, u64>;
+                        auto md = &ffi::call_class_method<void*, script_buffer, void* (script_buffer::*)(u64), script_buffer*, u64>;
                         u64 mdata = *(u64*)reinterpret_cast<void*>(&md);
 
                         InvokeNode* call;
@@ -1286,7 +1287,7 @@ namespace gjs {
                                 // objects are passed as pointers no matter what, but primitives
                                 // are always by value unless specified by host function signature
 
-                                x86::Mem dst = cc.newStack(p.size(), 4);
+                                x86::Mem dst = cc.newStack((u32)p.size(), 4);
 
                                 if (p.type()->is_floating_point) cc.movd(dst, v2r(p).as<x86::Xmm>());
                                 else cc.mov(dst, v2r(p).as<x86::Gp>());

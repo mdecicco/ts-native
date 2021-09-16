@@ -2,10 +2,14 @@
 #include <gjs/backends/backend.h>
 #include <gjs/common/script_function.h>
 #include <gjs/common/script_module.h>
+#include <gjs/common/script_type.h>
+#include <gjs/common/type_manager.h>
 #include <gjs/common/errors.h>
 #include <gjs/builtin/script_buffer.h>
 #include <gjs/common/script_context.h>
 #include <gjs/builtin/builtin.h>
+#include <gjs/util/util.h>
+#include <gjs/bind/calling.h>
 
 using namespace gjs::error;
 
@@ -41,7 +45,7 @@ namespace gjs {
 
                 for (u32 i = 0;i < captureCount;i++) {
                     if (captureTypes[i]->destructor) {
-                        captureTypes[i]->destructor->call((void*)dptr);
+                        call(captureTypes[i]->destructor, (void*)dptr);
                     }
                     dptr += captureTypes[i]->size;
                 }

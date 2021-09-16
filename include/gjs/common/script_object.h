@@ -1,7 +1,6 @@
 #pragma once
 #include <gjs/common/types.h>
 #include <gjs/common/script_type.h>
-#include <gjs/common/function_signature.h>
 
 namespace gjs {
     class script_function;
@@ -12,10 +11,12 @@ namespace gjs {
 
     class script_object {
         public:
+            script_object(script_context* ctx); // undefined value
             template <typename ...Args>
             script_object(script_context* ctx, script_type* type, Args... args);
             template <typename ...Args>
             script_object(script_context* ctx, script_type* type, u8* ptr, Args... args);
+            script_object(script_context* ctx, script_module* mod, script_type* type, u8* ptr);
             script_object(script_type* type, u8* ptr);
             script_object(const script_object& o);
             ~script_object();
@@ -28,8 +29,6 @@ namespace gjs {
             template <typename T>
             script_object operator = (const T& rhs);
 
-            bool is_null() const;
-
             // todo: non-trivial casts
 
             template <typename T>
@@ -38,6 +37,9 @@ namespace gjs {
             template <typename T>
             operator T*();
 
+            void set_self(void* self);
+
+            inline bool is_null() const { return m_self == nullptr; }
             inline void* self() const { return (void*)m_self; }
             inline script_type* type() const { return m_type; }
             inline script_context* context() const { return m_ctx; }
@@ -45,9 +47,7 @@ namespace gjs {
             friend class script_context;
             friend class script_module;
             friend struct property_accessor;
-            script_object(script_context* ctx); // undefined value
             script_object(const property_accessor& prop);
-            script_object(script_context* ctx, script_module* mod, script_type* type, u8* ptr);
             bool assign(const script_object& rhs);
 
             bool m_destructed;

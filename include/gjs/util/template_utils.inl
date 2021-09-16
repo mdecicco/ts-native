@@ -1,4 +1,7 @@
 #pragma once
+#include <gjs/common/script_context.h>
+#include <gjs/common/script_module.h>
+
 namespace gjs {
     //
     // TransientFunction
@@ -59,7 +62,7 @@ namespace gjs {
             new script_function(
                 script_context::current()->types(),
                 callback_signature<Ret, Args...>(script_context::current(), (Ret(*)(Args...))nullptr),
-                bind::wrap<Ret, Fn, void*, Args...>(
+                ffi::wrap<Ret, Fn, void*, Args...>(
                     script_context::current()->types(),
                     "operator ()",
                     &Fn::operator(),
@@ -85,7 +88,7 @@ namespace gjs {
             new script_function(
                 script_context::current()->types(),
                 callback_signature<Ret, Args...>(script_context::current(), (Ret(*)(Args...))nullptr),
-                bind::wrap<Ret, Fn, void*, Args...>(
+                ffi::wrap<Ret, Fn, void*, Args...>(
                     script_context::current()->types(),
                     "operator ()",
                     &Fn::operator(),
@@ -144,7 +147,7 @@ namespace gjs {
                 new script_function(
                     script_context::current()->types(),
                     callback_signature<Ret, Args...>(script_context::current(), (Ret(*)(Args...))nullptr),
-                    bind::wrap<Ret, Fn, void*, Args...>(
+                    ffi::wrap<Ret, Fn, void*, Args...>(
                         script_context::current()->types(),
                         "operator ()",
                         &Fn::operator(),
@@ -167,7 +170,7 @@ namespace gjs {
                 new script_function(
                     script_context::current()->types(),
                     callback_signature<Ret, Args...>(script_context::current(), (Ret(*)(Args...))nullptr),
-                    bind::wrap<Ret, Fn, void*, Args...>(
+                    ffi::wrap<Ret, Fn, void*, Args...>(
                         script_context::current()->types(),
                         "operator ()",
                         &Fn::operator(),
@@ -190,7 +193,7 @@ namespace gjs {
                 new script_function(
                     script_context::current()->types(),
                     callback_signature<Ret, Args...>(script_context::current(), (Ret(*)(Args...))nullptr),
-                    bind::wrap<Ret, Fn, void*, Args...>(
+                    ffi::wrap<Ret, Fn, void*, Args...>(
                         script_context::current()->types(),
                         "operator ()",
                         &Fn::operator(),
@@ -372,5 +375,12 @@ namespace gjs {
         }
 
         return function_search(name, source, ret, { });
+    }
+
+    template <typename Ret, typename ...Args>
+    script_function* function_search(script_module* mod, const std::string& name) {
+        if (!mod->has_function(name)) return nullptr;
+        auto funcs = mod->function_overloads(name);
+        return function_search<Ret, Args...>(mod->context(), name, funcs);
     }
 };

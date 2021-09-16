@@ -1,6 +1,7 @@
 #include <gjs/compiler/tac.h>
 #include <gjs/compiler/context.h>
 #include <gjs/common/script_function.h>
+#include <gjs/common/function_signature.h>
 #include <gjs/common/script_type.h>
 #include <gjs/util/util.h>
 

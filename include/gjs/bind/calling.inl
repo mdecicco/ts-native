@@ -1,40 +1,9 @@
-#pragma once
+#include <gjs/util/template_utils.hpp>
+#include <gjs/common/script_function.h>
 
 namespace gjs {
-    template <class Cls>
-    std::enable_if_t<std::is_class_v<Cls>, bind::wrap_class<Cls>&>
-    script_context::bind(const std::string& name) {
-        return m_global->bind<Cls>(name);
-    }
-
-    template <class prim>
-    std::enable_if_t<!std::is_class_v<prim> && !std::is_same_v<prim, void>, bind::pseudo_class<prim>&>
-    script_context::bind(const std::string& name) {
-        return m_global->bind<prim>(name);
-    }
-
-    template <typename Ret, typename... Args>
-    script_function* script_context::bind(Ret(*func)(Args...), const std::string& name) {
-        return m_global->bind<Ret, Args...>(func, name);
-    }
-
     template <typename... Args>
-    script_object script_context::instantiate(script_type* type, Args... args) {
-        return script_object(this, type, args...);
-    }
-
-    template <typename... Args>
-    script_object script_context::construct_at(script_type* type, void* dest, Args... args) {
-        return script_object(this, type, (u8*)dest, args...);
-    }
-
-    template <typename T>
-    script_type* script_context::type(bool do_throw) {
-        return m_all_types->get<T>(do_throw);
-    }
-
-    template <typename... Args>
-    script_object script_context::call(script_function* func, void* self, Args... args) {
+    script_object call(script_function* func, void* self, Args... args) {
         // validate signature
         constexpr u8 ac = std::tuple_size<std::tuple<Args...>>::value;
         bool valid_call = (self != nullptr) == func->is_thiscall;
@@ -46,11 +15,11 @@ namespace gjs {
             } else {
                 // no self for thiscall exception
             }
-            return script_object(this);
+            return script_object(func->ctx());
         }
 
         if constexpr (ac > 0) {
-            script_type* arg_types[ac] = { arg_type(this, args)... };
+            script_type* arg_types[ac] = { arg_type(func->ctx(), args)... };
             for (u8 i = 0;i < ac;i++) {
                 if (!arg_types[i]) {
                     valid_call = false;
@@ -72,18 +41,17 @@ namespace gjs {
 
             if (!valid_call) {
                 // todo exception
-                return script_object(this);
+                return script_object(func->ctx());
             }
 
             std::vector<void*> vargs = { to_arg(args)... };
             if (self) vargs.insert(vargs.begin(), self);
 
-            script_object out = script_object(this, (script_module*)nullptr, func->type->signature->return_type, nullptr);
+            script_object out = script_object(func->ctx(), (script_module*)nullptr, func->type->signature->return_type, nullptr);
             if (func->type->signature->return_type->size > 0) {
-                out.m_self = new u8[func->type->signature->return_type->size];
-                out.m_owns_ptr = true;
+                out.set_self(new u8[func->type->signature->return_type->size]); 
             }
-            m_backend->call(func, out.m_self, vargs.data());
+            func->ctx()->generator()->call(func, out.self(), vargs.data());
             if constexpr (ac > 0) {
                 for (u8 a = 0;a < ac;a++) {
                     if (!arg_types[a]->signature) continue;
@@ -97,15 +65,14 @@ namespace gjs {
 
             if (!valid_call) {
                 // exception
-                return script_object(this);
+                return script_object(func->ctx());
             }
 
-            script_object out = script_object(this, (script_module*)nullptr, func->type->signature->return_type, nullptr);
+            script_object out = script_object(func->ctx(), (script_module*)nullptr, func->type->signature->return_type, nullptr);
             if (func->type->signature->return_type->size > 0) {
-                out.m_self = new u8[func->type->signature->return_type->size];
-                out.m_owns_ptr = true;
+                out.set_self(new u8[func->type->signature->return_type->size]); 
             }
-            m_backend->call(func, out.m_self, &self);
+            func->ctx()->generator()->call(func, out.self(), &self);
             if constexpr (ac > 0) {
                 for (u8 a = 0;a < ac;a++) {
                     if (!arg_types[a]->signature) continue;
@@ -125,11 +92,11 @@ namespace gjs {
             return out;
         }
 
-        return script_object(this);
+        return script_object(func->ctx());
     }
 
     template <typename... Args>
-    script_object script_context::call(u64 moduletype_id, script_function* func, void* self, Args... args) {
+    script_object call(u64 moduletype_id, script_function* func, void* self, Args... args) {
         // validate signature
         constexpr u8 ac = std::tuple_size<std::tuple<Args...>>::value;
         bool valid_call = (self != nullptr) == func->is_thiscall;
@@ -141,11 +108,11 @@ namespace gjs {
             } else {
                 // no self for thiscall exception
             }
-            return script_object(this);
+            return script_object(func->ctx());
         }
 
         if constexpr (ac > 0) {
-            script_type* arg_types[ac] = { arg_type(this, args)... };
+            script_type* arg_types[ac] = { arg_type(func->ctx(), args)... };
             for (u8 i = 0;i < ac;i++) {
                 if (!arg_types[i]) {
                     valid_call = false;
@@ -167,18 +134,17 @@ namespace gjs {
 
             if (!valid_call) {
                 // todo exception
-                return script_object(this);
+                return script_object(func->ctx());
             }
 
             std::vector<void*> vargs = { to_arg(moduletype_id), to_arg(args)... };
             if (self) vargs.insert(vargs.begin(), self);
 
-            script_object out = script_object(this, (script_module*)nullptr, func->type->signature->return_type, nullptr);
+            script_object out = script_object(func->ctx(), (script_module*)nullptr, func->type->signature->return_type, nullptr);
             if (func->type->signature->return_type->size > 0) {
-                out.m_self = new u8[func->type->signature->return_type->size];
-                out.m_owns_ptr = true;
+                out.set_self(new u8[func->type->signature->return_type->size]); 
             }
-            m_backend->call(func, out.m_self, vargs.data());
+            func->ctx()->generator()->call(func, out.self(), vargs.data());
             if constexpr (ac > 0) {
                 for (u8 a = 0;a < ac;a++) {
                     if (!arg_types[a]->signature) continue;
@@ -192,19 +158,18 @@ namespace gjs {
 
             if (!valid_call) {
                 // exception
-                return script_object(this);
+                return script_object(func->ctx());
             }
 
-            script_object out = script_object(this, (script_module*)nullptr, func->type->signature->return_type, nullptr);
+            script_object out = script_object(func->ctx(), (script_module*)nullptr, func->type->signature->return_type, nullptr);
             if (func->type->signature->return_type->size > 0) {
-                out.m_self = new u8[func->type->signature->return_type->size];
-                out.m_owns_ptr = true;
+                out.set_self(new u8[func->type->signature->return_type->size]); 
             }
 
             std::vector<void*> vargs = { to_arg(moduletype_id), to_arg(args)... };
             if (self) vargs.insert(vargs.begin(), self);
 
-            m_backend->call(func, out.m_self, vargs.data());
+            func->ctx()->generator()->call(func, out.self(), vargs.data());
             if constexpr (ac > 0) {
                 for (u8 a = 0;a < ac;a++) {
                     if (!arg_types[a]->signature) continue;
@@ -224,19 +189,18 @@ namespace gjs {
             return out;
         }
 
-        return script_object(this);
+        return script_object(func->ctx());
     }
 
-
     template <typename... Args>
-    script_object script_context::call_callback(raw_callback* cb, Args... args) {
+    script_object call(raw_callback* cb, Args... args) {
         script_function* func = cb->ptr->target;
         // validate signature
         constexpr u8 ac = std::tuple_size<std::tuple<Args...>>::value;
         bool valid_call = true;
 
         if constexpr (ac > 0) {
-            script_type* arg_types[ac] = { arg_type(this, args)... };
+            script_type* arg_types[ac] = { arg_type(func->ctx(), args)... };
             for (u8 i = 0;i < ac;i++) {
                 if (!arg_types[i]) {
                     valid_call = false;
@@ -258,18 +222,17 @@ namespace gjs {
 
             if (!valid_call) {
                 // todo exception
-                return script_object(this);
+                return script_object(func->ctx());
             }
 
             std::vector<void*> vargs = { cb->ptr->data, to_arg(args)... };
             if (cb->ptr->self_obj()) vargs.insert(vargs.begin(), cb->ptr->self_obj());
 
-            script_object out = script_object(this, (script_module*)nullptr, func->type->signature->return_type, nullptr);
+            script_object out = script_object(func->ctx(), (script_module*)nullptr, func->type->signature->return_type, nullptr);
             if (func->type->signature->return_type->size > 0) {
-                out.m_self = new u8[func->type->signature->return_type->size];
-                out.m_owns_ptr = true;
+                out.set_self(new u8[func->type->signature->return_type->size]); 
             }
-            m_backend->call(func, out.m_self, vargs.data());
+            func->ctx()->generator()->call(func, out.self(), vargs.data());
             if constexpr (ac > 0) {
                 for (u8 a = 0;a < ac;a++) {
                     if (!arg_types[a]->signature) continue;
@@ -292,15 +255,14 @@ namespace gjs {
 
             if (!valid_call) {
                 // exception
-                return script_object(this);
+                return script_object(func->ctx());
             }
 
-            script_object out = script_object(this, (script_module*)nullptr, func->type->signature->return_type, nullptr);
+            script_object out = script_object(func->ctx(), (script_module*)nullptr, func->type->signature->return_type, nullptr);
             if (func->type->signature->return_type->size > 0) {
-                out.m_self = new u8[func->type->signature->return_type->size];
-                out.m_owns_ptr = true;
+                out.set_self(new u8[func->type->signature->return_type->size]); 
             }
-            m_backend->call(func, out.m_self, &self);
+            func->ctx()->generator()->call(func, out.self(), &self);
             if constexpr (ac > 0) {
                 for (u8 a = 0;a < ac;a++) {
                     if (!arg_types[a]->signature) continue;
@@ -320,6 +282,16 @@ namespace gjs {
             return out;
         }
 
-        return script_object(this);
+        return script_object(func->ctx());
+    }
+
+    template <typename... Args>
+    script_object instantiate(script_type* type, Args... args) {
+        return script_object(type->owner->context(), type, args...);
+    }
+
+    template <typename... Args>
+    script_object construct_at(script_type* type, void* dest, Args... args) {
+        return script_object(type->owner->context(), type, (u8*)dest, args...);
     }
 };

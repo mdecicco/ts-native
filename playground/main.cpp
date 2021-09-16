@@ -1,8 +1,7 @@
 #include <gjs/gjs.h>
-#include <gjs/backends/b_x86.h>
-#include <gjs/optimize/optimize.h>
 #include <gjs/builtin/script_vec2.h>
 #include <gjs/builtin/script_vec3.h>
+
 #include <stdio.h>
 #include <time.h>
 #include <chrono>
@@ -127,28 +126,28 @@ int main(int arg_count, const char** args) {
     x86_backend be;
     script_context ctx(&be);
 
-    ctx.bind(deltaT, "deltaT");
-    ctx.bind(running, "running");
-    ctx.bind(begin, "begin_frame");
-    ctx.bind(end, "end_frame");
-    ctx.bind(FUNC_PTR(window_size, vec2<f32>), "window_size");
-    ctx.bind(max_speed, "max_speed");
-    ctx.bind(min_speed, "min_speed");
-    ctx.bind(cohesion_fac, "cohesion_fac");
-    ctx.bind(separation_fac, "separation_fac");
-    ctx.bind(align_fac, "align_fac");
-    ctx.bind(wander_fac, "wander_fac");
-    ctx.bind(min_dist, "min_dist");
-    ctx.bind(detection_radius, "detection_radius");
-    ctx.bind(agent_count, "agent_count");
-    ctx.bind<boid>("boid")
+    bind(&ctx, deltaT, "deltaT");
+    bind(&ctx, running, "running");
+    bind(&ctx, begin, "begin_frame");
+    bind(&ctx, end, "end_frame");
+    bind(&ctx, FUNC_PTR(window_size, vec2<f32>), "window_size");
+    bind(&ctx, max_speed, "max_speed");
+    bind(&ctx, min_speed, "min_speed");
+    bind(&ctx, cohesion_fac, "cohesion_fac");
+    bind(&ctx, separation_fac, "separation_fac");
+    bind(&ctx, align_fac, "align_fac");
+    bind(&ctx, wander_fac, "wander_fac");
+    bind(&ctx, min_dist, "min_dist");
+    bind(&ctx, detection_radius, "detection_radius");
+    bind(&ctx, agent_count, "agent_count");
+    bind<boid>(&ctx, "boid")
         .prop("position", &boid::position)
         .prop("velocity", &boid::velocity)
         .prop("acceleration", &boid::acceleration)
         .prop("wander", &boid::wander)
     .finalize(ctx.global())->is_trivially_copyable = true;
-    ctx.bind(draw_boid, "draw_boid");
-    ctx.bind(draw_line, "draw_line");
+    bind(&ctx, draw_boid, "draw_boid");
+    bind(&ctx, draw_line, "draw_line");
 
     be.commit_bindings();
     ctx.io()->set_cwd_from_args(arg_count, args);
@@ -169,7 +168,7 @@ int main(int arg_count, const char** args) {
     }
 
     mod->init();
-    mod->function("main")->call(nullptr);
+    call(mod->function("main"));
 
     shutdown_ui();
 

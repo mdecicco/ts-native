@@ -1,9 +1,9 @@
 #pragma once
-#include <string>
-#include <vector>
 #include <gjs/common/types.h>
 #include <gjs/common/source_ref.h>
 #include <gjs/util/robin_hood.h>
+#include <string>
+#include <vector>
 
 namespace gjs {
     namespace error { enum class ecode; };

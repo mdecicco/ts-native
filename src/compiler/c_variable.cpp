@@ -8,8 +8,10 @@
 #include <gjs/common/script_context.h>
 #include <gjs/common/script_type.h>
 #include <gjs/common/script_function.h>
+#include <gjs/common/function_signature.h>
 #include <gjs/common/script_module.h>
 #include <gjs/builtin/script_array.h>
+#include <gjs/util/util.h>
 #include <gjs/util/robin_hood.h>
 
 namespace gjs {
@@ -207,7 +209,7 @@ namespace gjs {
                 var ptr = m_ctx->empty_var(m_ctx->type("data"));
                 m_ctx->add(operation::uadd).operand(ptr).operand(*this).operand(m_ctx->imm((u64)offsetof(script_array, m_count)));
                 m_ctx->add(operation::load).operand(v).operand(ptr);
-                v.m_flags = (u8)bind::property_flags::pf_read_only;
+                v.m_flags = (u8)property_flags::pf_read_only;
                 return v;
             }
 
@@ -225,12 +227,12 @@ namespace gjs {
                     } else {
                         var ptr = m_ctx->empty_var(m_ctx->type("u64"));
                         var ret = m_ctx->empty_var(p.type);
-                        if (p.flags & u8(bind::property_flags::pf_static)) {
+                        if (p.flags & u8(property_flags::pf_static)) {
                             if (p.type->is_host) {
                                 // offset points to absolute memory location
                                 m_ctx->add(operation::eq).operand(ptr).operand(m_ctx->imm(p.offset));
                                 
-                                if (p.flags & u8(bind::property_flags::pf_pointer)) {
+                                if (p.flags & u8(property_flags::pf_pointer)) {
                                     // ptr points to a pointer to the value. Get pointer to value in ptr
                                     m_ctx->add(operation::load).operand(ptr).operand(ptr);
 
@@ -263,7 +265,7 @@ namespace gjs {
                             }
                         } else {
                             m_ctx->add(operation::uadd).operand(ptr).operand(*this).operand(m_ctx->imm(p.offset));
-                            if (p.flags & u8(bind::property_flags::pf_pointer)) {
+                            if (p.flags & u8(property_flags::pf_pointer)) {
                                 // ptr points to a pointer to the value. Get pointer to value in ptr
                                 m_ctx->add(operation::load).operand(ptr).operand(ptr);
 
@@ -304,9 +306,9 @@ namespace gjs {
             for (u16 i = 0;i < m_type->properties.size();i++) {
                 auto& p = m_type->properties[i];
                 if (p.name == prop) {
-                    if (p.flags & u8(bind::property_flags::pf_pointer)) {
+                    if (p.flags & u8(property_flags::pf_pointer)) {
                         var ptr = m_ctx->empty_var(p.type);
-                        if (p.flags & u8(bind::property_flags::pf_static)) {
+                        if (p.flags & u8(property_flags::pf_static)) {
                             m_ctx->add(operation::load).operand(ptr).operand(m_ctx->imm(p.offset));
                         } else {
                             m_ctx->add(operation::load).operand(ptr).operand(*this).operand(m_ctx->imm(p.offset));
@@ -314,7 +316,7 @@ namespace gjs {
                         return ptr;
                     }
 
-                    if (p.flags & u8(bind::property_flags::pf_static)) {
+                    if (p.flags & u8(property_flags::pf_static)) {
                         return m_ctx->imm(p.offset);
                     } else {
                         var ret = m_ctx->empty_var(p.type);
@@ -1067,7 +1069,7 @@ namespace gjs {
         }
 
         var do_bin_op(context* ctx, const var& a, const var& b, ot _op, bool* usedCustomOperator = nullptr) {
-            if (a.flag(bind::property_flags::pf_write_only) || b.flag(bind::property_flags::pf_write_only)) {
+            if (a.flag(property_flags::pf_write_only) || b.flag(property_flags::pf_write_only)) {
                 ctx->log()->err(ec::c_no_read_write_only, ctx->node()->ref);
                 return ctx->error_var();
             }
@@ -1413,7 +1415,7 @@ namespace gjs {
             }
 
             if (m_type->is_primitive) {
-                if (flag(bind::property_flags::pf_write_only)) {
+                if (flag(property_flags::pf_write_only)) {
                     m_ctx->log()->err(ec::c_no_read_write_only, m_ctx->node()->ref);
                     return m_ctx->error_var();
                 }
@@ -1434,11 +1436,11 @@ namespace gjs {
                 return m_ctx->error_var();
             }
 
-            if (flag(bind::property_flags::pf_read_only)) {
+            if (flag(property_flags::pf_read_only)) {
                 m_ctx->log()->err(ec::c_no_assign_read_only, m_ctx->node()->ref);
                 return *this;
             }
-            if (rhs.flag(bind::property_flags::pf_write_only)) {
+            if (rhs.flag(property_flags::pf_write_only)) {
                 m_ctx->log()->err(ec::c_no_read_write_only, m_ctx->node()->ref);
                 return *this;
             }

@@ -68,7 +68,7 @@ namespace gjs {
                     }
                 }
 
-                reg_lifetime_map[l.reg_id].push_back(lifetimes.size());
+                reg_lifetime_map[l.reg_id].push_back((u32)lifetimes.size());
                 lifetimes.push_back(l);
             }
         }

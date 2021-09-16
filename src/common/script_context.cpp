@@ -1,11 +1,14 @@
 #include <gjs/common/script_context.h>
 #include <gjs/common/script_function.h>
 #include <gjs/common/script_type.h>
+#include <gjs/common/type_manager.h>
 #include <gjs/common/script_module.h>
+#include <gjs/common/pipeline.h>
 #include <gjs/common/io.h>
 #include <gjs/backends/backend.h>
 #include <gjs/backends/b_vm.h>
 #include <gjs/vm/allocator.h>
+#include <gjs/util/util.h>
 
 #include <gjs/bind/bind.h>
 #include <gjs/builtin/builtin.h>
@@ -14,7 +17,7 @@
 #include <filesystem>
 
 namespace gjs {
-    script_context::script_context(backend* generator, io_interface* io) : m_pipeline(this), m_backend(generator), m_host_call_vm(nullptr), m_io(io) {
+    script_context::script_context(backend* generator, io_interface* io) : m_pipeline(nullptr), m_backend(generator), m_host_call_vm(nullptr), m_io(io) {
         if (!m_backend) {
             m_owns_backend = true;
             m_backend = new vm_backend(new basic_malloc_allocator(), 8 * 1024 * 1024, 8 * 1024 * 1024);
@@ -24,6 +27,8 @@ namespace gjs {
             m_owns_io = true;
             m_io = new basic_io_interface();
         } else m_owns_io = false;
+
+        m_pipeline = new pipeline(this);
 
         m_all_types = new type_manager(this);
         
@@ -38,6 +43,8 @@ namespace gjs {
 
     script_context::~script_context() {
         for (auto it = m_modules.begin();it != m_modules.end();++it) delete it->getSecond();
+
+        delete m_pipeline;
 
         dcFree(m_host_call_vm);
 
@@ -236,11 +243,11 @@ namespace gjs {
 
     script_module* script_context::add_code(const std::string& module_name, const std::string& module_path, const std::string& code) {
         try {
-            return m_pipeline.compile(module_name, module_path, code, m_backend);
+            return m_pipeline->compile(module_name, module_path, code, m_backend);
         } catch (error::exception& e) {
-            m_pipeline.log()->errors.push_back({ true, e.code, e.message, e.src });
+            m_pipeline->log()->errors.push_back({ true, e.code, e.message, e.src });
         } catch (std::exception& e) {
-            m_pipeline.log()->errors.push_back({ true, error::ecode::unspecified_error, std::string(e.what()), source_ref("[unknown]", "[unknown]", 0, 0) });
+            m_pipeline->log()->errors.push_back({ true, error::ecode::unspecified_error, std::string(e.what()), source_ref("[unknown]", "[unknown]", 0, 0) });
         }
         return false;
     }

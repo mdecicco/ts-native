@@ -1,7 +1,7 @@
 #include <gjs/bind/bind.h>
 
 namespace gjs {
-    namespace bind {
+    namespace ffi {
         void trivial_copy(void* dest, void* src, size_t sz) {
             memcpy(dest, src, sz);
         }
@@ -33,7 +33,6 @@ namespace gjs {
             size = _size;
             dtor = nullptr;
             trivially_copyable = true;
-            pass_ret = trivial_copy;
             type = nullptr;
             is_pod = false;
         }

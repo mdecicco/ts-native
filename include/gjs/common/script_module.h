@@ -1,10 +1,7 @@
 #pragma once
 #include <gjs/common/types.h>
 #include <gjs/common/source_ref.h>
-#include <gjs/common/script_function.h>
 #include <gjs/util/robin_hood.h>
-#include <gjs/util/template_utils.hpp>
-#include <gjs/bind/bind.h>
 
 #include <string>
 #include <vector>
@@ -33,34 +30,6 @@ namespace gjs {
 
             // todo: tidy this mess up
 
-            template <class Cls>
-            std::enable_if_t<std::is_class_v<Cls>, bind::wrap_class<Cls>&>
-            bind(const std::string& name) {
-                // as long as wrap_class::finalize is called, this will be deleted when it should be
-                bind::wrap_class<Cls>* out = new bind::wrap_class<Cls>(m_types, name);
-                out->type->owner = this;
-                return *out;
-            }
-
-            template <class prim>
-            std::enable_if_t<!std::is_class_v<prim> && !std::is_same_v<prim, void>, bind::pseudo_class<prim>&>
-            bind(const std::string& name) {
-                // as long as pseudo_class::finalize is called, this will be deleted when it should be
-                bind::pseudo_class<prim>* out = new bind::pseudo_class<prim>(m_types, name);
-                out->type->owner = this;
-                out->type->is_unsigned = std::is_unsigned_v<prim>;
-                out->type->is_builtin = true;
-                out->type->is_floating_point = std::is_floating_point_v<prim>;
-                return *out;
-            }
-
-
-            template <typename Ret, typename... Args>
-            script_function* bind(Ret(*func)(Args...), const std::string& name) {
-                bind::wrapped_function* w = bind::wrap(m_ctx->types(), name, func);
-                return new script_function(m_types, nullptr, w, false, false, this);
-            }
-
             template <typename T>
             std::enable_if_t<!std::is_class_v<T>, T> get_local(const std::string& name) {
                 const local_var& v = local(name);
@@ -82,19 +51,11 @@ namespace gjs {
             std::vector<script_function*> function_overloads(const std::string& name);
 
             /*
-            * If a function is not overloaded, this function will return it by name only
+            * If a function is not overloaded, this function will return it by name only.
+            * If a function is overloaded, use function_search<Ret, Args...>(module, name)
+            * from gjs/util/template_utils.hpp
             */
             script_function* function(const std::string& name);
-
-            /*
-            * If a function is overloaded, this function must be used
-            */
-            template <typename Ret, typename...Args>
-            script_function* function(const std::string& name) {
-                if (m_func_map.count(name) == 0) return nullptr;
-
-                return function_search<Ret, Args...>(m_ctx, name, function_overloads(name));
-            }
 
             script_type* type(const std::string& name) const;
             std::vector<std::string> function_names() const;

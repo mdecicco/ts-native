@@ -5,7 +5,9 @@
 #include <gjs/common/compile_log.h>
 #include <gjs/common/errors.h>
 #include <gjs/common/script_function.h>
+#include <gjs/common/function_pointer.h>
 #include <gjs/common/script_type.h>
+#include <gjs/common/type_manager.h>
 #include <gjs/common/script_context.h>
 #include <gjs/util/util.h>
 #include <gjs/vm/register.h>

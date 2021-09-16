@@ -1,3 +1,7 @@
+#include <gjs/common/function_signature.h>
+#include <gjs/bind/calling.h>
+#include <gjs/util/util.h>
+
 namespace gjs {
     template <typename ...Args>
     script_object::script_object(script_context* ctx, script_type* type, Args... args) {
@@ -31,9 +35,9 @@ namespace gjs {
         if (ctor) {
             if (m_type->base_type && m_type->is_host) {
                 script_type* st = m_type->sub_type;
-                ctor->call(join_u32(st->owner->id(), st->id()), m_self, args...);
+                gjs::call(join_u32(st->owner->id(), st->id()), ctor, m_self, args...);
             }
-            else ctor->call(m_self, args...);
+            else gjs::call(ctor, m_self, args...);
         }
         else throw error::runtime_exception(error::ecode::r_invalid_object_constructor, type->name.c_str());
     }
@@ -70,9 +74,9 @@ namespace gjs {
         if (ctor) {
             if (m_type->base_type && m_type->is_host) {
                 script_type* st = m_type->sub_type;
-                ctor->call(join_u32(st->owner->id(), st->id()), m_self, args...);
+                gjs::call(join_u32(st->owner->id(), st->id()), ctor, m_self, args...);
             }
-            else ctor->call(m_self, args...);
+            else gjs::call(ctor, m_self, args...);
         }
         else throw error::runtime_exception(error::ecode::r_invalid_object_constructor, thisTp->name.c_str());
     }
@@ -95,7 +99,7 @@ namespace gjs {
             return script_object(m_ctx);
         }
 
-        return f->call(m_self, args...);
+        return gjs::call(f, m_self, args...);
     }
 
     template <typename T>
@@ -105,7 +109,7 @@ namespace gjs {
         else if constexpr (std::is_same_v<T, script_object*>) assign(*rhs);
         else {
             if (std::is_trivially_copyable_v<base_tp> && std::is_pod_v<base_tp> && m_type->size == sizeof(base_tp) && m_type->is_trivially_copyable && m_type->is_pod) {
-                script_type* tp = m_ctx->type<T>(false);
+                script_type* tp = type_of<T>(m_ctx);
                 if (tp && !tp->is_primitive) {
                     // favor copy construction for structures
                     if (assign(script_object(m_ctx, (script_module*)nullptr, tp, (u8*)&rhs))) return *this;
@@ -116,10 +120,10 @@ namespace gjs {
                 else *(base_tp*)m_self = rhs;
             } else {
                 if constexpr (std::is_pointer_v<T>) {
-                    script_type* tp = m_ctx->type<T>(true);
+                    script_type* tp = type_of<T>(m_ctx, true);
                     assign(script_object(m_ctx, (script_module*)nullptr, tp, (u8*)rhs));
                 } else {
-                    script_type* tp = m_ctx->type<T>(true);
+                    script_type* tp = type_of<T>(m_ctx, true);
                     assign(script_object(m_ctx, (script_module*)nullptr, tp, (u8*)&rhs));
                 }
             }
