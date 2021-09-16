@@ -104,7 +104,7 @@ namespace gjs {
             symbol_list* syms = symbols.get(name);
             if (syms) {
                 const script_module::local_var* mv = nullptr;
-                const script_function* fn = nullptr;
+                script_function* fn = nullptr;
                 for (auto s = syms->symbols.rbegin();s != syms->symbols.rend();s++) {
                     switch (s->sym_type()) {
                         case symbol::symbol_type::st_capture: {
@@ -156,9 +156,9 @@ namespace gjs {
                 }
 
                 if (fn) {
-                    var& out = empty_var(fn->type, fn->name);
-                    out.raise_stack_flag();
-                    add(operation::stack_alloc).operand(out).operand(imm((u64)fn->type->size));
+                    var& outv = empty_var(fn->type, fn->name);
+                    outv.raise_stack_flag();
+                    add(operation::stack_alloc).operand(outv).operand(imm((u64)fn->type->size));
                     auto dt = type("data");
                     var dataPtr = empty_var(dt);
                     add(operation::eq).operand(dataPtr).operand(imm((u64)0));
@@ -168,9 +168,27 @@ namespace gjs {
                         { imm((u64)fn->id()), dataPtr, imm((u64)0) }, // function id, context data size
                         nullptr
                     );
-                    add(operation::store).operand(out).operand(ptr);
 
-                    return out;
+                    if (fn->id() == 0) {
+                        // fn->id() will be 0 until the function is added to the context...
+                        // first param instruction must be found and updated
+                        auto& code = out.funcs[cur_func_block->func_idx].code;
+                        u8 pidx = 3;
+                        for (address c = code.size() - 1;c > 0;c--) {
+                            if (code[c].op == operation::param) {
+                                pidx--;
+                                if (pidx == 0) {
+                                    // found it
+                                    code[c].resolve(0, fn);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    add(operation::store).operand(outv).operand(ptr);
+
+                    return outv;
                 }
             }
 
@@ -303,6 +321,12 @@ namespace gjs {
                                 ct->size = t->size;
                                 ct->owner = t->owner;
                                 out.types.push_back(ct);
+
+                                // but also check if a method accepts a subtype
+                                for (u32 f = 0;f < ct->methods.size();f++) {
+                                    script_function* m = ct->methods[f];
+                                    ct->methods[f] = m->duplicate_with_subtype(st);
+                                }
                             }
 
                             return ct;

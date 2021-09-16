@@ -91,6 +91,7 @@ namespace gjs {
         bool free_self;
         bool owns_ptr;
         bool owns_func;
+        bool keep_alive;
         TransientFunctionBase hostFn;
         function_pointer* ptr;
 

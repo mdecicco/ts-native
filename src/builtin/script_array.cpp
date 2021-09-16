@@ -89,4 +89,41 @@ namespace gjs {
     u32 script_array::length() const {
         return m_count;
     }
+
+    void script_array::for_each(callback<void(*)(u32, subtype_t*)> cb) {
+        for (u32 i = 0;i < m_count;i++) {
+            // probably a hack not to just use cb(i, (subtype_t*)(m_data + (u64(i) * u64(m_type->size))))
+            call(cb.data, i, script_object(m_type, (u8*)(m_data + (u64(i) * u64(m_type->size)))));
+        }
+    }
+
+    bool script_array::some(callback<bool(*)(u32, subtype_t*)> cb) {
+        for (u32 i = 0;i < m_count;i++) {
+            // probably a hack not to just use cb(i, (subtype_t*)(m_data + (u64(i) * u64(m_type->size))))
+            bool result = call(cb.data, i, script_object(m_type, (u8*)(m_data + (u64(i) * u64(m_type->size)))));
+            if (result) return true;
+        }
+
+        return false;
+    }
+
+    subtype_t* script_array::find(callback<bool(*)(u32, subtype_t*)> cb) {
+        for (u32 i = 0;i < m_count;i++) {
+            // probably a hack not to just use cb(i, (subtype_t*)(m_data + (u64(i) * u64(m_type->size))))
+            subtype_t* ptr = (subtype_t*)(m_data + (u64(i) * u64(m_type->size)));
+            bool result = call(cb.data, i, script_object(m_type, (u8*)ptr));
+            if (result) return ptr;
+        }
+
+        return nullptr;
+    }
+
+    i64 script_array::findIndex(callback<bool(*)(u32, subtype_t*)> cb) {
+        for (u32 i = 0;i < m_count;i++) {
+            // probably a hack not to just use cb(i, (subtype_t*)(m_data + (u64(i) * u64(m_type->size))))
+            bool result = call(cb.data, i, script_object(m_type, (u8*)(m_data + (u64(i) * u64(m_type->size)))));
+            if (result) return i;
+        }
+        return -1;
+    }
 };

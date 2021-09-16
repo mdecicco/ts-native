@@ -116,6 +116,10 @@ namespace gjs {
         arr.method("push", &script_array::push);
         arr.method("clear", &script_array::clear);
         arr.method("operator []", &script_array::operator[]);
+        arr.method("forEach", &script_array::for_each);
+        arr.method("some", &script_array::some);
+        arr.method("find", &script_array::find);
+        arr.method("findIndex", &script_array::findIndex);
         arr.prop("length", &script_array::length);
         tp = arr.finalize(ctx->global());
         tp->requires_subtype = true;

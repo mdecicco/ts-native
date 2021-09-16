@@ -142,6 +142,7 @@ namespace gjs {
             false,
             true,
             true,
+            true,
             (TransientFunctionBase)TransientFunction<Ret(Args...)>(f),
             new function_pointer(
                 new script_function(
@@ -163,6 +164,7 @@ namespace gjs {
     callback<Ret(*)(Args...)>::callback(callback<Ret(*)(Args...)>::TargetFunctionRef f) {
         data = new raw_callback({
             false,
+            true,
             true,
             true,
             TransientFunction<Ret(Args...)>(f),
@@ -188,6 +190,7 @@ namespace gjs {
             false,
             true,
             true,
+            true,
             (TransientFunctionBase)std::move(f),
             new function_pointer(
                 new script_function(
@@ -211,6 +214,7 @@ namespace gjs {
             false,
             false,
             false,
+            true,
             { nullptr, nullptr },
             fptr
         });
@@ -228,8 +232,8 @@ namespace gjs {
             throw error::runtime_exception(error::ecode::r_callback_missing_data);
         }
 
-        if constexpr (std::is_same_v<Ret, void>) data->ptr->target->ctx()->call_callback(data, args...);
-        else return data->ptr->target->ctx()->call_callback(data, args...);
+        if constexpr (std::is_same_v<Ret, void>) call(data, args...);
+        else return call(data, args...);
     }
 
     //
@@ -237,10 +241,10 @@ namespace gjs {
     //
     template <typename Ret, typename... Args>
     script_type* cdecl_signature(script_context* ctx, bool is_cb) {
-        script_type* rt = ctx->type<Ret>();
+        script_type* rt = type_of<Ret>(ctx);
         if (!rt) throw error::bind_exception(error::ecode::b_cannot_get_signature_unbound_return, base_type_name<Ret>());
         constexpr i32 argc = std::tuple_size<std::tuple<Args...>>::value;
-        script_type* argTps[argc] = { ctx->type<Args>()... };
+        script_type* argTps[argc] = { type_of<Args>(ctx)... };
 
         for (u8 i = 0;i < argc;i++) {
             if (!argTps[i]) {
@@ -264,10 +268,10 @@ namespace gjs {
 
     template <typename Cls, typename Ret, typename... Args>
     script_type* thiscall_signature(script_context* ctx, bool is_cb) {
-        script_type* rt = ctx->type<Ret>();
+        script_type* rt = type_of<Ret>(ctx);
         if (!rt) throw error::bind_exception(error::ecode::b_cannot_get_signature_unbound_return, base_type_name<Ret>());
         constexpr i32 argc = std::tuple_size<std::tuple<Args...>>::value;
-        script_type* argTps[argc] = { ctx->type<Args>()... };
+        script_type* argTps[argc] = { type_of<Args>(ctx)... };
 
         for (u8 i = 0;i < argc;i++) {
             if (!argTps[i]) {
@@ -282,7 +286,7 @@ namespace gjs {
             (std::is_reference_v<Ret> || std::is_pointer_v<Ret>),
             argTps,
             argc,
-            ctx->type<Cls>(),
+            type_of<Cls>(ctx),
             false,
             false,
             is_cb
@@ -320,6 +324,7 @@ namespace gjs {
     void* to_arg(T& arg) {
         if constexpr (std::is_class_v<T>) {
             if constexpr (std::is_same_v<T, script_object>) {
+                if (arg.type()->is_primitive) return *reinterpret_cast<void**>(arg.self());
                 return arg.self();
             } else if constexpr (is_callable_object_v<std::remove_reference_t<T>>) {
                 return raw_callback::make(arg);
@@ -334,8 +339,14 @@ namespace gjs {
             return raw_callback::make(arg);
         } else {
             if constexpr (std::is_same_v<remove_all<T>::type, script_object>) {
-                if constexpr (std::is_pointer_v<T>) return arg->self();
-                else return arg.self();
+                if constexpr (std::is_pointer_v<T>) {
+                    if (arg->type()->is_primitive) return *reinterpret_cast<void**>(arg->self());
+                    return arg->self();
+                }
+                else {
+                    if (arg.type()->is_primitive) return *reinterpret_cast<void**>(arg.self());
+                    return arg.self();
+                }
             } else {
                 // Otherwise, cast the value to void*
                 return *reinterpret_cast<void**>(&arg);

@@ -1,5 +1,6 @@
 #pragma once
 #include <gjs/common/types.h>
+#include <gjs/util/template_utils.hpp>
 
 namespace gjs {
     class script_type;
@@ -18,6 +19,11 @@ namespace gjs {
             void clear();
             subtype_t* operator[](u32 idx);
             u32 length() const;
+            void for_each(callback<void(*)(u32, subtype_t*)> cb);
+            bool some(callback<bool(*)(u32, subtype_t*)> cb);
+            subtype_t* find(callback<bool(*)(u32, subtype_t*)> cb);
+            i64 findIndex(callback<bool(*)(u32, subtype_t*)> cb);
+
 
         protected:
             friend class compile::var;

@@ -415,9 +415,25 @@ namespace gjs {
                 var ptr = call(
                     ctx,
                     ctx.function("$makefunc", dt, { u32t, dt, u64t }),
-                    { ctx.imm((u64)fn->id()), ctxPtr, dataSz }, // function id, context data size
+                    { ctx.imm((u64)fn->id()), ctxPtr, dataSz }, // function id, context data, size
                     nullptr
                 );
+
+                // fn->id() will be 0 until the lambda is added to the context...
+                // first param instruction must be found and updated
+                auto& code = ctx.out.funcs[ctx.cur_func_block->func_idx].code;
+                u8 pidx = 3;
+                for (address c = code.size() - 1;c > 0;c--) {
+                    if (code[c].op == operation::param) {
+                        pidx--;
+                        if (pidx == 0) {
+                            // found it
+                            code[c].resolve(0, fn);
+                            break;
+                        }
+                    }
+                }
+
                 ctx.add(operation::store).operand(out).operand(ptr);
             } else {
                 auto dt = ctx.type("data");
@@ -429,6 +445,22 @@ namespace gjs {
                     { ctx.imm((u64)fn->id()), dataPtr, ctx.imm((u64)0) }, // function id, context data size
                     nullptr
                 );
+
+                // fn->id() will be 0 until the lambda is added to the context...
+                // first param instruction must be found and updated
+                auto& code = ctx.out.funcs[ctx.cur_func_block->func_idx].code;
+                u8 pidx = 3;
+                for (address c = code.size() - 1;c > 0;c--) {
+                    if (code[c].op == operation::param) {
+                        pidx--;
+                        if (pidx == 0) {
+                            // found it
+                            code[c].resolve(0, fn);
+                            break;
+                        }
+                    }
+                }
+
                 ctx.add(operation::store).operand(out).operand(ptr);
             }
 

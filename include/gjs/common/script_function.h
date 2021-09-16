@@ -19,6 +19,8 @@ namespace gjs {
             script_function(script_context* ctx, const std::string name, address addr, script_type* signature, script_type* method_of, script_module* mod = nullptr);
             script_function(type_manager* mgr, script_type* tp, ffi::wrapped_function* wrapped, bool is_ctor = false, bool is_dtor = false, script_module* mod = nullptr);
 
+            script_function* duplicate_with_subtype(script_type* subtype);
+
             std::string name;
             bool is_host;
             bool is_static;
@@ -34,12 +36,14 @@ namespace gjs {
 
             script_context* ctx() const;
             function_id id() const;
+            bool is_clone() const;
 
             script_module* owner;
         protected:
             friend class script_context;
             friend class pipeline;
             script_context* m_ctx;
+            bool m_is_copy;
             function_id m_id;
     };
 };

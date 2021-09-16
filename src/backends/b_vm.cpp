@@ -1168,12 +1168,16 @@ namespace gjs {
             script_type* tp = sig->args[a].tp;
             vm_register loc = sig->args[a].loc;
             u64* dest = &m_vm.state.registers[u8(loc)];
+            *dest = 0;
 
             if (sig->args[a].implicit == function_signature::argument::implicit_type::ret_addr) {
                 *dest = (u64)ret;
             } else {
                 if (tp->is_primitive) {
-                    *dest = (u64)args[a];
+                    if (tp->size == 1) (*(u8*)dest) = *(u8*)&args[a];
+                    else if (tp->size == 2) (*(u16*)dest) = *(u16*)&args[a];
+                    else if (tp->size == 4) (*(u32*)dest) = *(u32*)&args[a];
+                    else if (tp->size == 8) (*(u64*)dest) = *(u64*)&args[a];
                 } else {
                     *dest = (u64)args[a];
                 }

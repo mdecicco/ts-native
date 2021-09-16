@@ -121,8 +121,9 @@ namespace gjs {
                 tac_instruction(const tac_instruction& rhs);
                 tac_instruction(operation op, const source_ref& src);
                 ~tac_instruction();
-                
+
                 tac_instruction& operand(const var& v);
+                tac_instruction& resolve(u8 opIdx, script_function* f);
                 tac_instruction& func(script_function* f);
                 tac_instruction& func(var f);
                 tac_instruction& label(label_id label);
@@ -135,6 +136,7 @@ namespace gjs {
                 script_type* types[3];
                 label_id labels[3];
                 script_function* callee;
+                script_function* resolve_func_ids[3];
                 var callee_v;
                 source_ref src;
 
@@ -150,6 +152,7 @@ namespace gjs {
                 tac_wrapper(context* ctx, u64 addr, u16 fidx);
 
                 tac_wrapper& operand(const var& v);
+                tac_wrapper& resolve(u8 opIdx, script_function* f);
                 tac_wrapper& func(script_function* f);
                 tac_wrapper& func(var f);
                 tac_wrapper& label(label_id label);

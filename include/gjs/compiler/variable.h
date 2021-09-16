@@ -47,6 +47,10 @@ namespace gjs {
                 inline void set_arg_idx(u8 idx) { m_arg_idx = idx; }
                 inline context* ctx() { return m_ctx; }
                 inline void force_cast(script_type* to) { m_type = to; }
+                inline void set_imm(u64 u) { m_imm.u = u; }
+                inline void set_imm(i64 i) { m_imm.i = i; }
+                inline void set_imm(f32 f) { m_imm.f = f; }
+                inline void set_imm(f64 d) { m_imm.d = d; }
 
                 // used by code generation phase when generating load instructions
                 // for 'spilled' variables

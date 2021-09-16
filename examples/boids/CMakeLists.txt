@@ -1,41 +1,41 @@
 cmake_minimum_required(VERSION 3.10)
-project(playground)
+project(boids)
 
 set(
     include_dirs
-    ${CMAKE_CURRENT_SOURCE_DIR}/../include
-    ${CMAKE_CURRENT_SOURCE_DIR}/../examples/deps/imgui
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../deps/imgui
 )
 set(
     library_dirs
-    ${CMAKE_CURRENT_SOURCE_DIR}/../lib
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../lib
 )
 include_directories(${include_dirs})
 link_directories(${library_dirs})
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
-file(GLOB playground_src
+file(GLOB boids_src
     "./*.h"
     "./*.hpp"
     "./*.cpp"
 )
-file(GLOB playground_scripts "bin/*.gjs")
+file(GLOB boids_scripts "bin/*.gjs")
 
-SOURCE_GROUP("src" FILES ${playground_src})
-SOURCE_GROUP("scripts" FILES ${playground_scripts})
+SOURCE_GROUP("src" FILES ${boids_src})
+SOURCE_GROUP("scripts" FILES ${boids_scripts})
 
-add_executable(playground ${playground_src} ${playground_scripts})
+add_executable(boids ${boids_src} ${boids_scripts})
 
 target_link_libraries(
-    playground
+    boids
     gjs
     glfw
     imgui
     opengl32
 )
 
-set_target_properties(playground PROPERTIES
+set_target_properties(boids PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY_DEBUG   ${CMAKE_CURRENT_SOURCE_DIR}/bin 
   RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_CURRENT_SOURCE_DIR}/bin
 )

@@ -10,6 +10,7 @@ namespace gjs {
             true , // free self
             false, // owns ptr
             false, // owns func
+            true,  // keep alive (do not destruct in call(raw_callback*, ...))
             { nullptr, nullptr },
             fptr
         });
@@ -23,6 +24,7 @@ namespace gjs {
             false, // free self
             true,  // owns ptr
             false, // owns func
+            false, // keep alive (do not destruct in call(raw_callback*, ...))
             { nullptr, nullptr },
             new function_pointer(fid, dataSz, data)
         });
