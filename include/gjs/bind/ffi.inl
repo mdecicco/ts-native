@@ -16,28 +16,28 @@ namespace gjs {
         // Non-const methods
         template <typename Ret, typename Cls, typename... Args>
         typename std::enable_if<!std::is_same<Ret, void>::value, Ret>::type
-            call_class_method(Ret(Cls::*method)(Args...), Cls* self, Args... args) {
+        call_class_method(Ret(Cls::*method)(Args...), Cls* self, Args... args) {
             return (*self.*method)(args...);
         }
 
         // Const methods
         template <typename Ret, typename Cls, typename... Args>
         typename std::enable_if<!std::is_same<Ret, void>::value, Ret>::type
-            call_const_class_method(Ret(Cls::*method)(Args...) const, Cls* self, Args... args) {
+        call_const_class_method(Ret(Cls::*method)(Args...) const, Cls* self, Args... args) {
             return (*self.*method)(args...);
         }
 
         // Non-const methods
         template <typename Ret, typename Cls, typename... Args>
         typename std::enable_if<std::is_same<Ret, void>::value, Ret>::type
-            call_class_method(Ret(Cls::*method)(Args...), Cls* self, Args... args) {
+        call_class_method(Ret(Cls::*method)(Args...), Cls* self, Args... args) {
             (*self.*method)(args...);
         }
 
         // Const methods
         template <typename Ret, typename Cls, typename... Args>
         typename std::enable_if<std::is_same<Ret, void>::value, Ret>::type
-            call_const_class_method(Ret(Cls::*method)(Args...) const, Cls* self, Args... args) {
+        call_const_class_method(Ret(Cls::*method)(Args...) const, Cls* self, Args... args) {
             (*self.*method)(args...);
         }
 

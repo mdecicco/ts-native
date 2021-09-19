@@ -1163,11 +1163,13 @@ namespace gjs {
         }
 
         function_signature* sig = func->type->signature;
+        if (sig->return_type->size > 0) m_vm.state.push(sig->return_loc);
 
         for (u8 a = 0;a < sig->args.size();a++) {
             script_type* tp = sig->args[a].tp;
             vm_register loc = sig->args[a].loc;
             u64* dest = &m_vm.state.registers[u8(loc)];
+            m_vm.state.push(loc);
             *dest = 0;
 
             if (sig->args[a].implicit == function_signature::argument::implicit_type::ret_addr) {
@@ -1186,15 +1188,23 @@ namespace gjs {
 
         execute(func->access.entry);
 
+        for (i16 a = (i16)(sig->args.size()) - 1;a >= 0;a--) {
+            script_type* tp = sig->args[a].tp;
+            vm_register loc = sig->args[a].loc;
+            m_vm.state.pop(loc);
+        }
+
         if (sig->return_type->size > 0) {
             u64* src = &m_vm.state.registers[u8(sig->return_loc)];
             if (sig->returns_pointer) {
                 // todo
+                m_vm.state.pop(sig->return_loc);
                 return;
             }
 
             if (sig->return_type->is_primitive) {
                 memcpy(ret, src, sig->return_type->size);
+                m_vm.state.pop(sig->return_loc);
             }
         }
     }

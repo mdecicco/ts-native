@@ -21,7 +21,7 @@ namespace gjs {
             u32 length() const;
             void for_each(callback<void(*)(u32, subtype_t*)> cb);
             bool some(callback<bool(*)(u32, subtype_t*)> cb);
-            subtype_t* find(callback<bool(*)(u32, subtype_t*)> cb);
+            subtype_t* find(callback<bool(*)(u32, subtype_t*)> cb, subtype_t* notFoundVal);
             i64 findIndex(callback<bool(*)(u32, subtype_t*)> cb);
 
 

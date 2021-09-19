@@ -482,7 +482,7 @@ namespace gjs {
                     if (captures[c]->type()->is_primitive) {
                         // load the value from the context
                         var ptr = empty_var(captures[c]->type());
-                        add(operation::uadd).operand(ptr).operand(ctx).operand(imm(off));
+                        add(operation::uadd).operand(force_cast_var(ptr, ctx.type())).operand(ctx).operand(imm(off));
                         add(operation::load).operand(v).operand(ptr);
                         v.set_mem_ptr(ptr);
                     } else {

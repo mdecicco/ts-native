@@ -67,4 +67,8 @@ namespace gjs {
     void* function_pointer::self_obj() const {
         return m_this;
     }
+
+    u8 function_pointer::offset_of_self() {
+        return (u8)offsetof(function_pointer, m_this);
+    }
 };

@@ -18,8 +18,6 @@ namespace gjs {
     namespace compile {
         struct context;
 
-        bool has_valid_conversion(context& ctx, script_type* from, script_type* to);
-
         class var {
             public:
                 var(const var& v);

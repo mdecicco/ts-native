@@ -281,9 +281,13 @@ namespace gjs {
                     */
 
                     if (!p.type->is_primitive) {
-                        if (!p.type->method<void>("constructor")) {
+                        if (!p.type->method("constructor", type_of<void>(ctx.env), {})) {
                             ctx.log()->err(ec::c_prop_has_no_default_ctor, n->initializer->ref, p.name.c_str(), p.type->name.c_str(), f->is_method_of->name.c_str());
+                            continue;
                         }
+
+                        var ptr = self->prop_ptr(p.name);
+                        construct_in_place(ctx, self->prop_ptr(p.name), {});
                     }
                 }
             }
@@ -401,14 +405,13 @@ namespace gjs {
                 var typeIdPtr = ctx.empty_var(dt);
                 for (u16 c = 0;c < captures.size();c++) {
                     script_type* tp = captures[c]->type();
-                    var copyTyped = ctx.force_cast_var(copy, tp);
                     var typeIdu32 = ctx.force_cast_var(typeIdPtr, u64t);
 
                     ctx.add(operation::uadd).operand(typeIdu32).operand(ctxPtr).operand(ctx.imm((u64)(sizeof(u32) + (sizeof(u64) * c))));
                     ctx.add(operation::store).operand(typeIdu32).operand(ctx.imm(join_u32(tp->owner->id(), tp->id())));
 
-                    ctx.add(operation::uadd).operand(copyTyped).operand(ctxPtr).operand(ctx.imm((u64)off));
-                    construct_in_place(ctx, copyTyped, { *captures[c] });
+                    ctx.add(operation::uadd).operand(copy).operand(ctxPtr).operand(ctx.imm((u64)off));
+                    construct_in_place(ctx, ctx.force_cast_var(copy, tp), { *captures[c] });
                     off += tp->size;
                 }
 
@@ -738,7 +741,7 @@ namespace gjs {
                     // check if the arguments are at least convertible
                     match = true;
                     for (u8 i = 0;i < args.size();i++) {
-                        if (!has_valid_conversion(ctx, args[i].type(), sig->explicit_arg(i).tp)) {
+                        if (!args[i].type()->is_convertible_to(sig->explicit_arg(i).tp)) {
                             match = false;
                             break;
                         }
@@ -767,30 +770,10 @@ namespace gjs {
             // pass args
             for (u8 i = 0;i < sig->args.size();i++) {
                 if (sig->args[i].implicit == function_signature::argument::implicit_type::capture_data_ptr) {
-                    // func = raw_pointer**
-                    var captureDataPtr = ctx.empty_var(ctx.type("data"));
-                    
-                    // captureDataPtr = *func;
-                    ctx.add(operation::load).operand(captureDataPtr).operand(func);
-
-                    // captureDataPtr = (function_pointer**)&((raw_callback*)captureDataPtr)->ptr
-                    ctx.add(operation::uadd).operand(captureDataPtr).operand(captureDataPtr).operand(ctx.imm((u64)offsetof(raw_callback, ptr)));
-
-                    // captureDataPtr = (function_pointer*)*captureDataPtr
-                    ctx.add(operation::load).operand(captureDataPtr).operand(captureDataPtr);
-
-                    // captureDataPtr = (void**)&((function_pointer*)captureDataPtr)->data
-                    ctx.add(operation::uadd).operand(captureDataPtr).operand(captureDataPtr).operand(ctx.imm((u64)offsetof(function_pointer, data)));
-
-                    // captureDataPtr = (void*)*captureDataPtr
-                    ctx.add(operation::load).operand(captureDataPtr).operand(captureDataPtr);
-
-                    // ayyyy
-                    ctx.add(operation::param).operand(captureDataPtr).func(func);
                     continue;
                 }
                 if (sig->args[i].implicit == function_signature::argument::implicit_type::this_ptr) {
-                    ctx.add(operation::param).operand(*self).func(func);
+                    // this should never happen
                     continue;
                 }
                 if (sig->args[i].implicit == function_signature::argument::implicit_type::moduletype_id) {

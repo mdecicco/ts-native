@@ -788,7 +788,7 @@ namespace gjs {
         u8 ac = (u8)f->type->signature->args.size();
         u8 targetArg = 0;
         u64* registers = m_ctx->state()->registers;
-        bool hadThis = false;
+        u8 gpOffset = 0;
         for (u8 a = 0;a < ac;a++) {
             auto& arg = f->type->signature->args[a];
             u8 regId = (u8)arg.loc;
@@ -796,18 +796,24 @@ namespace gjs {
 
             if (arg.implicit == function_signature::argument::implicit_type::this_ptr) {
                 args[targetArg++] = (*cb)->ptr->self_obj();
-                hadThis = true;
+                gpOffset++;
                 continue;
             }
 
-            if (hadThis && vm_register(regId) >= vmr::a0 && vm_register(regId) <= vmr::a7) {
+            if (arg.implicit == function_signature::argument::implicit_type::capture_data_ptr) {
+                args[targetArg++] = (*cb)->ptr->data;
+                gpOffset++;
+                continue;
+            }
+
+            if (vm_register(regId) >= vmr::a0 && vm_register(regId) <= vmr::a7) {
                 // script code can't account for the 'this' argument of host callbacks, so
                 // it passes arguments as if there is no 'this' argument passed through $a0.
                 // Once the 'this' argument of the callback has been passed, all GP register
                 // arguments after that must be decreased by one in order to map the actual
                 // argument locations to the VM argument locations. For example, if the vm
                 // calls a host callback with the signature void (int, int):
-                // 
+                //
                 // VM is calling signature void (int arg0: $a0, int arg1: $a1)
                 // Actual signature is void (TransientFunction<void(int, int)>*: $a0, int arg0: $a1, int arg1: $a2)
                 //
@@ -815,7 +821,10 @@ namespace gjs {
                 // but needs to refer to the VM provided argument location
                 // This logic doesn't affect FP arguments because the 'this' argument is
                 // always mapped to a GP register.
-                regId--;
+                //
+                // Similarly, if capture data needs to be passed, scripts don't account for
+                // that either since that can be passed here.
+                regId -= gpOffset;
             }
             u64* reg = &(registers[regId]);
 

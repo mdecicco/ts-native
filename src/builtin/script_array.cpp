@@ -18,18 +18,20 @@ namespace gjs {
         m_count = o.m_count;
         m_capacity = o.m_capacity;
         m_data = nullptr;
+
         if (m_capacity > 0) {
             m_data = new u8[u64(m_capacity) * m_type->size];
-        }
-        if (m_count > 0) {
-            for (u32 i = 0;i < m_count;i++) {
-                subtype_t* elem = (subtype_t*)(o.m_data + (u64(i) * u64(m_type->size)));
-                if (m_type->is_trivially_copyable) {
-                    if (m_type->is_primitive) memcpy(m_data + (u64(i) * u64(m_type->size)), elem, m_type->size);
-                    else memcpy(m_data + (u64(m_count) * u64(m_type->size)), elem, m_type->size);
-                } else {
-                    script_object obj(m_type, (u8*)elem);
-                    construct_at(m_type, m_data + (u64(m_count) * u64(m_type->size)), obj);
+
+            if (m_count > 0) {
+                for (u32 i = 0;i < m_count;i++) {
+                    subtype_t* elem = (subtype_t*)(o.m_data + (u64(i) * u64(m_type->size)));
+                    if (m_type->is_trivially_copyable) {
+                        if (m_type->is_primitive) memcpy(m_data + (u64(i) * u64(m_type->size)), elem, m_type->size);
+                        else memcpy(m_data + (u64(m_count) * u64(m_type->size)), elem, m_type->size);
+                    } else {
+                        script_object obj(m_type, (u8*)elem);
+                        construct_at(m_type, m_data + (u64(m_count) * u64(m_type->size)), obj);
+                    }
                 }
             }
         }
@@ -93,35 +95,39 @@ namespace gjs {
     void script_array::for_each(callback<void(*)(u32, subtype_t*)> cb) {
         for (u32 i = 0;i < m_count;i++) {
             // probably a hack not to just use cb(i, (subtype_t*)(m_data + (u64(i) * u64(m_type->size))))
-            call(cb.data, i, script_object(m_type, (u8*)(m_data + (u64(i) * u64(m_type->size)))));
+            script_object e = script_object(m_type, (u8*)(m_data + (u64(i) * u64(m_type->size))));
+            call(cb.data, i, e);
         }
     }
 
     bool script_array::some(callback<bool(*)(u32, subtype_t*)> cb) {
         for (u32 i = 0;i < m_count;i++) {
             // probably a hack not to just use cb(i, (subtype_t*)(m_data + (u64(i) * u64(m_type->size))))
-            bool result = call(cb.data, i, script_object(m_type, (u8*)(m_data + (u64(i) * u64(m_type->size)))));
+            script_object e = script_object(m_type, (u8*)(m_data + (u64(i) * u64(m_type->size))));
+            bool result = call(cb.data, i, e);
             if (result) return true;
         }
 
         return false;
     }
 
-    subtype_t* script_array::find(callback<bool(*)(u32, subtype_t*)> cb) {
+    subtype_t* script_array::find(callback<bool(*)(u32, subtype_t*)> cb, subtype_t* notFoundVal) {
         for (u32 i = 0;i < m_count;i++) {
             // probably a hack not to just use cb(i, (subtype_t*)(m_data + (u64(i) * u64(m_type->size))))
             subtype_t* ptr = (subtype_t*)(m_data + (u64(i) * u64(m_type->size)));
-            bool result = call(cb.data, i, script_object(m_type, (u8*)ptr));
+            script_object e = script_object(m_type, (u8*)ptr);
+            bool result = call(cb.data, i, e);
             if (result) return ptr;
         }
 
-        return nullptr;
+        return notFoundVal;
     }
 
     i64 script_array::findIndex(callback<bool(*)(u32, subtype_t*)> cb) {
         for (u32 i = 0;i < m_count;i++) {
             // probably a hack not to just use cb(i, (subtype_t*)(m_data + (u64(i) * u64(m_type->size))))
-            bool result = call(cb.data, i, script_object(m_type, (u8*)(m_data + (u64(i) * u64(m_type->size)))));
+            script_object e = script_object(m_type, (u8*)(m_data + (u64(i) * u64(m_type->size))));
+            bool result = call(cb.data, i, e);
             if (result) return i;
         }
         return -1;

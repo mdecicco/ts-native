@@ -46,11 +46,10 @@ namespace gjs {
                 script_function* setter;
             };
 
-            template <typename Ret, typename...Args>
-            script_function* method(const std::string& _name) {
-                return function_search<Ret, Args...>(owner->context(), name + "::" + _name, methods);
-            }
-            script_function* method(const std::string& name, script_type* ret, const std::vector<script_type*>& arg_types);
+            bool has_any_method(const std::string& name) const;
+            bool has_unambiguous_method(const std::string& name, script_type* retTp, const std::vector<script_type*>& arg_types) const;
+            bool is_convertible_to(script_type* tp) const;
+            script_function* method(const std::string& name, script_type* ret, const std::vector<script_type*>& arg_types, bool* was_ambiguous = nullptr);
 
             property* prop(const std::string& name);
 

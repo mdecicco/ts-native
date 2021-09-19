@@ -1,19 +1,12 @@
-void main() {
-	i32[] test;
-	test.push(1);
-	test.push(2);
-	test.push(3);
-	test.forEach((u32 idx, i32 e) : void => {
-		print('t[' + idx.toFixed(1) + ']: ' + e.toFixed(1));
-	});
-	if (test.some((u32 idx, i32 e) : bool => { return e == 4; })) {
-		print('yes');
+void main(bool ()(i32, i32) cb) {
+	i32 x = 4;
+	bool()(i32, i32) cb1 = (i32 a, i32 b) : bool => {
+		return b == x;
+	};
+	if (cb1(3, 4)) {
+		print('I AM GOING TO FUCKING KILL MYSELF');
 	}
-	
-	i64 t = test.findIndex((u32 idx, i32 e) : bool => { return e == 3; });
-	print(t.toFixed(1));
-
-	// todo: handle null...
-	i64 r = test.find((u32 idx, i32 e) : bool => { return idx == 2; });
-	print(r.toFixed(1));
+	if (cb(3, 3)) {
+		print('I AM GOING TO FUCKING KILL MYSELF');
+	}
 }
