@@ -88,7 +88,7 @@ namespace gjs {
                 notEq,
                 isEq,
                 eq,
-                not,
+                _not,
                 negate,
                 member,
                 index,
@@ -133,7 +133,8 @@ namespace gjs {
             void set(f64 v);
             void set(const std::string& v);
             void src(const lex::token& tk);
-
+            
+            std::string str() const;
             operator std::string() const;
             operator i64();
             operator f32();

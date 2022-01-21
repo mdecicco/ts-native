@@ -74,7 +74,7 @@ boid create_boid(vec2f wsz) {
 	return b;
 }
 
-void update_boid(f32 dt, boid b, u32 selfIdx, array<boid> boids, vec2f wsz, SearchGrid grid, array<u32> neighborIndices) {
+void update_boid(f32 dt, boid b, u32 selfIdx, boid[] boids, vec2f wsz, SearchGrid grid, u32[] neighborIndices) {
 	f32 maxSpeed = max_speed();
 	f32 minSpeed = min_speed();
 	f32 cohesionFac = cohesion_fac();

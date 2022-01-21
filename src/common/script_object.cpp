@@ -1,10 +1,5 @@
 #include <gjs/common/script_object.h>
-#include <gjs/common/script_type.h>
-#include <gjs/common/script_function.h>
-#include <gjs/common/script_module.h>
-#include <gjs/common/script_context.h>
-#include <gjs/backends/backend.h>
-#include <gjs/bind/calling.h>
+#include <gjs/gjs.hpp>
 
 namespace gjs {
     script_object::script_object(script_context* ctx) {

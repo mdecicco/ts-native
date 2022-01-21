@@ -3,6 +3,7 @@
 #include <gjs/common/type_manager.h>
 #include <gjs/common/script_context.h>
 #include <gjs/common/script_module.h>
+#include <gjs/common/function_signature.h>
 #include <gjs/vm/register.h>
 #include <gjs/bind/bind.h>
 #include <gjs/util/util.h>

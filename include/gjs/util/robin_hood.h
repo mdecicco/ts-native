@@ -688,32 +688,25 @@ namespace robin_hood {
         switch (len & 7U) {
         case 7:
             h ^= static_cast<uint64_t>(data8[6]) << 48U;
-            ROBIN_HOOD(FALLTHROUGH);
             [[fallthrough]];
         case 6:
             h ^= static_cast<uint64_t>(data8[5]) << 40U;
-            ROBIN_HOOD(FALLTHROUGH);
             [[fallthrough]];
         case 5:
             h ^= static_cast<uint64_t>(data8[4]) << 32U;
-            ROBIN_HOOD(FALLTHROUGH);
             [[fallthrough]];
         case 4:
             h ^= static_cast<uint64_t>(data8[3]) << 24U;
-            ROBIN_HOOD(FALLTHROUGH);
             [[fallthrough]];
         case 3:
             h ^= static_cast<uint64_t>(data8[2]) << 16U;
-            ROBIN_HOOD(FALLTHROUGH);
             [[fallthrough]];
         case 2:
             h ^= static_cast<uint64_t>(data8[1]) << 8U;
-            ROBIN_HOOD(FALLTHROUGH);
             [[fallthrough]];
         case 1:
             h ^= static_cast<uint64_t>(data8[0]);
             h *= m;
-            ROBIN_HOOD(FALLTHROUGH);
             [[fallthrough]];
         default:
             break;

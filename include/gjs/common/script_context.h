@@ -2,6 +2,7 @@
 #include <gjs/common/types.h>
 #include <gjs/util/robin_hood.h>
 #include <string>
+#include <vector>
 
 struct DCCallVM_;
 typedef DCCallVM_ DCCallVM;

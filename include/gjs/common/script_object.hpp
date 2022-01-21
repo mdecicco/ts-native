@@ -1,7 +1,3 @@
-#include <gjs/common/function_signature.h>
-#include <gjs/bind/calling.h>
-#include <gjs/util/util.h>
-
 namespace gjs {
     template <typename ...Args>
     script_object::script_object(script_context* ctx, script_type* type, Args... args) {
@@ -88,11 +84,11 @@ namespace gjs {
             return script_object(m_ctx);
         }
 
-        script_function* f = m_type->method(func, m_ctx->type<Ret>(), { m_ctx->type<Args>()... });
+        script_function* f = m_type->method(func, type_of<Ret>(m_ctx), { type_of<Args>(m_ctx)... });
         if (!f) {
-            script_type* rt = m_ctx->type<Ret>();
+            script_type* rt = type_of<Ret>(m_ctx);
             constexpr i32 argc = std::tuple_size<std::tuple<Args...>>::value;
-            script_type* argTps[] = { m_ctx->type<Args>()..., nullptr };
+            script_type* argTps[] = { type_of<Args>(m_ctx)..., nullptr };
             function_signature sig = function_signature(m_ctx, rt, std::is_reference_v<Ret> || std::is_pointer_v<Ret>, argTps, argc, nullptr);
 
             throw error::runtime_exception(error::ecode::r_invalid_object_method, m_type->name.c_str(), sig.to_string(func).c_str());
@@ -104,7 +100,7 @@ namespace gjs {
 
     template <typename T>
     script_object script_object::operator = (const T& rhs) {
-        using base_tp = remove_all<T>::type;
+        using base_tp = typename remove_all<T>::type;
         if constexpr (std::is_same_v<T, script_object>) assign(rhs);
         else if constexpr (std::is_same_v<T, script_object*>) assign(*rhs);
         else {

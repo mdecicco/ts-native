@@ -1,5 +1,6 @@
 #pragma once
-#include <gjs/util/template_utils.hpp>
+#include <gjs/util/template_utils.h>
+#include <gjs/util/callback.h>
 #include <gjs/common/types.h>
 #include <gjs/common/errors.h>
 #include <gjs/common/script_type.h>

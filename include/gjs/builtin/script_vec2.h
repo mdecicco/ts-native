@@ -1,5 +1,6 @@
 #pragma once
 #include <gjs/builtin/script_math.h>
+#include <cmath>
 
 namespace gjs {
     class script_module;

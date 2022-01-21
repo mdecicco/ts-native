@@ -135,7 +135,7 @@ namespace gjs {
                 throw error::bind_exception(error::ecode::b_method_return_type_unbound, base_type_name<Ret>(), base_type_name<Cls>(), name.c_str());
             }
 
-            call_method_func = wrapper;
+            call_method_func = reinterpret_cast<void*>(wrapper);
             if constexpr (std::is_class_v<Ret>) {
                 auto srv = srv_wrapper<Ret, method_type, Cls*, Args...>;
                 srv_wrapper_func = reinterpret_cast<void*>(srv);
@@ -205,7 +205,7 @@ namespace gjs {
                 throw error::bind_exception(error::ecode::b_method_return_type_unbound, base_type_name<Ret>(), base_type_name<Cls>(), name.c_str());
             }
 
-            call_method_func = wrapper;
+            call_method_func = reinterpret_cast<void*>(wrapper);
             if constexpr (std::is_class_v<Ret>) {
                 auto srv = srv_wrapper<Ret, method_type, Cls*, Args...>;
                 srv_wrapper_func = reinterpret_cast<void*>(srv);
@@ -293,8 +293,8 @@ namespace gjs {
     // wrap_class
     namespace ffi {
         template <typename Cls>
-        wrap_class<Cls>::wrap_class(type_manager* tpm, const std::string& name) : wrapped_class(name, typeid(remove_all<Cls>::type).name(), sizeof(remove_all<Cls>::type)), types(tpm) {
-            type = tpm->add(name, typeid(remove_all<Cls>::type).name());
+        wrap_class<Cls>::wrap_class(type_manager* tpm, const std::string& name) : wrapped_class(name, typeid(typename remove_all<Cls>::type).name(), sizeof(typename remove_all<Cls>::type)), types(tpm) {
+            type = tpm->add(name, typeid(typename remove_all<Cls>::type).name());
             type->size = u32(size);
             type->is_host = true;
             trivially_copyable = std::is_trivially_copyable_v<Cls>;
@@ -380,14 +380,14 @@ namespace gjs {
                 throw error::bind_exception(error::ecode::b_prop_already_bound, _name.c_str(), name.c_str());
             }
 
-            script_type* tp = types->ctx()->type<T>();
+            script_type* tp = type_of<T>(types->ctx());
             if (!tp) {
                 throw error::bind_exception(error::ecode::b_prop_type_unbound, base_type_name<T>());
             }
 
             if (std::is_pointer_v<T>) flags |= u8(property_flags::pf_pointer);
 
-            properties[_name] = new property(nullptr, nullptr, tp, (u64)member, flags | pf_static);
+            properties[_name] = new property(nullptr, nullptr, tp, (u64)member, flags | u8(property_flags::pf_static));
             return *this;
         }
 
@@ -399,7 +399,7 @@ namespace gjs {
                 throw error::bind_exception(error::ecode::b_prop_already_bound, _name.c_str(), name.c_str());
             }
 
-            script_type* tp = types->ctx()->type<T>();
+            script_type* tp = type_of<T>(types->ctx());
             if (!tp) {
                 throw error::bind_exception(error::ecode::b_prop_type_unbound, base_type_name<T>());
             }
@@ -449,7 +449,7 @@ namespace gjs {
                 throw error::bind_exception(error::ecode::b_prop_already_bound, _name.c_str(), name.c_str());
             }
 
-            script_type* tp = types->ctx()->type<T>();
+            script_type* tp = type_of<T>(types->ctx());
             if (!tp) {
                 throw error::bind_exception(error::ecode::b_prop_type_unbound, base_type_name<T>());
             }
@@ -502,8 +502,8 @@ namespace gjs {
     // pseudo_class
     namespace ffi {
         template <typename prim>
-        pseudo_class<prim>::pseudo_class(type_manager* tpm, const std::string& name) : wrapped_class(name, typeid(remove_all<prim>::type).name(), 0), types(tpm) {
-            type = tpm->add(name, typeid(remove_all<prim>::type).name());
+        pseudo_class<prim>::pseudo_class(type_manager* tpm, const std::string& name) : wrapped_class(name, typeid(typename remove_all<prim>::type).name(), 0), types(tpm) {
+            type = tpm->add(name, typeid(typename remove_all<prim>::type).name());
             if constexpr (!std::is_same_v<void, prim>) size = sizeof(prim);
             trivially_copyable = true;
             is_pod = true;

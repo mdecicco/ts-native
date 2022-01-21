@@ -1,19 +1,12 @@
 #include <gjs/vm/vm.h>
 #include <gjs/vm/allocator.h>
-#include <stdarg.h>
-#include <string.h>
-#include <gjs/common/script_context.h>
-#include <gjs/common/script_function.h>
-#include <gjs/common/function_signature.h>
-#include <gjs/common/script_type.h>
-#include <gjs/common/type_manager.h>
-#include <gjs/common/script_module.h>
 #include <gjs/common/function_pointer.h>
 #include <gjs/builtin/script_buffer.h>
 #include <gjs/backends/b_vm.h>
-#include <gjs/util/util.h>
-#include <gjs/util/typeof.h>
-#include <gjs/bind/ffi.h>
+#include <gjs/gjs.hpp>
+
+#include <stdarg.h>
+#include <string.h>
 
 namespace gjs {
     #define vmi vm_instruction
@@ -419,11 +412,11 @@ namespace gjs {
                     GRd(_O1) = -GRd(_O2);
                     break;
                 }
-                case vmi::and: {
+                case vmi::_and: {
                     GR64(_O1) = GR64(_O2) && GR64(_O3);
                     break;
                 }
-                case vmi::or: {
+                case vmi::_or: {
                     GR64(_O1) = GR64(_O2) || GR64(_O3);
                     break;
                 }
@@ -443,7 +436,7 @@ namespace gjs {
                     GR64(_O1) = GR64(_O2) | _O3i;
                     break;
                 }
-                case vmi::xor: {
+                case vmi::_xor: {
                     GR64(_O1) = GR64(_O2) ^ GR64(_O3);
                     break;
                 }

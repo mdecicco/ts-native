@@ -1,10 +1,7 @@
 #include <gjs/common/function_signature.h>
-#include <gjs/bind/ffi.h>
-#include <gjs/common/script_type.h>
-#include <gjs/common/script_context.h>
-#include <gjs/common/script_module.h>
 #include <gjs/vm/register.h>
-#include <gjs/util/typeof.h>
+
+#include <gjs/gjs.hpp>
 
 namespace gjs {
     function_signature::function_signature(script_context* ctx, script_type* tp, ffi::wrapped_function* wrapped, bool is_ctor) {

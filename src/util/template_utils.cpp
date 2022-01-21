@@ -15,7 +15,7 @@ namespace gjs {
         });
 
         // printf("Allocated host raw_callback 0x%lX\n", (u64)p);
-        return new void*(p);
+        return new raw_callback*(p);
     }
 
     void* raw_callback::make(u32 fid, void* data, u64 dataSz) {
@@ -42,7 +42,7 @@ namespace gjs {
             }
 
             if (cb->owns_ptr && cb->ptr) delete cb->ptr;
-            if (cb->free_self) delete (void*)cbp;
+            if (cb->free_self) delete (raw_callback**)cbp;
             delete cb;
         }
     }

@@ -1,5 +1,6 @@
-#include <gjs/util/template_utils.hpp>
+#include <gjs/util/template_utils.h>
 #include <gjs/common/script_function.h>
+#include <gjs/common/function_signature.h>
 
 namespace gjs {
     template <typename... Args>
@@ -52,12 +53,11 @@ namespace gjs {
                 out.set_self(new u8[func->type->signature->return_type->size]); 
             }
             func->ctx()->generator()->call(func, out.self(), vargs.data());
-            if constexpr (ac > 0) {
-                for (u8 a = 0;a < ac;a++) {
-                    if (!arg_types[a]->signature) continue;
-                    // arg is a callback function that was dynamically allocated
-                    raw_callback::destroy((raw_callback**)vargs[a]);
-                }
+            
+            for (u8 a = 0;a < ac;a++) {
+                if (!arg_types[a]->signature) continue;
+                // arg is a callback function that was dynamically allocated
+                raw_callback::destroy((raw_callback**)vargs[a]);
             }
             return out;
         } else {
@@ -73,22 +73,7 @@ namespace gjs {
                 out.set_self(new u8[func->type->signature->return_type->size]); 
             }
             func->ctx()->generator()->call(func, out.self(), &self);
-            if constexpr (ac > 0) {
-                for (u8 a = 0;a < ac;a++) {
-                    if (!arg_types[a]->signature) continue;
-                    // arg is a callback function that was dynamically allocated
-                    raw_callback** cbp = (raw_callback**)vargs[a];
-                    raw_callback* cb = *cbp;
-                    if (cb->owns_func && cb->ptr) {
-                        delete cb->ptr->target->access.wrapped;
-                        delete cb->ptr->target;
-                    }
-
-                    if (cb->owns_ptr && cb->ptr) delete cb->ptr;
-                    delete cb;
-                    if (cb->free_self) delete (void*)cbp;
-                }
-            }
+            
             return out;
         }
 
@@ -145,12 +130,11 @@ namespace gjs {
                 out.set_self(new u8[func->type->signature->return_type->size]); 
             }
             func->ctx()->generator()->call(func, out.self(), vargs.data());
-            if constexpr (ac > 0) {
-                for (u8 a = 0;a < ac;a++) {
-                    if (!arg_types[a]->signature) continue;
-                    // arg is a callback function that was dynamically allocated
-                    raw_callback::destroy((raw_callback**)vargs[a]);
-                }
+            
+            for (u8 a = 0;a < ac;a++) {
+                if (!arg_types[a]->signature) continue;
+                // arg is a callback function that was dynamically allocated
+                raw_callback::destroy((raw_callback**)vargs[a]);
             }
             return out;
         } else {
@@ -170,22 +154,7 @@ namespace gjs {
             if (self) vargs.insert(vargs.begin(), self);
 
             func->ctx()->generator()->call(func, out.self(), vargs.data());
-            if constexpr (ac > 0) {
-                for (u8 a = 0;a < ac;a++) {
-                    if (!arg_types[a]->signature) continue;
-                    // arg is a callback function that was dynamically allocated
-                    raw_callback** cbp = (raw_callback**)vargs[a];
-                    raw_callback* cb = *cbp;
-                    if (cb->owns_func && cb->ptr) {
-                        delete cb->ptr->target->access.wrapped;
-                        delete cb->ptr->target;
-                    }
-
-                    if (cb->owns_ptr && cb->ptr) delete cb->ptr;
-                    delete cb;
-                    if (cb->free_self) delete (void*)cbp;
-                }
-            }
+            
             return out;
         }
 
@@ -233,22 +202,13 @@ namespace gjs {
                 out.set_self(new u8[func->type->signature->return_type->size]); 
             }
             func->ctx()->generator()->call(func, out.self(), vargs.data());
-            if constexpr (ac > 0) {
-                for (u8 a = 0;a < ac;a++) {
-                    if (!arg_types[a]->signature) continue;
-                    // arg is a callback function that was dynamically allocated
-                    raw_callback** cbp = (raw_callback**)vargs[a];
-                    raw_callback* cb = *cbp;
-                    if (cb->owns_func && cb->ptr) {
-                        delete cb->ptr->target->access.wrapped;
-                        delete cb->ptr->target;
-                    }
-
-                    if (cb->owns_ptr && cb->ptr) delete cb->ptr;
-                    delete cb;
-                    if (cb->free_self) delete (void*)cbp;
-                }
+            
+            for (u8 a = 0;a < ac;a++) {
+                if (!arg_types[a]->signature) continue;
+                // arg is a callback function that was dynamically allocated
+                raw_callback::destroy((raw_callback**)vargs[a]);
             }
+                
             return out;
         } else {
             if (func->type->signature->explicit_argc != 0) valid_call = false;
@@ -262,23 +222,8 @@ namespace gjs {
             if (func->type->signature->return_type->size > 0) {
                 out.set_self(new u8[func->type->signature->return_type->size]); 
             }
-            func->ctx()->generator()->call(func, out.self(), &self);
-            if constexpr (ac > 0) {
-                for (u8 a = 0;a < ac;a++) {
-                    if (!arg_types[a]->signature) continue;
-                    // arg is a callback function that was dynamically allocated
-                    raw_callback** cbp = (raw_callback**)vargs[a];
-                    raw_callback* cb = *cbp;
-                    if (cb->owns_func && cb->ptr) {
-                        delete cb->ptr->target->access.wrapped;
-                        delete cb->ptr->target;
-                    }
-
-                    if (cb->owns_ptr && cb->ptr) delete cb->ptr;
-                    delete cb;
-                    if (cb->free_self) delete (void*)cbp;
-                }
-            }
+            func->ctx()->generator()->call(func, out.self(), &cb->ptr->data);
+            
             return out;
         }
 

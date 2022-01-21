@@ -150,7 +150,7 @@ namespace gjs {
                 exception(ecode code, source_ref at, ...);
                 exception();
                 
-                virtual const char* what() const;
+                virtual const char* what() const _NOEXCEPT;
 
                 ecode code;
                 source_ref src;

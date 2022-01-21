@@ -1,5 +1,4 @@
 #pragma once
-#include <gjs/vm/instruction.h>
 #include <gjs/compiler/variable.h>
 
 namespace gjs {
@@ -113,8 +112,6 @@ namespace gjs {
             // meta_do_while_loop
         };
 
-        bool is_assignment(const tac_instruction& i);
-
         struct tac_instruction {
             public:
                 tac_instruction();
@@ -162,5 +159,7 @@ namespace gjs {
                 u64 addr;
                 u16 fidx;
         };
+    
+        bool is_assignment(const tac_instruction& i);
     };
 };

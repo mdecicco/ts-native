@@ -1,179 +1,154 @@
 #pragma once
-#include <vector>
-#include <string>
-#include <gjs/common/types.h>
-#include <gjs/common/errors.h>
-
 namespace gjs {
-    class script_function;
-    class script_type;
-    class type_manager;
-    class script_context;
-    class script_module;
-    class function_pointer;
-
+    //
+    // Misc
+    //
     template <typename Ret, typename... Args>
-    script_type* cdecl_signature(script_context* ctx, bool is_callback = false);
+    script_type* cdecl_signature(script_context* ctx, bool is_cb) {
+        script_type* rt = type_of<Ret>(ctx);
+        if (!rt) throw error::bind_exception(error::ecode::b_cannot_get_signature_unbound_return, base_type_name<Ret>());
+        constexpr i32 argc = std::tuple_size<std::tuple<Args...>>::value;
+        script_type* argTps[argc] = { type_of<Args>(ctx)... };
+
+        for (u8 i = 0;i < argc;i++) {
+            if (!argTps[i]) {
+                const char* argtypenames[] = { base_type_name<Args>()... };
+                throw error::bind_exception(error::ecode::b_cannot_get_signature_unbound_arg, argtypenames[i], i);
+            }
+        }
+
+        return ctx->types()->get(function_signature(
+            ctx,
+            rt,
+            (std::is_reference_v<Ret> || std::is_pointer_v<Ret>),
+            argTps,
+            argc,
+            nullptr,
+            false,
+            false,
+            is_cb
+        ));
+    }
 
     template <typename Cls, typename Ret, typename... Args>
-    script_type* thiscall_signature(script_context* ctx, bool is_callback = false);
+    script_type* thiscall_signature(script_context* ctx, bool is_cb) {
+        script_type* rt = type_of<Ret>(ctx);
+        if (!rt) throw error::bind_exception(error::ecode::b_cannot_get_signature_unbound_return, base_type_name<Ret>());
+        constexpr i32 argc = std::tuple_size<std::tuple<Args...>>::value;
+        script_type* argTps[argc] = { type_of<Args>(ctx)... };
+
+        for (u8 i = 0;i < argc;i++) {
+            if (!argTps[i]) {
+                const char* argtypenames[] = { base_type_name<Args>()... };
+                throw error::bind_exception(error::ecode::b_cannot_get_signature_unbound_arg, argtypenames[i], i);
+            }
+        }
+
+        return ctx->types()->get(function_signature(
+            ctx,
+            rt,
+            (std::is_reference_v<Ret> || std::is_pointer_v<Ret>),
+            argTps,
+            argc,
+            type_of<Cls>(ctx),
+            false,
+            false,
+            is_cb
+        ));
+    }
 
     template <typename Ret, typename... Args>
-    script_type* callback_signature(script_context* ctx, Ret (*f)(Args...));
+    script_type* callback_signature(script_context* ctx, Ret (*f)(Args...)) {
+        return cdecl_signature<Ret, Args...>(ctx, true);
+    }
 
     template <typename L, typename Ret, typename ...Args>
-    script_type* callback_signature(script_context* ctx, Ret (L::*f)(Args...));
+    script_type* callback_signature(script_context* ctx, Ret (L::*f)(Args...) const) {
+        return cdecl_signature<Ret, Args...>(ctx, true);
+    }
 
     template <typename L, typename Ret, typename ...Args>
-    script_type* callback_signature(script_context* ctx, Ret (L::*f)(Args...));
-
-    template<class T> struct remove_all { typedef T type; };
-    template<class T> struct remove_all<T*> : remove_all<T> {};
-    template<class T> struct remove_all<T&> : remove_all<T> {};
-    template<class T> struct remove_all<T&&> : remove_all<T> {};
-    template<class T> struct remove_all<T const> : remove_all<T> {};
-    template<class T> struct remove_all<T volatile> : remove_all<T> {};
-    template<class T> struct remove_all<T const volatile> : remove_all<T> {};
-    template<class T> struct remove_all<T[]> : remove_all<T> {};
-
-    struct TransientFunctionBase {
-        // A pointer to the static function that will call the wrapped invokable object
-        void* m_Dispatcher;
-        // A pointer to the invokable object
-        void* m_Target;
-    };
-
-    // Thank you to Jonathan Adamczewski for the TransientFunction code
-    // https://brnz.org/hbr/?p=1767
-    template<typename>
-    struct TransientFunction; // intentionally not defined
-
-    template<typename R, typename ...Args>
-    struct TransientFunction<R(Args...)> : public TransientFunctionBase {
-        using PtrType = R(*)(Args...);
-        using Dispatcher = R(*)(void*, Args...);
-
-        template<typename S>
-        static R Dispatch(void* target, Args... args);
-
-        template<typename T>
-        TransientFunction(T&& target);
-
-        // Specialize for reference-to-function, to ensure that a valid pointer is 
-        // stored.
-        using TargetFunctionRef = R(Args...);
-        TransientFunction(TargetFunctionRef target);
-
-        TransientFunction();
-
-        R operator()(void*, Args... args) const;
-    };
-
-    template <typename R, typename... Args>
-    struct FunctionTraitsBase {
-        using RetType = R;
-        using ArgTypes = std::tuple<Args...>;
-        static constexpr std::size_t ArgCount = sizeof...(Args);
-        template <std::size_t N>
-        using NthArg = std::tuple_element_t<N, ArgTypes>;
-    };
-
-    template <typename F> struct FunctionTraits;
-
-    template <typename R, typename... Args>
-    struct FunctionTraits<R(*)(Args...)> : FunctionTraitsBase<R, Args...> {
-        using Pointer = R(*)(Args...);
-
-        static void arg_types(type_manager* tpm, script_type** out, bool do_throw);
-    };
-
-    struct raw_callback {
-        bool free_self;
-        bool owns_ptr;
-        bool owns_func;
-        TransientFunctionBase hostFn;
-        function_pointer* ptr;
-
-        static void* make(function_pointer* fptr);
-        static void* make(u32 fid, void* data, u64 dataSz);
-
-        template <typename Ret, typename ...Args>
-        static void* make(Ret(*f)(Args...));
-
-        template <typename L, typename Ret, typename ...Args>
-        static void* make(Ret (L::*f)(Args...) const);
-
-        static void destroy(raw_callback** cbp);
-
-        template <typename L>
-        static std::enable_if_t<!std::is_function_v<std::remove_pointer_t<L>>, void*>
-        make(L&& l);
-    };
-
-    template <typename T>
-    struct callback;
-
-    template <typename Ret, typename ...Args>
-    struct callback<Ret(*)(Args...)> : FunctionTraitsBase<Ret, Args...> {
-        using Fn = TransientFunction<Ret(Args...)>;
-
-        static script_type* type(script_context* ctx);
-
-        callback(callback<Ret(*)(Args...)>& rhs);
-
-        template <typename F>
-        callback(std::enable_if_t<std::is_invocable_r_v<Ret, F, Args...>, F>&& f);
-
-        using TargetFunctionRef = Ret(Args...);
-        callback(TargetFunctionRef f);
-
-        callback(Fn f);
-
-        callback(function_pointer* fptr);
-
-        ~callback();
-
-        Ret operator() (Args ... args);
-
-        raw_callback* data;
-    };
-    
-    template <typename, typename = void> struct is_callback : std::false_type {};
-    template <typename T> struct is_callback<T, std::void_t<decltype(T::data)>> : std::is_convertible<decltype(T::data), raw_callback*> {};
-    template <typename T> constexpr bool is_callback_v = is_callback<T>::value;
-    
-    template <typename T>
-    class is_callable_object {
-            typedef char one;
-            typedef long two;
-
-            template <typename C> static one test( decltype(&C::operator()) ) ;
-            template <typename C> static two test(...);
-        public:
-            enum { value = sizeof(test<T>(0)) == sizeof(char) };
-    };
-
-    template <typename T>
-    constexpr bool is_callable_object_v = is_callable_object<T>::value;
+    script_type* callback_signature(script_context* ctx, Ret (L::*f)(Args...)) {
+        return cdecl_signature<Ret, Args...>(ctx, true);
+    }
 
     template <typename L>
     std::enable_if_t<is_callable_object_v<std::remove_reference_t<L>>, script_type*>
-    callback_signature(script_context* ctx, L&& l);
+    callback_signature(script_context* ctx, L&& l) {
+        static_assert(is_callable_object<std::remove_reference_t<L>>::value, "Object type L passed to raw_callback::make is not a lambda");
+        return callback_signature(ctx, &std::decay_t<decltype(l)>::operator());
+    }
 
     template <typename T>
-    inline const char* base_type_name();
+    inline const char* base_type_name() {
+        return typeid(typename remove_all<T>::type).name();
+    }
 
     template <typename T>
-    void* to_arg(T& arg);
+    void* to_arg(T& arg) {
+        if constexpr (std::is_class_v<T>) {
+            if constexpr (std::is_same_v<T, script_object>) {
+                return arg.self();
+            } else if constexpr (is_callable_object_v<std::remove_reference_t<T>>) {
+                return raw_callback::make(arg);
+            } else {
+                // Pass non-pointer struct/class values as pointers to those values
+                // The only way that functions accepting these types could be bound
+                // is if the argument type is a pointer or a reference (which is
+                // basically a pointer)
+                return (void*)&arg;
+            }
+        } else if constexpr (std::is_function_v<std::remove_pointer_t<T>>) {
+            return raw_callback::make(arg);
+        } else {
+            if constexpr (std::is_same_v<typename remove_all<T>::type, script_object>) {
+                if constexpr (std::is_pointer_v<T>) return arg->self();
+                else return arg.self();
+            } else {
+                // Otherwise, cast the value to void*
+                return *reinterpret_cast<void**>(&arg);
+            }
+        }
+    }
 
     template <typename T>
-    script_type* arg_type(script_context* ctx, T& arg);
+    script_type* arg_type(script_context* ctx, T& arg) {
+        if constexpr (std::is_same_v<typename remove_all<T>::type, script_object>) {
+            if constexpr (std::is_pointer_v<T>) return arg->type();
+            else return arg.type();
+        } else if constexpr(std::is_function_v<std::remove_pointer_t<T>>) {
+            return callback_signature(ctx, arg);
+        } else if constexpr(is_callable_object_v<std::remove_reference_t<T>>) {
+            return callback_signature(ctx, arg);
+        } else {
+            return ctx->global()->types()->get<T>();
+        }
+    }
 
     template <typename Ret, typename ...Args>
-    script_function* function_search(script_context* ctx, const std::string& name, const std::vector<script_function*>& source);
+    script_function* function_search(script_context* ctx, const std::string& name, const std::vector<script_function*>& source) {
+        if (source.size() == 0) return nullptr;
+
+        script_type* ret = ctx->global()->types()->get<Ret>();
+        if (!ret) return nullptr;
+
+        constexpr u8 ac = std::tuple_size<std::tuple<Args...>>::value;
+        if constexpr (ac > 0) {
+            script_type* arg_types[ac] = { ctx->global()->types()->get<Args>()... };
+
+            for (u8 i = 0;i < ac;i++) {
+                if (!arg_types[i]) return nullptr;
+            }
+            return function_search(name, source, ret, { ctx->global()->types()->get<Args>()... });
+        }
+
+        return function_search(name, source, ret, { });
+    }
 
     template <typename Ret, typename ...Args>
-    script_function* function_search(script_module* mod, const std::string& name);
+    script_function* function_search(script_module* mod, const std::string& name) {
+        if (!mod->has_function(name)) return nullptr;
+        auto funcs = mod->function_overloads(name);
+        return function_search<Ret, Args...>(mod->context(), name, funcs);
+    }
 };
-
-#include <gjs/util/template_utils.inl>

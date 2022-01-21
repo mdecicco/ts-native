@@ -45,5 +45,3 @@ namespace gjs {
     template <typename Ret, typename... Args>
     script_function* bind(script_module* mod, Ret(*func)(Args...), const std::string& name);
 };
-
-#include <gjs/bind/bind.inl>
