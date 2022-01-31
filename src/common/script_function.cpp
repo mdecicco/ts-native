@@ -36,7 +36,7 @@ namespace gjs {
         is_thiscall = tp && !wrapped->is_static_method;
         is_subtype_obj_ctor = tp && tp->requires_subtype && is_ctor;
         m_is_copy = false;
-        type = mgr->get(function_signature(mgr->ctx(), tp, wrapped, is_ctor), "", is_dtor);
+        type = mgr->get(function_signature(mgr->ctx(), tp, wrapped, is_ctor, is_dtor), "", is_dtor);
         m_id = 0;
         access.wrapped = wrapped;
         owner = mod;

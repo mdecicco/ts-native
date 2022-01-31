@@ -143,6 +143,7 @@ namespace gjs {
             true,
             true,
             true,
+            false,
             (TransientFunctionBase)TransientFunction<Ret(Args...)>(f),
             new function_pointer(
                 new script_function(
@@ -167,6 +168,7 @@ namespace gjs {
             true,
             true,
             true,
+            false,
             TransientFunction<Ret(Args...)>(f),
             new function_pointer(
                 new script_function(
@@ -191,6 +193,7 @@ namespace gjs {
             true,
             true,
             true,
+            false,
             (TransientFunctionBase)std::move(f),
             new function_pointer(
                 new script_function(
@@ -215,6 +218,7 @@ namespace gjs {
             false,
             false,
             true,
+            false,
             { nullptr, nullptr },
             fptr
         });
@@ -222,7 +226,7 @@ namespace gjs {
 
     template <typename Ret, typename ...Args>
     callback<Ret(*)(Args...)>::~callback() {
-        if (!data) return;
+        if (!data || data->script_owned) return;
         raw_callback::destroy((raw_callback**)this);
     }
 
@@ -326,6 +330,8 @@ namespace gjs {
             if constexpr (std::is_same_v<T, script_object>) {
                 if (arg.type()->is_primitive) return *reinterpret_cast<void**>(arg.self());
                 return arg.self();
+            } else if constexpr (is_callback_v<T>) {
+                return &arg;
             } else if constexpr (is_callable_object_v<std::remove_reference_t<T>>) {
                 return raw_callback::make(arg);
             } else {

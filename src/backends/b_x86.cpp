@@ -174,7 +174,8 @@ namespace gjs {
             else if (v.is_imm()) {
                 if (v.type()->is_floating_point) {
                     x86::Xmm r = cc.newXmm();
-                    cc.movq(r, imm2const(cc, v));
+                    if (v.size() == sizeof(f64)) cc.movq(r, imm2const(cc, v));
+                    else cc.movd(r, imm2const(cc, v));
                     return r;
                 }
                 x86::Gp r = cc.newGp(convertType(v.type()));
@@ -480,7 +481,6 @@ namespace gjs {
         Error err = m_rt->add(&addr, &ch);
         String content = std::move(sl.content());
         printf("%s\n", content.data());
-
         if (err) {
             String content = std::move(sl.content());
             printf("%s\n", content.data());
@@ -533,7 +533,8 @@ namespace gjs {
             else if (v.is_imm()) {
                 if (v.type()->is_floating_point) {
                     x86::Xmm r = cc.newXmm();
-                    cc.movq(r, imm2const(cc, v));
+                    if (v.size() == sizeof(f64)) cc.movq(r, imm2const(cc, v));
+                    else cc.movd(r, imm2const(cc, v));
                     return r;
                 }
                 x86::Gp r = cc.newGp(convertType(v.type()));
@@ -549,6 +550,7 @@ namespace gjs {
             // exception
             return x86::Reg();
         };
+
 
         robin_hood::unordered_map<label_id, Label> lmap;
 
@@ -616,21 +618,29 @@ namespace gjs {
                     else if (o2.is_arg()) src = cc.ptr_base(args[o2.arg_idx()].as<x86::Gp>().id(), o3.is_imm() ? (i32)o3.imm_u() : 0, o1.size());
                     else src = cc.ptr_base(regs[o2.reg_id()].as<x86::Gp>().id(), o3.is_imm() ? (i32)o3.imm_u() : 0, o1.size());
 
-                    if (t1->is_floating_point) cc.movd(v2r(o1).as<x86::Xmm>(), src);
-                    else cc.mov(v2r(o1).as<x86::Gp>(), src);
+                    if (t1->is_floating_point){
+                        if (t1->size == sizeof(f64)) cc.movsd(v2r(o1).as<x86::Xmm>(), src);
+                        else cc.movss(v2r(o1).as<x86::Xmm>(), src);
+                    } else cc.mov(v2r(o1).as<x86::Gp>(), src);
                     break;
                 }
                 case op::store: {
-                    auto dst = cc.ptr_base(regs[o1.reg_id()].as<x86::Gp>().id(), 0, o1.size());
+                    auto dst = cc.ptr_base(regs[o1.reg_id()].as<x86::Gp>().id(), 0, o2.size());
                     if (o2.is_imm()) {
-                        if (t2->is_floating_point) cc.movd(dst, v2r(o2).as<x86::Xmm>());
+                        if (t2->is_floating_point) {
+                            if (t2->size == sizeof(f64)) cc.movsd(dst, v2r(o2).as<x86::Xmm>());
+                            else cc.movss(dst, v2r(o2).as<x86::Xmm>());
+                        } 
                         else {
                             if (o2.imm_u() >= UINT32_MAX) cc.mov(dst, v2r(o2).as<x86::Gp>());
                             else cc.mov(dst, v2imm(o2));
                         }
                     }
                     else {
-                        if (t2->is_floating_point) cc.movd(dst, v2r(o2).as<x86::Xmm>());
+                        if (t2->is_floating_point) {
+                            if (t2->size == sizeof(f64)) cc.movsd(dst, v2r(o2).as<x86::Xmm>());
+                            else cc.movss(dst, v2r(o2).as<x86::Xmm>());
+                        }
                         else cc.mov(dst, v2r(o2).as<x86::Gp>());
                     }
                     break;
@@ -763,8 +773,8 @@ namespace gjs {
                 case op::fadd: {
                     x86::Xmm r = cc.newXmm();
 
-                    if (o2.is_imm()) cc.movq(r, imm2const(cc, o2));
-                    else cc.movq(r, v2r(o2).as<x86::Xmm>());
+                    if (o2.is_imm()) cc.movss(r, imm2const(cc, o2));
+                    else cc.movss(r, v2r(o2).as<x86::Xmm>());
 
                     if (o3.is_imm()) cc.addss(r, imm2const(cc, o3));
                     else cc.addss(r, v2r(o3).as<x86::Xmm>());
@@ -775,8 +785,8 @@ namespace gjs {
                 case op::fsub: {
                     x86::Xmm r = cc.newXmm();
 
-                    if (o2.is_imm()) cc.movq(r, imm2const(cc, o2));
-                    else cc.movq(r, v2r(o2).as<x86::Xmm>());
+                    if (o2.is_imm()) cc.movss(r, imm2const(cc, o2));
+                    else cc.movss(r, v2r(o2).as<x86::Xmm>());
 
                     if (o3.is_imm()) cc.subss(r, imm2const(cc, o3));
                     else cc.subss(r, v2r(o3).as<x86::Xmm>());
@@ -787,8 +797,8 @@ namespace gjs {
                 case op::fmul: {
                     x86::Xmm r = cc.newXmm();
 
-                    if (o2.is_imm()) cc.movq(r, imm2const(cc, o2));
-                    else cc.movq(r, v2r(o2).as<x86::Xmm>());
+                    if (o2.is_imm()) cc.movss(r, imm2const(cc, o2));
+                    else cc.movss(r, v2r(o2).as<x86::Xmm>());
 
                     if (o3.is_imm()) cc.mulss(r, imm2const(cc, o3));
                     else cc.mulss(r, v2r(o3).as<x86::Xmm>());
@@ -799,8 +809,8 @@ namespace gjs {
                 case op::fdiv: {
                     x86::Xmm r = cc.newXmm();
 
-                    if (o2.is_imm()) cc.movq(r, imm2const(cc, o2));
-                    else cc.movq(r, v2r(o2).as<x86::Xmm>());
+                    if (o2.is_imm()) cc.movss(r, imm2const(cc, o2));
+                    else cc.movss(r, v2r(o2).as<x86::Xmm>());
 
                     if (o3.is_imm()) cc.divss(r, imm2const(cc, o3));
                     else cc.divss(r, v2r(o3).as<x86::Xmm>());
@@ -1559,60 +1569,60 @@ namespace gjs {
                          * 19 | end:
                          */
                         
-                        // cc.comment("; 1  | raw_callback* a = *cb;");
+                        // 1  | raw_callback* a = *cb;
                         cc.mov(fpPtr, cc.intptr_ptr(v2r(cb).as<x86::Gp>(), 0));
 
-                        // cc.comment("; 2  | function_pointer* b = a->ptr;");
+                        // 2  | function_pointer* b = a->ptr;
                         cc.mov(fpPtr, cc.intptr_ptr(fpPtr, offsetof(raw_callback, ptr)));
 
-                        // cc.comment("; 3  | script_function* f = b->target;");
+                        // 3  | script_function* f = b->target;
                         cc.mov(sfPtr, cc.intptr_ptr(fpPtr, offsetof(function_pointer, target)));
-                        // cc.comment("; 4  | void* rawFuncPtr, srvFuncPtr, callMethodPtr, firstArgPtr;");
+                        // 4  | void* rawFuncPtr, srvFuncPtr, callMethodPtr, firstArgPtr;
                         x86::Gp rawFuncPtr = cc.newUIntPtr();
                         x86::Gp srvFuncPtr = cc.newUIntPtr();
                         x86::Gp callMethodPtr = cc.newUIntPtr();
                         x86::Gp firstArgPtr = cc.newUIntPtr();
-                        // cc.comment("; 5  | rawFuncPtr = (void*)f->access;");
+                        // 5  | rawFuncPtr = (void*)f->access;
                         cc.mov(rawFuncPtr, cc.intptr_ptr(sfPtr, offsetof(script_function, access)));
 
-                        // cc.comment("; 6  | bool isHostV = f->is_host;");
+                        // 6  | bool isHostV = f->is_host;
                         cc.mov(isHostV, cc.ptr_base(sfPtr.id(), offsetof(script_function, is_host), 1));
 
-                        // cc.comment("; 7  | if (!isHostV) {");
+                        // 7  | if (!isHostV) {
                         cc.cmp(isHostV, 1);
                         cc.je(isHostLabel);
                         
-                        // cc.comment("; 8  |     firstArgPtr = b->data;");
+                        // 8  |     firstArgPtr = b->data;
                         cc.mov(firstArgPtr, cc.intptr_ptr(fpPtr, offsetof(function_pointer, data)));
 
-                        // cc.comment("; 9  |     call rawFuncPtr with params = [firstArgPtr, params...]");
-                        // 
+                        // 9  |     call rawFuncPtr with params = [firstArgPtr, params...]
                         fargs.push_back(firstArgPtr);
                         fargts.push_back(type_of<void*>(m_ctx));
                         buildCall(rawFuncPtr, false, false, false);
 
-                        // cc.comment("; 10 |     goto end;");
+                        // 10 |     goto end;
                         cc.jmp(endLabel);
 
-                        // cc.comment("; 11 | } else {");
+                        // 11 | } else {
                         cc.bind(isHostLabel);
 
-                        // cc.comment("; 12 |     firstArgPtr = b->m_this;");
+                        // 12 |     firstArgPtr = b->m_this;
                         cc.mov(firstArgPtr, cc.intptr_ptr(fpPtr, function_pointer::offset_of_self()));
 
-                        // cc.comment("; 13 |     [if sig->returns_on_stack] srvFuncPtr = (void*)f->access.wrapped->srv_wrapper_func;");
+                        // 13 |     [if sig->returns_on_stack] srvFuncPtr = (void*)f->access.wrapped->srv_wrapper_func;
                         if (sig->returns_on_stack) {
                             cc.mov(srvFuncPtr, cc.intptr_ptr(rawFuncPtr, offsetof(ffi::wrapped_function, srv_wrapper_func)));
                         }
 
-                        // cc.comment("; 14 |     callMethodPtr = (void*)f->access.wrapped->call_method_func;");
+                        // 14 |     callMethodPtr = (void*)f->access.wrapped->call_method_func;
                         cc.mov(callMethodPtr, cc.intptr_ptr(rawFuncPtr, offsetof(ffi::wrapped_function, call_method_func)));
                         
-                        // cc.comment("; 15 |     rawFuncPtr = (void*)f->access.wrapped->func_ptr;");
+                        // 15 |     rawFuncPtr = (void*)f->access.wrapped->func_ptr;
                         cc.mov(rawFuncPtr, cc.intptr_ptr(rawFuncPtr, offsetof(ffi::wrapped_function, func_ptr)));
 
+                        // 16 |     [if sig->returns_on_stack] call srvFuncPtr with params = [callMethodPtr, rawFuncPtr, firstArgPtr, params...]
                         if (sig->returns_on_stack) {
-                            // cc.comment("; 16 |     [if sig->returns_on_stack] call srvFuncPtr with params = [callMethodPtr, rawFuncPtr, firstArgPtr, params...]");
+                            
                             fargs.push_back(callMethodPtr);
                             fargs.push_back(rawFuncPtr);
                             fargs.push_back(firstArgPtr);
@@ -1620,17 +1630,19 @@ namespace gjs {
                             fargts.push_back(type_of<void*>(m_ctx));
                             fargts.push_back(type_of<void*>(m_ctx));
                             buildCall(srvFuncPtr, true, true, true);
-                        } else {
-                            // cc.comment("; 17 |     [else] call callMethodPtr with params = [rawFuncPtr, firstArgPtr, params...]");
+                        }
+
+                        // 17 |     [else] call callMethodPtr with params = [rawFuncPtr, firstArgPtr, params...]
+                        else {
                             fargs.push_back(rawFuncPtr);
                             fargs.push_back(firstArgPtr);
                             fargts.push_back(type_of<void*>(m_ctx));
                             fargts.push_back(type_of<void*>(m_ctx));
                             buildCall(callMethodPtr, true, false, true);
                         }
-                        // cc.comment("; 18 | }");
-
-                        // cc.comment("; 19 | end:");
+                        // 18 | }
+                        
+                        // 19 | end:
                         cc.bind(endLabel);
                     }
 

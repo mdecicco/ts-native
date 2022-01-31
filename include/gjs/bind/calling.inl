@@ -80,15 +80,8 @@ namespace gjs {
                     if (!arg_types[a]->signature) continue;
                     // arg is a callback function that was dynamically allocated
                     raw_callback** cbp = (raw_callback**)vargs[a];
-                    raw_callback* cb = *cbp;
-                    if (cb->owns_func && cb->ptr) {
-                        delete cb->ptr->target->access.wrapped;
-                        delete cb->ptr->target;
-                    }
-
-                    if (cb->owns_ptr && cb->ptr) delete cb->ptr;
-                    delete cb;
-                    if (cb->free_self) delete (void*)cbp;
+                    if ((*cbp)->keep_alive) continue;
+                    raw_callback::destroy(cbp);
                 }
             }
             return out;
@@ -177,15 +170,8 @@ namespace gjs {
                     if (!arg_types[a]->signature) continue;
                     // arg is a callback function that was dynamically allocated
                     raw_callback** cbp = (raw_callback**)vargs[a];
-                    raw_callback* cb = *cbp;
-                    if (cb->owns_func && cb->ptr) {
-                        delete cb->ptr->target->access.wrapped;
-                        delete cb->ptr->target;
-                    }
-
-                    if (cb->owns_ptr && cb->ptr) delete cb->ptr;
-                    delete cb;
-                    if (cb->free_self) delete (void*)cbp;
+                    if ((*cbp)->keep_alive) continue;
+                    raw_callback::destroy(cbp);
                 }
             }
             return out;

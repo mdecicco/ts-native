@@ -33,7 +33,7 @@ namespace gjs {
                 bool is_ptr;
             };
 
-            function_signature(script_context* ctx, script_type* tp, ffi::wrapped_function* wrapped, bool is_ctor = false);
+            function_signature(script_context* ctx, script_type* tp, ffi::wrapped_function* wrapped, bool is_ctor = false, bool is_dtor = false);
             function_signature(script_context* ctx, script_type* ret, bool ret_ptr, script_type** args, u8 argc, script_type* method_of, bool is_ctor = false, bool is_static_method = false, bool is_callback = false);
             function_signature();
 

@@ -11,11 +11,12 @@ namespace gjs {
             false, // owns ptr
             false, // owns func
             true,  // keep alive (do not destruct in call(raw_callback*, ...))
+            false, // script owned
             { nullptr, nullptr },
             fptr
         });
 
-        // printf("Allocated host raw_callback 0x%lX\n", (u64)p);
+        printf("Allocated host raw_callback 0x%lX\n", (u64)p);
         return new void*(p);
     }
 
@@ -25,11 +26,12 @@ namespace gjs {
             true,  // owns ptr
             false, // owns func
             false, // keep alive (do not destruct in call(raw_callback*, ...))
+            true, // script owned
             { nullptr, nullptr },
             new function_pointer(fid, dataSz, data)
         });
 
-        // printf("Allocated raw_callback 0x%lX\n", (u64)p);
+        printf("Allocated raw_callback 0x%lX\n", (u64)p);
 
         return (void*)p;
     }
@@ -37,7 +39,7 @@ namespace gjs {
     void raw_callback::destroy(raw_callback** cbp) {
         raw_callback* cb = *cbp;
         if (cb) {
-            // printf("Destroyed raw_callback 0x%lX\n", (u64)cb);
+            printf("Destroyed raw_callback 0x%lX\n", (u64)cb);
             if (cb->owns_func && cb->ptr) {
                 delete cb->ptr->target->access.wrapped;
                 delete cb->ptr->target;

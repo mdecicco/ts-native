@@ -7,7 +7,7 @@
 #include <gjs/util/typeof.h>
 
 namespace gjs {
-    function_signature::function_signature(script_context* ctx, script_type* tp, ffi::wrapped_function* wrapped, bool is_ctor) {
+    function_signature::function_signature(script_context* ctx, script_type* tp, ffi::wrapped_function* wrapped, bool is_ctor, bool is_dtor) {
         method_of = tp;
         return_type = wrapped->return_type;
         return_loc = return_type->size == 0 ? vm_register::register_count : vm_register::v0;
@@ -36,6 +36,20 @@ namespace gjs {
             if (atp->is_floating_point) args.push_back({ atp, vm_register(fp_arg++), argument::implicit_type::not_implicit, wrapped->arg_is_ptr[i] });
             else args.push_back({ atp, vm_register(gp_arg++), argument::implicit_type::not_implicit, wrapped->arg_is_ptr[i] });
             explicit_argc++;
+        }
+
+        if (tp && tp->signature && !is_dtor) {
+            // The signature being constructed is for a method of a function type
+            // (currently) the only methods that can be on a function type is the
+            // 'operator ()' method and the destructor. The call operator method
+            // takes the following arguments:
+            // 
+            // 1. 'this' object (of the function type, raw_callback**)
+            // 2. capture data pointer (always null for host functions)
+            // 3-n. function arguments
+
+            args[1].implicit = argument::implicit_type::capture_data_ptr;
+            explicit_argc--;
         }
     }
 
