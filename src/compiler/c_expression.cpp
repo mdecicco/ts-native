@@ -236,7 +236,7 @@ namespace gjs {
                 case ot::lorEq:          return expression_inner(ctx, n->lvalue).operator_lorEq(expression_inner(ctx, n->rvalue));
                 case ot::landEq:         return expression_inner(ctx, n->lvalue).operator_landEq(expression_inner(ctx, n->rvalue));
                 case ot::index:          return expression_inner(ctx, n->lvalue)[expression_inner(ctx, n->rvalue)];
-                case ot::not:            return !expression_inner(ctx, n->rvalue);
+                case ot::_not:           return !expression_inner(ctx, n->rvalue);
                 case ot::negate:         return -expression_inner(ctx, n->rvalue);
                 case ot::preInc:         return ++expression_inner(ctx, n->rvalue);
                 case ot::preDec:         return --expression_inner(ctx, n->rvalue);
@@ -401,7 +401,7 @@ namespace gjs {
                     var result = ctx.empty_var(tmp0.type());
                     result.operator_eq(tmp0);
                     //meta.label(ctx.label());
-                    auto& j = ctx.add(operation::jump);
+                    tac_wrapper j = ctx.add(operation::jump);
                     // truth body end
 
                     b.label(ctx.label());

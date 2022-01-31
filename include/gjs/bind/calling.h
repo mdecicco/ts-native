@@ -20,5 +20,3 @@ namespace gjs {
     template <typename... Args>
     script_object construct_at(script_type* type, void* dest, Args... args);
 };
-
-#include <gjs/bind/calling.inl>

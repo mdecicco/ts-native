@@ -15,6 +15,9 @@ namespace gjs {
             void bind_this(void* self);
             void* self_obj() const;
 
+            // offsetof(function_pointer, m_this)
+            static u8 offset_of_self();
+
             void* data;
             script_function* target;
 

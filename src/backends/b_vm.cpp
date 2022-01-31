@@ -1,13 +1,7 @@
 #include <gjs/backends/b_vm.h>
 #include <gjs/backends/register_allocator.h>
 #include <gjs/compiler/tac.h>
-#include <gjs/common/script_type.h>
-#include <gjs/common/type_manager.h>
-#include <gjs/common/script_function.h>
-#include <gjs/common/script_context.h>
-#include <gjs/common/script_module.h>
-#include <gjs/bind/bind.h>
-#include <gjs/util/util.h>
+#include <gjs/gjs.hpp>
 
 namespace gjs {
     vm_backend::vm_backend(vm_allocator* alloc, u32 stack_size, u32 mem_size) :
@@ -508,11 +502,11 @@ namespace gjs {
                     break;
                 }
                 case op::land: {
-                    arith(vmi::and, vmi::andi, vmi::andi);
+                    arith(vmi::_and, vmi::andi, vmi::andi);
                     break;
                 }
                 case op::lor: {
-                    arith(vmi::or, vmi::ori, vmi::ori);
+                    arith(vmi::_or, vmi::ori, vmi::ori);
                     break;
                 }
                 case op::band: {
@@ -524,7 +518,7 @@ namespace gjs {
                     break;
                 }
                 case op::bxor: {
-                    arith(vmi::xor, vmi::xori, vmi::xori);
+                    arith(vmi::_xor, vmi::xori, vmi::xori);
                     break;
                 }
                 case op::ilt: {
@@ -1163,17 +1157,23 @@ namespace gjs {
         }
 
         function_signature* sig = func->type->signature;
+        if (sig->return_type->size > 0) m_vm.state.push(sig->return_loc);
 
         for (u8 a = 0;a < sig->args.size();a++) {
             script_type* tp = sig->args[a].tp;
             vm_register loc = sig->args[a].loc;
             u64* dest = &m_vm.state.registers[u8(loc)];
+            m_vm.state.push(loc);
+            *dest = 0;
 
             if (sig->args[a].implicit == function_signature::argument::implicit_type::ret_addr) {
                 *dest = (u64)ret;
             } else {
                 if (tp->is_primitive) {
-                    *dest = (u64)args[a];
+                    if (tp->size == 1) (*(u8*)dest) = *(u8*)&args[a];
+                    else if (tp->size == 2) (*(u16*)dest) = *(u16*)&args[a];
+                    else if (tp->size == 4) (*(u32*)dest) = *(u32*)&args[a];
+                    else if (tp->size == 8) (*(u64*)dest) = *(u64*)&args[a];
                 } else {
                     *dest = (u64)args[a];
                 }
@@ -1182,15 +1182,23 @@ namespace gjs {
 
         execute(func->access.entry);
 
+        for (i16 a = (i16)(sig->args.size()) - 1;a >= 0;a--) {
+            script_type* tp = sig->args[a].tp;
+            vm_register loc = sig->args[a].loc;
+            m_vm.state.pop(loc);
+        }
+
         if (sig->return_type->size > 0) {
             u64* src = &m_vm.state.registers[u8(sig->return_loc)];
             if (sig->returns_pointer) {
                 // todo
+                m_vm.state.pop(sig->return_loc);
                 return;
             }
 
             if (sig->return_type->is_primitive) {
                 memcpy(ret, src, sig->return_type->size);
+                m_vm.state.pop(sig->return_loc);
             }
         }
     }

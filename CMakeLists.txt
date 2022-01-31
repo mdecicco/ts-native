@@ -58,6 +58,7 @@ add_library(gjs ${all_sources})
 add_subdirectory("./deps")
 add_subdirectory("./tests")
 add_subdirectory("./playground")
+add_subdirectory("./examples")
 add_subdirectory("./cli")
 
 target_link_libraries(gjs

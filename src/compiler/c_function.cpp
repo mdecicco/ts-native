@@ -4,14 +4,9 @@
 #include <gjs/parser/ast.h>
 #include <gjs/common/compile_log.h>
 #include <gjs/common/errors.h>
-#include <gjs/common/script_function.h>
-#include <gjs/common/function_pointer.h>
-#include <gjs/common/script_type.h>
-#include <gjs/common/type_manager.h>
-#include <gjs/common/script_context.h>
-#include <gjs/util/util.h>
 #include <gjs/vm/register.h>
-#include <gjs/bind/bind.h>
+
+#include <gjs/gjs.hpp>
 
 namespace gjs {
     using namespace parse;
@@ -93,8 +88,8 @@ namespace gjs {
 
             script_type* method_of = ctx.class_tp();
             if (method_of && !n->is_static) {
-                if (is_ctor = (std::string(*n->identifier) == "constructor")) ret = ctx.type("void");
-                else if (is_dtor = (std::string(*n->identifier) == "destructor")) ret = ctx.type("void");
+                if ((is_ctor = (std::string(*n->identifier) == "constructor"))) ret = ctx.type("void");
+                else if ((is_dtor = (std::string(*n->identifier) == "destructor"))) ret = ctx.type("void");
                 else {
                     ctx.push_node(n->data_type);
                     ret = ctx.type(n->data_type);
@@ -126,7 +121,7 @@ namespace gjs {
                 // forward declaration
                 script_function* f = ctx.find_func(fname, ret, arg_types);
                 if (f) {
-                    ctx.log()->err(ec::c_function_already_declared, n->ref, ret->name.c_str(), f->name.c_str(), arg_tp_str(arg_types));
+                    ctx.log()->err(ec::c_function_already_declared, n->ref, ret->name.c_str(), f->name.c_str(), arg_tp_str(arg_types).c_str());
                     ctx.pop_node();
                     return nullptr;
                 }
@@ -155,7 +150,7 @@ namespace gjs {
             var* self = nullptr;
             if (f) {
                 if (f->is_host || f->access.entry) {
-                    ctx.log()->err(ec::c_function_already_defined, n->ref, ret->name.c_str(), f->name.c_str(), arg_tp_str(arg_types));
+                    ctx.log()->err(ec::c_function_already_defined, n->ref, ret->name.c_str(), f->name.c_str(), arg_tp_str(arg_types).c_str());
                     ctx.pop_node();
                     return nullptr;
                 }
@@ -281,9 +276,13 @@ namespace gjs {
                     */
 
                     if (!p.type->is_primitive) {
-                        if (!p.type->method<void>("constructor")) {
+                        if (!p.type->method("constructor", type_of<void>(ctx.env), {})) {
                             ctx.log()->err(ec::c_prop_has_no_default_ctor, n->initializer->ref, p.name.c_str(), p.type->name.c_str(), f->is_method_of->name.c_str());
+                            continue;
                         }
+
+                        var ptr = self->prop_ptr(p.name);
+                        construct_in_place(ctx, self->prop_ptr(p.name), {});
                     }
                 }
             }
@@ -401,23 +400,38 @@ namespace gjs {
                 var typeIdPtr = ctx.empty_var(dt);
                 for (u16 c = 0;c < captures.size();c++) {
                     script_type* tp = captures[c]->type();
-                    var copyTyped = ctx.force_cast_var(copy, tp);
                     var typeIdu32 = ctx.force_cast_var(typeIdPtr, u64t);
 
                     ctx.add(operation::uadd).operand(typeIdu32).operand(ctxPtr).operand(ctx.imm((u64)(sizeof(u32) + (sizeof(u64) * c))));
                     ctx.add(operation::store).operand(typeIdu32).operand(ctx.imm(join_u32(tp->owner->id(), tp->id())));
 
-                    ctx.add(operation::uadd).operand(copyTyped).operand(ctxPtr).operand(ctx.imm((u64)off));
-                    construct_in_place(ctx, copyTyped, { *captures[c] });
+                    ctx.add(operation::uadd).operand(copy).operand(ctxPtr).operand(ctx.imm((u64)off));
+                    construct_in_place(ctx, ctx.force_cast_var(copy, tp), { *captures[c] });
                     off += tp->size;
                 }
 
                 var ptr = call(
                     ctx,
                     ctx.function("$makefunc", dt, { u32t, dt, u64t }),
-                    { ctx.imm((u64)fn->id()), ctxPtr, dataSz }, // function id, context data size
+                    { ctx.imm((u64)fn->id()), ctxPtr, dataSz }, // function id, context data, size
                     nullptr
                 );
+
+                // fn->id() will be 0 until the lambda is added to the context...
+                // first param instruction must be found and updated
+                auto& code = ctx.out.funcs[ctx.cur_func_block->func_idx].code;
+                u8 pidx = 3;
+                for (address c = code.size() - 1;c > 0;c--) {
+                    if (code[c].op == operation::param) {
+                        pidx--;
+                        if (pidx == 0) {
+                            // found it
+                            code[c].resolve(0, fn);
+                            break;
+                        }
+                    }
+                }
+
                 ctx.add(operation::store).operand(out).operand(ptr);
             } else {
                 auto dt = ctx.type("data");
@@ -429,6 +443,22 @@ namespace gjs {
                     { ctx.imm((u64)fn->id()), dataPtr, ctx.imm((u64)0) }, // function id, context data size
                     nullptr
                 );
+
+                // fn->id() will be 0 until the lambda is added to the context...
+                // first param instruction must be found and updated
+                auto& code = ctx.out.funcs[ctx.cur_func_block->func_idx].code;
+                u8 pidx = 3;
+                for (address c = code.size() - 1;c > 0;c--) {
+                    if (code[c].op == operation::param) {
+                        pidx--;
+                        if (pidx == 0) {
+                            // found it
+                            code[c].resolve(0, fn);
+                            break;
+                        }
+                    }
+                }
+
                 ctx.add(operation::store).operand(out).operand(ptr);
             }
 
@@ -706,7 +736,7 @@ namespace gjs {
                     // check if the arguments are at least convertible
                     match = true;
                     for (u8 i = 0;i < args.size();i++) {
-                        if (!has_valid_conversion(ctx, args[i].type(), sig->explicit_arg(i).tp)) {
+                        if (!args[i].type()->is_convertible_to(sig->explicit_arg(i).tp)) {
                             match = false;
                             break;
                         }
@@ -735,30 +765,10 @@ namespace gjs {
             // pass args
             for (u8 i = 0;i < sig->args.size();i++) {
                 if (sig->args[i].implicit == function_signature::argument::implicit_type::capture_data_ptr) {
-                    // func = raw_pointer**
-                    var captureDataPtr = ctx.empty_var(ctx.type("data"));
-                    
-                    // captureDataPtr = *func;
-                    ctx.add(operation::load).operand(captureDataPtr).operand(func);
-
-                    // captureDataPtr = (function_pointer**)&((raw_callback*)captureDataPtr)->ptr
-                    ctx.add(operation::uadd).operand(captureDataPtr).operand(captureDataPtr).operand(ctx.imm((u64)offsetof(raw_callback, ptr)));
-
-                    // captureDataPtr = (function_pointer*)*captureDataPtr
-                    ctx.add(operation::load).operand(captureDataPtr).operand(captureDataPtr);
-
-                    // captureDataPtr = (void**)&((function_pointer*)captureDataPtr)->data
-                    ctx.add(operation::uadd).operand(captureDataPtr).operand(captureDataPtr).operand(ctx.imm((u64)offsetof(function_pointer, data)));
-
-                    // captureDataPtr = (void*)*captureDataPtr
-                    ctx.add(operation::load).operand(captureDataPtr).operand(captureDataPtr);
-
-                    // ayyyy
-                    ctx.add(operation::param).operand(captureDataPtr).func(func);
                     continue;
                 }
                 if (sig->args[i].implicit == function_signature::argument::implicit_type::this_ptr) {
-                    ctx.add(operation::param).operand(*self).func(func);
+                    // this should never happen
                     continue;
                 }
                 if (sig->args[i].implicit == function_signature::argument::implicit_type::moduletype_id) {

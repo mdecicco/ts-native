@@ -5,14 +5,16 @@
 #include <gjs/common/script_module.h>
 #include <gjs/bind/bind.h>
 
+#include <gjs/gjs.hpp>
+
 namespace gjs {
     namespace math {
         template <typename T>
         void bind_v2(script_module* mod, const char* name) {
             auto v = bind<vec2<T>>(mod, name);
             v.constructor();
-            v.constructor<T>();
-            v.constructor<T, T>();
+            v.template constructor<T>();
+            v.template constructor<T, T>();
             v.method("operator +", CONST_METHOD_PTR(vec2<T>, operator +, vec2<T>, const vec2<T>&));
             v.method("operator +", CONST_METHOD_PTR(vec2<T>, operator +, vec2<T>, T));
             v.method("operator +=", METHOD_PTR(vec2<T>, operator +=, vec2<T>, const vec2<T>&));
@@ -57,9 +59,9 @@ namespace gjs {
         void bind_m2(script_module* mod, const char* name) {
             auto v = bind<mat2<T>>(mod, name);
             v.constructor();
-            v.constructor<T>();
-            v.constructor<T, T, T, T>();
-            v.constructor<const vec2<T>&, const vec2<T>&>();
+            v.template constructor<T>();
+            v.template constructor<T, T, T, T>();
+            v.template constructor<const vec2<T>&, const vec2<T>&>();
             v.method("operator +", CONST_METHOD_PTR(mat2<T>, operator +, mat2<T>, const mat2<T>&));
             v.method("operator +=", METHOD_PTR(mat2<T>, operator +=, mat2<T>, const mat2<T>&));
             v.method("operator -", CONST_METHOD_PTR(mat2<T>, operator -, mat2<T>, const mat2<T>&));

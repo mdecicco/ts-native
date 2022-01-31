@@ -218,6 +218,7 @@ namespace gjs {
             ref = tk.src;
         }
 
+        std::string ast::str() const { return value.s; }
         ast::operator std::string() const { return value.s; }
         ast::operator i64() { return value.i; }
         ast::operator f32() { return value.f_32; }

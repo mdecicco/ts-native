@@ -2,7 +2,8 @@
 #include <dyncall.h>
 
 #include <gjs/common/types.h>
-#include <gjs/util/template_utils.hpp>
+#include <gjs/util/template_utils.h>
+#include <gjs/util/callback.h>
 #include <gjs/util/robin_hood.h>
 
 #include <vector>
@@ -318,5 +319,3 @@ namespace gjs {
         #undef dc_func_simp
     };
 };
-
-#include <gjs/bind/ffi.inl>

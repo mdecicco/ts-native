@@ -80,12 +80,12 @@ namespace gjs {
                 // live range for the same virtual register id
                 if (!instr0.operands[assignedOpIdx].type()->is_floating_point) {
                     for (u32 r = 0;r < m_gpLf.size() && do_calc;r++) {
-                        if (m_gpLf[r].reg_id != instr0.operands[assignedOpIdx].m_reg_id) continue;
+                        if (m_gpLf[r].reg_id != instr0.operands[assignedOpIdx].reg_id()) continue;
                         if (m_gpLf[r].begin <= i && m_gpLf[r].end > i) do_calc = false;
                     }
                 } else {
                     for (u32 r = 0;r < m_fpLf.size() && do_calc;r++) {
-                        if (m_fpLf[r].reg_id != instr0.operands[assignedOpIdx].m_reg_id) continue;
+                        if (m_fpLf[r].reg_id != instr0.operands[assignedOpIdx].reg_id()) continue;
                         if (m_fpLf[r].begin <= i && m_fpLf[r].end > i) do_calc = false;
                     }
                 }
@@ -93,12 +93,12 @@ namespace gjs {
 
             if (!do_calc) continue;
 
-            reg_lifetime l = { instr0.operands[assignedOpIdx].m_reg_id, u32(-1), u32(-1), i, i, instr0.operands[assignedOpIdx].type()->is_floating_point };
+            reg_lifetime l = { instr0.operands[assignedOpIdx].reg_id(), u32(-1), u32(-1), i, i, instr0.operands[assignedOpIdx].type()->is_floating_point };
 
             while (do_calc) {
                 for (u64 i1 = l.end + 1;i1 < code.size();i1++) {
                     const var* assigned = code[i1].assignsTo();
-                    if (assigned && assigned->m_reg_id == l.reg_id) {
+                    if (assigned && assigned->reg_id() == l.reg_id) {
                         if (code[i1].op == operation::cvt || code[i1].involves(l.reg_id, true)) {
                             // if the operation is cvt, the instruction depends on the value of the register,
                             // so the lifetime of register must be continued.
@@ -202,12 +202,12 @@ namespace gjs {
                 tac_instruction& instr = m_in.funcs[fidx].code[c];
 
                 for (u8 o = 0;o < 3;o++) {
-                    if (instr.operands[o].m_reg_id == regs[i].reg_id && instr.operands[o].type()->is_floating_point == regs[i].is_fp) {
+                    if (instr.operands[o].reg_id() == regs[i].reg_id && instr.operands[o].type()->is_floating_point == regs[i].is_fp) {
                         changes.push_back({ c, o, i });
                     }
                 }
                 
-                if (instr.op == operation::call && !instr.callee && instr.callee_v.m_reg_id == regs[i].reg_id && !regs[i].is_fp) {
+                if (instr.op == operation::call && !instr.callee && instr.callee_v.reg_id() == regs[i].reg_id && !regs[i].is_fp) {
                     changes.push_back({ c, u8(-1), i });
                     continue;
                 }
@@ -218,12 +218,12 @@ namespace gjs {
             tac_instruction& instr = m_in.funcs[fidx].code[changes[i].addr];
             if (regs[changes[i].reg].stack_loc == u32(-1)) {
                 if (changes[i].operand == u8(-1)) {
-                    instr.callee_v.m_reg_id = regs[changes[i].reg].new_id;
+                    instr.callee_v.set_register(regs[changes[i].reg].new_id);
                 } else {
-                    instr.operands[changes[i].operand].m_reg_id = regs[changes[i].reg].new_id;
+                    instr.operands[changes[i].operand].set_register(regs[changes[i].reg].new_id);
                 }
             } else {
-                instr.operands[changes[i].operand].m_stack_loc = regs[changes[i].reg].stack_loc;
+                instr.operands[changes[i].operand].set_stack_loc(regs[changes[i].reg].stack_loc);
             }
         }
     }

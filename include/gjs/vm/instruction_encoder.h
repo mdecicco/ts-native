@@ -62,7 +62,6 @@ namespace gjs {
             u64 m_imm;
     };
 
-    FORCE_INLINE instruction encode(vm_instruction i) { return instruction(i); }
-
+    #define encode(instr) instruction(instr)
 };
 

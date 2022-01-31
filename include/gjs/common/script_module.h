@@ -1,6 +1,7 @@
 #pragma once
 #include <gjs/common/types.h>
 #include <gjs/common/source_ref.h>
+#include <gjs/builtin/script_buffer.h>
 #include <gjs/util/robin_hood.h>
 
 #include <string>
@@ -32,7 +33,7 @@ namespace gjs {
 
             template <typename T>
             std::enable_if_t<!std::is_class_v<T>, T> get_local(const std::string& name) {
-                const local_var& v = local(name);
+                const local_var& v = local_info(name);
                 T val;
                 m_data->position(v.offset);
                 m_data->read(val);
@@ -41,7 +42,7 @@ namespace gjs {
 
             template <typename T>
             std::enable_if_t<!std::is_class_v<T>, void> set_local(const std::string& name, const T& val) {
-                const local_var& v = local(name);
+                const local_var& v = local_info(name);
                 m_data->position(v.offset);
                 m_data->write<T>(val);
             }
@@ -53,7 +54,7 @@ namespace gjs {
             /*
             * If a function is not overloaded, this function will return it by name only.
             * If a function is overloaded, use function_search<Ret, Args...>(module, name)
-            * from gjs/util/template_utils.hpp
+            * from gjs/util/template_utils.h
             */
             script_function* function(const std::string& name);
 

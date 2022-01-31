@@ -18,8 +18,6 @@ namespace gjs {
     namespace compile {
         struct context;
 
-        bool has_valid_conversion(context& ctx, script_type* from, script_type* to);
-
         class var {
             public:
                 var(const var& v);
@@ -47,6 +45,10 @@ namespace gjs {
                 inline void set_arg_idx(u8 idx) { m_arg_idx = idx; }
                 inline context* ctx() { return m_ctx; }
                 inline void force_cast(script_type* to) { m_type = to; }
+                inline void set_imm(u64 u) { m_imm.u = u; }
+                inline void set_imm(i64 i) { m_imm.i = i; }
+                inline void set_imm(f32 f) { m_imm.f = f; }
+                inline void set_imm(f64 d) { m_imm.d = d; }
 
                 // used by code generation phase when generating load instructions
                 // for 'spilled' variables
@@ -65,6 +67,8 @@ namespace gjs {
                 void set_mem_ptr(const var& v);
                 void raise_stack_flag();
                 void adopt_stack_flag(var& from);
+                void set_register(u32 reg_id);
+                void set_stack_loc(u32 stack_loc);
 
                 // type used for first argument when calling methods
                 script_type* call_this_tp() const;
@@ -113,7 +117,6 @@ namespace gjs {
             protected:
                 friend struct tac_instruction;
                 friend struct context;
-                friend class register_allocator;
                 friend struct compilation_output;
                 friend struct optimize::liveness;
 

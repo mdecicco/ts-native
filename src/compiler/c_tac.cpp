@@ -166,6 +166,7 @@ namespace gjs {
         tac_instruction::tac_instruction() : op(operation::null), op_idx(0), lb_idx(0), callee(nullptr) {
             labels[0] = labels[1] = labels[2] = 0;
             types[0] = types[1] = types[2] = nullptr;
+            resolve_func_ids[0] = resolve_func_ids[1] = resolve_func_ids[2] = nullptr;
         }
 
         tac_instruction::tac_instruction(const tac_instruction& rhs) {
@@ -179,6 +180,9 @@ namespace gjs {
             labels[0] = rhs.labels[0];
             labels[1] = rhs.labels[1];
             labels[2] = rhs.labels[2];
+            resolve_func_ids[0] = rhs.resolve_func_ids[0];
+            resolve_func_ids[1] = rhs.resolve_func_ids[1];
+            resolve_func_ids[2] = rhs.resolve_func_ids[2];
             callee = rhs.callee;
             callee_v = rhs.callee_v;
             src = rhs.src;
@@ -189,6 +193,7 @@ namespace gjs {
         tac_instruction::tac_instruction(operation _op, const source_ref& _src) : op(_op), src(_src), op_idx(0), lb_idx(0), callee(nullptr) {
             labels[0] = labels[1] = labels[2] = 0;
             types[0] = types[1] = types[2] = nullptr;
+            resolve_func_ids[0] = resolve_func_ids[1] = resolve_func_ids[2] = nullptr;
         }
 
         tac_instruction::~tac_instruction() {
@@ -198,6 +203,12 @@ namespace gjs {
             if (op_idx == 3) return *this;
             types[op_idx] = v.type();
             operands[op_idx++] = v;
+            return *this;
+        }
+
+        tac_instruction& tac_instruction::resolve(u8 opIdx, script_function* f) {
+            if (opIdx >= 3) return *this;
+            resolve_func_ids[opIdx] = f;
             return *this;
         }
 
@@ -274,6 +285,12 @@ namespace gjs {
         tac_wrapper& tac_wrapper::operand(const var& v) {
             tac_instruction& i = ctx->out.funcs[fidx].code[addr];
             i.operand(v);
+            return *this;
+        }
+
+        tac_wrapper& tac_wrapper::resolve(u8 opIdx, script_function* f) {
+            tac_instruction& i = ctx->out.funcs[fidx].code[addr];
+            i.resolve(opIdx, f);
             return *this;
         }
 

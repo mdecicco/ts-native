@@ -166,10 +166,10 @@ namespace gjs {
 
             // truth body end
             //meta.label(ctx.label());
-            tac_wrapper* jmp = nullptr;
+            tac_wrapper jmp;
 
             if (n->else_body) {
-                jmp = &ctx.add(operation::jump);
+                jmp = ctx.add(operation::jump);
                 branch.label(ctx.label());
 
                 ctx.push_node(n->else_body);
@@ -189,7 +189,7 @@ namespace gjs {
             // join address
             if (jmp) {
                 label_id join_label = ctx.label();
-                jmp->label(join_label);
+                jmp.label(join_label);
             }
             //meta.label(join_label);
             ctx.pop_node();

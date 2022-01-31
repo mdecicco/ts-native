@@ -116,6 +116,27 @@ namespace gjs {
         }
         else {
             try {
+                // temporarily give the functions their future ids so that
+                // the generator can associate functions with IDs if it needs
+                // to
+                function_id next = m_ctx->functions().size() + 1;
+                for (u16 i = 1;i < out.funcs.size();i++) {
+                    if (out.funcs[i].func) out.funcs[i].func->m_id = next++;
+                }
+
+                // resolve function IDs
+                for (u16 i = 0;i < out.funcs.size();i++) {
+                    if (!out.funcs[i].func) continue;
+                    for (address c = 0;c < out.funcs[i].code.size();c++) {
+                        auto& inst = out.funcs[i].code[c];
+                        for (u8 o = 0;o < 3;o++) {
+                            if (inst.resolve_func_ids[o]) {
+                                inst.operands[o].set_imm((u64)inst.resolve_func_ids[o]->id());
+                            }
+                        }
+                    }
+                }
+
                 for (u16 f = 0;f < out.funcs.size();f++) {
                     for (u8 i = 0;i < m_ir_steps.size();i++) {
                        m_ir_steps[i](m_ctx, out, f);
@@ -137,14 +158,6 @@ namespace gjs {
                     }
                 }
 
-                // temporarily give the functions their future ids so that
-                // the generator can associate functions with IDs if it needs
-                // to
-                function_id next = m_ctx->functions().size();
-                for (u16 i = 1;i < out.funcs.size();i++) {
-                    if (out.funcs[i].func) out.funcs[i].func->m_id = next + i;
-                }
-
                 generator->generate(out);
 
                 // reset so the context can accept them
@@ -159,6 +172,7 @@ namespace gjs {
                         if (!out.funcs[i].func) continue;
                         out.mod->add(out.funcs[i].func);
                     }
+
                     for (u16 i = 0;i < out.enums.size();i++) out.mod->m_enums.push_back(out.enums[i]);
                     m_ctx->add(out.mod);
                 } else {

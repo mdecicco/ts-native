@@ -335,7 +335,7 @@ namespace gjs {
                 script_function* func = all[f];
 
                 // match return type
-                if (ret && !has_valid_conversion(*m_ctx, func->type->signature->return_type, ret)) continue;
+                if (ret && !func->type->signature->return_type->is_convertible_to(ret)) continue;
                 bool ret_tp_strict = ret ? func->type->signature->return_type->id() == ret->id() : true;
 
                 // match argument types
@@ -356,7 +356,7 @@ namespace gjs {
                     // check if the arguments are at least convertible
                     match = true;
                     for (u8 i = 0;i < args.size();i++) {
-                        if (!has_valid_conversion(*m_ctx, args[i], func->type->signature->explicit_arg(i).tp)) {
+                        if (!args[i]->is_convertible_to(func->type->signature->explicit_arg(i).tp)) {
                             match = false;
                             break;
                         }

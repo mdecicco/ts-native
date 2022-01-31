@@ -1,14 +1,11 @@
 #include <gjs/backends/b_x86.h>
 #include <gjs/compiler/tac.h>
-#include <gjs/common/script_type.h>
-#include <gjs/common/script_function.h>
-#include <gjs/common/function_signature.h>
-#include <gjs/common/script_context.h>
-#include <gjs/common/script_module.h>
 #include <gjs/builtin/script_buffer.h>
-#include <gjs/bind/bind.h>
-#include <gjs/util/util.h>
+#include <gjs/gjs.hpp>
+
+
 #include <asmjit/asmjit.h>
+#include <cmath>
 
 using namespace asmjit;
 
@@ -98,7 +95,7 @@ namespace gjs {
 
         if (cfSig->return_type->size == 0 || cfSig->returns_on_stack) fsb.setRet(Type::kIdVoid);
         else {
-            if (cfSig->returns_pointer) fsb.setRet(Type::IdOfT<void*>::kTypeId);
+            if (cfSig->returns_pointer) fsb.setRet(Type::kIdUIntPtr);
             else fsb.setRet(convertType(cfSig->return_type));
         }
 
@@ -127,13 +124,54 @@ namespace gjs {
         }
     }
 
+    void fsig(function_signature* sig, FuncSignatureBuilder& fsb, bool is_host, bool is_srv, bool is_nonstatic_method) {
+        fsb.setCallConv(CallConv::kIdCDecl);
+
+        if (sig->return_type->size == 0 || sig->returns_on_stack) fsb.setRet(Type::kIdVoid);
+        else {
+            if (sig->returns_pointer) fsb.setRet(Type::kIdUIntPtr);
+            else fsb.setRet(convertType(sig->return_type));
+        }
+
+        if (is_host) {
+            if (is_srv) {
+                if (is_nonstatic_method) {
+                    // ret ptr, call_method_func, func_ptr, unused_ptr, call_params...
+                    fsb.addArg(Type::kIdUIntPtr);
+                    fsb.addArg(Type::kIdUIntPtr);
+                    fsb.addArg(Type::kIdUIntPtr);
+                    fsb.addArg(Type::kIdUIntPtr);
+                } else {
+                    // ret ptr, func_ptr, unused_ptr, call_params...
+                    fsb.addArg(Type::kIdUIntPtr);
+                    fsb.addArg(Type::kIdUIntPtr);
+                    fsb.addArg(Type::kIdUIntPtr);
+                }
+            } else if (is_nonstatic_method) {
+                // func_ptr, unused_ptr, call_params...
+                fsb.addArg(Type::kIdUIntPtr);
+                fsb.addArg(Type::kIdUIntPtr);
+            } else {
+                // unused_ptr, call_params...
+                fsb.addArg(Type::kIdUIntPtr);
+            }
+        }
+
+        for (u8 a = 0;a < sig->args.size();a++) {
+            if (is_host && sig->args[a].implicit == function_signature::argument::implicit_type::ret_addr) continue;
+            if (sig->args[a].is_ptr) fsb.addArg(Type::kIdUIntPtr);
+            else fsb.addArg(convertType(sig->args[a].tp));
+        }
+    }
+
     x86::Reg convert(script_type* t1, script_type* t2, const compile::var& v, asmjit::x86::Compiler& cc, std::vector<x86::Reg>& args, robin_hood::unordered_map<u64, x86::Reg>& regs) {
         auto v2r = [&](const compile::var& v) -> x86::Reg {
             if (v.is_arg()) return args[v.arg_idx()];
             else if (v.is_imm()) {
                 if (v.type()->is_floating_point) {
                     x86::Xmm r = cc.newXmm();
-                    cc.movq(r, imm2const(cc, v));
+                    if (v.size() == sizeof(f64)) cc.movq(r, imm2const(cc, v));
+                    else cc.movd(r, imm2const(cc, v));
                     return r;
                 }
                 x86::Gp r = cc.newGp(convertType(v.type()));
@@ -410,7 +448,7 @@ namespace gjs {
         ch.setErrorHandler(&eh);
         ch.setLogger(&sl);
         x86::Compiler cc(&ch);
-        // cc.addValidationOptions(BaseEmitter::kValidationOptionIntermediate);
+        cc.addValidationOptions(BaseEmitter::kValidationOptionIntermediate);
 
         func_label_map flabels;
         for (u16 f = 0;f < in.funcs.size();f++) {
@@ -437,7 +475,8 @@ namespace gjs {
 
         void* addr = nullptr;
         Error err = m_rt->add(&addr, &ch);
-
+        String content = std::move(sl.content());
+        printf("%s\n", content.data());
         if (err) {
             String content = std::move(sl.content());
             printf("%s\n", content.data());
@@ -490,7 +529,8 @@ namespace gjs {
             else if (v.is_imm()) {
                 if (v.type()->is_floating_point) {
                     x86::Xmm r = cc.newXmm();
-                    cc.movq(r, imm2const(cc, v));
+                    if (v.size() == sizeof(f64)) cc.movq(r, imm2const(cc, v));
+                    else cc.movd(r, imm2const(cc, v));
                     return r;
                 }
                 x86::Gp r = cc.newGp(convertType(v.type()));
@@ -506,6 +546,7 @@ namespace gjs {
             // exception
             return x86::Reg();
         };
+
 
         robin_hood::unordered_map<label_id, Label> lmap;
 
@@ -526,16 +567,18 @@ namespace gjs {
             script_type* t3 = o3.valid() ? o3.type() : nullptr;
             u32 t3i = convertType(t3);
 
-            auto setResult = [&](x86::Reg result) {
+            auto setResult = [&](x86::Reg result, bool overwriteRegId = true) {
+                const var* assigns = i.assignsTo();
+
                 x86::Reg dest;
-                if (o1.is_arg()) dest = args[o1.arg_idx()];
+                if (assigns->is_arg()) dest = args[assigns->arg_idx()];
                 else {
-                    auto it = regs.find(o1.reg_id());
+                    auto it = regs.find(assigns->reg_id());
                     if (it != regs.end()) dest = it->second;
                 }
 
                 if (dest.isValid()) {
-                    if (o1.type()->is_floating_point) {
+                    if (assigns->type()->is_floating_point) {
                         if (result.isXmm()) {
                             cc.movq(dest.as<x86::Xmm>(), result.as<x86::Xmm>());
                         } else {
@@ -546,8 +589,10 @@ namespace gjs {
                     }
                 }
 
-                if (o1.is_arg()) args[o1.arg_idx()] = result;
-                else regs[o1.reg_id()] = result;
+                if (overwriteRegId) {
+                    if (assigns->is_arg()) args[assigns->arg_idx()] = result;
+                    else regs[assigns->reg_id()] = result;
+                }
             };
 
             // todo... use Xmm registers for 64 bit ints...
@@ -566,21 +611,32 @@ namespace gjs {
                     // load dest_var var_addr imm_offset
                     x86::Mem src;
                     if (o2.is_imm()) src = cc.intptr_ptr(o2.imm_u());
-                    else if (o2.is_arg()) src = cc.intptr_ptr(args[o2.arg_idx()].as<x86::Gp>(), o3.is_imm() ? (i32)o3.imm_u() : 0);
-                    else src = cc.intptr_ptr(regs[o2.reg_id()].as<x86::Gp>(), o3.is_imm() ? (i32)o3.imm_u() : 0);
+                    else if (o2.is_arg()) src = cc.ptr_base(args[o2.arg_idx()].as<x86::Gp>().id(), o3.is_imm() ? (i32)o3.imm_u() : 0, o1.size());
+                    else src = cc.ptr_base(regs[o2.reg_id()].as<x86::Gp>().id(), o3.is_imm() ? (i32)o3.imm_u() : 0, o1.size());
 
-                    if (t1->is_floating_point) cc.movd(v2r(o1).as<x86::Xmm>(), src);
-                    else cc.mov(v2r(o1).as<x86::Gp>(), src);
+                    if (t1->is_floating_point){
+                        if (t1->size == sizeof(f64)) cc.movsd(v2r(o1).as<x86::Xmm>(), src);
+                        else cc.movss(v2r(o1).as<x86::Xmm>(), src);
+                    } else cc.mov(v2r(o1).as<x86::Gp>(), src);
                     break;
                 }
                 case op::store: {
-                    auto dst = cc.intptr_ptr(regs[o1.reg_id()].as<x86::Gp>(), 0);
+                    auto dst = cc.ptr_base(regs[o1.reg_id()].as<x86::Gp>().id(), 0, o2.size());
                     if (o2.is_imm()) {
-                        if (t2->is_floating_point) cc.movd(dst, v2r(o2).as<x86::Xmm>());
-                        else cc.mov(dst, v2imm(o2));
+                        if (t2->is_floating_point) {
+                            if (t2->size == sizeof(f64)) cc.movsd(dst, v2r(o2).as<x86::Xmm>());
+                            else cc.movss(dst, v2r(o2).as<x86::Xmm>());
+                        } 
+                        else {
+                            if (o2.imm_u() >= UINT32_MAX) cc.mov(dst, v2r(o2).as<x86::Gp>());
+                            else cc.mov(dst, v2imm(o2));
+                        }
                     }
                     else {
-                        if (t2->is_floating_point) cc.movd(dst, v2r(o2).as<x86::Xmm>());
+                        if (t2->is_floating_point) {
+                            if (t2->size == sizeof(f64)) cc.movsd(dst, v2r(o2).as<x86::Xmm>());
+                            else cc.movss(dst, v2r(o2).as<x86::Xmm>());
+                        }
                         else cc.mov(dst, v2r(o2).as<x86::Gp>());
                     }
                     break;
@@ -713,8 +769,8 @@ namespace gjs {
                 case op::fadd: {
                     x86::Xmm r = cc.newXmm();
 
-                    if (o2.is_imm()) cc.movq(r, imm2const(cc, o2));
-                    else cc.movq(r, v2r(o2).as<x86::Xmm>());
+                    if (o2.is_imm()) cc.movss(r, imm2const(cc, o2));
+                    else cc.movss(r, v2r(o2).as<x86::Xmm>());
 
                     if (o3.is_imm()) cc.addss(r, imm2const(cc, o3));
                     else cc.addss(r, v2r(o3).as<x86::Xmm>());
@@ -725,8 +781,8 @@ namespace gjs {
                 case op::fsub: {
                     x86::Xmm r = cc.newXmm();
 
-                    if (o2.is_imm()) cc.movq(r, imm2const(cc, o2));
-                    else cc.movq(r, v2r(o2).as<x86::Xmm>());
+                    if (o2.is_imm()) cc.movss(r, imm2const(cc, o2));
+                    else cc.movss(r, v2r(o2).as<x86::Xmm>());
 
                     if (o3.is_imm()) cc.subss(r, imm2const(cc, o3));
                     else cc.subss(r, v2r(o3).as<x86::Xmm>());
@@ -737,8 +793,8 @@ namespace gjs {
                 case op::fmul: {
                     x86::Xmm r = cc.newXmm();
 
-                    if (o2.is_imm()) cc.movq(r, imm2const(cc, o2));
-                    else cc.movq(r, v2r(o2).as<x86::Xmm>());
+                    if (o2.is_imm()) cc.movss(r, imm2const(cc, o2));
+                    else cc.movss(r, v2r(o2).as<x86::Xmm>());
 
                     if (o3.is_imm()) cc.mulss(r, imm2const(cc, o3));
                     else cc.mulss(r, v2r(o3).as<x86::Xmm>());
@@ -749,8 +805,8 @@ namespace gjs {
                 case op::fdiv: {
                     x86::Xmm r = cc.newXmm();
 
-                    if (o2.is_imm()) cc.movq(r, imm2const(cc, o2));
-                    else cc.movq(r, v2r(o2).as<x86::Xmm>());
+                    if (o2.is_imm()) cc.movss(r, imm2const(cc, o2));
+                    else cc.movss(r, v2r(o2).as<x86::Xmm>());
 
                     if (o3.is_imm()) cc.divss(r, imm2const(cc, o3));
                     else cc.divss(r, v2r(o3).as<x86::Xmm>());
@@ -1274,11 +1330,25 @@ namespace gjs {
                     void* addr = nullptr;
                     Label* lbl = nullptr;
                     x86::Reg retAddr;
+                    x86::Reg retReg;
                     std::vector<Imm> implicitArgs;
                     std::vector<Operand> fargs;
                     std::vector<script_type*> fargts;
+                    InvokeNode* call = nullptr;
 
-                    auto passArg = [&](u8 idx, u8 off, u8 aidx, const var& p) {
+                    if (sig->return_type->size > 0 && !sig->returns_on_stack) {
+                        if (sig->returns_pointer) {
+                            retReg = cc.newUIntPtr();
+                        } else if (sig->return_type->is_primitive) {
+                            if (sig->return_type->is_floating_point) {
+                                retReg = cc.newXmm();
+                            } else {
+                                retReg = cc.newReg(convertType(sig->return_type));
+                            }
+                        }
+                    }
+
+                    auto passArg = [&](u8 aidx, const var& p) {
                         auto& a = sig->args[aidx];
                         fargts.push_back(p.type());
                         if (p.is_imm() && !a.is_ptr && !p.type()->is_floating_point) fargs.push_back(v2imm(p));
@@ -1300,11 +1370,39 @@ namespace gjs {
                             }
                         }
                     };
+                    auto finalizeCall = [&]() {
+                        call->setUserDataAsUInt64(c);
+                        u8 a = 0;
+                        if (retAddr.isValid()) call->setArg(a++, retAddr);
+                        for (auto& i : implicitArgs) call->setArg(a++, i);
+                        for (u8 g = 0;g < fargs.size();g++) {
+                            u32 at = cs.arg(a);
+                            u32 pt = convertType(fargts[g]);
+                            if (fargs[g].isImm()) call->setArg(a++, fargs[g].as<Imm>());
+                            else if (fargts[g]->is_floating_point) call->setArg(a++, fargs[g].as<x86::Xmm>());
+                            else call->setArg(a++, fargs[g].as<x86::Gp>());
+                        }
+
+                        if (sig->return_type->size > 0 && !sig->returns_on_stack) {
+                            if (sig->returns_pointer) {
+                                call->setRet(0, retReg);
+                                setResult(retReg, false);
+                            } else if (sig->return_type->is_primitive) {
+                                if (sig->return_type->is_floating_point) {
+                                    call->setRet(0, retReg);
+                                    setResult(retReg, false);
+                                } else {
+                                    call->setRet(0, retReg);
+                                    setResult(retReg, false);
+                                }
+                            }
+                        }
+                    };
 
                     if (i.callee) {
                         if (i.callee->is_host) {
                             if (i.callee->access.wrapped->srv_wrapper_func) {
-                                if (i.callee->is_method_of && !i.callee->is_static) {
+                                if (i.callee->access.wrapped->call_method_func) {
                                     // ret ptr, call_method_func, func_ptr, call_params...
                                     fsig(i.callee, cs);
                                     addr = i.callee->access.wrapped->srv_wrapper_func;
@@ -1323,7 +1421,7 @@ namespace gjs {
 
                                     u8 a = 0;
                                     for (var& p : params) {
-                                        passArg(a, 3, a >= raidx ? a + 1 : a, p);
+                                        passArg(a >= raidx ? a + 1 : a, p);
                                         a++;
                                     }
                                 } else {
@@ -1344,7 +1442,7 @@ namespace gjs {
 
                                     u8 a = 0;
                                     for (var& p : params) {
-                                        passArg(a, 2, a >= raidx ? a + 1 : a, p);
+                                        passArg(a >= raidx ? a + 1 : a, p);
                                         a++;
                                     }
                                 }
@@ -1354,7 +1452,7 @@ namespace gjs {
                                 addr = i.callee->access.wrapped->call_method_func;
                                 implicitArgs.push_back(i.callee->access.wrapped->func_ptr);
                                 for (u8 a = 0;a < params.size();a++) {
-                                    passArg(a, 1, a, params[a]);
+                                    passArg(a, params[a]);
                                 }
                             } else {
                                 // params...
@@ -1362,7 +1460,7 @@ namespace gjs {
                                 addr = i.callee->access.wrapped->func_ptr;
 
                                 for (u8 a = 0;a < params.size();a++) {
-                                    passArg(a, 0, a, params[a]);
+                                    passArg(a, params[a]);
                                 }
                             }
                         } else {
@@ -1371,42 +1469,183 @@ namespace gjs {
                             else lbl = flabels[i.callee];
 
                             for (u8 a = 0;a < params.size();a++) {
-                                passArg(a, 0, a, params[a]);
+                                passArg(a, params[a]);
                             }
                         }
-                    }
 
-                    InvokeNode* call = nullptr;
-                    if (addr) cc.invoke(&call, addr, cs);
-                    else cc.invoke(&call, *lbl, cs);
-                    call->setUserDataAsUInt64(c);
-                    u8 a = 0;
-                    if (retAddr.isValid()) call->setArg(a++, retAddr);
-                    for (auto& i : implicitArgs) call->setArg(a++, i);
-                    for (u8 g = 0;g < fargs.size();g++) {
-                        u32 at = cs.arg(a);
-                        u32 pt = convertType(fargts[g]);
-                        if (fargs[g].isImm()) call->setArg(a++, fargs[g].as<Imm>());
-                        else if (fargts[g]->is_floating_point) call->setArg(a++, fargs[g].as<x86::Xmm>());
-                        else call->setArg(a++, fargs[g].as<x86::Gp>());
-                    }
+                        if (addr) cc.invoke(&call, addr, cs);
+                        else cc.invoke(&call, *lbl, cs);
 
-                    if (sig->return_type->size > 0 && !sig->returns_on_stack) {
-                        if (sig->return_type->is_primitive) {
-                            if (sig->return_type->is_floating_point) {
-                                x86::Xmm r = cc.newXmm();
-                                call->setRet(0, r);
-                                setResult(r);
+                        finalizeCall();
+                    } else {
+                        auto buildCall = [&](const x86::Gp& fptr, bool is_host, bool is_srv, bool is_nonstatic_method) {
+                            cs.init(CallConv::kIdCDecl, FuncSignature::kNoVarArgs, Type::kIdVoid, cs._builderArgList, 0);
+                            fsig(sig, cs, is_host, is_srv, is_nonstatic_method);
+                            cc.invoke(&call, fptr, cs);
+
+                            if (is_host) {
+                                if (is_srv) {
+                                    u8 idx = 0;
+                                    for (u8 a = 0;a < sig->args.size();a++) {
+                                        if (sig->args[a].implicit == function_signature::argument::implicit_type::ret_addr) {
+                                            // handled separately
+                                            retAddr = v2r(params[a]);
+                                            continue;
+                                        }
+                                        
+                                        if (sig->args[a].implicit == function_signature::argument::implicit_type::capture_data_ptr) {
+                                            // host callbacks accept the capture data argument, but never store capture data
+                                            fargs.push_back(Imm(0));
+                                            fargts.push_back(type_of<void*>(m_ctx));
+                                            continue;
+                                        }
+
+                                        passArg(a, params[idx++]);
+                                    }
+                                } else {
+                                    u8 idx = 0;
+                                    for (u8 a = 0;a < sig->args.size();a++) {
+                                        if (sig->args[a].implicit == function_signature::argument::implicit_type::capture_data_ptr) {
+                                            // host callbacks accept the capture data argument, but never store capture data
+                                            fargs.push_back(Imm(0));
+                                            fargts.push_back(type_of<void*>(m_ctx));
+                                            continue;
+                                        }
+
+                                        passArg(a, params[idx++]);
+                                    }
+                                }
                             } else {
-                                x86::Reg r = cc.newReg(convertType(sig->return_type));
-                                call->setRet(0, r);
-                                setResult(r);
+                                u8 idx = 0;
+                                for (u8 a = 0;a < sig->args.size();a++) {
+                                    if (sig->args[a].implicit == function_signature::argument::implicit_type::capture_data_ptr) {
+                                        // handled separately
+                                        continue;
+                                    }
+
+                                    passArg(a, params[idx++]);
+                                }
                             }
-                        } else if (sig->returns_pointer) {
-                            x86::Reg r = cc.newReg(convertType(sig->return_type));
-                            call->setRet(0, r);
-                            setResult(r);
+                            finalizeCall();
+
+                            retAddr.reset();
+                            cs.reset();
+                            implicitArgs.clear();
+                            fargs.clear();
+                            fargts.clear();
+                        };
+
+                        const var& cb = i.callee_v;
+                        // cb actually refers to a raw_callback**
+                        x86::Gp fpPtr = cc.newUIntPtr();
+                        x86::Gp sfPtr = cc.newUIntPtr();
+                        x86::Gp isHostV = cc.newGp(Type::IdOfT<bool>::kTypeId);
+                        Label isHostLabel = cc.newLabel();
+                        Label endLabel = cc.newLabel();
+
+                        /*
+                         * 1  | raw_callback* a = *cb;
+                         * 2  | function_pointer* b = a->ptr;
+                         * 3  | script_function* f = b->target;
+                         * 4  | void* rawFuncPtr, srvFuncPtr, callMethodPtr, firstArgPtr;
+                         * 5  | rawFuncPtr = (void*)f->access.entry;
+                         * 6  | bool isHostV = f->is_host;
+                         * 7  | if (!isHostV) {
+                         * 8  |     firstArgPtr = b->data;
+                         * 9  |     call rawFuncPtr with params = [firstArgPtr, params...]
+                         * 10 |     goto end;
+                         * 11 | } else {
+                         * 12 |     firstArgPtr = b->m_this;
+                         * 13 |     [if sig->returns_on_stack] srvFuncPtr = (void*)f->access.wrapped->srv_wrapper_func;
+                         * 14 |     callMethodPtr = (void*)f->access.wrapped->call_method_func;
+                         * 15 |     rawFuncPtr = (void*)f->access.wrapped->func_ptr;
+                         * 16 |     [if sig->returns_on_stack] call srvFuncPtr with params = [callMethodPtr, rawFuncPtr, firstArgPtr, params...]
+                         * 17 |     [else] call callMethodPtr with params = [rawFuncPtr, firstArgPtr, params...]
+                         * 18 | }
+                         * 19 | end:
+                         */
+                        
+                        // 1  | raw_callback* a = *cb;
+                        cc.mov(fpPtr, cc.intptr_ptr(v2r(cb).as<x86::Gp>(), 0));
+
+                        // 2  | function_pointer* b = a->ptr;
+                        cc.mov(fpPtr, cc.intptr_ptr(fpPtr, offsetof(raw_callback, ptr)));
+
+                        // 3  | script_function* f = b->target;
+                        cc.mov(sfPtr, cc.intptr_ptr(fpPtr, offsetof(function_pointer, target)));
+                        // 4  | void* rawFuncPtr, srvFuncPtr, callMethodPtr, firstArgPtr;
+                        x86::Gp rawFuncPtr = cc.newUIntPtr();
+                        x86::Gp srvFuncPtr = cc.newUIntPtr();
+                        x86::Gp callMethodPtr = cc.newUIntPtr();
+                        x86::Gp firstArgPtr = cc.newUIntPtr();
+                        // 5  | rawFuncPtr = (void*)f->access;
+                        cc.mov(rawFuncPtr, cc.intptr_ptr(sfPtr, offsetof(script_function, access)));
+
+                        // 6  | bool isHostV = f->is_host;
+                        cc.mov(isHostV, cc.ptr_base(sfPtr.id(), offsetof(script_function, is_host), 1));
+
+                        // 7  | if (!isHostV) {
+                        cc.cmp(isHostV, 1);
+                        cc.je(isHostLabel);
+                        
+                        // 8  |     firstArgPtr = b->data;
+                        cc.mov(firstArgPtr, cc.intptr_ptr(fpPtr, offsetof(function_pointer, data)));
+
+                        // 9  |     call rawFuncPtr with params = [firstArgPtr, params...]
+                        fargs.push_back(firstArgPtr);
+                        fargts.push_back(type_of<void*>(m_ctx));
+                        buildCall(rawFuncPtr, false, false, false);
+
+                        // 10 |     goto end;
+                        cc.jmp(endLabel);
+
+                        // 11 | } else {
+                        cc.bind(isHostLabel);
+
+                        // 12 |     firstArgPtr = b->m_this;
+                        cc.mov(firstArgPtr, cc.intptr_ptr(fpPtr, function_pointer::offset_of_self()));
+
+                        // 13 |     [if sig->returns_on_stack] srvFuncPtr = (void*)f->access.wrapped->srv_wrapper_func;
+                        if (sig->returns_on_stack) {
+                            cc.mov(srvFuncPtr, cc.intptr_ptr(rawFuncPtr, offsetof(ffi::wrapped_function, srv_wrapper_func)));
                         }
+
+                        // 14 |     callMethodPtr = (void*)f->access.wrapped->call_method_func;
+                        cc.mov(callMethodPtr, cc.intptr_ptr(rawFuncPtr, offsetof(ffi::wrapped_function, call_method_func)));
+                        
+                        // 15 |     rawFuncPtr = (void*)f->access.wrapped->func_ptr;
+                        cc.mov(rawFuncPtr, cc.intptr_ptr(rawFuncPtr, offsetof(ffi::wrapped_function, func_ptr)));
+
+                        // 16 |     [if sig->returns_on_stack] call srvFuncPtr with params = [callMethodPtr, rawFuncPtr, firstArgPtr, params...]
+                        if (sig->returns_on_stack) {
+                            
+                            fargs.push_back(callMethodPtr);
+                            fargs.push_back(rawFuncPtr);
+                            fargs.push_back(firstArgPtr);
+                            fargts.push_back(type_of<void*>(m_ctx));
+                            fargts.push_back(type_of<void*>(m_ctx));
+                            fargts.push_back(type_of<void*>(m_ctx));
+                            buildCall(srvFuncPtr, true, true, true);
+                        }
+
+                        // 17 |     [else] call callMethodPtr with params = [rawFuncPtr, firstArgPtr, params...]
+                        else {
+                            fargs.push_back(rawFuncPtr);
+                            fargs.push_back(firstArgPtr);
+                            fargts.push_back(type_of<void*>(m_ctx));
+                            fargts.push_back(type_of<void*>(m_ctx));
+                            buildCall(callMethodPtr, true, false, true);
+                        }
+                        // 18 | }
+                        
+                        // 19 | end:
+                        cc.bind(endLabel);
+                    }
+
+                    if (retReg.isValid()) {
+                        const var* assigns = i.assignsTo();
+                        if (assigns->is_arg()) args[assigns->arg_idx()] = retReg;
+                        else regs[assigns->reg_id()] = retReg;
                     }
 
                     params.clear();
@@ -1485,11 +1724,6 @@ namespace gjs {
             if (sig->args[a].implicit == function_signature::argument::implicit_type::ret_addr) {
                 dcArgPointer(cvm, ret);
                 argOff--;
-                continue;
-            }
-            if (sig->args[a].implicit == function_signature::argument::implicit_type::capture_data_ptr) {
-                // todo
-                // argOff--;
                 continue;
             }
 

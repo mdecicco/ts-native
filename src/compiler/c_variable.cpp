@@ -13,6 +13,7 @@
 #include <gjs/builtin/script_array.h>
 #include <gjs/util/util.h>
 #include <gjs/util/robin_hood.h>
+#include <cmath>
 
 namespace gjs {
     using exc = error::exception;
@@ -20,32 +21,6 @@ namespace gjs {
     using wc = warning::wcode;
 
     namespace compile {
-        bool has_valid_conversion(context& ctx, script_type* from, script_type* to) {
-            if (from->id() == to->id()) return true;
-            if (from->base_type && from->base_type->id() == to->id()) return true;
-            if (!from->is_primitive && to->name == "data") return true;
-            if (from->name == "data" && !to->is_primitive) return true;
-
-            if (from->name == "void" || to->name == "void") return false;
-
-            if (!from->is_primitive) {
-                var fd = ctx.dummy_var(from);
-                if (to->is_primitive) {
-                    // last chance to find a conversion
-                    return fd.has_unambiguous_method("<cast>", to, { from });
-                } else if (fd.has_unambiguous_method("<cast>", to, { from })) return true;
-            }
-
-            if (!to->is_primitive) {
-                var td = ctx.dummy_var(to);
-                return td.has_unambiguous_method("constructor", nullptr, { from });
-            }
-            
-            // conversion between non-void primitive types is always possible
-            return true;
-        }
-
-
         var::var(context* ctx, u64 u) {
             m_ctx = ctx;
             m_is_imm = true;
@@ -331,25 +306,7 @@ namespace gjs {
         }
 
         bool var::has_any_method(const std::string& _name) const {
-            for (u16 m = 0;m < m_type->methods.size();m++) {
-                // match name
-                script_function* func = nullptr;
-                if (_name.find_first_of(' ') != std::string::npos) {
-                    // probably an operator
-                    std::vector<std::string> mparts = split(split(m_type->methods[m]->name, ":")[1], " \t\n\r");
-                    std::vector<std::string> sparts = split(_name, " \t\n\r");
-                    if (mparts.size() != sparts.size()) continue;
-                    bool matched = true;
-                    for (u32 i = 0;matched && i < mparts.size();i++) {
-                        matched = mparts[i] == sparts[i];
-                    }
-                    if (matched) return true;
-                }
-                std::string& bt_name = m_type->base_type ? m_type->base_type->name : m_type->name;
-                if (m_type->methods[m]->name == bt_name + "::" + _name) return true;
-            }
-
-            return false;
+            return m_type->has_any_method(_name);
         }
 
         bool var::has_unambiguous_method(const std::string& _name, script_type* ret, const std::vector<script_type*>& args) const {
@@ -364,7 +321,7 @@ namespace gjs {
                     if (mparts.size() == 2 && mparts[0] == "operator" && mparts[1] == mt->type->signature->return_type->name && mt->type->signature->explicit_argc == 1) {
                         if (mt->type->signature->return_type->id() == ret->id()) {
                             return mt;
-                        } else if (has_valid_conversion(*m_ctx, mt->type->signature->return_type, ret)) {
+                        } else if (mt->type->signature->return_type->is_convertible_to(ret)) {
                             matches.push_back(mt);
                             continue;
                         }
@@ -392,7 +349,7 @@ namespace gjs {
                 }
 
                 // match return type
-                if (ret && !has_valid_conversion(*m_ctx, ret, func->type->signature->return_type)) continue;
+                if (ret && !ret->is_convertible_to(func->type->signature->return_type)) continue;
                 bool ret_tp_strict = ret ? func->type->signature->return_type->id() == ret->id() : func->type->signature->return_type->size == 0;
 
                 // match argument types
@@ -422,7 +379,7 @@ namespace gjs {
                     for (u8 i = 0;i < args.size();i++) {
                         script_type* at = func->type->signature->explicit_arg(i).tp;
                         if (at->name == "subtype") at = m_type->sub_type;
-                        if (!has_valid_conversion(*m_ctx, args[i], at)) {
+                        if (!args[i]->is_convertible_to(at)) {
                             match = false;
                             break;
                         }
@@ -440,118 +397,37 @@ namespace gjs {
         }
 
         script_function* var::method(const std::string& _name, script_type* ret, const std::vector<script_type*>& args, bool log_errors) const {
-            std::vector<script_function*> matches;
+            bool wasAmbiguous = false;
+            script_function* f = m_type->method(_name, ret, args, &wasAmbiguous);
 
-            for (u16 m = 0;m < m_type->methods.size();m++) {
-                // match name
-                script_function* func = nullptr;
-                if (_name == "<cast>") {
-                    script_function* mt = m_type->methods[m];
-                    auto mparts = split(split(mt->name,":")[1], " \t\n\r");
-                    if (mparts.size() == 2 && mparts[0] == "operator" && mparts[1] == mt->type->signature->return_type->name && mt->type->signature->args.size() == 1) {
-                        if (mt->type->signature->return_type->name == "subtype") {
-                            if (m_type->sub_type->id() == ret->id()) {
-                                return mt;
-                            } else if (has_valid_conversion(*m_ctx, m_type->sub_type, ret)) {
-                                matches.push_back(mt);
-                                continue;
-                            }
-                        } else {
-                            if (mt->type->signature->return_type->id() == ret->id()) {
-                                return mt;
-                            } else if (has_valid_conversion(*m_ctx, mt->type->signature->return_type, ret)) {
-                                matches.push_back(mt);
-                                continue;
-                            }
-                        }
-                    }
-                } else if (_name.find_first_of(' ') != std::string::npos) {
-                    // probably an operator
-                    std::vector<std::string> mparts = split(split(m_type->methods[m]->name, ":")[1], " \t\n\r");
-                    std::vector<std::string> sparts = split(_name, " \t\n\r");
-                    if (mparts.size() != sparts.size()) continue;
-                    bool matched = true;
-                    for (u32 i = 0;matched && i < mparts.size();i++) {
-                        matched = mparts[i] == sparts[i];
-                    }
-                    if (matched) func = m_type->methods[m];
+            if (log_errors) {
+                if (wasAmbiguous) {
+                    m_ctx->log()->err(
+                        ec::c_ambiguous_method,
+                        m_ctx->node()->ref,
+                        _name.c_str(),
+                        m_type->name.c_str(),
+                        arg_tp_str(args).c_str(),
+                        !ret ? "<any>" : ret->name.c_str()
+                    );
                 }
-
-                std::string& bt_name = m_type->base_type ? m_type->base_type->name : m_type->name;
-                if (m_type->methods[m]->name == bt_name + "::" + _name) func = m_type->methods[m];
-
-                if (!func) continue;
-
-                // match return type
-                if (ret) {
-                    if (ret->base_type && !has_valid_conversion(*m_ctx, func->type->signature->return_type, ret->base_type)) continue;
-                    else if (!ret->base_type && !has_valid_conversion(*m_ctx, func->type->signature->return_type, ret)) continue;
+                else if (!f) {
+                    m_ctx->log()->err(
+                        ec::c_no_such_method,
+                        m_ctx->node()->ref,
+                        m_type->name.c_str(),
+                        _name.c_str(),
+                        arg_tp_str(args).c_str(),
+                        !ret ? "<any>" : ret->name.c_str()
+                    );
                 }
-
-                bool ret_tp_strict = true;
-                if (ret) {
-                    ret_tp_strict = false;
-                    if (ret->base_type && func->type->signature->return_type->id() == ret->base_type->id()) ret_tp_strict = true;
-                    else if (!ret->base_type && func->type->signature->return_type->id() == ret->id()) ret_tp_strict = true;
-                }
-
-                // match argument types
-                if (func->type->signature->explicit_argc != args.size()) continue;
-
-                // prefer strict type matches
-                bool match = true;
-                for (u8 i = 0;i < args.size();i++) {
-                    if (func->type->signature->explicit_arg(i).tp->name == "subtype") {
-                        if (m_type->sub_type->id() != args[i]->id()) {
-                            match = false;
-                            break;
-                        }
-                    } else {
-                        if (func->type->signature->explicit_arg(i).tp->id() != args[i]->id()) {
-                            match = false;
-                            break;
-                        }
-                    }
-                }
-
-                if (match && ret_tp_strict) return func;
-
-                if (!match) {
-                    // check if the arguments are at least convertible
-                    match = true;
-                    bool args_strict = true;
-                    for (u8 i = 0;i < args.size();i++) {
-                        script_type* at = func->type->signature->explicit_arg(i).tp;
-                        if (at->name == "subtype") at = m_type->sub_type;
-                        if (at->id() != args[i]->id()) args_strict = false;
-                        if (!has_valid_conversion(*m_ctx, args[i], at)) {
-                            match = false;
-                            break;
-                        }
-                    }
-
-                    if (ret_tp_strict && args_strict) return func;
-                    if (!match) continue;
-                }
-
-                matches.push_back(func);
             }
 
-            if (matches.size() > 1) {
-                if (log_errors) m_ctx->log()->err(ec::c_ambiguous_method, m_ctx->node()->ref, _name.c_str(), m_type->name.c_str(), arg_tp_str(args).c_str(), !ret ? "<any>" : ret->name.c_str());
-                return nullptr;
-            }
-
-            if (matches.size() == 1) {
-                return matches[0];
-            }
-
-            if (log_errors) m_ctx->log()->err(ec::c_no_such_method, m_ctx->node()->ref, m_type->name.c_str(), _name.c_str(), arg_tp_str(args).c_str(), !ret ? "<any>" : ret->name.c_str());
-            return nullptr;
+            return f;
         }
 
         bool var::convertible_to(script_type* tp) const {
-            return has_valid_conversion(*m_ctx, m_type, tp);
+            return m_type->is_convertible_to(tp);
         }
 
         var var::convert(script_type* to, bool store_imms_in_reg) const {
@@ -750,6 +626,14 @@ namespace gjs {
                 }
                 if (found) break;
             }
+        }
+        
+        void var::set_register(u32 reg_id){
+            m_reg_id = reg_id;
+        }
+            
+        void var::set_stack_loc(u32 stack_loc) {
+            m_stack_loc = stack_loc;
         }
 
         script_type* var::call_this_tp() const {

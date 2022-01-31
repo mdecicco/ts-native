@@ -144,7 +144,7 @@ namespace gjs {
                 if (ctx.match({ "as" })) {
                     ctx.consume();
                     stmt->identifier = identifier(ctx);
-                    as = *stmt->identifier;
+                    as = stmt->identifier->str();
                 }
             } else throw exc(ec::p_malformed_import, stmt->ref);
 

@@ -562,6 +562,8 @@ namespace gjs {
 
                 for (u32 i = 0;i < ctx.new_enums.size();i++) delete ctx.new_enums[i];
 
+                ctx.new_functions.clear();
+                ctx.new_enums.clear();
                 ctx.out.funcs.clear();
 
                 throw exc(ec::c_compile_finished_with_errors, input->ref);

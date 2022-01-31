@@ -1,16 +1,11 @@
-#include <gjs/common/script_function.h>
-#include <gjs/common/script_type.h>
-#include <gjs/common/type_manager.h>
 #include <gjs/builtin/builtin.h>
 #include <gjs/builtin/script_pointer.h>
 #include <gjs/builtin/script_array.h>
 #include <gjs/builtin/script_string.h>
 #include <gjs/builtin/script_buffer.h>
-#include <gjs/common/script_context.h>
-#include <gjs/common/script_module.h>
-#include <gjs/common/function_pointer.h>
-#include <gjs/bind/bind.h>
 #include <gjs/builtin/script_math.h>
+
+#include <gjs/gjs.hpp>
 
 namespace gjs {
     // todo: thread_id:ctx map
@@ -116,6 +111,10 @@ namespace gjs {
         arr.method("push", &script_array::push);
         arr.method("clear", &script_array::clear);
         arr.method("operator []", &script_array::operator[]);
+        arr.method("forEach", &script_array::for_each);
+        arr.method("some", &script_array::some);
+        arr.method("find", &script_array::find);
+        arr.method("findIndex", &script_array::findIndex);
         arr.prop("length", &script_array::length);
         tp = arr.finalize(ctx->global());
         tp->requires_subtype = true;

@@ -2,6 +2,7 @@
 #include <gjs/common/script_type.h>
 #include <gjs/common/type_manager.h>
 #include <gjs/common/script_function.h>
+#include <gjs/common/function_signature.h>
 #include <gjs/common/script_context.h>
 #include <gjs/common/script_enum.h>
 #include <gjs/common/script_object.h>

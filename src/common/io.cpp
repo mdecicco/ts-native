@@ -1,12 +1,19 @@
 #include <gjs/common/io.h>
 #ifdef _WIN32
-#include <direct.h>
-#define getcwd _getcwd
-#define chdir _chdir
+    #include <direct.h>
+    #define getcwd _getcwd
+    #define chdir _chdir
 #else
-#include "unistd.h"
-#define getcwd getcwd
-#define chdir chdir
+    #include <sys/stat.h>
+    #include <unistd.h>
+    void fopen_s(FILE** fpp, const char* file, const char* mode) {
+        FILE* fp = fopen(file, mode);
+        if (!fp) {
+            *fpp = nullptr;
+            return;
+        }
+        *fpp = fp;
+    }
 #endif
 
 #include <filesystem>
