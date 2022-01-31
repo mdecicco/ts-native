@@ -249,7 +249,7 @@ namespace gjs {
         } catch (std::exception& e) {
             m_pipeline->log()->errors.push_back({ true, error::ecode::unspecified_error, std::string(e.what()), source_ref("[unknown]", "[unknown]", 0, 0) });
         }
-        return false;
+        return nullptr;
     }
 
 

@@ -13,6 +13,7 @@
 #include <gjs/builtin/script_array.h>
 #include <gjs/util/util.h>
 #include <gjs/util/robin_hood.h>
+#include <cmath>
 
 namespace gjs {
     using exc = error::exception;
@@ -625,6 +626,14 @@ namespace gjs {
                 }
                 if (found) break;
             }
+        }
+        
+        void var::set_register(u32 reg_id){
+            m_reg_id = reg_id;
+        }
+            
+        void var::set_stack_loc(u32 stack_loc) {
+            m_stack_loc = stack_loc;
         }
 
         script_type* var::call_this_tp() const {

@@ -1,7 +1,6 @@
-#include <gjs/util/template_utils.hpp>
+#include <gjs/util/template_utils.h>
 #include <gjs/common/script_function.h>
-#include <gjs/common/function_pointer.h>
-#include <gjs/common/type_manager.h>
+#include <gjs/common/function_signature.h>
 
 namespace gjs {
     template <typename... Args>
@@ -54,13 +53,25 @@ namespace gjs {
                 out.set_self(new u8[func->type->signature->return_type->size]); 
             }
             func->ctx()->generator()->call(func, out.self(), vargs.data());
-            if constexpr (ac > 0) {
-                for (u8 a = 0;a < ac;a++) {
-                    if (!arg_types[a]->signature) continue;
-                    // arg is a callback function that was dynamically allocated
+
+            static constexpr bool arg_is_wrapped_cb[] = { is_callback_v<Args>... };
+            for (u8 a = 0;a < ac;a++) {
+                if (!arg_types[a]->signature) continue;
+                
+                if (!arg_is_wrapped_cb[a]) {
+                    // Argument is a callback function that was dynamically allocated as a result of to_arg
+                    // 
+                    // If the application passes a raw function pointer or lambda function as an argument, it will be wrapped inside
+                    // a dynamically allocated raw_callback via the call to 'to_arg' that's used to construct vargs here.
+                    // It must be destroyed.
+                    // 
+                    // If the user passes a pre-constructed callback that's wrapped with the callback<...> template class, then it's
+                    // not this code's responsibility to destroy it. (At least not right now, this call could be nested below a call
+                    // where it _was_ allocated dynamically via 'to_arg')
                     raw_callback::destroy((raw_callback**)vargs[a]);
                 }
             }
+
             return out;
         } else {
             if (func->type->signature->explicit_argc != 0) valid_call = false;
@@ -75,15 +86,7 @@ namespace gjs {
                 out.set_self(new u8[func->type->signature->return_type->size]); 
             }
             func->ctx()->generator()->call(func, out.self(), &self);
-            if constexpr (ac > 0) {
-                for (u8 a = 0;a < ac;a++) {
-                    if (!arg_types[a]->signature) continue;
-                    // arg is a callback function that was dynamically allocated
-                    raw_callback** cbp = (raw_callback**)vargs[a];
-                    if ((*cbp)->keep_alive) continue;
-                    raw_callback::destroy(cbp);
-                }
-            }
+            
             return out;
         }
 
@@ -140,13 +143,25 @@ namespace gjs {
                 out.set_self(new u8[func->type->signature->return_type->size]); 
             }
             func->ctx()->generator()->call(func, out.self(), vargs.data());
-            if constexpr (ac > 0) {
-                for (u8 a = 0;a < ac;a++) {
-                    if (!arg_types[a]->signature) continue;
-                    // arg is a callback function that was dynamically allocated
+
+            static constexpr bool arg_is_wrapped_cb[] = { is_callback_v<Args>... };
+            for (u8 a = 0;a < ac;a++) {
+                if (!arg_types[a]->signature) continue;
+
+                if (!arg_is_wrapped_cb[a]) {
+                    // Argument is a callback function that was dynamically allocated as a result of to_arg
+                    // 
+                    // If the application passes a raw function pointer or lambda function as an argument, it will be wrapped inside
+                    // a dynamically allocated raw_callback via the call to 'to_arg' that's used to construct vargs here.
+                    // It must be destroyed.
+                    // 
+                    // If the user passes a pre-constructed callback that's wrapped with the callback<...> template class, then it's
+                    // not this code's responsibility to destroy it. (At least not right now, this call could be nested below a call
+                    // where it _was_ allocated dynamically via 'to_arg')
                     raw_callback::destroy((raw_callback**)vargs[a]);
                 }
             }
+
             return out;
         } else {
             if (func->type->signature->explicit_argc != 0) valid_call = false;
@@ -165,15 +180,7 @@ namespace gjs {
             if (self) vargs.insert(vargs.begin(), self);
 
             func->ctx()->generator()->call(func, out.self(), vargs.data());
-            if constexpr (ac > 0) {
-                for (u8 a = 0;a < ac;a++) {
-                    if (!arg_types[a]->signature) continue;
-                    // arg is a callback function that was dynamically allocated
-                    raw_callback** cbp = (raw_callback**)vargs[a];
-                    if ((*cbp)->keep_alive) continue;
-                    raw_callback::destroy(cbp);
-                }
-            }
+            
             return out;
         }
 
@@ -221,15 +228,25 @@ namespace gjs {
                 out.set_self(new u8[func->type->signature->return_type->size]); 
             }
             func->ctx()->generator()->call(func, out.self(), vargs.data());
-            if constexpr (ac > 0) {
-                for (u8 a = 0;a < ac;a++) {
-                    if (!arg_types[a]->signature) continue;
-                    // arg is a callback function that was dynamically allocated
-                    raw_callback** cbp = (raw_callback**)vargs[a];
-                    if ((*cbp)->keep_alive) continue;
-                    raw_callback::destroy(cbp);
+
+            static constexpr bool arg_is_wrapped_cb[] = { is_callback_v<Args>... };
+            for (u8 a = 0;a < ac;a++) {
+                if (!arg_types[a]->signature) continue;
+
+                if (!arg_is_wrapped_cb[a]) {
+                    // Argument is a callback function that was dynamically allocated as a result of to_arg
+                    // 
+                    // If the application passes a raw function pointer or lambda function as an argument, it will be wrapped inside
+                    // a dynamically allocated raw_callback via the call to 'to_arg' that's used to construct vargs here.
+                    // It must be destroyed.
+                    // 
+                    // If the user passes a pre-constructed callback that's wrapped with the callback<...> template class, then it's
+                    // not this code's responsibility to destroy it. (At least not right now, this call could be nested below a call
+                    // where it _was_ allocated dynamically via 'to_arg')
+                    raw_callback::destroy((raw_callback**)vargs[a]);
                 }
             }
+                
             return out;
         } else {
             if (func->type->signature->explicit_argc != 0) valid_call = false;
@@ -243,16 +260,8 @@ namespace gjs {
             if (func->type->signature->return_type->size > 0) {
                 out.set_self(new u8[func->type->signature->return_type->size]); 
             }
-            func->ctx()->generator()->call(func, out.self(), &self);
-            if constexpr (ac > 0) {
-                for (u8 a = 0;a < ac;a++) {
-                    if (!arg_types[a]->signature) continue;
-                    // arg is a callback function that was dynamically allocated
-                    raw_callback** cbp = (raw_callback**)vargs[a];
-                    if ((*cbp)->keep_alive) continue;
-                    raw_callback::destroy(cbp);
-                }
-            }
+            func->ctx()->generator()->call(func, out.self(), &cb->ptr->data);
+            
             return out;
         }
 

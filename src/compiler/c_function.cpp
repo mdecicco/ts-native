@@ -4,14 +4,9 @@
 #include <gjs/parser/ast.h>
 #include <gjs/common/compile_log.h>
 #include <gjs/common/errors.h>
-#include <gjs/common/script_function.h>
-#include <gjs/common/function_pointer.h>
-#include <gjs/common/script_type.h>
-#include <gjs/common/type_manager.h>
-#include <gjs/common/script_context.h>
-#include <gjs/util/util.h>
 #include <gjs/vm/register.h>
-#include <gjs/bind/bind.h>
+
+#include <gjs/gjs.hpp>
 
 namespace gjs {
     using namespace parse;
@@ -93,8 +88,8 @@ namespace gjs {
 
             script_type* method_of = ctx.class_tp();
             if (method_of && !n->is_static) {
-                if (is_ctor = (std::string(*n->identifier) == "constructor")) ret = ctx.type("void");
-                else if (is_dtor = (std::string(*n->identifier) == "destructor")) ret = ctx.type("void");
+                if ((is_ctor = (std::string(*n->identifier) == "constructor"))) ret = ctx.type("void");
+                else if ((is_dtor = (std::string(*n->identifier) == "destructor"))) ret = ctx.type("void");
                 else {
                     ctx.push_node(n->data_type);
                     ret = ctx.type(n->data_type);
@@ -126,7 +121,7 @@ namespace gjs {
                 // forward declaration
                 script_function* f = ctx.find_func(fname, ret, arg_types);
                 if (f) {
-                    ctx.log()->err(ec::c_function_already_declared, n->ref, ret->name.c_str(), f->name.c_str(), arg_tp_str(arg_types));
+                    ctx.log()->err(ec::c_function_already_declared, n->ref, ret->name.c_str(), f->name.c_str(), arg_tp_str(arg_types).c_str());
                     ctx.pop_node();
                     return nullptr;
                 }
@@ -155,7 +150,7 @@ namespace gjs {
             var* self = nullptr;
             if (f) {
                 if (f->is_host || f->access.entry) {
-                    ctx.log()->err(ec::c_function_already_defined, n->ref, ret->name.c_str(), f->name.c_str(), arg_tp_str(arg_types));
+                    ctx.log()->err(ec::c_function_already_defined, n->ref, ret->name.c_str(), f->name.c_str(), arg_tp_str(arg_types).c_str());
                     ctx.pop_node();
                     return nullptr;
                 }

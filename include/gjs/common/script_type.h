@@ -1,7 +1,9 @@
 #pragma once
 #include <gjs/common/types.h>
 #include <gjs/common/errors.h>
+#include <gjs/common/script_module.h>
 #include <gjs/util/robin_hood.h>
+#include <gjs/util/template_utils.h>
 
 #include <string>
 #include <vector>

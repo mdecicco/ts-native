@@ -67,5 +67,3 @@ namespace gjs {
         script_object get() const;
     };
 };
-
-#include <gjs/common/script_object.inl>

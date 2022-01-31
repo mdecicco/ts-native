@@ -11,13 +11,12 @@ namespace gjs {
             false, // owns ptr
             false, // owns func
             true,  // keep alive (do not destruct in call(raw_callback*, ...))
-            false, // script owned
             { nullptr, nullptr },
             fptr
         });
 
         printf("Allocated host raw_callback 0x%lX\n", (u64)p);
-        return new void*(p);
+        return new raw_callback*(p);
     }
 
     void* raw_callback::make(u32 fid, void* data, u64 dataSz) {
@@ -26,7 +25,6 @@ namespace gjs {
             true,  // owns ptr
             false, // owns func
             false, // keep alive (do not destruct in call(raw_callback*, ...))
-            true, // script owned
             { nullptr, nullptr },
             new function_pointer(fid, dataSz, data)
         });
@@ -46,7 +44,7 @@ namespace gjs {
             }
 
             if (cb->owns_ptr && cb->ptr) delete cb->ptr;
-            if (cb->free_self) delete (void*)cbp;
+            if (cb->free_self) delete (raw_callback**)cbp;
             delete cb;
         }
     }

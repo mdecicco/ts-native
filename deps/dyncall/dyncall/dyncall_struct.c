@@ -255,7 +255,7 @@ DCstruct* dcDefineStruct(const char* signature)
 	while (*ptr) {
 		char type = *(ptr++);
 		if (type == DC_SIGCHAR_STRUCT) {
-			/*dcSubStruct(	@@@* /
+			/ * dcSubStruct(	@@@* /
 		} else {
 			dcStructField(s, type, DEFAULT_ALIGNMENT, readInt(&ptr));
 		}

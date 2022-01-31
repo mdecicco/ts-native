@@ -136,9 +136,9 @@ namespace gjs {
         dncmpi          ,    // check if register not equal immediate               fncmpi  (dest)   (a)         1.0    dest = a != 1.0
 
         // boolean
-        and             ,    // logical and                                         and     (dest)   (a)         (b)    dest = a && b
+        _and            ,    // logical and                                         and     (dest)   (a)         (b)    dest = a && b
         andi            ,    // logical and                                         and     (dest)   (a)         1      dest = a && 1
-        or              ,    // logical or                                          or      (dest)   (a)         (b)    dest = a || b
+        _or             ,    // logical or                                          or      (dest)   (a)         (b)    dest = a || b
         ori             ,    // logical or                                          or      (dest)   (a)         1      dest = a || 1
 
         // bitwise
@@ -146,7 +146,7 @@ namespace gjs {
         bandi           ,    // bitwise and register and immediate value            bandi   (dest)   (a)         0x0F   dest = a & 0x0F
         bor             ,    // bitwise or                                          bor     (dest)   (a)         (b)    dest = a | b
         bori            ,    // bitwise or register and immediate value             bori    (dest)   (a)         0x0F   dest = a | 0x0F
-        xor             ,    // exclusive or                                        xor     (dest)   (a)         (b)    dest = a ^ b
+        _xor            ,    // exclusive or                                        xor     (dest)   (a)         (b)    dest = a ^ b
         xori            ,    // exlusive or register and immediate value            xori    (dest)   (a)         0x0F   dest = a ^ 0x0F
         sl              ,    // shift bits left by amount from register             sl      (dest)   (a)         (b)    dest = a << b
         sli             ,    // shift bits left by immediate value                  sli     (dest)   (a)         4      dest = a << 4

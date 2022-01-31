@@ -8,6 +8,7 @@
 #include <gjs/common/script_type.h>
 #include <gjs/util/util.h>
 #include <assert.h>
+#include <stdlib.h>
 
 namespace gjs {
     using vmi = vm_instruction;
@@ -174,11 +175,11 @@ namespace gjs {
             || x == vmi::dgte                 \
             || x == vmi::dcmp                 \
             || x == vmi::dncmp                \
-            || x == vmi::and                  \
-            || x == vmi::or                   \
+            || x == vmi::_and                 \
+            || x == vmi::_or                  \
             || x == vmi::band                 \
             || x == vmi::bor                  \
-            || x == vmi::xor                  \
+            || x == vmi::_xor                 \
             || x == vmi::sl                   \
             || x == vmi::sr                   \
         )
@@ -469,6 +470,14 @@ namespace gjs {
 
         assert(false); // only third operand can possibly be a float
         return *this;
+    }
+    
+    int _i64toa_s(i64 n, char* buf, size_t bufSz, i32 unk) {
+        return snprintf(buf, bufSz, "%lli", n);
+    }
+    
+    int _ui64toa_s(i64 n, char* buf, size_t bufSz, i32 unk) {
+        return snprintf(buf, bufSz, "%llu", n);
     }
 
     std::string instruction::to_string(vm_backend* ctx) const {

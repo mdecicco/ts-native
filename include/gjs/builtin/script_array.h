@@ -1,6 +1,6 @@
 #pragma once
 #include <gjs/common/types.h>
-#include <gjs/util/template_utils.hpp>
+#include <gjs/util/callback.h>
 
 namespace gjs {
     class script_type;

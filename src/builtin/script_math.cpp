@@ -9,6 +9,8 @@
 #include <gjs/common/script_object.h>
 #include <gjs/bind/bind.h>
 
+#include <gjs/gjs.hpp>
+
 #include <cmath>
 
 float _cos(float x) {

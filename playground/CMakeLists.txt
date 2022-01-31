@@ -26,14 +26,16 @@ SOURCE_GROUP("src" FILES ${playground_src})
 SOURCE_GROUP("scripts" FILES ${playground_scripts})
 
 add_executable(playground ${playground_src} ${playground_scripts})
+set(libs gjs glfw imgui)
 
-target_link_libraries(
-    playground
-    gjs
-    glfw
-    imgui
-    opengl32
-)
+if (MSVC)
+    set (libs ${libs} opengl32)
+else()
+    find_package(OpenGL REQUIRED)
+    set (libs ${libs} ${OPENGL_LIBRARIES})
+endif()
+
+target_link_libraries(playground ${libs})
 
 set_target_properties(playground PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY_DEBUG   ${CMAKE_CURRENT_SOURCE_DIR}/bin 

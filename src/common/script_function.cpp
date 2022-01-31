@@ -1,11 +1,7 @@
 #include <gjs/common/script_function.h>
-#include <gjs/common/script_type.h>
-#include <gjs/common/type_manager.h>
-#include <gjs/common/script_context.h>
-#include <gjs/common/script_module.h>
 #include <gjs/vm/register.h>
-#include <gjs/bind/bind.h>
-#include <gjs/util/util.h>
+
+#include <gjs/gjs.hpp>
 
 namespace gjs {
     script_function::script_function(script_context* ctx, const std::string _name, address addr, script_type* signature, script_type* method_of, script_module* mod) {

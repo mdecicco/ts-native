@@ -1,16 +1,11 @@
-#include <gjs/common/script_function.h>
-#include <gjs/common/script_type.h>
-#include <gjs/common/type_manager.h>
 #include <gjs/builtin/builtin.h>
 #include <gjs/builtin/script_pointer.h>
 #include <gjs/builtin/script_array.h>
 #include <gjs/builtin/script_string.h>
 #include <gjs/builtin/script_buffer.h>
-#include <gjs/common/script_context.h>
-#include <gjs/common/script_module.h>
-#include <gjs/common/function_pointer.h>
-#include <gjs/bind/bind.h>
 #include <gjs/builtin/script_math.h>
+
+#include <gjs/gjs.hpp>
 
 namespace gjs {
     // todo: thread_id:ctx map

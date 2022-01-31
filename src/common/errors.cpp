@@ -159,7 +159,7 @@ namespace gjs {
             message = out;
         }
 
-        const char* exception::what() const {
+        const char* exception::what() const noexcept {
             return message.c_str();
         }
 

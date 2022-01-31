@@ -1,10 +1,5 @@
-#include <gjs/common/script_function.h>
 #include <gjs/common/script_type.h>
-#include <gjs/common/script_context.h>
-#include <gjs/common/script_module.h>
-#include <gjs/common/function_signature.h>
-#include <gjs/util/util.h>
-#include <gjs/bind/bind.h>
+#include <gjs/gjs.hpp>
 
 namespace gjs {
     script_type::script_type() {

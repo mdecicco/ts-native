@@ -328,12 +328,12 @@ namespace gjs {
 
                 ast* op = new ast();
                 op->type = nt::operation;
-                if (cur.text == "!") op->op = op::not;
+                if (cur.text == "!") op->op = op::_not;
                 else if (cur.text == "-") op->op = op::negate;
                 else if (cur.text == "--") op->op = op::preDec;
                 else if (cur.text == "++") op->op = op::preInc;
                 op->rvalue = unary(ctx);
-                if (!op->rvalue && (op->op == op::not || op->op == op::negate)) throw exc(ec::p_expected_expression, cur.src);
+                if (!op->rvalue && (op->op == op::_not || op->op == op::negate)) throw exc(ec::p_expected_expression, cur.src);
                 if ((op->op == op::preDec || op->op == op::preInc) && (!op->rvalue || (op->rvalue->type != nt::identifier && op->rvalue->op != op::member && op->rvalue->op != op::index))) {
                     throw exc(ec::p_expected_assignable, op->rvalue ? op->rvalue->ref : ctx.current().src);
                 }

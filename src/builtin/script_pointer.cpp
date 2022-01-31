@@ -1,11 +1,8 @@
 #include <gjs/builtin/script_pointer.h>
-#include <gjs/util/util.h>
 #include <gjs/common/errors.h>
-#include <gjs/common/script_type.h>
 #include <gjs/backends/backend.h>
-#include <gjs/common/script_context.h>
-#include <gjs/common/script_function.h>
-#include <gjs/bind/calling.h>
+
+#include <gjs/gjs.hpp>
 
 namespace gjs {
     script_pointer::script_pointer(u64 moduletype) : m_type(nullptr), m_data(nullptr), m_refCount(nullptr) {

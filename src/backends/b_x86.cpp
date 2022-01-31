@@ -1,15 +1,11 @@
 #include <gjs/backends/b_x86.h>
 #include <gjs/compiler/tac.h>
-#include <gjs/common/script_type.h>
-#include <gjs/common/script_function.h>
-#include <gjs/common/function_signature.h>
-#include <gjs/common/function_pointer.h>
-#include <gjs/common/script_context.h>
-#include <gjs/common/script_module.h>
 #include <gjs/builtin/script_buffer.h>
-#include <gjs/bind/bind.h>
-#include <gjs/util/util.h>
+#include <gjs/gjs.hpp>
+
+
 #include <asmjit/asmjit.h>
+#include <cmath>
 
 using namespace asmjit;
 

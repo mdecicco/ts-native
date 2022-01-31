@@ -67,6 +67,8 @@ namespace gjs {
                 void set_mem_ptr(const var& v);
                 void raise_stack_flag();
                 void adopt_stack_flag(var& from);
+                void set_register(u32 reg_id);
+                void set_stack_loc(u32 stack_loc);
 
                 // type used for first argument when calling methods
                 script_type* call_this_tp() const;
@@ -115,7 +117,6 @@ namespace gjs {
             protected:
                 friend struct tac_instruction;
                 friend struct context;
-                friend class register_allocator;
                 friend struct compilation_output;
                 friend struct optimize::liveness;
 

@@ -1,11 +1,8 @@
 #include <gjs/builtin/script_vec2.h>
 #include <gjs/builtin/script_vec3.h>
 #include <gjs/builtin/script_math.h>
-#include <gjs/common/script_context.h>
-#include <gjs/common/script_type.h>
-#include <gjs/common/script_module.h>
-#include <gjs/bind/bind.h>
 
+#include <gjs/gjs.hpp>
 
 namespace gjs {
     namespace math {
@@ -13,11 +10,11 @@ namespace gjs {
         void bind_v3(script_module* mod, const char* name) {
             auto v = bind<vec3<T>>(mod, name);
             v.constructor();
-            v.constructor<T>();
-            v.constructor<T, T, T>();
-            v.constructor<const vec2<T>&>();
-            v.constructor<const vec2<T>&, T>();
-            v.constructor<T, const vec2<T>&>();
+            v.template constructor<T>();
+            v.template constructor<T, T, T>();
+            v.template constructor<const vec2<T>&>();
+            v.template constructor<const vec2<T>&, T>();
+            v.template constructor<T, const vec2<T>&>();
             v.method("operator +", CONST_METHOD_PTR(vec3<T>, operator +, vec3<T>, const vec3<T>&));
             v.method("operator +", CONST_METHOD_PTR(vec3<T>, operator +, vec3<T>, T));
             v.method("operator +=", METHOD_PTR(vec3<T>, operator +=, vec3<T>, const vec3<T>&));
@@ -71,9 +68,9 @@ namespace gjs {
         void bind_m3(script_module* mod, const char* name) {
             auto v = bind<mat3<T>>(mod, name);
             v.constructor();
-            v.constructor<T>();
-            v.constructor<T, T, T, T, T, T, T, T, T>();
-            v.constructor<const vec3<T>&, const vec3<T>&, const vec3<T>&>();
+            v.template constructor<T>();
+            v.template constructor<T, T, T, T, T, T, T, T, T>();
+            v.template constructor<const vec3<T>&, const vec3<T>&, const vec3<T>&>();
             v.method("operator +", CONST_METHOD_PTR(mat3<T>, operator +, mat3<T>, const mat3<T>&));
             v.method("operator +=", METHOD_PTR(mat3<T>, operator +=, mat3<T>, const mat3<T>&));
             v.method("operator -", CONST_METHOD_PTR(mat3<T>, operator -, mat3<T>, const mat3<T>&));

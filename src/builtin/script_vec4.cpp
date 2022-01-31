@@ -7,17 +7,19 @@
 #include <gjs/common/script_module.h>
 #include <gjs/bind/bind.h>
 
+#include <gjs/gjs.hpp>
+
 namespace gjs {
     namespace math {
         template <typename T>
         void bind_v4(script_module* mod, const char* name) {
             auto v = bind<vec4<T>>(mod, name);
             v.constructor();
-            v.constructor<T>();
-            v.constructor<T, T, T, T>();
-            v.constructor<const vec3<T>&>();
-            v.constructor<const vec3<T>&, T>();
-            v.constructor<T, const vec3<T>&>();
+            v.template constructor<T>();
+            v.template constructor<T, T, T, T>();
+            v.template constructor<const vec3<T>&>();
+            v.template constructor<const vec3<T>&, T>();
+            v.template constructor<T, const vec3<T>&>();
             v.method("operator +", CONST_METHOD_PTR(vec4<T>, operator +, vec4<T>, const vec4<T>&));
             v.method("operator +", CONST_METHOD_PTR(vec4<T>, operator +, vec4<T>, T));
             v.method("operator +=", METHOD_PTR(vec4<T>, operator +=, vec4<T>, const vec4<T>&));
@@ -135,8 +137,8 @@ namespace gjs {
         template <typename T>
         void bind_quat(script_module* mod, const char* name) {
             auto v = bind<quat<T>>(mod, name);
-            v.constructor<const vec3<T>&, T>();
-            v.constructor<const vec3<T>&>();
+            v.template constructor<const vec3<T>&, T>();
+            v.template constructor<const vec3<T>&>();
             v.method("operator *", CONST_METHOD_PTR(quat<T>, operator *, quat<T>, const quat<T>&));
             v.method("operator *=", &quat<T>::operator *=);
             v.method("operator *", CONST_METHOD_PTR(quat<T>, operator *, vec3<T>, const vec3<T>&));
@@ -157,10 +159,10 @@ namespace gjs {
         void bind_m4(script_module* mod, const char* name) {
             auto v = bind<mat4<T>>(mod, name);
             v.constructor();
-            v.constructor<T>();
-            v.constructor<T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T>();
-            v.constructor<const mat3<T>&>();
-            v.constructor<const vec4<T>&, const vec4<T>&, const vec4<T>&, const vec4<T>&>();
+            v.template constructor<T>();
+            v.template constructor<T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T>();
+            v.template constructor<const mat3<T>&>();
+            v.template constructor<const vec4<T>&, const vec4<T>&, const vec4<T>&, const vec4<T>&>();
             v.method("operator +", CONST_METHOD_PTR(mat4<T>, operator +, mat4<T>, const mat4<T>&));
             v.method("operator +=", METHOD_PTR(mat4<T>, operator +=, mat4<T>, const mat4<T>&));
             v.method("operator -", CONST_METHOD_PTR(mat4<T>, operator -, mat4<T>, const mat4<T>&));

@@ -1,7 +1,15 @@
 #pragma once
 #include <stdint.h>
 
-#define FORCE_INLINE __forceinline
+#if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__NT__)
+    #define FORCE_INLINE __forceinline
+#elif __APPLE__
+    #define FORCE_INLINE
+#elif __linux__
+    #define FORCE_INLINE
+#else
+    #define FORCE_INLINE
+#endif
 
 namespace gjs {
     typedef uint64_t    u64;

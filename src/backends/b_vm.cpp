@@ -1,13 +1,7 @@
 #include <gjs/backends/b_vm.h>
 #include <gjs/backends/register_allocator.h>
 #include <gjs/compiler/tac.h>
-#include <gjs/common/script_type.h>
-#include <gjs/common/type_manager.h>
-#include <gjs/common/script_function.h>
-#include <gjs/common/script_context.h>
-#include <gjs/common/script_module.h>
-#include <gjs/bind/bind.h>
-#include <gjs/util/util.h>
+#include <gjs/gjs.hpp>
 
 namespace gjs {
     vm_backend::vm_backend(vm_allocator* alloc, u32 stack_size, u32 mem_size) :
@@ -508,11 +502,11 @@ namespace gjs {
                     break;
                 }
                 case op::land: {
-                    arith(vmi::and, vmi::andi, vmi::andi);
+                    arith(vmi::_and, vmi::andi, vmi::andi);
                     break;
                 }
                 case op::lor: {
-                    arith(vmi::or, vmi::ori, vmi::ori);
+                    arith(vmi::_or, vmi::ori, vmi::ori);
                     break;
                 }
                 case op::band: {
@@ -524,7 +518,7 @@ namespace gjs {
                     break;
                 }
                 case op::bxor: {
-                    arith(vmi::xor, vmi::xori, vmi::xori);
+                    arith(vmi::_xor, vmi::xori, vmi::xori);
                     break;
                 }
                 case op::ilt: {

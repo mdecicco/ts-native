@@ -7,6 +7,8 @@
 #include <gjs/common/script_object.h>
 #include <gjs/util/util.h>
 
+#include <gjs/gjs.hpp>
+
 namespace gjs {
     script_array::script_array(u64 moduletype) : m_size(0), m_count(0), m_capacity(0), m_type(nullptr), m_data(nullptr) {
         m_type = resolve_moduletype(moduletype);
