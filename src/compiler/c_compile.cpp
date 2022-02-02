@@ -426,26 +426,6 @@ namespace gjs {
         void extern_imports(context& ctx, parse::ast* n) {
             ctx.push_node(n);
 
-            /*
-                Example:
-
-                extern 'test.dll' {
-	                void test(i32 a, i32 b, i32 c);
-                }
-
-                should be compiled to have the effect:
-
-                extern_mod* mod = load_module('test.dll');
-                if (!mod) throw runtime_exception(...);
-                void ()(i32, i32, i32) test = mod->get_function('test', <signature type id>);
-                if (!test) throw runtime_exception(...);
-
-                the value following the 'extern' keyword can be an expression that needs evaluation, but
-                it MUST evaluate to a string. `extern 'test.dll'` is the same as `load_module('test.dll')`.
-
-                Since external module imports are evaluated at runtime the imports can't be used until the
-                module that imports them is initialized.
-            */
             var moduleName = expression(ctx, n->initializer);
 
             script_type* dylib_tp = ctx.type("$dylib");
@@ -458,7 +438,9 @@ namespace gjs {
             char dylib_name[32] = { 0 };
             snprintf(dylib_name, 32, "$dylib_%d", dylib_idx++);
             var dylib = ctx.empty_var(dylib_tp, dylib_name);
-            construct_in_module_memory(ctx, dylib, { moduleId });
+            u64 off = construct_in_module_memory(ctx, dylib, { moduleId });
+            ctx.out.mod->define_local(dylib_name, off, dylib_tp, n->ref, false);
+            ctx.out.mod->data()->position(off + dylib_tp->size);
 
             script_function* load = dylib.method("load", void_tp, { str_tp });
             call(ctx, load, { moduleName }, &dylib);

@@ -479,7 +479,7 @@ namespace gjs {
         void* addr = nullptr;
         Error err = m_rt->add(&addr, &ch);
         String content = std::move(sl.content());
-        printf("%s\n", content.data());
+        // printf("%s\n", content.data());
         if (err) {
             String content = std::move(sl.content());
             printf("%s\n", content.data());

@@ -24,6 +24,13 @@ namespace gjs {
     }
 
     script_dylib::~script_dylib() {
+        #ifdef WIN32
+            if (m_lib) {
+                FreeLibrary((HMODULE)m_lib);
+                m_lib = nullptr;
+            }
+        #else
+        #endif
     }
 
     void script_dylib::try_load(const script_string& path) {
