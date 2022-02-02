@@ -99,7 +99,8 @@ namespace gjs {
             else fsb.setRet(convertType(cfSig->return_type));
         }
 
-        if (f->is_host) {
+        // all external functions are normal cdecls
+        if (f->is_host && !f->is_external) {
             if (f->access.wrapped->srv_wrapper_func) {
                 if (f->is_method_of && !f->is_static) {
                     // ret ptr, call_method_func, func_ptr, call_params...
@@ -453,11 +454,13 @@ namespace gjs {
         func_label_map flabels;
         for (u16 f = 0;f < in.funcs.size();f++) {
             if (!in.funcs[f].func) continue;
+            if (in.funcs[f].func->is_external) continue;
             flabels[in.funcs[f].func] = new Label(cc.newNamedLabel(in.funcs[f].func->name.c_str()));
         }
 
         for (u16 f = 0;f < in.funcs.size();f++) {
             if (!in.funcs[f].func) continue;
+            if (in.funcs[f].func->is_external) continue;
 
             script_function* cf = in.funcs[f].func;
             function_signature* cfSig = cf->type->signature;
@@ -1401,7 +1404,16 @@ namespace gjs {
 
                     if (i.callee) {
                         if (i.callee->is_host) {
-                            if (i.callee->access.wrapped->srv_wrapper_func) {
+                            if (i.callee->is_external && !i.callee->access.wrapped) {
+                                // unresolved external (cdecl)
+                                
+                                fsig(i.callee, cs);
+
+                                for (u8 a = 0;a < params.size();a++) {
+                                    passArg(a, params[a]);
+                                }
+                            }
+                            else if (i.callee->access.wrapped->srv_wrapper_func) {
                                 if (i.callee->access.wrapped->call_method_func) {
                                     // ret ptr, call_method_func, func_ptr, call_params...
                                     fsig(i.callee, cs);
@@ -1473,8 +1485,17 @@ namespace gjs {
                             }
                         }
 
-                        if (addr) cc.invoke(&call, addr, cs);
-                        else cc.invoke(&call, *lbl, cs);
+                        if (i.callee->is_external && !i.callee->access.wrapped) {
+                            // must determine function pointer at runtime
+                            x86::Gp wrappedPtr = cc.newIntPtr();
+                            x86::Mem src = cc.intptr_ptr(reinterpret_cast<u64>((void*)&i.callee->access.wrapped));
+                            cc.mov(wrappedPtr, src);
+                            cc.mov(wrappedPtr, cc.ptr_base(wrappedPtr.id(), offsetof(ffi::cdecl_pointer, func_ptr), sizeof(void*)));
+                            cc.invoke(&call, wrappedPtr, cs);
+                        } else {
+                            if (addr) cc.invoke(&call, addr, cs);
+                            else cc.invoke(&call, *lbl, cs);
+                        }
 
                         finalizeCall();
                     } else {

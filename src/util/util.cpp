@@ -275,6 +275,11 @@ namespace gjs {
         }
         printf(")]\n");
 
+        if (in.funcs[f].func->is_external) {
+            printf("<external code>\n");
+            return;
+        }
+
         for (u32 i = 0;i < in.funcs[f].code.size();i++) {
             printf("%3.3d: %s\n", i, in.funcs[f].code[i].to_string().c_str());
         }

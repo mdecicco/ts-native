@@ -21,7 +21,7 @@ namespace gjs {
 
         ast* class_declaration(context& ctx);
 
-        ast* function_declaration(context& ctx);
+        ast* function_declaration(context& ctx, bool decl_only = false);
 
         ast* format_declaration(context& ctx);
 

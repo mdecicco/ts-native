@@ -12,7 +12,7 @@ namespace gjs {
     namespace parse {
         using nt = ast::node_type;
 
-        ast* function_declaration(context& ctx) {
+        ast* function_declaration(context& ctx, bool decl_only) {
             ast* r = new ast();
             r->type = nt::function_declaration;
 
@@ -50,6 +50,8 @@ namespace gjs {
                 ctx.consume();
                 return r;
             }
+
+            if (decl_only) throw exc(ec::p_illegal_function_definition, ctx.current());
 
             r->body = block(ctx);
             return r;

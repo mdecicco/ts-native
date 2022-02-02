@@ -88,6 +88,15 @@ namespace gjs {
         implicit_argc = 0;
     }
 
+
+    std::vector<script_type*> function_signature::arg_types() const {
+        std::vector<script_type*> out;
+        for (u8 i = 0;i < args.size();i++) {
+            out.push_back(args[i].tp);
+        }
+        return out;
+    }
+
     const function_signature::argument& function_signature::explicit_arg(u8 idx) const {
         return args[idx + (args.size() - explicit_argc)];
     }

@@ -57,7 +57,22 @@ namespace gjs {
         }
 
         var context::imm(const std::string& s) {
-            return var(this, s);
+            u64 off = out.mod->data()->position();
+            out.mod->data()->write((void*)s.c_str(), s.length());
+
+            var d = empty_var(type("data"));
+            add(operation::module_data).operand(d).operand(imm((u64)out.mod->id())).operand(imm(off));
+
+            var v = empty_var(type("string"));
+            v.raise_stack_flag();
+            construct_on_stack(*this, v, { d, imm((u64)s.length()) });
+
+            return v;
+            // todo string immediates
+            // - Needs to allow string operations to be calculated ahead of time
+            // - If used by compiled code, current value of immediate must be constructed
+            //   using the above code
+            // return var(this, s);
         }
 
         var context::imm(u64 u, script_type* tp) {

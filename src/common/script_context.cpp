@@ -256,4 +256,11 @@ namespace gjs {
     script_context* script_context::current() {
         return current_ctx();
     }
+    
+    script_type* script_context::type(u64 moduletype_id) {
+        script_context* ctx = current_ctx();
+        script_module* mod = ctx->module(extract_left_u32(moduletype_id));
+        if (!mod) return nullptr;
+        return mod->types()->get(extract_right_u32(moduletype_id));
+    }
 };

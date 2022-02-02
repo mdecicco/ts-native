@@ -145,13 +145,15 @@ namespace gjs {
 
                 if (generator->perform_register_allocation()) {
                     for (u16 i = 0;i < out.funcs.size();i++) {
-                        if (!out.funcs[i].func) continue;
+                        if (!out.funcs[i].func || out.funcs[i].func->is_external) continue;
                         out.funcs[i].regs.m_gpc = generator->gp_count();
                         out.funcs[i].regs.m_fpc = generator->fp_count();
                         out.funcs[i].regs.process(i);
                     }
 
                     for (u16 f = 0;f < out.funcs.size();f++) {
+                        if (!out.funcs[f].func || out.funcs[f].func->is_external) continue;
+
                         for (u8 i = 0;i < m_post_regalloc_ir_steps.size();i++) {
                             m_post_regalloc_ir_steps[i](m_ctx, out, f);
                         }

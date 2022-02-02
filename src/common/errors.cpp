@@ -31,6 +31,7 @@ namespace gjs {
             "Type '%s' already bound",
             "There was a type id collision while binding type '%s'",
             "Type '%s' not found and can not be finalized",
+            "Struct/class return from external functions is not supported. Please return objects as pointers instead",
             "", // end bind errors
 
             "", // lexer errors
@@ -61,6 +62,8 @@ namespace gjs {
             "Malformed numerical constant",
             "String should not be empty",
             "Expected numerical constant",
+            "Function definition is not allowed in this context",
+            "Expected function declaration for external import",
             "", // end parse errors
 
             "", // compile errors
@@ -130,6 +133,10 @@ namespace gjs {
             "Could not open file '%s' or file is empty",
             "Callback is missing callee data. This is not a user error",
             "Array index <%d> out of range (length = %d)",
+            "Failed to load external module '%s' (%s)",
+            "Invalid signature type id provided to external module function loader (%s)",
+            "Function '%s' not found in external module (%s)",
+            "Failed to link function '%s' to external module",
             "", // end runtime errors
 
             "", // vm errors

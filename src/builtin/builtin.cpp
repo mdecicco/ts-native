@@ -4,6 +4,7 @@
 #include <gjs/builtin/script_string.h>
 #include <gjs/builtin/script_buffer.h>
 #include <gjs/builtin/script_math.h>
+#include <gjs/builtin/script_dylib.h>
 
 #include <gjs/gjs.hpp>
 
@@ -173,6 +174,13 @@ namespace gjs {
         auto fp = bind<function_pointer>(ctx, "$funcptr");
         fp.constructor<u32, u64>();
         tp = fp.finalize(ctx->global());
+        tp->is_builtin = true;
+
+        auto dylib = bind<script_dylib>(ctx, "$dylib");
+        dylib.constructor<u32>();
+        dylib.method("load", &script_dylib::try_load);
+        dylib.method("import", &script_dylib::try_import);
+        tp = dylib.finalize(ctx->global());
         tp->is_builtin = true;
 
         bind<void*, u32, void*, u64>(ctx, raw_callback::make, "$makefunc");

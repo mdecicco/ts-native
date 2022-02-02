@@ -37,6 +37,8 @@ namespace gjs {
             function_signature(script_context* ctx, script_type* ret, bool ret_ptr, script_type** args, u8 argc, script_type* method_of, bool is_ctor = false, bool is_static_method = false, bool is_callback = false);
             function_signature();
 
+            std::vector<script_type*> arg_types() const;
+
             const argument& explicit_arg(u8 idx) const;
 
             std::string to_string() const;

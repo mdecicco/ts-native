@@ -22,6 +22,7 @@ namespace gjs {
             script_function* duplicate_with_subtype(script_type* subtype);
 
             std::string name;
+            bool is_external;
             bool is_host;
             bool is_static;
             bool is_thiscall;

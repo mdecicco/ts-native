@@ -12,6 +12,7 @@
 #include <gjs/common/errors.h>
 #include <gjs/vm/register.h>
 #include <gjs/builtin/script_buffer.h>
+#include <gjs/util/util.h>
 
 namespace gjs {
     using exc = error::exception;
@@ -109,6 +110,8 @@ namespace gjs {
             ctx.add(operation::module_data).operand(obj).operand(ctx.imm((u64)ctx.out.mod->id())).operand(ctx.imm(offset));
             
             construct_in_place(ctx, obj, args);
+
+            ctx.out.mod->data()->position(offset + obj.size());
 
             return offset;
         }
@@ -417,6 +420,62 @@ namespace gjs {
             ctx.symbols.set(e->name(), e);
         }
 
+        void extern_imports(context& ctx, parse::ast* n) {
+            ctx.push_node(n);
+
+            /*
+                Example:
+
+                extern 'test.dll' {
+	                void test(i32 a, i32 b, i32 c);
+                }
+
+                should be compiled to have the effect:
+
+                extern_mod* mod = load_module('test.dll');
+                if (!mod) throw runtime_exception(...);
+                void ()(i32, i32, i32) test = mod->get_function('test', <signature type id>);
+                if (!test) throw runtime_exception(...);
+
+                the value following the 'extern' keyword can be an expression that needs evaluation, but
+                it MUST evaluate to a string. `extern 'test.dll'` is the same as `load_module('test.dll')`.
+
+                Since external module imports are evaluated at runtime the imports can't be used until the
+                module that imports them is initialized.
+            */
+            var moduleName = expression(ctx, n->initializer);
+
+            script_type* dylib_tp = ctx.type("$dylib");
+            script_type* void_tp = ctx.type("void");
+            script_type* str_tp = ctx.type("string");
+            script_type* u32_tp = ctx.type("u32");
+            var moduleId = ctx.imm((u64)ctx.out.mod->id());
+
+            static u32 dylib_idx = 0;
+            char dylib_name[32] = { 0 };
+            snprintf(dylib_name, 32, "$dylib_%d", dylib_idx++);
+            var dylib = ctx.empty_var(dylib_tp, dylib_name);
+            construct_in_module_memory(ctx, dylib, { moduleId });
+
+            script_function* load = dylib.method("load", void_tp, { str_tp });
+            call(ctx, load, { moduleName }, &dylib);
+
+            script_function* impFunc = dylib.method("import", void_tp, { str_tp, u32_tp });
+
+            ast* target = n->body;
+            while (target) {
+                script_function* decl = function_declaration(ctx, target);
+                ctx.out.funcs.push_back({ decl, gjs::func_stack(), {}, register_allocator(ctx.out), target->ref });
+                decl->is_external = true;
+                decl->is_host = true;
+                var sigId = ctx.imm((u64)decl->type->id());
+                call(ctx, impFunc, { ctx.imm(decl->name), sigId }, &dylib);
+                target = target->next;
+            }
+
+            ctx.pop_node();
+        }
+
         void any(context& ctx, ast* n) {
             switch(n->type) {
                 case nt::empty: break;
@@ -429,6 +488,7 @@ namespace gjs {
                 case nt::for_loop: { for_loop(ctx, n); break; }
                 case nt::while_loop: { while_loop(ctx, n); break; }
                 case nt::do_while_loop: { do_while_loop(ctx, n); break; }
+                case nt::extern_imports: { extern_imports(ctx, n); break; }
                 case nt::import_statement: { import_statement(ctx, n); break; }
                 case nt::return_statement: { return_statement(ctx, n); break; }
                 case nt::delete_statement: { delete_statement(ctx, n); break; }
@@ -503,8 +563,7 @@ namespace gjs {
             // return type will be determined by the first global return statement, or it will be void
             script_function* init = new script_function(ctx.env, "__init__", 0, nullptr, nullptr, out.mod);
             ctx.new_functions.push_back(init);
-            ctx.out.funcs.push_back({ init, gjs::func_stack(), {}, register_allocator(out) });
-            ctx.push_block();
+            ctx.push_block(init);
 
             ast* n = input->body;
             try {

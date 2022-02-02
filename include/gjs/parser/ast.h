@@ -27,6 +27,7 @@ namespace gjs {
                 for_loop,
                 while_loop,
                 do_while_loop,
+                extern_imports,
                 import_statement,
                 return_statement,
                 delete_statement,

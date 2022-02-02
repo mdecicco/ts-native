@@ -9,6 +9,7 @@ typedef DCCallVM_ DCCallVM;
 
 namespace gjs {
     class type_manager;
+    class script_type;
     class script_function;
     class script_module;
     class io_interface;
@@ -45,6 +46,7 @@ namespace gjs {
             script_module* add_code(const std::string& module_name, const std::string& module_path, const std::string& code);
 
             static script_context* current();
+            static script_type* type(u64 moduletype_id);
 
         protected:
             robin_hood::unordered_map<std::string, script_module*> m_modules;

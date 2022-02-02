@@ -31,6 +31,7 @@ namespace gjs {
             b_type_already_bound,
             b_type_hash_collision,
             b_type_not_found_cannot_finalize,
+            b_external_struct_return,
             __bind_error_end,
 
             __lexer_error_start,
@@ -61,6 +62,8 @@ namespace gjs {
             p_malformed_numerical_constant,
             p_string_should_not_be_empty,
             p_expected_numerical_constant,
+            p_illegal_function_definition,
+            p_expected_import_function_decl,
             __parse_error_end,
 
             __compile_error_start,
@@ -130,6 +133,10 @@ namespace gjs {
             r_failed_to_open_file,
             r_callback_missing_data,
             r_array_index_out_of_range,
+            r_failed_to_load_dylib,
+            r_dylib_function_invalid_signature_id,
+            r_dylib_function_not_found,
+            r_dylib_failed_to_link_function,
             __runtime_error_end,
 
             __vm_error_start,

@@ -136,6 +136,56 @@ namespace gjs {
             return r;
         }
 
+        ast* external_imports(context& ctx) {
+            ast* r = new ast();
+            r->type = nt::extern_imports;
+            r->src(ctx.current());
+            ctx.consume();
+
+            r->initializer = expression(ctx);
+
+            if (!ctx.match({ tt::open_block })) {
+                throw exc(ec::p_expected_char, ctx.current(), '{');
+            }
+
+            ctx.consume();
+
+            ast* node = nullptr;
+
+            while (!ctx.match({ tt::close_block }) && !ctx.at_end()) {
+                // attempt to parse a function declaration
+
+                if (!ctx.is_typename()) {
+                    throw exc(ec::p_expected_import_function_decl, ctx.current());
+                }
+
+                ctx.backup();
+                ast* dummy = type_identifier(ctx);
+                delete dummy;
+                
+                ast* decl = nullptr;
+                if (ctx.pattern({ tt::identifier, tt::open_parenth })) {
+                    ctx.restore();
+                    decl = function_declaration(ctx, true);
+                } else ctx.restore();
+
+                if (!decl) {
+                    throw exc(ec::p_expected_import_function_decl, ctx.current());
+                }
+
+                if (node) node = node->next = decl;
+                else node = r->body = decl;
+            }
+
+            if (!ctx.match({ tt::close_block })) {
+                throw exc(ec::p_unexpected_eof, ctx.current(), "external import block");
+            }
+
+            ctx.consume();
+
+            return r;
+        }
+
         ast* block(context& ctx) {
             if (!ctx.match({ tt::open_block })) {
                 throw exc(ec::p_expected_char, ctx.current().src, '{');
@@ -184,7 +234,6 @@ namespace gjs {
                 return r;
             }
 
-
             ast* r = nullptr;
 
             if (ctx.match({ tt::keyword })) {
@@ -206,6 +255,7 @@ namespace gjs {
                 else if (ctx.match({ "delete" })) r = delete_statement(ctx);
                 else if (ctx.match({ "return" })) r = return_statement(ctx);
                 else if (ctx.match({ "import" })) r = import_statement(ctx);
+                else if (ctx.match({ "extern" })) r = external_imports(ctx);
                 else if (ctx.match({ "enum" })) r = enum_declaration(ctx);
                 else {
                     throw exc(ec::p_unexpected_token, ctx.current().src, ctx.current().text.c_str());
@@ -220,6 +270,7 @@ namespace gjs {
                 else if (r->type == nt::while_loop) semicolon_optional = true;
                 else if (r->type == nt::do_while_loop) semicolon_optional = true;
                 else if (r->type == nt::enum_declaration) semicolon_optional = true;
+                else if (r->type == nt::extern_imports) semicolon_optional = true;
                 else if (r->type == nt::empty) semicolon_optional = true;
 
                 if (!semicolon_optional) {
@@ -231,7 +282,6 @@ namespace gjs {
 
                 return r;
             }
-
 
             token t = ctx.current();
             if (ctx.is_typename()) {

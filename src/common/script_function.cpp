@@ -8,6 +8,7 @@ namespace gjs {
         m_ctx = ctx;
 
         name = _name;
+        is_external = false;
         is_host = false;
         is_static = false;
         is_method_of = method_of;
@@ -26,6 +27,7 @@ namespace gjs {
         m_ctx = mgr->m_ctx;
 
         name = wrapped->name;
+        is_external = false;
         is_host = true;
         is_static = wrapped->is_static_method;
         is_method_of = tp;

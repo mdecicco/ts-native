@@ -14,6 +14,7 @@ namespace gjs {
     class script_type;
     class script_module;
     class type_manager;
+    class function_signature;
 
     //
     // Function call wrappers
@@ -158,6 +159,12 @@ namespace gjs {
             typedef std::tuple_size<std::tuple<Args...>> arg_count;
 
             global_function(type_manager* tpm, func_type f, const std::string& name, bool anonymous);
+            virtual void call(DCCallVM* call, void* ret, void** args);
+        };
+
+        struct cdecl_pointer : wrapped_function {
+            cdecl_pointer(type_manager* tpm, void* func, const std::string& name, function_signature* signature);
+
             virtual void call(DCCallVM* call, void* ret, void** args);
         };
 
