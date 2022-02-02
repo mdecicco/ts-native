@@ -42,29 +42,31 @@ namespace gjs {
         call(m_init);
     }
 
-    script_object script_module::define_local(const std::string& name, script_type* type) {
-        if (has_local(name)) {
+    script_object script_module::define_local(const std::string& name, script_type* type, bool is_exported) {
+        if (m_local_map.count(name) > 0) {
             // todo: exception
             return script_object(m_ctx);
         }
         m_local_map[name] = (u16)m_locals.size();
         u64 offset = m_data->position();
-        m_locals.push_back({ offset, type, name, source_ref(), this });
+        m_locals.push_back({ offset, type, name, source_ref(), this, is_exported });
         m_data->position(offset + type->size);
         return script_object(const_cast<script_context*>(m_ctx), const_cast<script_module*>(this), type, (u8*)m_data->data(offset));
     }
 
-    void script_module::define_local(const std::string& name, u64 offset, script_type* type, const source_ref& ref) {
-        if (has_local(name)) {
+    void script_module::define_local(const std::string& name, u64 offset, script_type* type, const source_ref& ref, bool is_exported) {
+        if (m_local_map.count(name) > 0) {
             // todo: exception
             return;
         }
         m_local_map[name] = (u16)m_locals.size();
-        m_locals.push_back({ offset, type, name, ref, this });
+        m_locals.push_back({ offset, type, name, ref, this, is_exported });
     }
 
-    bool script_module::has_local(const std::string& name) const {
-        return m_local_map.count(name) > 0;
+    bool script_module::has_local(const std::string& name, bool include_private) const {
+        auto it = m_local_map.find(name);
+        if (it == m_local_map.end()) return false;
+        return m_locals[it->getSecond()].is_exported || include_private;
     }
 
     const script_module::local_var& script_module::local_info(const std::string& name) const {
@@ -88,16 +90,28 @@ namespace gjs {
         return m_data->data(m_locals[it->getSecond()].offset);
     }
 
-    bool script_module::has_function(const std::string& name) {
-        return m_func_map.count(name) > 0;
+    bool script_module::has_function(const std::string& name, bool include_private) {
+        if (include_private) return m_func_map.count(name) > 0;
+
+        auto it = m_func_map.find(name);
+        if (it == m_func_map.end()) return false;
+        auto& funcs = it->getSecond();
+        for (u32 i = 0;i < funcs.size();i++) {
+            if (m_functions[funcs[i]]->is_exported) return true;
+        }
+
+        return false;
     }
 
-    std::vector<script_function*> script_module::function_overloads(const std::string& name) {
+    std::vector<script_function*> script_module::function_overloads(const std::string& name, bool include_private) {
         auto it = m_func_map.find(name);
         if (it == m_func_map.end()) return { };
 
         std::vector<script_function*> out;
-        for (u32 i = 0;i < it->getSecond().size();i++) out.push_back(m_functions[it->getSecond()[i]]);
+        for (u32 i = 0;i < it->getSecond().size();i++) {
+            script_function* f = m_functions[it->getSecond()[i]];
+            if (f->is_exported || include_private) out.push_back(f);
+        }
         return out;
     }
 

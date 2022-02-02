@@ -146,6 +146,7 @@ namespace gjs {
             bool is_const;
             bool is_static;
             bool is_subtype;
+            bool is_exported;
         };
     };
 };

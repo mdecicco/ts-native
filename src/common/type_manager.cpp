@@ -248,6 +248,14 @@ namespace gjs {
         return out;
     }
 
+    std::vector<script_type*> type_manager::exported() {
+        std::vector<script_type*> out;
+        for (auto i = m_types.begin();i != m_types.end();++i) {
+            if (i->getSecond()->is_exported) out.push_back(i->getSecond());
+        }
+        return out;
+    }
+
     script_context* type_manager::ctx() {
         return m_ctx;
     }

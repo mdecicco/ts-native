@@ -179,5 +179,51 @@ namespace gjs {
 
             return stmt;
         }
+
+        ast* export_statement(context& ctx) {
+            if (ctx.path.size() > 1) throw exc(ec::p_export_scope, ctx.current().src);
+            ctx.consume();
+
+            // must be variable, function, class, format, or enum
+            token t = ctx.current();
+            ast* r = nullptr;
+
+            if (t == "const") {
+                r = variable_declaration(ctx);
+                r->is_const = true;
+            }
+            else if (t == "static") {
+                r = variable_declaration(ctx);
+                r->is_static = true;
+            }
+            else if (t == "format") r = format_declaration(ctx);
+            else if (t == "class") r = class_declaration(ctx);
+            else if (t == "enum") r = enum_declaration(ctx);
+            else if (ctx.is_typename()) {
+                // one of three things:
+                // - Expression starting with static class property or method
+                // - Function declaration and/or definition
+                // - Variable declaration
+                ctx.backup();
+                ast* dummy = type_identifier(ctx);
+                delete dummy;
+
+                if (ctx.match({ tt::member_accessor })) {
+                    ctx.restore();
+                } else {
+                    if (ctx.pattern({ tt::identifier, tt::open_parenth })) {
+                        ctx.restore();
+                        r = function_declaration(ctx);
+                    } else {
+                        ctx.restore();
+                        r = variable_declaration(ctx);
+                    }
+                }
+            }
+
+            if (!r) throw exc(ec::p_expected_export, ctx.current());
+
+            return r;
+        }
     };
 };

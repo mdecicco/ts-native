@@ -133,11 +133,11 @@ namespace gjs {
                         ctx.push_node(n->data_type);
                         off = construct_in_module_memory(ctx, v, { expression(ctx, n->initializer->body) });
                         ctx.pop_node();
-                        ctx.out.mod->define_local(vname, off, tp, n->data_type->ref);
+                        ctx.out.mod->define_local(vname, off, tp, n->data_type->ref, n->is_exported);
                         ctx.out.mod->data()->position(off + tp->size);
                     } else {
                         off = ctx.out.mod->data()->position();
-                        ctx.out.mod->define_local(vname, off, tp, n->data_type->ref);
+                        ctx.out.mod->define_local(vname, off, tp, n->data_type->ref, n->is_exported);
                         ctx.out.mod->data()->position(off + tp->size);
 
                         var ptr = ctx.empty_var(ctx.type("data"));
@@ -152,11 +152,11 @@ namespace gjs {
                         ctx.push_node(n->data_type);
                         off = construct_in_module_memory(ctx, v, {});
                         ctx.pop_node();
-                        ctx.out.mod->define_local(vname, off, tp, n->data_type->ref);
+                        ctx.out.mod->define_local(vname, off, tp, n->data_type->ref, n->is_exported);
                         ctx.out.mod->data()->position(off + tp->size);
                     } else {
                         off = ctx.out.mod->data()->position();
-                        ctx.out.mod->define_local(vname, off, tp, n->data_type->ref);
+                        ctx.out.mod->define_local(vname, off, tp, n->data_type->ref, n->is_exported);
                         ctx.out.mod->data()->position(off + tp->size);
 
                         var ptr = ctx.empty_var(ctx.type("data"));
@@ -231,6 +231,7 @@ namespace gjs {
             script_type* tp = ctx.new_types->add(name, name);
             tp->is_pod = true;
             tp->owner = ctx.out.mod;
+            tp->is_exported = n->is_exported;
             ctx.symbols.set(name, tp);
 
             std::vector<parse::ast*> methods;
@@ -348,6 +349,7 @@ namespace gjs {
             script_type* tp = ctx.new_types->add(name, name);
             tp->is_pod = true;
             tp->owner = ctx.out.mod;
+            tp->is_exported = n->is_exported;
 
             parse::ast* cn = n->body;
             while (cn) {
@@ -384,6 +386,7 @@ namespace gjs {
             }
 
             script_enum* e = new script_enum(*n->identifier);
+            e->is_exported = n->is_exported;
             ctx.new_enums.push_back(e);
 
             parse::ast* v = n->body;
@@ -611,6 +614,20 @@ namespace gjs {
 
             ctx.pop_block();
             ctx.pop_node();
+
+            for (u32 i = 1;i < ctx.new_functions.size();i++) {
+                bool found = false;
+
+                for (u32 i1 = 1;i1 < ctx.out.funcs.size() && !found;i1++) {
+                    found = ctx.new_functions[i] == ctx.out.funcs[i1].func;
+                }
+                
+                if (!found) {
+                    std::string fdecl = ctx.new_functions[i]->type->signature->to_string(ctx.new_functions[i]->name);
+                    ctx.log()->err(ec::c_undefined_function, ctx.new_functions[i]->src, fdecl.c_str());
+                }
+            }
+
 
             if (ctx.log()->errors.size() > 0) {
                 delete ctx.new_types;

@@ -137,6 +137,8 @@ namespace gjs {
         }
 
         ast* external_imports(context& ctx) {
+            if (ctx.path.size() > 1) throw exc(ec::p_extern_import_scope, ctx.current());
+
             ast* r = new ast();
             r->type = nt::extern_imports;
             r->src(ctx.current());
@@ -155,6 +157,9 @@ namespace gjs {
             while (!ctx.match({ tt::close_block }) && !ctx.at_end()) {
                 // attempt to parse a function declaration
 
+                bool is_exported = ctx.match({ "export" });
+                if (is_exported) ctx.consume();
+
                 if (!ctx.is_typename()) {
                     throw exc(ec::p_expected_import_function_decl, ctx.current());
                 }
@@ -172,6 +177,8 @@ namespace gjs {
                 if (!decl) {
                     throw exc(ec::p_expected_import_function_decl, ctx.current());
                 }
+
+                decl->is_exported = is_exported;
 
                 if (node) node = node->next = decl;
                 else node = r->body = decl;
@@ -257,6 +264,10 @@ namespace gjs {
                 else if (ctx.match({ "import" })) r = import_statement(ctx);
                 else if (ctx.match({ "extern" })) r = external_imports(ctx);
                 else if (ctx.match({ "enum" })) r = enum_declaration(ctx);
+                else if (ctx.match({ "export" })) {
+                    r = export_statement(ctx);
+                    r->is_exported = true;
+                }
                 else {
                     throw exc(ec::p_unexpected_token, ctx.current().src, ctx.current().text.c_str());
                 }

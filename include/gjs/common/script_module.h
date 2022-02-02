@@ -24,6 +24,7 @@ namespace gjs {
                 std::string name;
                 source_ref ref;
                 script_module* owner;
+                bool is_exported;
             };
             ~script_module();
 
@@ -47,9 +48,9 @@ namespace gjs {
                 m_data->write<T>(val);
             }
 
-            bool has_function(const std::string& name);
+            bool has_function(const std::string& name, bool include_private);
 
-            std::vector<script_function*> function_overloads(const std::string& name);
+            std::vector<script_function*> function_overloads(const std::string& name, bool include_private);
 
             /*
             * If a function is not overloaded, this function will return it by name only.
@@ -61,9 +62,9 @@ namespace gjs {
             script_type* type(const std::string& name) const;
             std::vector<std::string> function_names() const;
             script_enum* get_enum(const std::string& name) const;
-            script_object define_local(const std::string& name, script_type* type);
-            void define_local(const std::string& name, u64 offset, script_type* type, const source_ref& ref);
-            bool has_local(const std::string& name) const;
+            script_object define_local(const std::string& name, script_type* type, bool is_exported);
+            void define_local(const std::string& name, u64 offset, script_type* type, const source_ref& ref, bool is_exported);
+            bool has_local(const std::string& name, bool include_private) const;
             const local_var& local_info(const std::string& name) const;
             void* local_ptr(const std::string& name) const;
             script_object local(const std::string& name) const;

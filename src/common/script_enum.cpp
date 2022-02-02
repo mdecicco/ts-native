@@ -7,6 +7,7 @@ namespace gjs {
     script_enum::script_enum(const std::string& name) {
         m_name = name;
         m_is_host = false;
+        is_exported = true;
         m_owner = nullptr;
     }
 

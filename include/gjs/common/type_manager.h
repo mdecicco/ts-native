@@ -80,6 +80,8 @@ namespace gjs {
 
             std::vector<script_type*> all();
 
+            std::vector<script_type*> exported();
+
             script_context* ctx();
 
         protected:

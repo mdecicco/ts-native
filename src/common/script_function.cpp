@@ -9,6 +9,7 @@ namespace gjs {
 
         name = _name;
         is_external = false;
+        is_exported = false;
         is_host = false;
         is_static = false;
         is_method_of = method_of;
@@ -29,6 +30,7 @@ namespace gjs {
         name = wrapped->name;
         is_external = false;
         is_host = true;
+        is_exported = true;
         is_static = wrapped->is_static_method;
         is_method_of = tp;
         is_thiscall = tp && !wrapped->is_static_method;

@@ -64,6 +64,9 @@ namespace gjs {
             p_expected_numerical_constant,
             p_illegal_function_definition,
             p_expected_import_function_decl,
+            p_extern_import_scope,
+            p_export_scope,
+            p_expected_export,
             __parse_error_end,
 
             __compile_error_start,
@@ -109,6 +112,7 @@ namespace gjs {
             c_invalid_binary_operator,
             c_object_not_callable,
             c_call_signature_mismatch,
+            c_undefined_function,
             __compile_error_end,
 
             __runtime_error_start,

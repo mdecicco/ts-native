@@ -105,6 +105,7 @@ namespace gjs {
             is_const = false;
             is_static = false;
             is_subtype = false;
+            is_exported = false;
             memset(&value, 0, sizeof(value));
         }
         

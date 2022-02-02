@@ -37,6 +37,7 @@ namespace gjs {
             bool is_builtin;
             bool is_host;
             bool is_trivially_copyable;
+            bool is_exported;
             bool requires_subtype;
 
             struct property {

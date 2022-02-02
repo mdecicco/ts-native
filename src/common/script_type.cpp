@@ -12,6 +12,7 @@ namespace gjs {
         is_builtin = false;
         is_host = false;
         is_trivially_copyable = false;
+        is_exported = true;
         requires_subtype = false;
         owner = nullptr;
         destructor = nullptr;

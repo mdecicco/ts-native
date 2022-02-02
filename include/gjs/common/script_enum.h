@@ -22,6 +22,8 @@ namespace gjs {
                 return m_values;
             }
 
+            bool is_exported;
+
         protected:
             friend class pipeline;
             friend class script_context;

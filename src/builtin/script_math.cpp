@@ -32,13 +32,13 @@ namespace gjs {
 
             // constants
             script_type* _f64 = tp<f64>(ctx);
-            m->define_local("E", _f64) = 2.71828182845904523536;
-            m->define_local("PI", _f64) = 3.14159265358979323846;
-            m->define_local("LN10", _f64) = 2.302585092994046;
-            m->define_local("LOG2E", _f64) = 1.4426950408889634;
-            m->define_local("LOG10E", _f64) = 0.4342944819032518;
-            m->define_local("SQRT1_2", _f64) = 0.4342944819032518;
-            m->define_local("SQRT2", _f64) = 1.4142135623730951;
+            m->define_local("E", _f64, true) = 2.71828182845904523536;
+            m->define_local("PI", _f64, true) = 3.14159265358979323846;
+            m->define_local("LN10", _f64, true) = 2.302585092994046;
+            m->define_local("LOG2E", _f64, true) = 1.4426950408889634;
+            m->define_local("LOG10E", _f64, true) = 0.4342944819032518;
+            m->define_local("SQRT1_2", _f64, true) = 0.4342944819032518;
+            m->define_local("SQRT2", _f64, true) = 1.4142135623730951;
 
             // functions
             {

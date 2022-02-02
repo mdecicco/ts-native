@@ -32,10 +32,10 @@ namespace gjs {
                     script_enum* en = mod->get_enum(symbol);
 
                     if (tp) ctx.symbols.set(name, tp);
-                    else if (mod->has_local(symbol)) ctx.symbols.set(name, &mod->local_info(symbol));
+                    else if (mod->has_local(symbol, false)) ctx.symbols.set(name, &mod->local_info(symbol));
                     else if (en) ctx.symbols.set(name, en);
-                    else if (mod->has_function(symbol)) {
-                        auto funcs = mod->function_overloads(symbol);
+                    else if (mod->has_function(symbol, false)) {
+                        auto funcs = mod->function_overloads(symbol, false);
                         u32 c = 0;
                         for (u32 f = 0;f < funcs.size();f++) {
                             if (funcs[f]->is_method_of) continue;
@@ -55,17 +55,26 @@ namespace gjs {
                 symbol_table* st = ctx.symbols.nest(name);
                 st->module = mod;
 
-                const auto& types = mod->types()->all();
+                const auto& types = mod->types()->exported();
                 for (u16 i = 0;i < types.size();i++) st->set(types[i]->name, types[i]);
 
                 const auto& locals = mod->locals();
-                for (u16 i = 0;i < locals.size();i++) st->set(locals[i].name, &locals[i]);
+                for (u16 i = 0;i < locals.size();i++) {
+                    if (!locals[i].is_exported) continue;
+                    st->set(locals[i].name, &locals[i]);
+                }
 
                 const auto& enums = mod->enums();
-                for (u16 i = 0;i < enums.size();i++) st->set(enums[i]->name(), enums[i]);
+                for (u16 i = 0;i < enums.size();i++) {
+                    if (!enums[i]->is_exported) continue;
+                    st->set(enums[i]->name(), enums[i]);
+                }
 
                 auto functions = mod->functions();
-                for (u16 i = 0;i < functions.size();i++) st->set(functions[i]->name, functions[i]);
+                for (u16 i = 0;i < functions.size();i++) {
+                    if (!functions[i]->is_exported) continue;
+                    st->set(functions[i]->name, functions[i]);
+                }
             }
         }
 

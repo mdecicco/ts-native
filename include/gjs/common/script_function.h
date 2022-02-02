@@ -1,5 +1,6 @@
 #pragma once
 #include <gjs/common/types.h>
+#include <gjs/common/source_ref.h>
 #include <string>
 #include <vector>
 
@@ -23,10 +24,12 @@ namespace gjs {
 
             std::string name;
             bool is_external;
+            bool is_exported;
             bool is_host;
             bool is_static;
             bool is_thiscall;
             bool is_subtype_obj_ctor;
+            source_ref src;
             script_type* is_method_of;
             script_type* type;
 

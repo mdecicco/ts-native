@@ -64,6 +64,9 @@ namespace gjs {
             "Expected numerical constant",
             "Function definition is not allowed in this context",
             "Expected function declaration for external import",
+            "External imports can only appear in the global scope",
+            "'export' statement can only appear in the global scope",
+            "Expected class, format, function, or global variable declaration",
             "", // end parse errors
 
             "", // compile errors
@@ -109,6 +112,7 @@ namespace gjs {
             "Invalid binary operator",
             "Object of type '%s' is not callable",
             "Call does not match expected signature '%s'",
+            "No definition found for function '%s'",
             "", // end compile errors
 
             "", // start runtime errors
