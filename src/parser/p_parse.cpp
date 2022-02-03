@@ -241,6 +241,14 @@ namespace gjs {
                 return r;
             }
 
+            if (ctx.match({ tt::line_comment, tt::block_comment })) {
+                ast* r = new ast();
+                r->type = nt::empty;
+                r->src(ctx.current());
+                ctx.consume();
+                return r;
+            }
+
             ast* r = nullptr;
 
             if (ctx.match({ tt::keyword })) {
