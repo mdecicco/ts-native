@@ -5,6 +5,7 @@
 #include <gjs/builtin/script_buffer.h>
 #include <gjs/builtin/script_math.h>
 #include <gjs/builtin/script_dylib.h>
+#include <gjs/builtin/script_process.h>
 
 #include <gjs/gjs.hpp>
 
@@ -181,6 +182,21 @@ namespace gjs {
         dylib.method("load", &script_dylib::try_load);
         dylib.method("import", &script_dylib::try_import);
         tp = dylib.finalize(ctx->global());
+        tp->is_builtin = true;
+
+        auto proc_arg = bind<process_arg>(ctx, "$proc_arg");
+        proc_arg.prop("name", &process_arg::name);
+        proc_arg.prop("value", &process_arg::value);
+        tp = proc_arg.finalize(ctx->global());
+        tp->is_builtin = true;
+
+        auto proc = bind<script_process>(ctx, "$proc");
+        proc.constructor();
+        proc.prop("argc", &script_process::argc);
+        proc.method("get_arg", &script_process::get_arg);
+        proc.prop("raw_argc", &script_process::raw_argc);
+        proc.method("get_raw_arg", &script_process::get_raw_arg);
+        tp = proc.finalize(ctx->global());
         tp->is_builtin = true;
 
         bind<void*, u32, void*, u64>(ctx, raw_callback::make, "$makefunc");

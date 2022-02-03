@@ -469,7 +469,7 @@ namespace gjs {
                 script_function* ctor = tv.method("constructor", to, { from });
                 if (ctor) {
                     var ret = m_ctx->empty_var(to);
-                    ret.raise_stack_flag();
+                    ret.add_to_stack();
                     construct_on_stack(*m_ctx, ret, { *this });
                     return ret;
                 }
@@ -604,9 +604,13 @@ namespace gjs {
             m_mem_ptr.reg = v.m_reg_id;
         }
 
-        void var::raise_stack_flag() {
+        void var::reserve_stack_id() {
             static u64 next_stack_id = 1;
             m_stack_id = next_stack_id++;
+        }
+
+        void var::add_to_stack() {
+            if (!m_stack_id) reserve_stack_id();
             m_ctx->block()->stack_objs.push_back(*this);
         }
 
@@ -1226,7 +1230,7 @@ namespace gjs {
 
             var clone = m_ctx->empty_var(m_type);
             // todo: specific error when type is not copy constructible 
-            clone.raise_stack_flag();
+            clone.add_to_stack();
             construct_on_stack(*m_ctx, clone, { *this });
             script_function* f = method("operator ++", m_type, {});
             if (f) call(*m_ctx, f, {}, this);
@@ -1244,7 +1248,7 @@ namespace gjs {
 
             var clone = m_ctx->empty_var(m_type);
             // todo: specific error when type is not copy constructible
-            clone.raise_stack_flag();
+            clone.add_to_stack();
             construct_on_stack(*m_ctx, clone, { *this });
             script_function* f = method("operator --", m_type, {});
             if (f) call(*m_ctx, f, {}, this);

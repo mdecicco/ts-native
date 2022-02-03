@@ -380,7 +380,7 @@ namespace gjs {
             ctx.pop_block();
 
             var out = ctx.empty_var(sigTp);
-            out.raise_stack_flag();
+            out.add_to_stack();
             ctx.add(operation::stack_alloc).operand(out).operand(ctx.imm(out.size()));
 
             if (captures.size() > 0) {
@@ -648,7 +648,7 @@ namespace gjs {
             var stack_ret = ctx.empty_var(rtp);
 
             if (func->type->signature->returns_on_stack) {
-                stack_ret.raise_stack_flag();
+                stack_ret.add_to_stack();
                 ctx.add(operation::stack_alloc).operand(stack_ret).operand(ctx.imm((u64)rtp->size));
             }
 
@@ -762,7 +762,7 @@ namespace gjs {
             var stack_ret = ctx.empty_var(rtp);
 
             if (sig->returns_on_stack) {
-                stack_ret.raise_stack_flag();
+                stack_ret.add_to_stack();
                 ctx.add(operation::stack_alloc).operand(stack_ret).operand(ctx.imm((u64)rtp->size));
             }
 

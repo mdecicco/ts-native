@@ -1,13 +1,24 @@
 #include <gjs/gjs.h>
+#include <gjs/gjs.hpp>
+
 #include <stdio.h>
-// #include <gjs/backends/b_win_x86_64.h>
-#include <gjs/builtin/script_math.h>
-#include <gjs/builtin/script_vec2.h>
-#include <gjs/builtin/script_vec3.h>
-#include <gjs/builtin/script_vec4.h>
 
 using namespace gjs;
-using namespace gjs::math;
+
+void print_help() {
+    printf("Usage:\n");
+    printf("\tgjs [options] <file> [file arguments].\n");
+    printf("Options:\n");
+    printf("\t -b -backend [vm | native]\tSpecifies which backend to use for code execution\n");
+    printf("\t -log-asm\t\t\tLogs the assembly code that scripts get compiled to\n");
+    printf("\t -log-ir\t\t\tLogs the intermediate code that scripts get compiled to\n");
+    printf("\t -log-vme\t\t\tLogs the VM instructions during execution\n");
+    printf("\t -m -mem [bytes]\t\tSpecifies the amount of memory that scripts have access to\n\t\t\t\t\t\t(Size must be >= 1024 B and <= 128 MB, currently not respected)\n");
+    printf("\t -s -stack [bytes]\t\tSpecifies the size of the stack used by scripts\n\t\t\t\t\t\t(Size must be >= 1024 B and <= 128 MB, VM only)\n");
+    printf("\t -no-run\t\t\tOnly compiles the specified script without executing it\n\t\t\t\t\t\t(Still executes global code from imported modules)\n");
+    printf("Note:\n");
+    printf("\tNo arguments specified before <file> will be provided to the scripts through the global process variable\n");
+}
 
 int print (const script_string& s) {
     return printf("%s\n", s.c_str());
@@ -17,35 +28,26 @@ void bind_ctx(script_context* ctx) {
     //ctx->bind(print, "print");
 }
 
-void remove_unused_regs_pass(script_context* ctx, compilation_output& in) {
-    u64 csz = in.code.size();
-    for (u64 c = 0;c < in.code.size() || c == u64(-1);c++) {
-        if (compile::is_assignment(in.code[c]) && in.code[c].op != compile::operation::call) {
-            u32 assigned_reg = in.code[c].operands[0].reg_id();
+vm_allocator* g_allocator = nullptr;
+bool log_ir = false;
+bool log_asm = false;
+bool dont_run = false;
 
-            bool used = false;
-            for (u64 c1 = c + 1;c1 < in.code.size() && !used;c1++) {
-                auto& i = in.code[c1];
-                for (u8 o = 0;o < 3 && !used;o++) {
-                    used = i.operands[o].valid() && !i.operands[o].is_imm() && i.operands[o].reg_id() == assigned_reg;
-                }
-            }
-
-            if (!used) {
-                in.erase(c);
-                c--;
-            }
+bool do_print_help(std::vector<std::string>& args) {
+    for (u32 i = 0;i < args.size();i++) {
+        if (args[i][0] != '-') break;
+        if (args[i] == "-h" || args[i] == "--h" || args[i] == "-help" || args[i] == "--help") {
+            args.erase(args.begin() + i);
+            return true;
         }
     }
-
-    if (csz > in.code.size()) remove_unused_regs_pass(ctx, in);
+    return false;
 }
-
-vm_allocator* g_allocator = nullptr;
 
 u32 get_stack_size(std::vector<std::string>& args) {
     for (u32 i = 0;i < args.size();i++) {
-        if (args[i] == "-s") {
+        if (args[i][0] != '-') break;
+        if (args[i] == "-s" || args[i] == "--s" || args[i] == "-stack" || args[i] == "--stack") {
             if (i + 1 >= args.size()) {
                 throw std::exception("The stack size parameter was specified without providing an argument. Usage '--s <size in bytes>'. Size must be >= 1024 B and <= 128 MB"); 
             }
@@ -64,7 +66,8 @@ u32 get_stack_size(std::vector<std::string>& args) {
 
 u32 get_mem_size(std::vector<std::string>& args) {
     for (u32 i = 0;i < args.size();i++) {
-        if (args[i] == "-s") {
+        if (args[i][0] != '-') break;
+        if (args[i] == "-m" || args[i] == "--m" || args[i] == "-mem" || args[i] == "--mem") {
             if (i + 1 >= args.size()) {
                 throw std::exception("The memory size parameter was specified without providing an argument. Usage '--m <size in bytes>'. Size must be >= 1024 B and <= 128 MB"); 
             }
@@ -81,19 +84,10 @@ u32 get_mem_size(std::vector<std::string>& args) {
     return 8 * 1024 * 1024;
 }
 
-bool do_log_native_ir(std::vector<std::string>& args) {
-    for (u32 i = 0;i < args.size();i++) {
-        if (args[i] == "-log-native-ir") {
-            args.erase(args.begin() + i);
-            return true;
-        }
-    }
-    return false;
-}
-
 bool do_log_ir(std::vector<std::string>& args) {
     for (u32 i = 0;i < args.size();i++) {
-        if (args[i] == "-log-ir") {
+        if (args[i][0] != '-') break;
+        if (args[i] == "-log-ir" || args[i] == "--log-ir") {
             args.erase(args.begin() + i);
             return true;
         }
@@ -101,9 +95,10 @@ bool do_log_ir(std::vector<std::string>& args) {
     return false;
 }
 
-bool do_log_vmi(std::vector<std::string>& args) {
+bool do_log_asm(std::vector<std::string>& args) {
     for (u32 i = 0;i < args.size();i++) {
-        if (args[i] == "-log-vmi") {
+        if (args[i][0] != '-') break;
+        if (args[i] == "-log-asm" || args[i] == "--log-asm") {
             args.erase(args.begin() + i);
             return true;
         }
@@ -113,7 +108,8 @@ bool do_log_vmi(std::vector<std::string>& args) {
 
 bool do_log_vme(std::vector<std::string>& args) {
     for (u32 i = 0;i < args.size();i++) {
-        if (args[i] == "-log-vm-exec") {
+        if (args[i][0] != '-') break;
+        if (args[i] == "-log-vme" || args[i] == "--log-vme") {
             args.erase(args.begin() + i);
             return true;
         }
@@ -121,9 +117,22 @@ bool do_log_vme(std::vector<std::string>& args) {
     return false;
 }
 
+bool do_not_run(std::vector<std::string>& args) {
+    for (u32 i = 0;i < args.size();i++) {
+        if (args[i][0] != '-') break;
+        if (args[i] == "-no-run" || args[i] == "--no-run") {
+            args.erase(args.begin() + i);
+            return true;
+        }
+    }
+    return false;
+}
+
+
 backend* create_backend(std::vector<std::string>& args) {
     for (u32 i = 0;i < args.size();i++) {
-        if (args[i] == "-b") {
+        if (args[i][0] != '-') break;
+        if (args[i] == "-b" || args[i] == "--b" || args[i] == "-backend" || args[i] == "--backend") {
             if (i + 1 >= args.size()) {
                 throw std::exception("The backend parameter was specified without providing an argument. Usage '--b [vm | native]'"); 
             }
@@ -138,37 +147,56 @@ backend* create_backend(std::vector<std::string>& args) {
             } else if (args[i + 1] == "native") {
                 args.erase(args.begin() + i + 1);
                 args.erase(args.begin() + i);
-                // win64_backend* be = new win64_backend();
-                // if (do_log_vme(args)) throw std::exception("--log-vm-exec cannot be used with the native backend");
-                // if (do_log_native_ir(args)) be->log_ir(true);
-                return nullptr;// be;
+                x86_backend* be = new x86_backend();
+                if (do_log_vme(args)) throw std::exception("--log-vme cannot be used with the native backend");
+                // if (do_log_native_ir(args)) be->
+                return be;
             } else {
                 throw std::exception(std::string("The backend parameter was given an invalid argument '" + args[i + 1] + "'. Usage '--b [vm | native]").c_str());
             }
         }
     }
 
-    return nullptr; // new win64_backend();
+    return new x86_backend();
 }
 
 script_context* create_ctx(std::vector<std::string>& args) {
-    script_context* ctx = new script_context(create_backend(args));
-    //ctx->compiler()->add_ir_step(remove_unused_regs_pass);
-    if (do_log_ir(args)) {
-        ctx->compiler()->add_ir_step(debug_ir_step);
+    gjs::backend* backend = create_backend(args);
+    log_ir = do_log_ir(args);
+    log_asm = do_log_asm(args);
+    dont_run = do_not_run(args);
+
+    if (do_print_help(args)) {
+        print_help();
+        return nullptr;
     }
+
+    if (args.size() == 0) {
+        printf("No script specified. Usage: gjs [options] <file> [file arguments]. Use -h for more info.\n");
+        if (backend) delete backend;
+        if (g_allocator) delete g_allocator;
+        return nullptr;
+    }
+
+    if (args[0][0] == '-') {
+        printf("Unrecognized argument: '%s'\n", args[0].c_str());
+        return nullptr;
+    }
+
+    // all args used to configure the context must be consumed
+    // before this point or they will be passed to the script
+    // itself
+    std::vector<const char*> argp;
+    for (u32 i = 1;i < args.size();i++) argp.push_back(args[i].c_str());
+
+    script_context* ctx = new script_context(argp.size(), argp.data(), backend);
+    if (log_ir) ctx->compiler()->add_ir_step(debug_ir_step);
 
     return ctx;
 }
 
 script_context* parse_args(std::vector<std::string>& args) {
     script_context* ctx = create_ctx(args);
-
-    for (u32 i = 0;i < args.size();i++) {
-        if (args[i][0] == '-') {
-            throw std::exception(("Unrecognized argument: '" + args[i] + "'").c_str());
-        }
-    }
 
     return ctx;
 }
@@ -177,28 +205,16 @@ int main(i32 argc, const char** argp) {
     try {
         std::vector<std::string> args;
         for (i32 i = 1;i < argc;i++) {
-            args.push_back(argp[i][0] == '-' ? argp[i] + 1 : argp[i]);
+            args.push_back(argp[i]);
         }
 
-        bool log_vmi = do_log_vmi(args);
         script_context* ctx = parse_args(args);
-        ctx->io()->set_cwd_from_args(argc, argp);
+        if (!ctx) return -1;
 
-        if (log_vmi && !g_allocator) {
-            throw std::exception("--log-vmi cannot be used with the native backend");
-        }
+        ctx->io()->set_cwd_from_args(argc, argp);
 
         bind_ctx(ctx);
         ctx->generator()->commit_bindings();
-
-        if (args.size() == 0) {
-            printf("No script specified. Usage gjs [options] file [file arguments]. Use gjs --help for more information.\n");
-            backend* be = ctx->generator();
-            delete ctx;
-            delete be;
-            if (g_allocator) delete g_allocator;
-            return -1;
-        }
 
         script_module* mod = ctx->resolve(args[0]);
         if (!mod) {
@@ -206,9 +222,9 @@ int main(i32 argc, const char** argp) {
             return -1;
         }
 
-        if (log_vmi) print_code((vm_backend*)ctx->generator());
+        if (log_asm && g_allocator) print_code((vm_backend*)ctx->generator());
 
-        mod->init();
+        if (!dont_run) mod->init();
 
         backend* be = ctx->generator();
         delete ctx;

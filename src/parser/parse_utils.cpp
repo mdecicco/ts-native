@@ -604,6 +604,8 @@ namespace gjs {
             throw error::exception(error::ecode::p_string_should_not_be_empty, source_ref(module, lines[bt.line], bt.line, bt.col));
         }
 
+        out.is_empty_string_literal = out.text.length() == 0;
+
         return out;
     }
 

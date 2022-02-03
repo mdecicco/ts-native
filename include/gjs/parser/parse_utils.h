@@ -17,9 +17,10 @@ namespace gjs {
                 u32 col = 0;
                 std::string text = "";
                 std::string module = "";
+                bool is_empty_string_literal = false;
 
-                operator bool() const { return text.length() != 0; }
-                inline const bool operator == (const token& rhs) const { return text == rhs.text; }
+                operator bool() const { return text.length() != 0 || is_empty_string_literal; }
+                inline const bool operator == (const token& rhs) const { return text == rhs.text && is_empty_string_literal == rhs.is_empty_string_literal; }
                 inline const bool operator == (const std::string& rhs) const { return text == rhs; }
             };
 

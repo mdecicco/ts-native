@@ -65,7 +65,8 @@ namespace gjs {
                 bool convertible_to(script_type* tp) const;
                 var convert(script_type* tp, bool store_imms_in_reg = false) const;
                 void set_mem_ptr(const var& v);
-                void raise_stack_flag();
+                void reserve_stack_id();
+                void add_to_stack();
                 void adopt_stack_flag(var& from);
                 void set_register(u32 reg_id);
                 void set_stack_loc(u32 stack_loc);

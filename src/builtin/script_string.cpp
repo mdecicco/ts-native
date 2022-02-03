@@ -7,6 +7,12 @@ namespace gjs {
         memset(m_data, 0, m_capacity);
     }
 
+    script_string::script_string(const char* str) : m_data(nullptr), m_len(strlen(str)), m_capacity(m_len) {
+        m_data = (char*)script_allocate(m_capacity + u64(1));
+        memcpy(m_data, str, m_len);
+        m_data[m_len] = 0;
+    }
+
     script_string::script_string(const std::string& str) : m_data(nullptr), m_len(str.length()), m_capacity(m_len) {
         m_data = (char*)script_allocate(m_capacity + u64(1));
         memcpy(m_data, str.c_str(), str.length());
@@ -43,36 +49,45 @@ namespace gjs {
         if (rhs.length() > 0 && rhs.length() < m_capacity) {
             memcpy(m_data, rhs.c_str(), rhs.length());
             m_len = rhs.length();
+            m_data[m_len] = 0;
             resize(cap);
         } else {
             resize(cap);
             memcpy(m_data, rhs.c_str(), rhs.length());
             m_len = rhs.length();
+            m_data[m_len] = 0;
         }
+
         return *this;
     }
 
     script_string& script_string::operator =(const script_string& rhs) {
-        if (rhs.m_len > 0 && rhs.m_len < m_capacity) {
+        u64 cap = rhs.length() > 32 ? rhs.length() + 32 : 32;
+        if (rhs.length() > 0 && rhs.length() < m_capacity) {
             memcpy(m_data, rhs.m_data, rhs.m_len);
             m_len = rhs.m_len;
-            resize(rhs.m_capacity);
+            m_data[m_len] = 0;
+            resize(cap);
         } else {
-            resize(rhs.m_capacity);
+            resize(cap);
             memcpy(m_data, rhs.m_data, rhs.m_len);
             m_len = rhs.m_len;
+            m_data[m_len] = 0;
         }
+
         return *this;
     }
 
     script_string& script_string::operator +=(const script_string& rhs) {
-        if ((m_len + rhs.length()) < m_capacity) {
+        if ((m_len + rhs.length() + 1) < m_capacity) {
             memcpy(m_data + m_len, rhs.m_data, rhs.m_len);
             m_len += rhs.m_len;
+            m_data[m_len] = 0;
         } else {
             resize(m_len + rhs.m_len + 32);
             memcpy(m_data + m_len, rhs.m_data, rhs.m_len);
             m_len += rhs.m_len;
+            m_data[m_len] = 0;
         }
         return *this;
     }

@@ -154,7 +154,7 @@ namespace gjs {
                             if (code[i].op == op::load) continue;
 
                             // if the var was not assigned with a binary expression then do nothing
-                            if (code[i].op == op::eq) continue;
+                            if (code[i].op == op::eq || code[i].op == op::reserve) continue;
 
                             const var* assigns = code[i].assignsTo();
                             if (!assigns) continue;

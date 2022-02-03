@@ -173,7 +173,7 @@ namespace gjs {
                         //bool onStack = true;
                         //onStack = onStack && (n->initializer->body->type != nt::operation || n->initializer->body->op != ot::newObj);
                         //onStack = onStack && (n->initializer->body->type != nt::lambda_expression);
-                        //if (onStack) v.raise_stack_flag();
+                        //if (onStack) v.add_to_stack();
                         var val = expression(ctx, n->initializer->body);
                         ctx.add(operation::eq).operand(v).operand(val);
                         ctx.pop_node();
@@ -184,7 +184,7 @@ namespace gjs {
                 } else {
                     if (!tp->is_primitive) {
                         ctx.push_node(n->data_type);
-                        v.raise_stack_flag();
+                        v.add_to_stack();
                         construct_on_stack(ctx, v, {});
                         ctx.pop_node();
                     }

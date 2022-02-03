@@ -12,6 +12,7 @@
 
 #include <gjs/bind/bind.h>
 #include <gjs/builtin/builtin.h>
+#include <gjs/builtin/script_process.h>
 #include <gjs/common/errors.h>
 
 #include <filesystem>
@@ -39,6 +40,15 @@ namespace gjs {
         init_context(this);
 
         m_backend->init();
+    }
+
+    script_context::script_context(u32 argc, const char** argv, backend* generator, io_interface* io) : script_context(generator, io) {
+        u64 off = m_global->data()->position();
+        void* ptr = m_global->data()->data();
+        new (ptr) script_process(argc, argv);
+
+        m_global->define_local("process", off, m_all_types->get<script_process>(), source_ref(), true);
+        m_global->data()->position(off + sizeof(script_process));
     }
 
     script_context::~script_context() {

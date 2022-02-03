@@ -43,10 +43,16 @@ namespace gjs {
     }
 
     script_object script_module::define_local(const std::string& name, script_type* type, bool is_exported) {
+        if (!type) {
+            // todo: exception
+            return script_object(m_ctx);
+        }
+
         if (m_local_map.count(name) > 0) {
             // todo: exception
             return script_object(m_ctx);
         }
+
         m_local_map[name] = (u16)m_locals.size();
         u64 offset = m_data->position();
         m_locals.push_back({ offset, type, name, source_ref(), this, is_exported });
@@ -55,6 +61,11 @@ namespace gjs {
     }
 
     void script_module::define_local(const std::string& name, u64 offset, script_type* type, const source_ref& ref, bool is_exported) {
+        if (!type) {
+            // todo: exception
+            return;
+        }
+
         if (m_local_map.count(name) > 0) {
             // todo: exception
             return;

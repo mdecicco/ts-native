@@ -294,7 +294,7 @@ namespace gjs {
 
                     if (n->body) {
                         // stack format
-                        obj.raise_stack_flag();
+                        obj.add_to_stack();
                         construct_on_stack(ctx, obj, {});
 
                         ast* field = n->body->body;
@@ -326,7 +326,7 @@ namespace gjs {
                             a = a->next;
                         }
 
-                        obj.raise_stack_flag();
+                        obj.add_to_stack();
                         construct_on_stack(ctx, obj, args);
                     }
 
@@ -383,7 +383,7 @@ namespace gjs {
                             ctx.add(operation::module_data).operand(d).operand(ctx.imm((u64)ctx.out.mod->id())).operand(ctx.imm(off));
 
                             var v = ctx.empty_var(ctx.type("string"));
-                            v.raise_stack_flag();
+                            v.add_to_stack();
                             construct_on_stack(ctx, v, { d, ctx.imm((u64)len) });
                             ctx.pop_node();
                             return v;
@@ -394,28 +394,57 @@ namespace gjs {
                     ctx.push_node(n);
                     var cond = expression_inner(ctx, n->condition);
                     //auto& meta = ctx.add(operation::meta_if_branch);
+                    auto& reserve = ctx.add(operation::reserve);
                     auto& b = ctx.add(operation::branch).operand(cond);
 
                     // truth body begin
+                    ctx.push_block();
                     var tmp0 = expression_inner(ctx, n->lvalue);
                     var result = ctx.empty_var(tmp0.type());
-                    result.operator_eq(tmp0);
-                    //meta.label(ctx.label());
+
+                    if (!result.type()->is_primitive) {
+                        // If the result is not a primitive type then the output
+                        // of the conditional must be allocated on the stack and
+                        // constructed from the resulting value
+                        // 
+                        // That being the case, the resolve instruction should
+                        // be replaced with a stack_alloc instruction and no
+                        // resolveinstruction should not be added
+                        // 
+                        // The stack id must be set now (prior to any uses of
+                        // result), but it must be added to the parent block's
+                        // stack
+
+                        result.reserve_stack_id();
+                        reserve.set_operation(operation::stack_alloc);
+                        reserve.operand(result).operand(ctx.imm(result.size()));
+
+                        construct_in_place(ctx, result, { tmp0 });
+                    }
+                    else ctx.add(operation::resolve).operand(result).operand(tmp0);
+
+                    ctx.pop_block();
                     tac_wrapper j = ctx.add(operation::jump);
                     // truth body end
 
                     b.label(ctx.label());
 
                     // false body begin
+                    ctx.push_block();
                     var tmp1 = expression_inner(ctx, n->rvalue);
-                    result.operator_eq(tmp1);
-                    //meta.label(ctx.label());
+
+                    if (!result.type()->is_primitive) construct_in_place(ctx, result, { tmp1 });
+                    else ctx.add(operation::resolve).operand(result).operand(tmp1);
+
+                    ctx.pop_block();
                     // false body end
 
                     // join address
                     j.label(ctx.label());
-                    //meta.label(ctx.label());
-                    
+
+                    if (result.type()->is_primitive) reserve.operand(result);
+                    else result.add_to_stack();
+
                     ctx.pop_node();
                     return result;
                 }

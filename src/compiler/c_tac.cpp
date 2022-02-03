@@ -14,6 +14,8 @@ namespace gjs {
             "stack_alloc",
             "stack_free",
             "module_data",
+            "reserve",
+            "resolve",
             "add",
             "sub",
             "mul",
@@ -89,6 +91,8 @@ namespace gjs {
                 true,    // stack_alloc
                 false,   // stack_free
                 true,    // module_data
+                true,    // reserve
+                false,   // resolve
                 true,    // iadd
                 true,    // isub
                 true,    // imul
@@ -280,6 +284,12 @@ namespace gjs {
 
         tac_wrapper::tac_wrapper(context* _ctx, u64 _addr, u16 _fidx) : ctx(_ctx), addr(_addr), fidx(_fidx) {
             
+        }
+
+        tac_wrapper& tac_wrapper::set_operation(operation op) {
+            tac_instruction& i = ctx->out.funcs[fidx].code[addr];
+            i.op = op;
+            return *this;
         }
 
         tac_wrapper& tac_wrapper::operand(const var& v) {

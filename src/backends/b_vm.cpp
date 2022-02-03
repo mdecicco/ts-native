@@ -417,6 +417,7 @@ namespace gjs {
                     m_map.append(i.src);
                     break;
                 }
+                case op::reserve: break;
                 case op::iadd: {
                     arith(vmi::add, vmi::addi, vmi::addi);
                     break;
@@ -617,6 +618,7 @@ namespace gjs {
                     arith(vmi::dcmp, vmi::dcmpi, vmi::dcmpi);
                     break;
                 }
+                case op::resolve:
                 case op::eq: {
                     vmi rr, ri;
                     if (t1->is_floating_point != t2->is_floating_point) {

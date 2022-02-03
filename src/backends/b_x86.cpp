@@ -674,6 +674,7 @@ namespace gjs {
                     }
                     break;
                 }
+                case op::reserve: break;
                 case op::uadd: [[fallthrough]];
                 case op::iadd: {
                     x86::Gp r = cc.newGp(t1i);
@@ -1288,6 +1289,7 @@ namespace gjs {
                     setResult(r);
                     break;
                 }
+                case op::resolve:
                 case op::eq: {
                     setResult(convert(t1, t2, o2, cc, args, regs));
                     break;

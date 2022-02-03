@@ -6,6 +6,7 @@ namespace gjs {
     class script_string {
         public:
             script_string();
+            script_string(const char* str);
             script_string(const std::string& str);
             script_string(const script_string& str);
             script_string(char* str, u64 len);

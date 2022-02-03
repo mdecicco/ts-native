@@ -28,7 +28,7 @@ namespace gjs {
         ast* unary(context& ctx);
         ast* postfix(context& ctx);
         ast* call(context& ctx);
-        ast* member(context& ctx);
+        ast* member(context& ctx, ast* base = nullptr);
         ast* primary(context& ctx);
         ast* parse_identifier(const token& tok);
         ast* parse_type_identifier(context& ctx, const token& tok, bool expected = true);
@@ -397,11 +397,11 @@ namespace gjs {
                 cur = ctx.current();
             }
 
-            return ret;
+            return member(ctx, ret);
         }
 
-        ast* member(context& ctx) {
-            ast* ret = primary(ctx);
+        ast* member(context& ctx, ast* base) {
+            ast* ret = base ? base : primary(ctx);
             token cur = ctx.current();
             while (ctx.match({ tt::member_accessor, tt::open_bracket })) {
                 ctx.consume();
@@ -606,7 +606,7 @@ namespace gjs {
                 ast* node = new ast();
                 node->type = nt::constant;
                 node->c_type = ast::constant_type::integer;
-                node->value.i =    atoi(tok.text.c_str());
+                node->value.i = atoi(tok.text.c_str());
                 set_node_src(node, tok);
                 return node;
             }

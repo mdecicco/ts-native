@@ -19,6 +19,7 @@ namespace gjs {
     class script_context {
         public:
             script_context(backend* generator = nullptr, io_interface* io = nullptr);
+            script_context(u32 argc, const char** argv, backend* generator = nullptr, io_interface* io = nullptr);
             ~script_context();
 
             script_module* create_module(const std::string& name, const std::string& path);

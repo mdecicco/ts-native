@@ -64,7 +64,7 @@ namespace gjs {
             add(operation::module_data).operand(d).operand(imm((u64)out.mod->id())).operand(imm(off));
 
             var v = empty_var(type("string"));
-            v.raise_stack_flag();
+            v.add_to_stack();
             construct_on_stack(*this, v, { d, imm((u64)s.length()) });
 
             return v;
@@ -172,7 +172,7 @@ namespace gjs {
 
                 if (fn) {
                     var& outv = empty_var(fn->type, fn->name);
-                    outv.raise_stack_flag();
+                    outv.add_to_stack();
                     add(operation::stack_alloc).operand(outv).operand(imm((u64)fn->type->size));
                     auto dt = type("data");
                     var dataPtr = empty_var(dt);

@@ -15,6 +15,14 @@ namespace gjs {
             stack_alloc, // stack_alloc dest imm_size
             stack_free, // stack_free obj
             module_data, // module_data imm_module_id imm_offset
+
+            // reserves a virtual register which will be assigned later via resolve
+            // reserve acts as the assignment so that the register will be considered live
+            // A reserved register is guaranteed to be resolved exactly one time during
+            // execution
+            reserve,
+            resolve,
+
             iadd,
             isub,
             imul,
@@ -148,6 +156,7 @@ namespace gjs {
                 tac_wrapper();
                 tac_wrapper(context* ctx, u64 addr, u16 fidx);
 
+                tac_wrapper& set_operation(operation op);
                 tac_wrapper& operand(const var& v);
                 tac_wrapper& resolve(u8 opIdx, script_function* f);
                 tac_wrapper& func(script_function* f);
