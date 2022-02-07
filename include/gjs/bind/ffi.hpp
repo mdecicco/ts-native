@@ -518,8 +518,76 @@ namespace gjs {
         template <typename Ret, typename... Args>
         pseudo_class<prim>& pseudo_class<prim>::method(const std::string& _name, Ret(*func)(prim, Args...)) {
             wrapped_function* f = wrap(types->ctx()->types(), name + "::" + _name, func);
+            f->pass_this = true;
+            methods.push_back(f);
+            return *this;
+        }
+
+        template <typename prim>
+        template <typename Ret, typename... Args>
+        pseudo_class<prim>& pseudo_class<prim>::method(const std::string& _name, Ret(*func)(Args...)) {
+            wrapped_function* f = wrap(types->ctx()->types(), name + "::" + _name, func);
             f->is_static_method = true;
             methods.push_back(f);
+            return *this;
+        }
+
+        // read only member with getter
+        template <typename prim>
+        template <typename T>
+        pseudo_class<prim>& pseudo_class<prim>::prop(const std::string& _name, T(*getter)(prim), u8 flags) {
+            if (properties.find(_name) != properties.end()) {
+                throw error::bind_exception(error::ecode::b_prop_already_bound, _name.c_str(), name.c_str());
+            }
+
+            script_type* tp = type_of<T>(types->ctx());
+            if (!tp) {
+                throw error::bind_exception(error::ecode::b_prop_type_unbound, base_type_name<T>());
+            }
+
+            if (std::is_pointer_v<T>) flags |= u8(property_flags::pf_pointer);
+            else flags |= u8(property_flags::pf_read_only);
+
+            auto get = wrap(types->ctx()->types(), name + "::get_" + _name, getter);
+            get->pass_this = true;
+
+            properties[_name] = new property(
+                get,
+                nullptr,
+                tp,
+                0,
+                flags
+            );
+            return *this;
+        }
+
+        // getter, setter member
+        template <typename prim>
+        template <typename T>
+        pseudo_class<prim>& pseudo_class<prim>::prop(const std::string& _name, T(*getter)(prim), T(*setter)(prim, T), u8 flags) {
+            if (properties.find(_name) != properties.end()) {
+                throw error::bind_exception(error::ecode::b_prop_already_bound, _name.c_str(), name.c_str());
+            }
+
+            script_type* tp = type_of<T>(types->ctx());
+            if (!tp) {
+                throw error::bind_exception(error::ecode::b_prop_type_unbound, base_type_name<T>());
+            }
+
+            if (std::is_pointer_v<T>) flags |= u8(property_flags::pf_pointer);
+
+            auto get = wrap(types->ctx()->types(), name + "::get_" + _name, getter);
+            get->pass_this = true;
+            auto set = wrap(types->ctx()->types(), name + "::set_" + _name, setter);
+            set->pass_this = true;
+
+            properties[_name] = new property(
+                get,
+                set,
+                tp,
+                0,
+                flags
+            );
             return *this;
         }
 

@@ -23,6 +23,7 @@ namespace gjs {
             ~script_context();
 
             script_module* create_module(const std::string& name, const std::string& path);
+            void destroy_module(script_module* mod);
             script_module* module(const std::string& name);
             script_module* module(u32 id);
             std::vector<script_module*> modules() const;

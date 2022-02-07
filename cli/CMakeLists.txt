@@ -20,6 +20,8 @@ file(GLOB cli_src
     "./*.cpp"
 )
 
+file(GLOB cli_scripts "bin/*.gjs")
+
 SOURCE_GROUP("src" FILES ${cli_src})
 SOURCE_GROUP("scripts" FILES ${cli_scripts})
 

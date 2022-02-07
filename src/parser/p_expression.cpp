@@ -27,7 +27,7 @@ namespace gjs {
         ast* mult(context& ctx);
         ast* unary(context& ctx);
         ast* postfix(context& ctx);
-        ast* call(context& ctx);
+        ast* call(context& ctx, ast* base = nullptr);
         ast* member(context& ctx, ast* base = nullptr);
         ast* primary(context& ctx);
         ast* parse_identifier(const token& tok);
@@ -366,10 +366,13 @@ namespace gjs {
             return ret;
         }
 
-        ast* call(context& ctx) {
-            ast* ret = member(ctx);
+        ast* call(context& ctx, ast* base) {
+            ast* ret = member(ctx, base);
             token cur = ctx.current();
+
+            bool parsedCall = false;
             while (ctx.match({ tt::open_parenth })) {
+                parsedCall = true;
                 if (!ret || (ret->type != nt::identifier && ret->op != op::member)) {
                     throw exc(ec::p_expected_callable, ret ? ret->ref : ctx.current().src);
                 }
@@ -397,6 +400,7 @@ namespace gjs {
                 cur = ctx.current();
             }
 
+            if (parsedCall) return call(ctx, ret);
             return member(ctx, ret);
         }
 

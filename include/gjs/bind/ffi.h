@@ -281,6 +281,15 @@ namespace gjs {
             template <typename Ret, typename... Args>
             pseudo_class& method(const std::string& _name, Ret(*func)(prim, Args...));
 
+            template <typename Ret, typename... Args>
+            pseudo_class& method(const std::string& _name, Ret(*func)(Args...));
+
+            template <typename T>
+            pseudo_class& prop(const std::string& _name, T(*getter)(prim), T(*setter)(prim, T), u8 flags = 0);
+
+            template <typename T>
+            pseudo_class& prop(const std::string& _name, T(*getter)(prim), u8 flags = 0);
+
             script_type* finalize(script_module* mod);
 
             type_manager* types;

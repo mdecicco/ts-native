@@ -167,6 +167,12 @@ namespace gjs {
         m_types_by_id[type->m_id] = type;
     }
 
+    void type_manager::remove(script_type* tp) {
+        if (m_types_by_id.count(tp->m_id) == 0) return;
+        m_types.erase(tp->internal_name);
+        m_types_by_id.erase(tp->m_id);
+    }
+
     script_type* type_manager::finalize_class(ffi::wrapped_class* wrapped, script_module* mod) {
         auto it = m_types.find(wrapped->internal_name);
         if (it == m_types.end()) {

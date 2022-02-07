@@ -21,13 +21,19 @@ namespace gjs {
 
         u16 gp_arg = (u16)vm_register::a0;
         u16 fp_arg = (u16)vm_register::fa0;
-        if (is_thiscall) args.push_back({ tp, vm_register(gp_arg++), argument::implicit_type::this_ptr, true });
+        if (is_thiscall) args.push_back({ tp, tp->is_floating_point ? vm_register(fp_arg++) : vm_register(gp_arg++), argument::implicit_type::this_ptr, !tp->is_primitive });
         if (is_subtype_obj_ctor) args.push_back({ type_of<u64>(ctx), vm_register(gp_arg++), argument::implicit_type::moduletype_id, false });
         if (returns_on_stack) args.push_back({ type_of<void*>(ctx), vm_register(gp_arg++), argument::implicit_type::ret_addr, true });
         implicit_argc = (u8)args.size();
 
         // args
         for (u8 i = 0;i < wrapped->arg_types.size();i++) {
+            if (i == 0 && tp && tp->is_primitive && !wrapped->is_static_method) {
+                // for pseudo_classes the 'this' pointer for non-static methods
+                // is explicit, but it's implicitly added above. Ignore it here
+                continue;
+            }
+
             script_type* atp = wrapped->arg_types[i];
 
             if (atp->is_floating_point) args.push_back({ atp, vm_register(fp_arg++), argument::implicit_type::not_implicit, wrapped->arg_is_ptr[i] });

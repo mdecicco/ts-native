@@ -21,6 +21,10 @@ namespace gjs {
             u32 raw_argc() const;
             const script_string& get_raw_arg(u32 idx) const;
 
+            void exit(i32 code) const;
+
+            script_string env(const script_string& name) const;
+
         protected:
             std::vector<process_arg> m_args;
             std::vector<script_string> m_raw_args;

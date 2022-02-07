@@ -220,6 +220,31 @@ namespace gjs {
         add(m);
         return m;
     }
+    void script_context::destroy_module(script_module* mod) {
+        if (mod->context() != this) return;
+
+        auto types = mod->types()->all();
+        auto funcs = mod->functions();
+        auto enums = mod->enums();
+
+        m_modules.erase(mod->m_name);
+        m_modules_by_id.erase(mod->m_id);
+        delete mod;
+
+        for (auto tp : types) {
+            m_all_types->remove(tp);
+            delete tp;
+        }
+
+        for (auto func : funcs) {
+            m_funcs[func->m_id] = nullptr;
+            delete func;
+        }
+
+        for (auto _enum : enums) {
+            delete _enum;
+        }
+    }
 
     script_module* script_context::module(const std::string& name) {
         auto it = m_modules.find(name);

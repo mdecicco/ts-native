@@ -102,7 +102,7 @@ namespace gjs {
         // all external functions are normal cdecls
         if (f->is_host && !f->is_external) {
             if (f->access.wrapped->srv_wrapper_func) {
-                if (f->is_method_of && !f->is_static) {
+                if (f->access.wrapped->call_method_func) {
                     // ret ptr, call_method_func, func_ptr, call_params...
                     fsb.addArg(Type::kIdUIntPtr);
                     fsb.addArg(Type::kIdUIntPtr);
@@ -1323,13 +1323,6 @@ namespace gjs {
                     function_signature* sig = nullptr;
                     if (i.callee) sig = i.callee->type->signature;
                     else sig = i.callee_v.type()->signature;
-
-                    // If it's a method of a subtype class, pass the subtype ID through $v3
-                    if (sig->method_of && sig->method_of->requires_subtype) {
-                        // get subtype from the this obj parameter
-                        script_type* st = params[0].type()->sub_type;
-                        u64 moduletype = join_u32(st->owner->id(), st->id());
-                    }
 
                     FuncSignatureBuilder cs;
                     void* addr = nullptr;

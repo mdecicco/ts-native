@@ -2,6 +2,7 @@
 #include <gjs/gjs.hpp>
 
 #include <stdio.h>
+#include <iostream>
 
 using namespace gjs;
 
@@ -32,6 +33,7 @@ vm_allocator* g_allocator = nullptr;
 bool log_ir = false;
 bool log_asm = false;
 bool dont_run = false;
+bool repl_mode = false;
 
 bool do_print_help(std::vector<std::string>& args) {
     for (u32 i = 0;i < args.size();i++) {
@@ -171,28 +173,46 @@ script_context* create_ctx(std::vector<std::string>& args) {
         return nullptr;
     }
 
+    repl_mode = args.size() == 0;
+    /*
     if (args.size() == 0) {
         printf("No script specified. Usage: gjs [options] <file> [file arguments]. Use -h for more info.\n");
         if (backend) delete backend;
         if (g_allocator) delete g_allocator;
         return nullptr;
     }
-
-    if (args[0][0] == '-') {
-        printf("Unrecognized argument: '%s'\n", args[0].c_str());
-        return nullptr;
-    }
+    */
 
     // all args used to configure the context must be consumed
     // before this point or they will be passed to the script
     // itself
-    std::vector<const char*> argp;
-    for (u32 i = 1;i < args.size();i++) argp.push_back(args[i].c_str());
+    if (repl_mode) {
+        if (args.size() > 0) {
+            printf("Unrecognized argument: '%s'\n", args[0].c_str());
+            return nullptr;
+        }
 
-    script_context* ctx = new script_context(argp.size(), argp.data(), backend);
-    if (log_ir) ctx->compiler()->add_ir_step(debug_ir_step);
+        // no args passed to repl
+        script_context* ctx = new script_context(0, nullptr, backend);
+        if (log_ir) ctx->compiler()->add_ir_step(debug_ir_step);
 
-    return ctx;
+        return ctx;
+    } else {
+
+        if (args[0][0] == '-') {
+            printf("Unrecognized argument: '%s'\n", args[0].c_str());
+            return nullptr;
+        }
+
+        std::vector<const char*> argp;
+        for (u32 i = 1;i < args.size();i++) argp.push_back(args[i].c_str());
+
+        script_context* ctx = new script_context(argp.size(), argp.data(), backend);
+        if (log_ir) ctx->compiler()->add_ir_step(debug_ir_step);
+
+        return ctx;
+    }
+    return nullptr;
 }
 
 script_context* parse_args(std::vector<std::string>& args) {
@@ -216,15 +236,42 @@ int main(i32 argc, const char** argp) {
         bind_ctx(ctx);
         ctx->generator()->commit_bindings();
 
-        script_module* mod = ctx->resolve(args[0]);
-        if (!mod) {
-            print_log(ctx);
-            return -1;
+        if (repl_mode) {
+            // import 'math'; for (f32 i = 0.0f;i < 300.0f;i += 0.2f) { string a; for (i32 j = 0;j < (math.sin(i) * 5) + 5;j++) a += j.toFixed(0) + ' '; print(a); }
+            u32 i = 0;
+            while (true) {
+                std::cout << "> ";
+                std::string in;
+                std::getline(std::cin, in);
+
+                if (in == "$q") {
+                    printf("Exit...");
+                    break;
+                }
+                
+                script_module* mod = ctx->add_code(format("repl_%d", i), "./repl", in);
+                if (!mod) {
+                    print_log(ctx);
+                    continue;
+                }
+
+                if (log_asm && g_allocator) print_code((vm_backend*)ctx->generator());
+
+                if (!dont_run) mod->init();
+
+                ctx->destroy_module(mod);
+            }
+        } else {
+            script_module* mod = ctx->resolve(args[0]);
+            if (!mod) {
+                print_log(ctx);
+                return -1;
+            }
+
+            if (log_asm && g_allocator) print_code((vm_backend*)ctx->generator());
+
+            if (!dont_run) mod->init();
         }
-
-        if (log_asm && g_allocator) print_code((vm_backend*)ctx->generator());
-
-        if (!dont_run) mod->init();
 
         backend* be = ctx->generator();
         delete ctx;

@@ -13,6 +13,7 @@ namespace gjs {
         struct wrapped_class;
     };
 
+    class script_context;
     class script_module;
     class function_signature;
 
@@ -68,6 +69,7 @@ namespace gjs {
 
         protected:
             friend class type_manager;
+            friend class script_context;
             ffi::wrapped_class* m_wrapped;
             u32 m_id;
 

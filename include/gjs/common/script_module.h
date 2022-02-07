@@ -26,7 +26,6 @@ namespace gjs {
                 script_module* owner;
                 bool is_exported;
             };
-            ~script_module();
 
             void init();
 
@@ -83,6 +82,7 @@ namespace gjs {
             friend class script_context;
             friend class script_function;
             script_module(script_context* ctx, const std::string& name, const std::string& path);
+            ~script_module();
             void add(script_function* func);
 
             std::string m_name;

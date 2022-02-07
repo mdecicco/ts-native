@@ -31,9 +31,98 @@ namespace gjs {
         return script_string(out, out_count);
     }
 
+    template <typename T, bool do_throw = false>
+    T from_str(const script_string& str) {
+        if constexpr (std::is_floating_point_v<T>) {
+            const char* s = str.c_str();
+            while (isspace(*s) && *s != 0) s++;
+
+            if constexpr (sizeof(T) == sizeof(f64)) {
+                static T _NaN = nan("");
+                if (!*s) return _NaN;
+                errno = 0;
+                T val = strtod(s, nullptr);
+                if (val == 0 && *s != '0' || errno != 0) return _NaN;
+                return val;
+            } else {
+                static T _NaN = nanf("");
+                if (!*s) return _NaN;
+                errno = 0;
+                T val = strtod(s, nullptr);
+                if (val > FLT_MAX || val == 0 && *s != '0' || errno != 0) return _NaN;
+                return val;
+            }
+        } else {
+            if (str.length() == 0) {
+                if constexpr (do_throw) {
+                    // todo runtime exception
+                }
+                return T(0);
+            }
+
+            const char* s = str.c_str();
+            while (isspace(*s)) s++;
+            if (!*s) {
+                if constexpr (do_throw) {
+                    // todo runtime exception
+                }
+
+                return T(0);
+            }
+
+            if constexpr (std::is_unsigned_v<T>) {
+                errno = 0;
+                if (*s == '-') {
+                    if constexpr (do_throw) {
+                        // todo runtime exception
+                    }
+
+                    return T(0);
+                }
+
+                u64 val = strtoull(s, nullptr, 10);
+                if (val > std::numeric_limits<T>::max() || val == 0 && *s != '0' || errno != 0) {
+                    if constexpr (do_throw) {
+                        // todo runtime exception
+                    }
+
+                    return T(0);
+                }
+                return val;
+            } else {
+                errno = 0;
+                i64 val = strtoll(s, nullptr, 10);
+                if (val > std::numeric_limits<T>::max() || val < std::numeric_limits<T>::min() || val == 0 && *s != '0' || errno != 0) {
+                    if constexpr (do_throw) {
+                        // todo runtime exception
+                    }
+
+                    return T(0);
+                }
+                return val;
+            }
+        }
+    }
+
+    template <typename T>
+    bool is_nan(T self) {
+        if constexpr (std::is_floating_point_v<T>) {
+            return isnan<T>(self);
+        } else {
+            return self == std::numeric_limits<T>::max();
+        }
+    }
+
     template <typename T>
     ffi::pseudo_class<T>& bind_number_methods(ffi::pseudo_class<T>& tp) {
+        // non-static
         tp.method("toFixed", to_fixed<T>);
+        tp.prop("isNaN", is_nan<T>);
+
+        // static
+        tp.method("parse", from_str<T>);
+        tp.method("parseThrow", from_str<T, true>);
+
         return tp;
     }
 
@@ -151,7 +240,6 @@ namespace gjs {
         buf.method("data", METHOD_PTR(script_buffer, data, void*, u64));
         buf.method("data", METHOD_PTR(script_buffer, data, void*));
 
-        #define rm(tp) buf.method("read", &script_buffer::read<tp>);
         buf.method("read", &script_buffer::read<u8>);
         buf.method("read", &script_buffer::read<i8>);
         buf.method("read", &script_buffer::read<u16>);
@@ -193,9 +281,11 @@ namespace gjs {
         auto proc = bind<script_process>(ctx, "$proc");
         proc.constructor();
         proc.prop("argc", &script_process::argc);
-        proc.method("get_arg", &script_process::get_arg);
         proc.prop("raw_argc", &script_process::raw_argc);
+        proc.method("get_arg", &script_process::get_arg);
         proc.method("get_raw_arg", &script_process::get_raw_arg);
+        proc.method("exit", &script_process::exit);
+        proc.method("env", &script_process::env);
         tp = proc.finalize(ctx->global());
         tp->is_builtin = true;
 
