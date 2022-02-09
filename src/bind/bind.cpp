@@ -13,6 +13,7 @@ namespace gjs {
             is_static_method = false;
             func_ptr = nullptr;
             ret_is_ptr = false;
+            cdecl_wrapper_func = nullptr;
             srv_wrapper_func = nullptr;
             call_method_func = nullptr;
             pass_this = false;

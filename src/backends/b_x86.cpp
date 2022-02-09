@@ -89,6 +89,7 @@ namespace gjs {
         return cc.newConst(ConstPool::kScopeGlobal, &imm, v.size());
     }
 
+    // non-lambda function signature
     void fsig(script_function* f, FuncSignatureBuilder& fsb) {
         function_signature* cfSig = f->type->signature;
         fsb.setCallConv(CallConv::kIdCDecl);
@@ -115,7 +116,12 @@ namespace gjs {
             } else if (f->access.wrapped->call_method_func) {
                 // func_ptr, call_params
                 fsb.addArg(Type::kIdUIntPtr);
-            } // else normal cdecl
+            } else if (f->access.wrapped->cdecl_wrapper_func) {
+                // func_ptr, call_params
+                fsb.addArg(Type::kIdUIntPtr);
+            } else {
+                // call_params
+            }
         }
 
         for (u8 a = 0;a < cfSig->args.size();a++) {
@@ -125,6 +131,7 @@ namespace gjs {
         }
     }
 
+    // Lambda function signature
     void fsig(function_signature* sig, FuncSignatureBuilder& fsb, bool is_host, bool is_srv, bool is_nonstatic_method) {
         fsb.setCallConv(CallConv::kIdCDecl);
 
@@ -448,6 +455,7 @@ namespace gjs {
         ch.init(m_rt->environment());
         ch.setErrorHandler(&eh);
         ch.setLogger(&sl);
+        ch.addEmitterOptions(BaseEmitter::kValidationOptionIntermediate);
         x86::Compiler cc(&ch);
         cc.addValidationOptions(BaseEmitter::kValidationOptionIntermediate);
 
@@ -464,6 +472,8 @@ namespace gjs {
 
             script_function* cf = in.funcs[f].func;
             function_signature* cfSig = cf->type->signature;
+            cc.commentf("\n;\n; %s\n;", cfSig->to_string(cf->name, cf->is_method_of, cf->owner, false).c_str());
+
             FuncSignatureBuilder fsb;
             fsig(cf, fsb);
             cc.bind(*flabels[cf]);
@@ -474,16 +484,21 @@ namespace gjs {
             cc.endFunc();
         }
 
-        cc.finalize();
+        if (cc.finalize()) {
+            String content = std::move(sl.content());
+            printf("%s\n", content.data());
+            abort();
+        }
 
         void* addr = nullptr;
         Error err = m_rt->add(&addr, &ch);
-        String content = std::move(sl.content());
-        // printf("%s\n", content.data());
         if (err) {
             String content = std::move(sl.content());
             printf("%s\n", content.data());
             abort();
+        } else if (m_log_asm) {
+            String content = std::move(sl.content());
+            printf("%s\n", content.data());
         }
 
         for (auto& l : flabels) {
@@ -514,6 +529,14 @@ namespace gjs {
         std::vector<var> params;
         std::vector<x86::Reg> args;
         robin_hood::unordered_map<u64, x86::Reg> regs;
+
+        u8 ectx_idx = 0;
+        for (u8 a = 0;a < cfSig->args.size();a++) {
+            if (cfSig->args[a].implicit == function_signature::argument::implicit_type::exec_ctx) {
+                ectx_idx = a;
+                break;
+            }
+        }
 
         for (u8 a = 0;a < cfSig->args.size();a++) {
             if (cfSig->args[a].tp->is_floating_point) {
@@ -549,7 +572,6 @@ namespace gjs {
             // exception
             return x86::Reg();
         };
-
 
         robin_hood::unordered_map<label_id, Label> lmap;
 
@@ -600,7 +622,7 @@ namespace gjs {
 
             // todo... use Xmm registers for 64 bit ints...
             // refactor relevant instructions to account for this
-            cc.commentf(";     [%d] %s", c, i.to_string().c_str());
+            cc.commentf("\n; [%d] %s", c, i.to_string().c_str());
             switch(i.op) {
                 case op::null: {
                     break;
@@ -613,7 +635,7 @@ namespace gjs {
                     // load dest_var var_addr
                     // load dest_var var_addr imm_offset
                     x86::Mem src;
-                    if (o2.is_imm()) src = cc.intptr_ptr(o2.imm_u());
+                    if (o2.is_imm()) src = x86::ptr(o2.imm_u(), o1.size());
                     else if (o2.is_arg()) src = cc.ptr_base(args[o2.arg_idx()].as<x86::Gp>().id(), o3.is_imm() ? (i32)o3.imm_u() : 0, o1.size());
                     else src = cc.ptr_base(regs[o2.reg_id()].as<x86::Gp>().id(), o3.is_imm() ? (i32)o3.imm_u() : 0, o1.size());
 
@@ -621,6 +643,7 @@ namespace gjs {
                         if (t1->size == sizeof(f64)) cc.movsd(v2r(o1).as<x86::Xmm>(), src);
                         else cc.movss(v2r(o1).as<x86::Xmm>(), src);
                     } else cc.mov(v2r(o1).as<x86::Gp>(), src);
+
                     break;
                 }
                 case op::store: {
@@ -631,7 +654,7 @@ namespace gjs {
                             else cc.movss(dst, v2r(o2).as<x86::Xmm>());
                         } 
                         else {
-                            if (o2.imm_u() >= UINT32_MAX) cc.mov(dst, v2r(o2).as<x86::Gp>());
+                            if (o2.imm_u() >= UINT16_MAX) cc.mov(dst, v2r(o2).as<x86::Gp>());
                             else cc.mov(dst, v2imm(o2));
                         }
                     }
@@ -662,10 +685,11 @@ namespace gjs {
                         u64 mdata = *(u64*)reinterpret_cast<void*>(&md);
 
                         InvokeNode* call;
-                        cc.invoke(&call, mdata, FuncSignatureT<u64, u64, void*, u64>());
+                        cc.invoke(&call, mdata, FuncSignatureT<u64, u64, void*, void*, u64>());
                         call->setArg(0, *(u64*)reinterpret_cast<void*>(&m));
-                        call->setArg(1, (void*)mod->data());
-                        call->setArg(2, o3.imm_u());
+                        call->setArg(1, args[ectx_idx]);
+                        call->setArg(2, (void*)mod->data());
+                        call->setArg(3, o3.imm_u());
                         x86::Reg r = cc.newReg(Type::kIdU64);
                         call->setRet(0, r);
                         setResult(r);
@@ -707,7 +731,7 @@ namespace gjs {
 
                     if (o2.is_imm()) cc.mov(r, v2imm(o2));
                     else cc.mov(r, v2r(o2).as<x86::Gp>());
-
+                    
                     if (o3.is_imm()) cc.imul(r, v2imm(o3));
                     else cc.imul(r, v2r(o3).as<x86::Gp>());
 
@@ -1458,13 +1482,15 @@ namespace gjs {
                                 fsig(i.callee, cs);
                                 addr = i.callee->access.wrapped->call_method_func;
                                 implicitArgs.push_back(i.callee->access.wrapped->func_ptr);
+
                                 for (u8 a = 0;a < params.size();a++) {
                                     passArg(a, params[a]);
                                 }
                             } else {
-                                // params...
+                                // func_ptr, params...
                                 fsig(i.callee, cs);
-                                addr = i.callee->access.wrapped->func_ptr;
+                                addr = i.callee->access.wrapped->cdecl_wrapper_func;
+                                implicitArgs.push_back(i.callee->access.wrapped->func_ptr);
 
                                 for (u8 a = 0;a < params.size();a++) {
                                     passArg(a, params[a]);
@@ -1659,6 +1685,13 @@ namespace gjs {
                     }
 
                     if (retReg.isValid()) {
+                        if (sig->return_type->is_primitive && !sig->return_type->is_floating_point && sig->return_type->size <= sizeof(u16)) {
+                            // see comment in case op::ret
+                            x86::Gp r = cc.newGp(convertType(sig->return_type));
+                            cc.mov(r, retReg.as<x86::Gp>());
+                            retReg = r;
+                        }
+                        
                         const var* assigns = i.assignsTo();
                         if (assigns->is_arg()) args[assigns->arg_idx()] = retReg;
                         else regs[assigns->reg_id()] = retReg;
@@ -1675,14 +1708,24 @@ namespace gjs {
                     if (cfSig->return_type->size == 0 || cfSig->returns_on_stack) cc.ret();
                     else {
                         if (o1.is_reg()) {
-                            auto it = regs.find(o1.reg_id());
-                            if (it != regs.end()) cc.ret(it->getSecond());
-                            else {
-                                // exception
-                                cc.ret(x86::Reg());
+                            if (t1->is_primitive && !t1->is_floating_point && t1->size <= sizeof(u16)) {
+                                // Don't fuckin ask me why this is necessary
+                                // asmjit errors without it and it took five
+                                // of my post-work hours to figure this out.
+
+                                // Like what? regs[o1.reg_id()] is ALREADY a
+                                // Gp register. Why does it need to be moved
+                                // to another Gp register for cc.ret(...) to
+                                // not fail validation? Whatever. Some day I
+                                // will figure out x86 assembly.
+                                x86::Gp r = cc.newGp(t1i);
+                                cc.mov(r, regs[o1.reg_id()].as<x86::Gp>());
+                                cc.ret(r);
                             }
-                        } else if (o1.is_arg()) cc.ret(args[o1.arg_idx()]);
-                        else {
+                            else cc.ret(regs[o1.reg_id()]);
+                        }
+                        else if (o1.is_arg()) cc.ret(args[o1.arg_idx()]);
+                        else if (o1.is_imm()) {
                             Imm v = v2imm(o1);
                             x86::Reg r;
                             if (t1->is_floating_point) {
@@ -1693,6 +1736,9 @@ namespace gjs {
                                 cc.mov(r.as<x86::Gp>(), v);
                             }
                             cc.ret(r);
+                        } else {
+                            // returning void from a non-void function (exception bubbling up)
+                            cc.ret();
                         }
                     }
                     break;

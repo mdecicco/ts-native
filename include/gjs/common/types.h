@@ -30,4 +30,7 @@ namespace gjs {
 
     // 0 = invalid
     typedef u32         label_id;
+
+    // 0 = invalid
+    typedef u32         module_id;
 };

@@ -77,6 +77,92 @@ namespace gjs {
             return false;
         }
 
+        void push_trace_node(context& ctx) {
+            script_type* u64_tp = ctx.type("u64");
+
+            var& ectx = ctx.get_var("@ectx");
+
+            // exec_context::trace is not a pointer, load instruction not necessary
+            var tracerPtr = ctx.empty_var(ctx.type("$tracer"));
+            ctx.add(operation::uadd).operand(tracerPtr).operand(ectx).operand(ctx.imm((u64)offsetof(exec_context, trace)));
+
+            var didErrorPtr = ctx.empty_var(ctx.type("u64"), "@t_he_p");
+            ctx.add(operation::uadd).operand(didErrorPtr).operand(tracerPtr).operand(ctx.imm((u64)offsetof(script_tracer, has_error)));
+
+            var nodeCountPtr = ctx.empty_var(u64_tp, "@t_nc_p");
+            ctx.add(operation::uadd).operand(nodeCountPtr).operand(tracerPtr).operand(ctx.imm((u64)offsetof(script_tracer, node_count)));
+
+            var nodeCount = ctx.empty_var(u64_tp);
+            ctx.add(operation::load).operand(nodeCount).operand(nodeCountPtr);
+
+            var nodeCapacity = ctx.empty_var(u64_tp);
+            ctx.add(operation::load).operand(nodeCapacity).operand(tracerPtr).operand(ctx.imm((u64)offsetof(script_tracer, node_capacity)));
+
+            var cmpResult = ctx.empty_var(ctx.type("bool"));
+            ctx.add(operation::ugte).operand(cmpResult).operand(nodeCount).operand(nodeCapacity);
+
+            auto branch = ctx.add(operation::branch).operand(cmpResult);
+
+            call(ctx, tracerPtr.method("expand", ctx.type("void"), {}), { }, &tracerPtr, true);
+
+            branch.label(ctx.label());
+
+            var nodeOffset = ctx.empty_var(u64_tp);
+            ctx.add(operation::umul).operand(nodeOffset).operand(nodeCount).operand(ctx.imm(sizeof(trace_node)));
+
+            var nodePtr = ctx.empty_var(u64_tp);
+            ctx.add(operation::uadd).operand(nodePtr).operand(tracerPtr).operand(ctx.imm((u64)offsetof(script_tracer, nodes)));
+            ctx.add(operation::load).operand(nodePtr).operand(nodePtr);
+            ctx.add(operation::uadd).operand(nodePtr).operand(nodePtr).operand(nodeOffset);
+
+            var nodeRefPtr = ctx.empty_var(u64_tp, "@t_nrp");
+            ctx.add(operation::uadd).operand(nodeRefPtr).operand(nodePtr).operand(ctx.imm((u64)offsetof(trace_node, ref_offset)));
+
+            // set function id
+            ctx.add(operation::store).operand(nodePtr).operand(ctx.imm((u64)0)).resolve(1, ctx.current_function());
+
+            // set module id
+            var modPtr = ctx.empty_var(u64_tp);
+            ctx.add(operation::uadd).operand(modPtr).operand(nodePtr).operand(ctx.imm((u64)offsetof(trace_node, mod)));
+            ctx.add(operation::store).operand(modPtr).operand(ctx.imm((u64)ctx.out.mod->id()));
+
+            // increment node count
+            ctx.add(operation::uadd).operand(nodeCount).operand(nodeCount).operand(ctx.imm((u64)1));
+            ctx.add(operation::store).operand(nodeCountPtr).operand(nodeCount);
+        }
+
+        void set_trace_node_src(context& ctx) {
+            var refPtr = ctx.get_var("@t_nrp");
+
+            // statically allocate source ref and get offset
+            script_buffer* mmem = ctx.out.mod->data();
+            u64 offset = mmem->position();
+            void* ptr = mmem->data(offset);
+            mmem->position(offset + sizeof(source_ref));
+            new (ptr) source_ref(ctx.node()->ref);
+
+            // set source ref offset
+            ctx.add(operation::store).operand(refPtr).operand(ctx.imm(offset));
+        }
+
+        void pop_trace_node(context& ctx, const var& ncp) {
+            var nodeCount = ctx.empty_var(ctx.type("u64"));
+            ctx.add(operation::load).operand(nodeCount).operand(ncp);
+
+            // decrement node count
+            ctx.add(operation::usub).operand(nodeCount).operand(nodeCount).operand(ctx.imm((u64)1));
+            ctx.add(operation::store).operand(ncp).operand(nodeCount);
+        }
+
+        void check_trace(context& ctx) {
+            var hasErrorPtr = ctx.get_var("@t_he_p");
+            var hasError = ctx.empty_var(ctx.type("bool"));
+            ctx.add(operation::load).operand(hasError).operand(hasErrorPtr);
+            auto branch = ctx.add(operation::branch).operand(hasError);
+            ctx.add(operation::ret);
+            branch.label(ctx.label());
+        }
+
         script_function* function_declaration(context& ctx, ast* n) {
             ctx.push_node(n);
             script_type* ret = nullptr;
@@ -159,22 +245,30 @@ namespace gjs {
                 
                 ctx.push_block(f);
 
-                u32 base_idx = 0;
-                if (f->is_method_of) {
-                    // implicit 'this' argument
-                    self = &ctx.empty_var(f->is_method_of, "this");
-                    self->set_arg_idx(base_idx++);
-                }
+                u32 aidx = 0;
+                u32 nidx = 0;
+                for (auto& farg : f->type->signature->args) {
+                    if (farg.implicit == function_signature::argument::implicit_type::this_ptr) {
+                        // implicit 'this' argument
+                        self = &ctx.empty_var(f->is_method_of, "this");
+                        self->set_arg_idx(aidx);
+                    }
+                    else if (farg.implicit == function_signature::argument::implicit_type::exec_ctx) {
+                        // implicit execution context argument
+                        var& ectx = ctx.empty_var(farg.tp, "@ectx");
+                        ectx.set_arg_idx(aidx);
+                    }
+                    else if (farg.implicit == function_signature::argument::implicit_type::ret_addr) {
+                        // implicit return address argument
+                        var& ret = ctx.empty_var(f->type->signature->return_type, "@ret");
+                        ret.set_arg_idx(aidx);
+                    }
+                    else if (farg.implicit == function_signature::argument::implicit_type::not_implicit) {
+                        var& arg = ctx.empty_var(farg.tp, arg_names[nidx++]);
+                        arg.set_arg_idx(aidx);
+                    }
 
-                if (f->type->signature->returns_on_stack) {
-                    // implicit return pointer argument
-                    var& ret_ptr = ctx.empty_var(f->type->signature->return_type, "@ret");
-                    ret_ptr.set_arg_idx(base_idx++);
-                }
-
-                for (u8 i = 0;i < arg_types.size();i++) {
-                    var& arg = ctx.empty_var(arg_types[i], arg_names[i]);
-                    arg.set_arg_idx(base_idx + i);
+                    aidx++;
                 }
             } else {
                 function_signature sig(ctx.env, ret, is_ctor, arg_types.data(), (u8)arg_types.size(), method_of, is_ctor, n->is_static);
@@ -198,25 +292,34 @@ namespace gjs {
                 ctx.new_functions.push_back(f);
                 ctx.push_block(f);
 
-                u32 base_idx = 0;
-                if (f->is_method_of) {
-                    // implicit 'this' argument
-                    self = &ctx.empty_var(f->is_method_of, "this");
-                    self->set_arg_idx(base_idx++);
-                }
+                u32 aidx = 0;
+                u32 nidx = 0;
+                for (auto& farg : f->type->signature->args) {
+                    if (farg.implicit == function_signature::argument::implicit_type::this_ptr) {
+                        // implicit 'this' argument
+                        self = &ctx.empty_var(f->is_method_of, "this");
+                        self->set_arg_idx(aidx);
+                    }
+                    else if (farg.implicit == function_signature::argument::implicit_type::exec_ctx) {
+                        // implicit execution context argument
+                        var& ectx = ctx.empty_var(farg.tp, "@ectx");
+                        ectx.set_arg_idx(aidx);
+                    }
+                    else if (farg.implicit == function_signature::argument::implicit_type::ret_addr) {
+                        // implicit return address argument
+                        var& ret = ctx.empty_var(f->type->signature->return_type, "@ret");
+                        ret.set_arg_idx(aidx);
+                    }
+                    else if (farg.implicit == function_signature::argument::implicit_type::not_implicit) {
+                        var& arg = ctx.empty_var(farg.tp, arg_names[nidx++]);
+                        arg.set_arg_idx(aidx);
+                    }
 
-                if (f->type->signature->returns_on_stack) {
-                    // implicit return pointer argument
-                    var& ret_ptr = ctx.empty_var(f->type->signature->return_type, "@ret");
-                    ret_ptr.set_arg_idx(base_idx++);
-                }
-
-                for (u8 i = 0;i < arg_types.size();i++) {
-                    var& arg = ctx.empty_var(arg_types[i], arg_names[i]);
-                    arg.set_arg_idx(base_idx + i);
+                    aidx++;
                 }
             }
 
+            push_trace_node(ctx);
 
             if (is_ctor) {
                 std::vector<std::string> initializedNames;
@@ -363,11 +466,39 @@ namespace gjs {
 
             script_function* fn = ctx.push_lambda_block(sigTp, captures);
 
-            u8 base_idx = 1; // because '$ctx' is always the first argument of a lambda
-            for (u8 i = 0;i < arg_types.size();i++) {
-                var& arg = ctx.empty_var(arg_types[i], arg_names[i]);
-                arg.set_arg_idx(base_idx + i);
+            u32 aidx = 0;
+            u32 nidx = 0;
+            for (auto& farg : sig.args) {
+                if (farg.implicit == function_signature::argument::implicit_type::this_ptr) {
+                    // implicit 'this' argument
+                    var& self = ctx.empty_var(farg.tp, "this");
+                    self.set_arg_idx(aidx);
+                }
+                else if (farg.implicit == function_signature::argument::implicit_type::exec_ctx) {
+                    // implicit execution context argument
+                    var& ectx = ctx.empty_var(farg.tp, "@ectx");
+                    ectx.set_arg_idx(aidx);
+                }
+                else if (farg.implicit == function_signature::argument::implicit_type::ret_addr) {
+                    // implicit return address argument
+                    var& ret = ctx.empty_var(sig.return_type, "@ret");
+                    ret.set_arg_idx(aidx);
+                }
+                else if (farg.implicit == function_signature::argument::implicit_type::capture_data_ptr) {
+                    // implicit lambda capture data argument
+                    var& ret = ctx.empty_var(sig.return_type, "@lctx");
+                    ret.set_arg_idx(aidx);
+                }
+                else if (farg.implicit == function_signature::argument::implicit_type::not_implicit) {
+                    var& arg = ctx.empty_var(farg.tp, arg_names[nidx++]);
+                    arg.set_arg_idx(aidx);
+                }
+
+                aidx++;
             }
+
+
+            push_trace_node(ctx);
 
             block(ctx, n->body, false);
 
@@ -641,7 +772,9 @@ namespace gjs {
             return o;
         }
 
-        var call(context& ctx, script_function* func, const std::vector<var>& args, const var* self) {
+        var call(context& ctx, script_function* func, const std::vector<var>& args, const var* self, bool no_trace) {
+            if (!no_trace) set_trace_node_src(ctx);
+
             // get return value
             script_type* rtp = func->type->signature->return_type;
             if (rtp->name == "subtype") rtp = self->type()->sub_type;
@@ -667,6 +800,10 @@ namespace gjs {
                     ctx.add(operation::param).operand(stack_ret).func(func);
                     continue;
                 }
+                if (func->type->signature->args[i].implicit == function_signature::argument::implicit_type::exec_ctx) {
+                    ctx.add(operation::param).operand(ctx.get_var("@ectx"));
+                    continue;
+                }
 
                 if (func->type->signature->args[i].tp->name == "subtype") {
                     var p = args[i - func->type->signature->implicit_argc].convert(self->type()->sub_type);
@@ -681,6 +818,7 @@ namespace gjs {
             if (rtp->size == 0) {
                 // no return
                 ctx.add(operation::call).func(func);
+                check_trace(ctx);
                 return ctx.empty_var(rtp);
             }
 
@@ -688,6 +826,7 @@ namespace gjs {
             if (func->type->signature->returns_pointer) {
                 var result = ctx.empty_var(rtp);
                 ctx.add(operation::call).operand(result).func(func);
+                check_trace(ctx);
 
                 if (rtp->is_primitive) {
                     // load value from pointer
@@ -707,16 +846,20 @@ namespace gjs {
                 // callee will construct return value in $stack_ret (or copy it to $stack_ret),
                 // which is passed as an argument
                 ctx.add(operation::call).func(func);
+                check_trace(ctx);
                 return stack_ret;
             }
 
             // basic return
             var ret = ctx.empty_var(rtp);
             ctx.add(operation::call).operand(ret).func(func);
+            check_trace(ctx);
             return ret;
         }
 
-        var call(context& ctx, var func, const std::vector<var>& args, const var* self) {
+        var call(context& ctx, var func, const std::vector<var>& args, const var* self, bool no_trace) {
+            if (!no_trace) set_trace_node_src(ctx);
+
             function_signature* sig = func.type()->signature;
             if (sig) {
                 // validate call signature
@@ -784,6 +927,10 @@ namespace gjs {
                     ctx.add(operation::param).operand(stack_ret).func(func);
                     continue;
                 }
+                if (sig->args[i].implicit == function_signature::argument::implicit_type::exec_ctx) {
+                    ctx.add(operation::param).operand(ctx.get_var("@ectx"));
+                    continue;
+                }
 
                 if (sig->args[i].tp->name == "subtype") {
                     var p = args[i - sig->implicit_argc].convert(self->type()->sub_type);
@@ -798,6 +945,7 @@ namespace gjs {
             if (rtp->size == 0) {
                 // no return
                 ctx.add(operation::call).operand(func).func(func);
+                check_trace(ctx);
                 return ctx.empty_var(rtp);
             }
 
@@ -805,6 +953,7 @@ namespace gjs {
             if (sig->returns_pointer) {
                 var result = ctx.empty_var(rtp);
                 ctx.add(operation::call).operand(func).operand(result).func(func);
+                check_trace(ctx);
 
                 if (rtp->is_primitive) {
                     // load value from pointer
@@ -824,12 +973,14 @@ namespace gjs {
                 // callee will construct return value in $stack_ret (or copy it to $stack_ret),
                 // which is passed as an argument
                 ctx.add(operation::call).operand(func).func(func);
+                check_trace(ctx);
                 return stack_ret;
             }
 
             // basic return
             var ret = ctx.empty_var(rtp);
             ctx.add(operation::call).operand(func).operand(ret).func(func);
+            check_trace(ctx);
             return ret;
         }
     };

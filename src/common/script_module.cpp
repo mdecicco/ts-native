@@ -33,7 +33,6 @@ namespace gjs {
 
         if (m_types) delete m_types;
         if (m_data) delete m_data;
-        if (m_init) delete m_init;
     }
 
     void script_module::init() {

@@ -179,14 +179,6 @@ namespace gjs {
             throw error::bind_exception(error::ecode::b_type_not_found_cannot_finalize, wrapped->name.c_str());
         }
 
-        if (wrapped->dtor) {
-            // gjs considers constructors and destructors methods, but they are
-            // bound like regular C functions. Remove explicit 'this' argument
-            // because gjs implicitly adds it.
-            wrapped->dtor->arg_types.erase(wrapped->dtor->arg_types.begin());
-            wrapped->dtor->arg_is_ptr.erase(wrapped->dtor->arg_is_ptr.begin());
-        }
-
         script_type* t = it->getSecond();
         t->is_pod = wrapped->is_pod;
         t->m_wrapped = wrapped;
@@ -222,16 +214,10 @@ namespace gjs {
         for (u32 i = 0;i < wrapped->methods.size();i++) {
             ffi::wrapped_function* f = wrapped->methods[i];
             if (f->name.find("::constructor") != std::string::npos) {
-                // gjs considers constructors and destructors methods, but they are
-                // bound like regular C functions. Remove explicit 'this' argument
-                // because gjs implicitly adds it.
-                f->arg_types.erase(f->arg_types.begin());
-                f->arg_is_ptr.erase(f->arg_is_ptr.begin());
-
                 if (t->requires_subtype) {
-                    // second argument is a moduletype id, but should not be
-                    // explicitly listed as an argument. gjs deals with passing
-                    // that parameter internally
+                    // First argument (by this point) is a moduletype id, but
+                    // should not be explicitly listed as an argument. gjs deals
+                    // with passing that parameter internally
                     f->arg_is_ptr.erase(f->arg_is_ptr.begin());
                     f->arg_types.erase(f->arg_types.begin());
                 }

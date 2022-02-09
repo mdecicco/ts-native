@@ -141,6 +141,7 @@ namespace gjs {
             "Invalid signature type id provided to external module function loader (%s)",
             "Function '%s' not found in external module (%s)",
             "Failed to link function '%s' to external module",
+            "%s",
             "", // end runtime errors
 
             "", // vm errors

@@ -10,7 +10,7 @@ namespace gjs {
             // load dest_var imm_addr
             // load dest_var var_addr
             // load dest_var var_addr imm_offset
-            load, // load dest src
+            load, // load dest src | load dest src imm_offset
             store, // store dest src
             stack_alloc, // stack_alloc dest imm_size
             stack_free, // stack_free obj

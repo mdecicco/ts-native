@@ -23,6 +23,10 @@ namespace gjs {
         // returns module memory offset if global (or static), otherwise UINT64_MAX
         u64 variable_declaration(context& ctx, parse::ast* n);
 
+        void push_trace_node(context& ctx);
+
+        void pop_trace_node(context& ctx, const var& ncp);
+
         script_function* function_declaration(context& ctx, parse::ast* n);
 
         var function_call(context& ctx, parse::ast* n);

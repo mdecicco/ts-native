@@ -3,42 +3,84 @@
 #include <gjs/common/function_signature.h>
 #include <gjs/common/script_type.h>
 #include <gjs/common/type_manager.h>
+#include <gjs/common/exec_context.h>
 #include <gjs/util/typeof.h>
 
 namespace gjs {
     // function call wrappers
     namespace ffi {
         template <typename Ret, typename... Args>
-        void srv_wrapper(Ret* out, Ret (*f)(Args...), Args... args) {
-            new (out) Ret(f(args...));
+        typename std::enable_if<!std::is_same<Ret, void>::value, Ret>::type
+        cdecl_func(Ret (*f)(Args...), exec_context* ectx, Args... args) {
+            try {
+                return f(args...);
+            } catch (const std::exception& e) {
+                ectx->trace.produce_error(e.what());
+            }
+        }
+
+        // Void cdecl wrapper
+        template <typename Ret, typename... Args>
+        typename std::enable_if<std::is_same<Ret, void>::value, Ret>::type
+        cdecl_func(Ret (*f)(Args...), exec_context* ectx, Args... args) {
+            try {
+                f(args...);
+            } catch (const std::exception& e) {
+                ectx->trace.produce_error(e.what());
+            }
+        }
+
+        template <typename Ret, typename... Args>
+        void srv_wrapper(Ret* out, Ret (*f)(Args...), exec_context* ectx, Args... args) {
+            try {
+                new (out) Ret(f(args...));
+            } catch (const std::exception& e) {
+                ectx->trace.produce_error(e.what());
+            }
         }
 
         // Non-const methods
         template <typename Ret, typename Cls, typename... Args>
         typename std::enable_if<!std::is_same<Ret, void>::value, Ret>::type
-        call_class_method(Ret(Cls::*method)(Args...), Cls* self, Args... args) {
-            return (*self.*method)(args...);
+        call_class_method(Ret(Cls::*method)(Args...), exec_context* ectx, Cls* self, Args... args) {
+            try {
+                return (*self.*method)(args...);
+            } catch (const std::exception& e) {
+                ectx->trace.produce_error(e.what());
+            }
         }
 
         // Const methods
         template <typename Ret, typename Cls, typename... Args>
         typename std::enable_if<!std::is_same<Ret, void>::value, Ret>::type
-        call_const_class_method(Ret(Cls::*method)(Args...) const, Cls* self, Args... args) {
-            return (*self.*method)(args...);
+        call_const_class_method(Ret(Cls::*method)(Args...) const, exec_context* ectx, Cls* self, Args... args) {
+            try {
+                return (*self.*method)(args...);
+            } catch (const std::exception& e) {
+                ectx->trace.produce_error(e.what());
+            }
         }
 
         // Non-const methods
         template <typename Ret, typename Cls, typename... Args>
         typename std::enable_if<std::is_same<Ret, void>::value, Ret>::type
-        call_class_method(Ret(Cls::*method)(Args...), Cls* self, Args... args) {
-            (*self.*method)(args...);
+        call_class_method(Ret(Cls::*method)(Args...), exec_context* ectx, Cls* self, Args... args) {
+            try {
+                (*self.*method)(args...);
+            } catch (const std::exception& e) {
+                ectx->trace.produce_error(e.what());
+            }
         }
 
         // Const methods
         template <typename Ret, typename Cls, typename... Args>
         typename std::enable_if<std::is_same<Ret, void>::value, Ret>::type
-        call_const_class_method(Ret(Cls::*method)(Args...) const, Cls* self, Args... args) {
-            (*self.*method)(args...);
+        call_const_class_method(Ret(Cls::*method)(Args...) const, exec_context* ectx, Cls* self, Args... args) {
+            try {
+                (*self.*method)(args...);
+            } catch (const std::exception& e) {
+                ectx->trace.produce_error(e.what());
+            }
         }
 
         template <typename Cls, typename... Args>
@@ -76,6 +118,9 @@ namespace gjs {
                 srv_wrapper_func = reinterpret_cast<void*>(srv);
             }
 
+            auto cw = cdecl_func<Ret, Args...>;
+            cdecl_wrapper_func = reinterpret_cast<void*>(cw);
+
             bool sbv_args[] = { (std::is_class_v<Args> && !is_callback<Args>::value)..., false };
 
             if constexpr (arg_count::value > 0) {
@@ -101,22 +146,33 @@ namespace gjs {
 
             if constexpr (argc > 0) {
                 if constexpr (std::is_class_v<Ret>) {
-                    void* _args[argc + 2] = { ret, func_ptr };
-                    for (u8 a = 0;a < argc;a++) _args[a + 2] = args[a];
-                    _pass_arg_wrapper<Ret*, void*, Args...>(0, call, _args);
-                } else _pass_arg_wrapper<Args...>(0, call, args);
+                    void* _args[argc + 3] = { ret, func_ptr };
+                    for (u8 a = 0;a < argc + 1;a++) _args[a + 2] = args[a];
+                    // return value, func_ptr, exec_ctx, ...
+                    _pass_arg_wrapper<Ret*, void*, void*, Args...>(0, call, _args);
+                } else {
+                    void* _args[argc + 2] = { func_ptr };
+                    for (u8 a = 0;a < argc + 1;a++) _args[a + 1] = args[a];
+                    // func_ptr, exec_ctx, ...
+                    _pass_arg_wrapper<void*, void*, Args...>(0, call, _args);
+                }
             } else if constexpr (std::is_class_v<Ret>) {
+                // return value, func_ptr, exec_ctx
                 dcArgPointer(call, ret);
                 dcArgPointer(call, (void*)func_ptr);
+                dcArgPointer(call, args[0]);
+            } else {
+                // func_ptr, exec_ctx
+                dcArgPointer(call, (void*)func_ptr);
+                dcArgPointer(call, args[0]);
             }
-
 
             if constexpr (std::is_pointer_v<Ret> || std::is_reference_v<Ret>) {
                 do_call<remove_all<Ret>*>(call, (remove_all<Ret>**)ret, func_ptr);
             } else if constexpr (std::is_class_v<Ret>) {
                 do_call<void>(call, nullptr, srv_wrapper_func);
             } else {
-                do_call<Ret>(call, (Ret*)ret, func_ptr);
+                do_call<Ret>(call, (Ret*)ret, cdecl_wrapper_func);
             }
         }
     };
@@ -172,13 +228,13 @@ namespace gjs {
             if constexpr (std::is_class_v<Ret>) {
                 void* _args[argc + 4] = { ret, call_method_func, func_ptr };
                 for (u8 a = 0;a < argc + 1;a++) _args[a + 3] = args[a];
-                // return value, call_method_func, func_ptr, this obj
-                _pass_arg_wrapper<Ret*, void*, void*, void*, Args...>(0, call, _args);
+                // return value, call_method_func, func_ptr, exec ctx, this obj, ...
+                _pass_arg_wrapper<Ret*, void*, void*, void*, void*, Args...>(0, call, _args);
             } else {
                 void* _args[argc + 2] = { func_ptr };
                 for (u8 a = 0;a < argc + 1;a++) _args[a + 1] = args[a];
-                // func_ptr, this obj
-                _pass_arg_wrapper<void*, void*, Args...>(0, call, _args);
+                // func_ptr, exec ctx, this obj, ...
+                _pass_arg_wrapper<void*, void*, void*, Args...>(0, call, _args);
             }
 
             if constexpr (std::is_pointer_v<Ret> || std::is_reference_v<Ret>) {
@@ -242,13 +298,13 @@ namespace gjs {
             if constexpr (std::is_class_v<Ret>) {
                 void* _args[argc + 4] = { ret, call_method_func, func_ptr };
                 for (u8 a = 0;a < argc + 1;a++) _args[a + 3] = args[a];
-                // return value, call_method_func, func_ptr, this obj
-                _pass_arg_wrapper<Ret*, void*, void*, void*, Args...>(0, call, _args);
+                // return value, call_method_func, func_ptr, exec ctx, this obj
+                _pass_arg_wrapper<Ret*, void*, void*, void*, void*, Args...>(0, call, _args);
             } else {
                 void* _args[argc + 2] = { func_ptr };
                 for (u8 a = 0;a < argc + 1;a++) _args[a + 1] = args[a];
-                // func_ptr, this obj
-                _pass_arg_wrapper<void*, void*, Args...>(0, call, _args);
+                // func_ptr, exec ctx, this obj
+                _pass_arg_wrapper<void*, void*, void*, Args...>(0, call, _args);
             }
 
             if constexpr (std::is_pointer_v<Ret> || std::is_reference_v<Ret>) {
@@ -281,12 +337,25 @@ namespace gjs {
 
         template <typename Cls, typename... Args>
         wrapped_function* wrap_constructor(type_manager* tpm, const std::string& name) {
-            return wrap(tpm, name + "::constructor", construct_object<Cls, Args...>);
+            auto ret = wrap(tpm, name + "::constructor", construct_object<Cls, Args...>);
+
+            // And explicit 'this' pointer because gjs implicitly adds it later
+            ret->arg_types.erase(ret->arg_types.begin());
+            ret->arg_is_ptr.erase(ret->arg_is_ptr.begin());
+
+            return ret;
         }
 
         template <typename Cls>
         wrapped_function* wrap_destructor(type_manager* tpm, const std::string& name) {
-            return wrap(tpm, name + "::destructor", destruct_object<Cls>);
+            auto ret = wrap(tpm, name + "::destructor", destruct_object<Cls>);
+
+            // Remove explicit 'this' pointer for the same reason. This is the
+            // only parameter to destruct_object, just clear the args
+            ret->arg_types.clear();
+            ret->arg_is_ptr.clear();
+
+            return ret;
         }
     };
 
@@ -587,6 +656,31 @@ namespace gjs {
                 tp,
                 0,
                 flags
+            );
+            return *this;
+        }
+
+        template <typename prim>
+        template <typename T>
+        std::enable_if_t<!std::is_function_v<T>, pseudo_class<prim>&>
+        pseudo_class<prim>::prop(const std::string& _name, T *member, u8 flags) {
+            if (properties.find(_name) != properties.end()) {
+                throw error::bind_exception(error::ecode::b_prop_already_bound, _name.c_str(), name.c_str());
+            }
+
+            script_type* tp = type_of<T>(types->ctx());
+            if (!tp) {
+                throw error::bind_exception(error::ecode::b_prop_type_unbound, base_type_name<T>());
+            }
+
+            if (std::is_pointer_v<T>) flags |= u8(property_flags::pf_pointer);
+
+            properties[_name] = new property(
+                nullptr,
+                nullptr,
+                tp,
+                (u64)member,
+                flags | u8(property_flags::pf_static)
             );
             return *this;
         }

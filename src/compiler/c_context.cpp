@@ -135,7 +135,7 @@ namespace gjs {
                             break;
                         }
                         case symbol::symbol_type::st_var: {
-                            if (s->scope_idx() != 0 || !compiling_function) {
+                            if (s->scope_idx() != 0 || !compiling_function || name[0] == '@') {
                                 return *s->get_var();
                             }
                             break;
@@ -515,6 +515,8 @@ namespace gjs {
 
             bool func_ended = false;
             u32 fidx = -1;
+            var& nodeCountPtr = get_var("@t_nc_p");
+
             if (block_stack.back()) {
                 block_context* b = block_stack.back();
                 script_function* f = block_stack.back()->func;
@@ -547,6 +549,11 @@ namespace gjs {
                 for (auto v = b->named_vars.begin();v != b->named_vars.end();v++) {
                     symbols.get(v->name())->remove(&(*v));
                 }
+            }
+
+            if (lastIsRet) {
+                // add code to remove the current function from the tracer
+                pop_trace_node(*this, nodeCountPtr);
             }
 
             if (lastIsRet && postRet != code_sz()) {

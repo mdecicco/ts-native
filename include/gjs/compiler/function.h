@@ -11,8 +11,8 @@ namespace gjs {
 
         var lambda_expression(context& ctx, parse::ast* n);
 
-        var call(context& ctx, script_function* func, const std::vector<var>& args, const var* self = nullptr);
+        var call(context& ctx, script_function* func, const std::vector<var>& args, const var* self = nullptr, bool no_trace = false);
 
-        var call(context& ctx, var func, const std::vector<var>& args, const var* self = nullptr);
+        var call(context& ctx, var func, const std::vector<var>& args, const var* self = nullptr, bool no_trace = false);
     };
 };

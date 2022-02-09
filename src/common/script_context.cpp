@@ -237,7 +237,7 @@ namespace gjs {
         }
 
         for (auto func : funcs) {
-            m_funcs[func->m_id] = nullptr;
+            m_funcs[func->m_id - 1] = nullptr;
             delete func;
         }
 

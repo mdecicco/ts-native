@@ -15,17 +15,28 @@ namespace gjs {
     class script_module;
     class type_manager;
     class function_signature;
+    class exec_context;
 
     //
     // Function call wrappers
     //
     namespace ffi {
+        // Non-void cdecl wrapper
+        template <typename Ret, typename... Args>
+        typename std::enable_if<!std::is_same<Ret, void>::value, Ret>::type
+        cdecl_func(Ret (*f)(Args...), exec_context* ectx, Args... args);
+
+        // Void cdecl wrapper
+        template <typename Ret, typename... Args>
+        typename std::enable_if<std::is_same<Ret, void>::value, Ret>::type
+        cdecl_func(Ret (*f)(Args...), exec_context* ectx, Args... args);
+
         // SRV wrapper (Struct-Return-Value)
         // Wraps call in a function which copy-constructs the return value of the
         // callee with the placement new operator, constructing the result in an
         // output parameter.
         template <typename Ret, typename... Args>
-        void srv_wrapper(Ret* out, Ret (*f)(Args...), Args... args);
+        void srv_wrapper(Ret* out, Ret (*f)(Args...), exec_context* ectx, Args... args);
 
         // Non-void class method wrappers
         // Wraps call to class method in a function which accepts a pointer to the class
@@ -35,12 +46,12 @@ namespace gjs {
         // Non-const methods
         template <typename Ret, typename Cls, typename... Args>
         typename std::enable_if<!std::is_same<Ret, void>::value, Ret>::type
-        call_class_method(Ret(Cls::*method)(Args...), Cls* self, Args... args);
+        call_class_method(Ret(Cls::*method)(Args...), exec_context* ectx, Cls* self, Args... args);
 
         // Const methods
         template <typename Ret, typename Cls, typename... Args>
         typename std::enable_if<!std::is_same<Ret, void>::value, Ret>::type
-        call_const_class_method(Ret(Cls::*method)(Args...) const, Cls* self, Args... args);
+        call_const_class_method(Ret(Cls::*method)(Args...) const, exec_context* ectx, Cls* self, Args... args);
 
         // Void class method wrappers
         // Wraps call to class method in a function which accepts a pointer to the class
@@ -50,12 +61,12 @@ namespace gjs {
         // Non-const methods
         template <typename Ret, typename Cls, typename... Args>
         typename std::enable_if<std::is_same<Ret, void>::value, Ret>::type
-        call_class_method(Ret(Cls::*method)(Args...), Cls* self, Args... args);
+        call_class_method(Ret(Cls::*method)(Args...), exec_context* ectx, Cls* self, Args... args);
 
         // Const methods
         template <typename Ret, typename Cls, typename... Args>
         typename std::enable_if<std::is_same<Ret, void>::value, Ret>::type
-        call_const_class_method(Ret(Cls::*method)(Args...) const, Cls* self, Args... args);
+        call_const_class_method(Ret(Cls::*method)(Args...) const, exec_context* ectx, Cls* self, Args... args);
 
         // Class constructor wrapper
         // Wraps call to class constructors in a function that forces the class to be
@@ -109,19 +120,22 @@ namespace gjs {
             // Whether or not the return value is a pointer
             bool ret_is_ptr;
 
-            // address of the host function to be called
+            // Address of the host function to be called
             void* func_ptr;
+
+            // Address of the cdecl function wrapper
+            // return_type (func_ptr, exec_context*, arg_types...)
+            void* cdecl_wrapper_func;
 
             // Address of the struct-return-value function wrapper
             // For class methods, the signature of this function is:
-            //     void (return_type*, call_method_func, func_ptr, this_ptr, arg_types...)
+            //     void (return_type*, call_method_func, func_ptr, exec_context*, this_ptr, arg_types...)
             // For global functions, the signature of this function is:
-            //     void (return_type*, func_ptr, arg_types...)
+            //     void (return_type*, func_ptr, exec_context*, arg_types...)
             void* srv_wrapper_func;
 
-            // func_ptr, self, method args...
             // Address of the call_class_method/call_const_class_method function wrapper
-            // The signature of this function is return_type
+            // return_type (func_ptr, exec_context*, this_ptr, arg_types...)
             void* call_method_func;
 
             virtual void call(DCCallVM* call, void* ret, void** args) = 0;
@@ -173,7 +187,7 @@ namespace gjs {
             public:
                 typedef Ret (Cls::*method_type)(Args...);
                 typedef std::tuple_size<std::tuple<Args...>> ac;
-                typedef Ret (*func_type)(method_type, Cls*, Args...);
+                typedef Ret (*func_type)(method_type, exec_context*, Cls*, Args...);
 
                 func_type wrapper;
                 
@@ -186,7 +200,7 @@ namespace gjs {
             public:
                 typedef Ret (Cls::*method_type)(Args...) const;
                 typedef std::tuple_size<std::tuple<Args...>> ac;
-                typedef Ret (*func_type)(method_type, Cls*, Args...);
+                typedef Ret (*func_type)(method_type, exec_context*, Cls*, Args...);
 
                 func_type wrapper;
                 
@@ -278,17 +292,26 @@ namespace gjs {
         struct pseudo_class : wrapped_class {
             pseudo_class(type_manager* tpm, const std::string& name);
 
+            // regular method
             template <typename Ret, typename... Args>
             pseudo_class& method(const std::string& _name, Ret(*func)(prim, Args...));
 
+            // static method
             template <typename Ret, typename... Args>
             pseudo_class& method(const std::string& _name, Ret(*func)(Args...));
 
+            // getter, setter member
             template <typename T>
             pseudo_class& prop(const std::string& _name, T(*getter)(prim), T(*setter)(prim, T), u8 flags = 0);
 
+            // read only member with getter
             template <typename T>
             pseudo_class& prop(const std::string& _name, T(*getter)(prim), u8 flags = 0);
+
+            // static member
+            template <typename T>
+            std::enable_if_t<!std::is_function_v<T>, pseudo_class&>
+            prop(const std::string& _name, T *member, u8 flags = 0);
 
             script_type* finalize(script_module* mod);
 

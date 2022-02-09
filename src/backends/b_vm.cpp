@@ -44,6 +44,8 @@ namespace gjs {
             if (!in.funcs[f].func) continue;
             gen_function(in, tmap, f);
         }
+
+        if (m_log_asm) print_code(this);
     }
     
     void vm_backend::gen_function(compilation_output& in, tac_map& tmap, u16 fidx) {

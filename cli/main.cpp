@@ -21,12 +21,7 @@ void print_help() {
     printf("\tNo arguments specified before <file> will be provided to the scripts through the global process variable\n");
 }
 
-int print (const script_string& s) {
-    return printf("%s\n", s.c_str());
-}
-
 void bind_ctx(script_context* ctx) {
-    //ctx->bind(print, "print");
 }
 
 vm_allocator* g_allocator = nullptr;
@@ -130,7 +125,6 @@ bool do_not_run(std::vector<std::string>& args) {
     return false;
 }
 
-
 backend* create_backend(std::vector<std::string>& args) {
     for (u32 i = 0;i < args.size();i++) {
         if (args[i][0] != '-') break;
@@ -167,6 +161,8 @@ script_context* create_ctx(std::vector<std::string>& args) {
     log_ir = do_log_ir(args);
     log_asm = do_log_asm(args);
     dont_run = do_not_run(args);
+
+    backend->log_asm(log_asm);
 
     if (do_print_help(args)) {
         print_help();
@@ -254,8 +250,6 @@ int main(i32 argc, const char** argp) {
                     print_log(ctx);
                     continue;
                 }
-
-                if (log_asm && g_allocator) print_code((vm_backend*)ctx->generator());
 
                 if (!dont_run) mod->init();
 

@@ -5,9 +5,11 @@ namespace gjs {
     class backend {
         public:
             backend();
-            virtual ~backend() { }
+            virtual ~backend();
 
-            inline script_context* context() { return m_ctx; }
+            script_context* context();
+
+            void log_asm(bool do_log);
 
             /*
             * Takes the final IR code and generates instructions for some target
@@ -53,5 +55,7 @@ namespace gjs {
         protected:
             friend class script_context;
             script_context* m_ctx;
+
+            bool m_log_asm;
     };
 };

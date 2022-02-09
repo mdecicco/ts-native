@@ -68,7 +68,6 @@ namespace gjs {
     template <typename R, typename... Args>
     struct FunctionTraits<R(*)(Args...)> : FunctionTraitsBase<R, Args...> {
         using Pointer = R(*)(Args...);
-
     };
 
     template <typename T>

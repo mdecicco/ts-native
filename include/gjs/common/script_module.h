@@ -69,7 +69,7 @@ namespace gjs {
             script_object local(const std::string& name) const;
 
             inline std::string name() const { return m_name; }
-            inline u32 id() const { return m_id; }
+            inline module_id id() const { return m_id; }
             inline const std::vector<local_var>& locals() const { return m_locals; }
             inline const std::vector<script_function*>& functions() const { return m_functions; }
             inline const std::vector<script_enum*>& enums() const { return m_enums; }
@@ -86,7 +86,7 @@ namespace gjs {
             void add(script_function* func);
 
             std::string m_name;
-            u32 m_id;
+            module_id m_id;
             script_function* m_init;
             std::vector<local_var> m_locals;
             std::vector<script_enum*> m_enums;

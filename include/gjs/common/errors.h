@@ -141,6 +141,7 @@ namespace gjs {
             r_dylib_function_invalid_signature_id,
             r_dylib_function_not_found,
             r_dylib_failed_to_link_function,
+            r_any_error,
             __runtime_error_end,
 
             __vm_error_start,
