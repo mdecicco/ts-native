@@ -5,7 +5,6 @@
 #include <gjs/common/function_signature.h>
 #include <gjs/common/script_context.h>
 #include <gjs/common/script_enum.h>
-#include <gjs/common/script_object.h>
 
 #include <gjs/builtin/script_buffer.h>
 #include <gjs/util/util.h>
@@ -35,10 +34,10 @@ namespace gjs {
         if (m_data) delete m_data;
     }
 
-    void script_module::init() {
-        if (!m_init || m_initialized) return;
+    script_object script_module::init() {
+        if (!m_init || m_initialized) return script_object(m_ctx);
         m_initialized = true;
-        call(m_init);
+        return call(m_init);
     }
 
     script_object script_module::define_local(const std::string& name, script_type* type, bool is_exported) {

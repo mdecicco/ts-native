@@ -40,11 +40,11 @@ namespace gjs {
             v.method("normalize", &vec2<T>::normalize);
             v.method("fromAngleLength", &vec2<T>::fromAngleMag);
             v.method("fromAngleLengthr", &vec2<T>::fromAngleMag_r);
-            v.prop("normalized", &vec2<T>::normalized);
-            v.prop("length", &vec2<T>::mag);
-            v.prop("lengthSq", &vec2<T>::magSq);
             v.prop("x", &vec2<T>::x);
             v.prop("y", &vec2<T>::y);
+            v.prop("length", &vec2<T>::mag);
+            v.prop("lengthSq", &vec2<T>::magSq);
+            v.prop("normalized", &vec2<T>::normalized);
             script_type* tp = v.finalize(mod);
             tp->owner = mod;
             tp->is_builtin = true;
@@ -62,6 +62,7 @@ namespace gjs {
             v.template constructor<T>();
             v.template constructor<T, T, T, T>();
             v.template constructor<const vec2<T>&, const vec2<T>&>();
+            v.template constructor<const mat2<T>&>();
             v.method("operator +", CONST_METHOD_PTR(mat2<T>, operator +, mat2<T>, const mat2<T>&));
             v.method("operator +=", METHOD_PTR(mat2<T>, operator +=, mat2<T>, const mat2<T>&));
             v.method("operator -", CONST_METHOD_PTR(mat2<T>, operator -, mat2<T>, const mat2<T>&));

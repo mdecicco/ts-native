@@ -1,6 +1,7 @@
 #include <gjs/common/type_manager.h>
 #include <gjs/common/function_signature.h>
 #include <gjs/common/script_function.h>
+#include <gjs/common/script_module.h>
 #include <gjs/bind/ffi.h>
 #include <gjs/util/util.h>
 
@@ -187,17 +188,17 @@ namespace gjs {
         t->size = (u32)wrapped->size;
         t->destructor = wrapped->dtor ? new script_function(this, t, wrapped->dtor, false, true, mod) : nullptr;
 
-        for (auto i = wrapped->properties.begin();i != wrapped->properties.end();++i) {
+        for (auto p : wrapped->ordered_props) {
             t->properties.push_back({
-                i->getSecond()->flags,
-                i->getFirst(),
-                i->getSecond()->type,
-                i->getSecond()->offset,
-                i->getSecond()->getter ? new script_function(this, t, i->getSecond()->getter, false, false, mod) : nullptr,
-                i->getSecond()->setter ? new script_function(this, t, i->getSecond()->setter, false, false, mod) : nullptr
+                p->flags,
+                p->name,
+                p->type,
+                p->offset,
+                p->getter ? new script_function(this, t, p->getter, false, false, mod) : nullptr,
+                p->setter ? new script_function(this, t, p->setter, false, false, mod) : nullptr
             });
 
-            if (i->getSecond()->type->name == "subtype") {
+            if (p->type->name == "subtype") {
                 t->requires_subtype = true;
             }
         }

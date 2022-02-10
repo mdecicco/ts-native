@@ -495,7 +495,7 @@ namespace gjs {
         if (err) {
             String content = std::move(sl.content());
             printf("%s\n", content.data());
-            abort();
+            throw std::exception("JIT error");
         } else if (m_log_asm) {
             String content = std::move(sl.content());
             printf("%s\n", content.data());
@@ -647,7 +647,10 @@ namespace gjs {
                     break;
                 }
                 case op::store: {
-                    auto dst = cc.ptr_base(regs[o1.reg_id()].as<x86::Gp>().id(), 0, o2.size());
+                    x86::Mem dst;
+                    if (o1.is_arg()) dst = cc.ptr_base(args[o1.arg_idx()].as<x86::Gp>().id(), 0, o2.size());
+                    else if (o1.is_reg()) dst = cc.ptr_base(regs[o1.reg_id()].as<x86::Gp>().id(), 0, o2.size());
+
                     if (o2.is_imm()) {
                         if (t2->is_floating_point) {
                             if (t2->size == sizeof(f64)) cc.movsd(dst, v2r(o2).as<x86::Xmm>());

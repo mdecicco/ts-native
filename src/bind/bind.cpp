@@ -20,7 +20,8 @@ namespace gjs {
             is_anonymous = anonymous;
         }
 
-        wrapped_class::property::property(wrapped_function* g, wrapped_function* s, script_type* t, u64 o, u8 f) {
+        wrapped_class::property::property(const std::string& n, wrapped_function* g, wrapped_function* s, script_type* t, u64 o, u8 f) {
+            name = n;
             getter = g;
             setter = s;
             type = t;
@@ -39,9 +40,8 @@ namespace gjs {
         }
 
         wrapped_class::~wrapped_class() {
-            for (auto i = properties.begin();i != properties.end();++i) {
-                delete i->getSecond();
-            }
+            for (auto p : ordered_props) delete p;
+            ordered_props.clear();
             properties.clear();
         }
 

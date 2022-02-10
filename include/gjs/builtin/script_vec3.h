@@ -89,6 +89,7 @@ namespace gjs {
                     z({ zx, zy, zz })
                 { }
                 mat3(const vec3<T>& _x, const vec3<T>& _y, const vec3<T>& _z) : x(_x), y(_y), z(_z) { }
+                mat3(const mat3<T>& o) : x(o.x), y(o.y), z(o.z) { }
 
                 mat3<T> operator + (const mat3<T>& rhs) const { return mat3<T>(x + rhs.x, y + rhs.y, z + rhs.z); }
                 mat3<T> operator += (const mat3<T>& rhs) { return mat3<T>(x += rhs.x, y += rhs.y, z += rhs.z); }

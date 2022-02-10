@@ -133,7 +133,6 @@ namespace gjs {
     std::string function_signature::to_string(const std::string& funcName, script_type* method_of, script_module* mod, bool exclude_implicit) const {
         std::string out;
         if (mod) out += mod->name() + "::";
-        if (method_of) out += method_of->name + "::";
         out += funcName + "(";
 
         u8 a = 0;
@@ -141,7 +140,7 @@ namespace gjs {
             if (a > 0) out += ",";
             if (args[i].implicit != argument::implicit_type::not_implicit) {
                 if (exclude_implicit) continue;
-                out += "$";
+                if (args[i].tp->name[0] != '$') out += "$";
             }
             out += args[i].tp->name;
             a++;

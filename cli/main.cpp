@@ -1,6 +1,8 @@
 #include <gjs/gjs.h>
 #include <gjs/gjs.hpp>
 
+#include <gjs/builtin/script_array.h>
+
 #include <stdio.h>
 #include <iostream>
 
@@ -217,6 +219,102 @@ script_context* parse_args(std::vector<std::string>& args) {
     return ctx;
 }
 
+std::string to_string(script_object& o, u8 indent = 0, script_type* parent_tp = nullptr) {
+    if (o.is_null()) {
+        return "null";
+    }
+
+    script_type* tp = o.type();
+    if (tp->is_primitive) {
+        if (tp->is_floating_point) {
+            switch (tp->size) {
+                case sizeof(f32): { return format("%f", *(f32*)o.self()); break; }
+                case sizeof(f64): { return format("%f", *(f64*)o.self()); break; }
+            }
+        } else {
+            if (tp->name == "bool") {
+                return format((*(bool*)o.self()) ? "true" : "false");
+            } else if (tp->is_unsigned) {
+                switch (tp->size) {
+                    case 1: { return format("%u", *(u8*)o.self()); break; }
+                    case 2: { return format("%u", *(u16*)o.self()); break; }
+                    case 4: { return format("%lu", *(u32*)o.self()); break; }
+                    case 8: { return format("%llu", *(u64*)o.self()); break; }
+                }
+            } else {
+                switch (tp->size) {
+                    case 1: { return format("%d", *(u8*)o.self()); break; }
+                    case 2: { return format("%d", *(u16*)o.self()); break; }
+                    case 4: { return format("%ld", *(u32*)o.self()); break; }
+                    case 8: { return format("%lld", *(u64*)o.self()); break; }
+                }
+            }
+        }
+    } else if (tp->name == "string") {
+        return format("'%s'", ((script_string*)o.self())->c_str());
+    } else if (tp->base_type && tp->base_type->name == "array") {
+        std::string out = "[";
+
+        script_array* arr = (script_array*)o.self();
+        std::vector<std::string> eles;
+        u32 len = 1;
+
+        for (u32 i = 0;i < arr->length();i++) {
+            std::string ele = to_string(script_object(tp->sub_type, (u8*)(*arr)[i]));
+            len += ele.length();
+            if (i < arr->length() - 1) len += 2; // ', '
+            eles.push_back(ele);
+        }
+
+        if (len > 120) {
+            for (u32 i = 0;i < eles.size();i++) {
+                out += "\n";
+                for (u8 i = 0;i < indent + 1;i++) out += "    ";
+                out += eles[i];
+                if (i < eles.size() - 1) out += ",";
+            }
+            out += "\n";
+            for (u8 i = 0;i < indent;i++) out += "    ";
+        } else {
+            for (u32 i = 0;i < eles.size();i++) {
+                out += eles[i];
+                if (i < eles.size() - 1) out += ", ";
+            }
+        }
+
+        out += "]";
+        return out;
+    } else if (tp->signature) {
+        raw_callback* cb = *(raw_callback**)o.self();
+
+        if (cb->ptr) {
+            return format("<Function '%s'>", tp->signature->to_string(cb->ptr->target->name, cb->ptr->target->is_method_of, cb->ptr->target->owner, false).c_str());
+        } else {
+            return format("<Function '%s'>", tp->signature->to_string(false).c_str());
+        }
+    } else {
+        std::string out = "{";
+        indent++;
+        for(u16 i = 0;i < tp->properties.size();i++) {
+            out += "\n";
+            auto& p = tp->properties[i];
+            for (u8 i = 0;i < indent;i++) out += "    ";
+            out += format("%s: ", p.name.c_str());
+
+            if (parent_tp == p.type) out += "<recursion>";
+            else out += to_string(o[p.name], indent, tp);
+            if (i < tp->properties.size() - 1) out += ",";
+        }
+        indent--;
+        if (tp->properties.size() > 0) out += "\n";
+        else out += " ";
+
+        for (u8 i = 0;i < indent;i++) printf("    ");
+        out += "}";
+        return out;
+    }
+}
+
 int main(i32 argc, const char** argp) {
     try {
         std::vector<std::string> args;
@@ -251,7 +349,10 @@ int main(i32 argc, const char** argp) {
                     continue;
                 }
 
-                if (!dont_run) mod->init();
+                if (!dont_run) {
+                    printf(to_string(mod->init()).c_str());
+                    printf("\n");
+                }
 
                 ctx->destroy_module(mod);
             }

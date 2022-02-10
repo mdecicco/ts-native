@@ -37,6 +37,7 @@ namespace gjs {
         ast* parse_string(const token& tok);
         ast* parse_format_expr(context& ctx);
         ast* parse_lambda_expr(context& ctx);
+        ast* parse_array_expr(context& ctx);
         void set_node_src(ast* node, const token& tok) { node->src(tok); }
 
 
@@ -508,6 +509,11 @@ namespace gjs {
                 return n;
             }
 
+            n = parse_array_expr(ctx);
+            if (n) {
+                return n;
+            }
+
             if (ctx.match({ tt::open_parenth })) {
                 ctx.consume();
                 n = expression(ctx);
@@ -736,6 +742,48 @@ namespace gjs {
             l->body = block(ctx);
 
             return l;
+        }
+
+        ast* parse_array_expr(context& ctx) {
+            if (!ctx.match({ tt::open_bracket })) return nullptr;
+
+            ctx.backup();
+            token open_tok = ctx.current();
+
+            ctx.consume();
+            if (ctx.match({ tt::close_bracket })) throw exc(ec::p_empty_array_expr, open_tok);
+
+            ast* body = expression(ctx);
+            if (!body) {
+                ctx.restore();
+                return nullptr;
+            }
+
+            if (!ctx.match({ tt::comma })) {
+                ctx.restore();
+                return nullptr;
+            }
+
+            ctx.commit();
+
+            ast* b = body;
+            while (ctx.match({ tt::comma }) && !ctx.at_end()) {
+                ctx.consume();
+                b->next = expression(ctx);
+
+                if (!body->next) throw exc(ec::p_expected_expression, ctx.current());
+                b = b->next;
+            }
+
+            if (ctx.at_end()) throw exc(ec::p_unexpected_eof, ctx.current(), "array expression");
+            if (!ctx.match({ tt::close_bracket })) throw exc(ec::p_expected_char, ctx.current(), ']');
+            ctx.consume();
+
+            ast* n = new ast();
+            n->type = nt::array_expression;
+            n->src(open_tok);
+            n->body = body;
+            return n;
         }
     };
 };

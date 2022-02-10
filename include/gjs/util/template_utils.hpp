@@ -88,6 +88,7 @@ namespace gjs {
     void* to_arg(T& arg) {
         if constexpr (std::is_class_v<T>) {
             if constexpr (std::is_same_v<T, script_object>) {
+                if (arg.type()->is_primitive) return *(void**)arg.self();
                 return arg.self();
             } else if constexpr (is_callback_v<T>) {
                 return (void*)&arg;

@@ -1,6 +1,7 @@
 #pragma once
 #include <gjs/common/types.h>
 #include <gjs/common/source_ref.h>
+#include <gjs/common/script_object.h>
 #include <gjs/builtin/script_buffer.h>
 #include <gjs/util/robin_hood.h>
 
@@ -13,7 +14,6 @@ namespace gjs {
     class script_type;
     class script_buffer;
     class script_enum;
-    class script_object;
     class type_manager;
 
     class script_module {
@@ -27,7 +27,7 @@ namespace gjs {
                 bool is_exported;
             };
 
-            void init();
+            script_object init();
 
             // todo: tidy this mess up
 

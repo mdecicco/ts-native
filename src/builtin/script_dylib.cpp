@@ -5,6 +5,7 @@
 #include <gjs/common/script_type.h>
 #include <gjs/common/function_signature.h>
 #include <gjs/common/script_function.h>
+#include <gjs/common/script_module.h>
 #include <gjs/common/errors.h>
 #include <gjs/bind/ffi.h>
 

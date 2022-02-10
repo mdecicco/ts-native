@@ -67,6 +67,7 @@ namespace gjs {
             p_extern_import_scope,
             p_export_scope,
             p_expected_export,
+            p_empty_array_expr,
             __parse_error_end,
 
             __compile_error_start,
@@ -76,7 +77,9 @@ namespace gjs {
             c_no_such_method,
             c_no_such_function,
             c_ambiguous_method,
+            c_ambiguous_method_name,
             c_ambiguous_function,
+            c_ambiguous_function_name,
             c_function_already_declared,
             c_function_already_defined,
             c_missing_return_value,
@@ -113,6 +116,7 @@ namespace gjs {
             c_object_not_callable,
             c_call_signature_mismatch,
             c_undefined_function,
+            c_array_expression_type_consistency,
             __compile_error_end,
 
             __runtime_error_start,

@@ -31,12 +31,8 @@ namespace gjs {
         }
 
         template <typename Ret, typename... Args>
-        void srv_wrapper(Ret* out, Ret (*f)(Args...), exec_context* ectx, Args... args) {
-            try {
-                new (out) Ret(f(args...));
-            } catch (const std::exception& e) {
-                ectx->trace.produce_error(e.what());
-            }
+        void srv_wrapper(Ret* out, Ret (*f)(Args...), Args... args) {
+            new (out) Ret(f(args...));
         }
 
         // Non-const methods
@@ -114,7 +110,7 @@ namespace gjs {
             func_ptr = *reinterpret_cast<void**>(&f);
 
             if constexpr (std::is_class_v<Ret>) {
-                auto srv = srv_wrapper<Ret, Args...>;
+                auto srv = srv_wrapper<Ret, func_type, exec_context*, Args...>;
                 srv_wrapper_func = reinterpret_cast<void*>(srv);
             }
 
@@ -146,10 +142,10 @@ namespace gjs {
 
             if constexpr (argc > 0) {
                 if constexpr (std::is_class_v<Ret>) {
-                    void* _args[argc + 3] = { ret, func_ptr };
-                    for (u8 a = 0;a < argc + 1;a++) _args[a + 2] = args[a];
-                    // return value, func_ptr, exec_ctx, ...
-                    _pass_arg_wrapper<Ret*, void*, void*, Args...>(0, call, _args);
+                    void* _args[argc + 4] = { ret, cdecl_wrapper_func, func_ptr };
+                    for (u8 a = 0;a < argc + 1;a++) _args[a + 3] = args[a];
+                    // return value, cdecl_wrapper_func, func_ptr, exec_ctx, ...
+                    _pass_arg_wrapper<Ret*, void*, void*, void*, Args...>(0, call, _args);
                 } else {
                     void* _args[argc + 2] = { func_ptr };
                     for (u8 a = 0;a < argc + 1;a++) _args[a + 1] = args[a];
@@ -157,8 +153,9 @@ namespace gjs {
                     _pass_arg_wrapper<void*, void*, Args...>(0, call, _args);
                 }
             } else if constexpr (std::is_class_v<Ret>) {
-                // return value, func_ptr, exec_ctx
+                // return value, cdecl_wrapper_func, func_ptr, exec_ctx
                 dcArgPointer(call, ret);
+                dcArgPointer(call, (void*)cdecl_wrapper_func);
                 dcArgPointer(call, (void*)func_ptr);
                 dcArgPointer(call, args[0]);
             } else {
@@ -168,7 +165,7 @@ namespace gjs {
             }
 
             if constexpr (std::is_pointer_v<Ret> || std::is_reference_v<Ret>) {
-                do_call<remove_all<Ret>*>(call, (remove_all<Ret>**)ret, func_ptr);
+                do_call<remove_all<Ret>*>(call, (remove_all<Ret>**)ret, cdecl_wrapper_func);
             } else if constexpr (std::is_class_v<Ret>) {
                 do_call<void>(call, nullptr, srv_wrapper_func);
             } else {
@@ -193,7 +190,7 @@ namespace gjs {
 
             call_method_func = reinterpret_cast<void*>(wrapper);
             if constexpr (std::is_class_v<Ret>) {
-                auto srv = srv_wrapper<Ret, method_type, Cls*, Args...>;
+                auto srv = srv_wrapper<Ret, method_type, exec_context*, Cls*, Args...>;
                 srv_wrapper_func = reinterpret_cast<void*>(srv);
             }
 
@@ -226,13 +223,13 @@ namespace gjs {
             constexpr int argc = std::tuple_size_v<std::tuple<Args...>>;
 
             if constexpr (std::is_class_v<Ret>) {
-                void* _args[argc + 4] = { ret, call_method_func, func_ptr };
-                for (u8 a = 0;a < argc + 1;a++) _args[a + 3] = args[a];
+                void* _args[argc + 5] = { ret, call_method_func, func_ptr };
+                for (u8 a = 0;a < argc + 2;a++) _args[a + 3] = args[a];
                 // return value, call_method_func, func_ptr, exec ctx, this obj, ...
                 _pass_arg_wrapper<Ret*, void*, void*, void*, void*, Args...>(0, call, _args);
             } else {
-                void* _args[argc + 2] = { func_ptr };
-                for (u8 a = 0;a < argc + 1;a++) _args[a + 1] = args[a];
+                void* _args[argc + 3] = { func_ptr };
+                for (u8 a = 0;a < argc + 2;a++) _args[a + 1] = args[a];
                 // func_ptr, exec ctx, this obj, ...
                 _pass_arg_wrapper<void*, void*, void*, Args...>(0, call, _args);
             }
@@ -263,7 +260,7 @@ namespace gjs {
 
             call_method_func = reinterpret_cast<void*>(wrapper);
             if constexpr (std::is_class_v<Ret>) {
-                auto srv = srv_wrapper<Ret, method_type, Cls*, Args...>;
+                auto srv = srv_wrapper<Ret, method_type, exec_context*, Cls*, Args...>;
                 srv_wrapper_func = reinterpret_cast<void*>(srv);
             };
 
@@ -296,14 +293,14 @@ namespace gjs {
             constexpr int argc = std::tuple_size_v<std::tuple<Args...>>;
 
             if constexpr (std::is_class_v<Ret>) {
-                void* _args[argc + 4] = { ret, call_method_func, func_ptr };
-                for (u8 a = 0;a < argc + 1;a++) _args[a + 3] = args[a];
-                // return value, call_method_func, func_ptr, exec ctx, this obj
+                void* _args[argc + 5] = { ret, call_method_func, func_ptr };
+                for (u8 a = 0;a < argc + 2;a++) _args[a + 3] = args[a];
+                // return value, call_method_func, func_ptr, exec ctx, this obj, ...
                 _pass_arg_wrapper<Ret*, void*, void*, void*, void*, Args...>(0, call, _args);
             } else {
-                void* _args[argc + 2] = { func_ptr };
-                for (u8 a = 0;a < argc + 1;a++) _args[a + 1] = args[a];
-                // func_ptr, exec ctx, this obj
+                void* _args[argc + 3] = { func_ptr };
+                for (u8 a = 0;a < argc + 2;a++) _args[a + 1] = args[a];
+                // func_ptr, exec ctx, this obj, ...
                 _pass_arg_wrapper<void*, void*, void*, Args...>(0, call, _args);
             }
 
@@ -437,7 +434,10 @@ namespace gjs {
             if (std::is_pointer_v<T>) flags |= u8(property_flags::pf_pointer);
 
             u64 offset = (u8*)&((Cls*)nullptr->*member) - (u8*)nullptr;
-            properties[_name] = new property(nullptr, nullptr, tp, offset, flags);
+            
+            property* p = new property(_name, nullptr, nullptr, tp, offset, flags);
+            properties[_name] = p;
+            ordered_props.push_back(p);
             return *this;
         }
 
@@ -456,7 +456,9 @@ namespace gjs {
 
             if (std::is_pointer_v<T>) flags |= u8(property_flags::pf_pointer);
 
-            properties[_name] = new property(nullptr, nullptr, tp, (u64)member, flags | u8(property_flags::pf_static));
+            property* p = new property(_name, nullptr, nullptr, tp, (u64)member, flags | u8(property_flags::pf_static));
+            properties[_name] = p;
+            ordered_props.push_back(p);
             return *this;
         }
 
@@ -475,13 +477,17 @@ namespace gjs {
 
             if (std::is_pointer_v<T>) flags |= u8(property_flags::pf_pointer);
 
-            properties[_name] = new property(
+
+            property* p = new property(
+                _name,
                 wrap(types->ctx()->types(), name + "::get_" + _name, getter),
                 wrap(types->ctx()->types(), name + "::set_" + _name, setter),
                 tp,
                 0,
                 flags
             );
+            properties[_name] = p;
+            ordered_props.push_back(p);
             return *this;
         }
 
@@ -500,13 +506,17 @@ namespace gjs {
 
             if (std::is_pointer_v<T>) flags |= u8(property_flags::pf_pointer);
 
-            properties[_name] = new property(
+            property* p = new property(
+                _name,
                 wrap(types->ctx()->types(), name + "::get_" + _name, getter),
                 wrap(types->ctx()->types(), name + "::set_" + _name, setter),
                 tp,
                 0,
                 flags
             );
+            properties[_name] = p;
+            ordered_props.push_back(p);
+
             return *this;
         }
 
@@ -526,13 +536,16 @@ namespace gjs {
             if (std::is_pointer_v<T>) flags |= u8(property_flags::pf_pointer);
             else flags |= u8(property_flags::pf_read_only);
 
-            properties[_name] = new property(
+            property* p = new property(
+                _name,
                 wrap(types->ctx()->types(), name + "::get_" + _name, getter),
                 nullptr,
                 tp,
                 0,
                 flags
             );
+            properties[_name] = p;
+            ordered_props.push_back(p);
             return *this;
         }
 
@@ -552,13 +565,16 @@ namespace gjs {
             if (std::is_pointer_v<T>) flags |= u8(property_flags::pf_pointer);
             else flags |= u8(property_flags::pf_read_only);
 
-            properties[_name] = new property(
+            property* p = new property(
+                _name,
                 wrap(types->ctx()->types(), name + "::get_" + _name, getter),
                 nullptr,
                 tp,
                 0,
                 flags
             );
+            properties[_name] = p;
+            ordered_props.push_back(p);
             return *this;
         }
 
@@ -620,13 +636,16 @@ namespace gjs {
             auto get = wrap(types->ctx()->types(), name + "::get_" + _name, getter);
             get->pass_this = true;
 
-            properties[_name] = new property(
+            property* p = new property(
+                _name,
                 get,
                 nullptr,
                 tp,
                 0,
                 flags
             );
+            properties[_name] = p;
+            ordered_props.push_back(p);
             return *this;
         }
 
@@ -650,13 +669,16 @@ namespace gjs {
             auto set = wrap(types->ctx()->types(), name + "::set_" + _name, setter);
             set->pass_this = true;
 
-            properties[_name] = new property(
+            property* p = new property(
+                _name,
                 get,
                 set,
                 tp,
                 0,
                 flags
             );
+            properties[_name] = p;
+            ordered_props.push_back(p);
             return *this;
         }
 
@@ -675,13 +697,16 @@ namespace gjs {
 
             if (std::is_pointer_v<T>) flags |= u8(property_flags::pf_pointer);
 
-            properties[_name] = new property(
+            property* p = new property(
+                _name,
                 nullptr,
                 nullptr,
                 tp,
                 (u64)member,
                 flags | u8(property_flags::pf_static)
             );
+            properties[_name] = p;
+            ordered_props.push_back(p);
             return *this;
         }
 

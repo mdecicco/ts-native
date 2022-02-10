@@ -120,6 +120,8 @@ namespace gjs {
             if (syms) {
                 const script_module::local_var* mv = nullptr;
                 script_function* fn = nullptr;
+                u32 fn_count = 0;
+
                 for (auto s = syms->symbols.rbegin();s != syms->symbols.rend();s++) {
                     switch (s->sym_type()) {
                         case symbol::symbol_type::st_capture: {
@@ -142,6 +144,7 @@ namespace gjs {
                         }
                         case symbol::symbol_type::st_function: {
                             fn = s->get_func();
+                            fn_count++;
                             break;
                         }
                         case symbol::symbol_type::st_modulevar: {
@@ -171,44 +174,67 @@ namespace gjs {
                 }
 
                 if (fn) {
-                    var& outv = empty_var(fn->type, fn->name);
-                    outv.add_to_stack();
-                    add(operation::stack_alloc).operand(outv).operand(imm((u64)fn->type->size));
-                    auto dt = type("data");
-                    var dataPtr = empty_var(dt);
-                    add(operation::eq).operand(dataPtr).operand(imm((u64)0));
-                    var ptr = call(
-                        *this,
-                        function("$makefunc", dt, { type("u32"), dt, type("u64") }),
-                        { imm((u64)fn->id()), dataPtr, imm((u64)0) }, // function id, context data size
-                        nullptr
-                    );
-
-                    if (fn->id() == 0) {
-                        // fn->id() will be 0 until the function is added to the context...
-                        // first param instruction must be found and updated
-                        auto& code = out.funcs[cur_func_block->func_idx].code;
-                        u8 pidx = 3;
-                        for (address c = code.size() - 1;c > 0;c--) {
-                            if (code[c].op == operation::param) {
-                                pidx--;
-                                if (pidx == 0) {
-                                    // found it
-                                    code[c].resolve(0, fn);
-                                    break;
-                                }
-                            }
-                        }
+                    if (fn_count > 1) {
+                        log()->err(ec::c_ambiguous_function_name, node()->ref, name.c_str());
                     }
 
-                    add(operation::store).operand(outv).operand(ptr);
-
-                    return outv;
+                    return func_var(fn);
                 }
             }
 
             log()->err(ec::c_undefined_identifier, node()->ref, name.c_str());
             return error_var();
+        }
+
+        var& context::func_var(script_function* fn) {
+            // check first if the function was already stored in a variable
+            symbol_list* syms = symbols.get("@fv_" + fn->name);
+            if (syms) {
+                const script_module::local_var* mv = nullptr;
+                for (auto s = syms->symbols.rbegin();s != syms->symbols.rend();s++) {
+                    switch (s->sym_type()) {
+                        case symbol::symbol_type::st_var: {
+                            // it was
+                            return *s->get_var();
+                        }
+                        default: { break; }
+                    }
+                }
+            }
+
+            var& outv = empty_var(fn->type, "@fv_" + fn->name);
+            outv.add_to_stack();
+            add(operation::stack_alloc).operand(outv).operand(imm((u64)fn->type->size));
+            auto dt = type("data");
+            var dataPtr = empty_var(dt);
+            add(operation::eq).operand(dataPtr).operand(imm((u64)0));
+            var ptr = call(
+                *this,
+                function("$makefunc", dt, { type("u32"), dt, type("u64") }),
+                { imm((u64)fn->id()), dataPtr, imm((u64)0) }, // function id, context data size
+                nullptr
+            );
+
+            if (fn->id() == 0) {
+                // fn->id() will be 0 until the function is added to the context...
+                // first param instruction must be found and updated
+                auto& code = out.funcs[cur_func_block->func_idx].code;
+                u8 pidx = 3;
+                for (address c = code.size() - 1;c > 0;c--) {
+                    if (code[c].op == operation::param) {
+                        pidx--;
+                        if (pidx == 0) {
+                            // found it
+                            code[c].resolve(0, fn);
+                            break;
+                        }
+                    }
+                }
+            }
+
+            add(operation::store).operand(outv).operand(ptr);
+
+            return outv;
         }
         
         void context::promote_var(var& v, const std::string& name) {
@@ -262,6 +288,36 @@ namespace gjs {
             }
 
             return t ? t->type : nullptr;
+        }
+
+        script_type* context::type(const std::string& name, script_type* subtype) {
+            script_type* base = type(name, true);
+
+            std::string ctn = base->name + "<" + subtype->name + ">";
+            script_type* ct = type(ctn, false);
+            if (!ct) ct = new_types->get(ctn);
+            if (!ct) {
+                ct = new_types->add(ctn, ctn);
+
+                // just copy the details
+                ct->destructor = base->destructor;
+                ct->methods = base->methods;
+                ct->properties = base->properties;
+                ct->base_type = base;
+                ct->sub_type = subtype;
+                ct->is_host = true;
+                ct->is_builtin = base->is_builtin;
+                ct->size = base->size;
+                ct->owner = base->owner;
+                out.types.push_back(ct);
+
+                for (u32 f = 0;f < ct->methods.size();f++) {
+                    script_function* m = ct->methods[f];
+                    ct->methods[f] = m->duplicate_with_subtype(subtype);
+                }
+            }
+
+            return ct;
         }
 
         script_type* context::type(parse::ast* n) {
@@ -583,14 +639,40 @@ namespace gjs {
             if (block_stack.back()) {
                 block_context* b = block_stack.back();
 
+                std::vector<u32> regs_to_preserve;
+                if (preserve.is_reg()) regs_to_preserve.push_back(preserve.reg_id());
+
+                u32 last_parent_id = preserve.parent_reg_id();
+                while (last_parent_id != u32(-1)) {
+                    regs_to_preserve.push_back(last_parent_id);
+
+                    // see if the register is a stack object
+                    for (u16 i = 0;i < b->stack_objs.size();i++) {
+                        var& v = b->stack_objs[i];
+                        if (v.reg_id() == last_parent_id) {
+                            // it is, continue to check the next parent, if one exists
+                            last_parent_id = v.parent_reg_id();
+                            break;
+                        }
+                    }
+                }
+
                 if (b->stack_objs.size() > 0) {
                     script_type* void_tp = type("void");
                     for (u16 i = 0;i < b->stack_objs.size();i++) {
                         var& v = b->stack_objs[i];
-                        if (v.reg_id() == preserve.reg_id()) {
-                            block_stack[block_stack.size() - 2]->stack_objs.push_back(v);
-                            continue;
+
+                        bool do_preserve = false;
+                        for (u32 p = 0;p < regs_to_preserve.size();p++) {
+                            if (v.reg_id() == regs_to_preserve[p]) {
+                                block_stack[block_stack.size() - 2]->stack_objs.push_back(v);
+                                do_preserve = true;
+                                break;
+                            }
                         }
+
+                        if (do_preserve) continue;
+
                         if (v.type()->destructor) {
                             call(*this, v.type()->destructor, {}, &v);
                         }
@@ -604,9 +686,14 @@ namespace gjs {
                         symbol_list* syms = symbols.get(v->name());
                         syms->remove(&(*v));
 
-                        if (!v->is_imm() && v->reg_id() == preserve.reg_id()) {
-                            block_stack[block_stack.size() - 2]->named_vars.push_back(*v);
-                            syms->add(&block_stack[block_stack.size() - 2]->named_vars.back());
+                        if (!v->is_imm()) {
+                            for (u32 p = 0;p < regs_to_preserve.size();p++) {
+                                if (v->reg_id() == regs_to_preserve[p]) {
+                                    block_stack[block_stack.size() - 2]->named_vars.push_back(*v);
+                                    syms->add(&block_stack[block_stack.size() - 2]->named_vars.back());
+                                    break;
+                                }
+                            }
                         }
                     }
                 }

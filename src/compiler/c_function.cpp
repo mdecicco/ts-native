@@ -14,6 +14,10 @@ namespace gjs {
     using nt = ast::node_type;
     using ot = ast::operation_type;
 
+    // todo: Find out why enabling this causes the following to evaluate to true:
+    // [1, 2, 3].some((u32 idx, i64 ele) : bool => { return ele == 4; });
+    bool enable_tracer = true;
+
     namespace compile {
         bool is_var_captured(const std::string& vname, parse::ast* root, bool in_lambda) {
             if (root->type == nt::lambda_expression) {
@@ -79,6 +83,13 @@ namespace gjs {
 
         void push_trace_node(context& ctx) {
             script_type* u64_tp = ctx.type("u64");
+            if (!enable_tracer) {
+                ctx.empty_var(u64_tp, "@t_he_p");
+                ctx.empty_var(u64_tp, "@t_nc_p");
+                ctx.empty_var(u64_tp, "@t_nrp");
+                return;
+            }
+
 
             var& ectx = ctx.get_var("@ectx");
 
@@ -86,7 +97,7 @@ namespace gjs {
             var tracerPtr = ctx.empty_var(ctx.type("$tracer"));
             ctx.add(operation::uadd).operand(tracerPtr).operand(ectx).operand(ctx.imm((u64)offsetof(exec_context, trace)));
 
-            var didErrorPtr = ctx.empty_var(ctx.type("u64"), "@t_he_p");
+            var didErrorPtr = ctx.empty_var(u64_tp, "@t_he_p");
             ctx.add(operation::uadd).operand(didErrorPtr).operand(tracerPtr).operand(ctx.imm((u64)offsetof(script_tracer, has_error)));
 
             var nodeCountPtr = ctx.empty_var(u64_tp, "@t_nc_p");
@@ -132,6 +143,8 @@ namespace gjs {
         }
 
         void set_trace_node_src(context& ctx) {
+            if (!enable_tracer) return;
+
             var refPtr = ctx.get_var("@t_nrp");
 
             // statically allocate source ref and get offset
@@ -146,6 +159,8 @@ namespace gjs {
         }
 
         void pop_trace_node(context& ctx, const var& ncp) {
+            if (!enable_tracer) return;
+
             var nodeCount = ctx.empty_var(ctx.type("u64"));
             ctx.add(operation::load).operand(nodeCount).operand(ncp);
 
@@ -155,6 +170,8 @@ namespace gjs {
         }
 
         void check_trace(context& ctx) {
+            if (!enable_tracer) return;
+
             var hasErrorPtr = ctx.get_var("@t_he_p");
             var hasError = ctx.empty_var(ctx.type("bool"));
             ctx.add(operation::load).operand(hasError).operand(hasErrorPtr);

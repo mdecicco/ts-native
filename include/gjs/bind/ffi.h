@@ -36,7 +36,7 @@ namespace gjs {
         // callee with the placement new operator, constructing the result in an
         // output parameter.
         template <typename Ret, typename... Args>
-        void srv_wrapper(Ret* out, Ret (*f)(Args...), exec_context* ectx, Args... args);
+        void srv_wrapper(Ret* out, Ret (*f)(Args...), Args... args);
 
         // Non-void class method wrappers
         // Wraps call to class method in a function which accepts a pointer to the class
@@ -143,8 +143,9 @@ namespace gjs {
 
         struct wrapped_class {
             struct property {
-                property(wrapped_function* g, wrapped_function* s, script_type* t, u64 o, u8 f);
+                property(const std::string& n, wrapped_function* g, wrapped_function* s, script_type* t, u64 o, u8 f);
 
+                std::string name;
                 wrapped_function* getter;
                 wrapped_function* setter;
                 script_type* type;
@@ -161,6 +162,7 @@ namespace gjs {
             bool is_pod;
             bool trivially_copyable;
             std::vector<wrapped_function*> methods;
+            std::vector<property*> ordered_props;
             robin_hood::unordered_map<std::string, property*> properties;
             wrapped_function* dtor;
             script_type* type;

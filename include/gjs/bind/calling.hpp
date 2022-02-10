@@ -161,7 +161,7 @@ namespace gjs {
 
             exec_context *ectx = new exec_context();
             std::vector<void*> vargs = { (void*)ectx, to_arg(moduletype_id), to_arg(args)... };
-            if (self) vargs.insert(vargs.begin(), self);
+            if (self) vargs.insert(vargs.begin() + 1, self);
 
             script_object out = script_object(func->ctx(), (script_module*)nullptr, func->type->signature->return_type, nullptr);
             if (func->type->signature->return_type->size > 0) {
@@ -209,7 +209,7 @@ namespace gjs {
 
             exec_context *ectx = new exec_context();
             std::vector<void*> vargs = { (void*)ectx, to_arg(moduletype_id), to_arg(args)... };
-            if (self) vargs.insert(vargs.begin(), self);
+            if (self) vargs.insert(vargs.begin() + 1, self);
 
             func->ctx()->generator()->call(func, out.self(), vargs.data());
 
@@ -260,7 +260,7 @@ namespace gjs {
 
             exec_context *ectx = new exec_context();
             std::vector<void*> vargs = { (void*)ectx, cb->ptr->data, to_arg(args)... };
-            if (cb->ptr->self_obj()) vargs.insert(vargs.begin(), cb->ptr->self_obj());
+            if (cb->ptr->self_obj()) vargs.insert(vargs.begin() + 1, cb->ptr->self_obj());
 
             script_object out = script_object(func->ctx(), (script_module*)nullptr, func->type->signature->return_type, nullptr);
             if (func->type->signature->return_type->size > 0) {
@@ -303,6 +303,7 @@ namespace gjs {
 
             exec_context *ectx = new exec_context();
             std::vector<void*> vargs = { (void*)ectx, cb->ptr->data };
+            if (cb->ptr->self_obj()) vargs.insert(vargs.begin() + 1, cb->ptr->self_obj());
 
             script_object out = script_object(func->ctx(), (script_module*)nullptr, func->type->signature->return_type, nullptr);
             if (func->type->signature->return_type->size > 0) {

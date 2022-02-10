@@ -35,6 +35,7 @@ namespace gjs {
             "scoped_block",
             "format_expression",
             "lambda_expression",
+            "array_expression",
             "context_type",
             "context_function"
         };
