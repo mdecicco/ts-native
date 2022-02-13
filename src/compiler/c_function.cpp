@@ -13,10 +13,7 @@ namespace gjs {
     using ec = error::ecode;
     using nt = ast::node_type;
     using ot = ast::operation_type;
-
-    // todo: Find out why enabling this causes the following to evaluate to true:
-    // [1, 2, 3].some((u32 idx, i64 ele) : bool => { return ele == 4; });
-    bool enable_tracer = true;
+    constexpr bool enable_tracer = true;
 
     namespace compile {
         bool is_var_captured(const std::string& vname, parse::ast* root, bool in_lambda) {
@@ -89,7 +86,6 @@ namespace gjs {
                 ctx.empty_var(u64_tp, "@t_nrp");
                 return;
             }
-
 
             var& ectx = ctx.get_var("@ectx");
 
@@ -709,12 +705,9 @@ namespace gjs {
                     }
                 }
 
-                // [expression | var].[method]
                 var expr = expression(ctx, left);
                 if (expr.type()->name != "error_type") {
-                    // [expression | var].[function pointer]
-                    out.callee_v = expr.prop(func_name, false);
-                    bool found = out.callee_v.type() != ctx.type("error_type");
+                    bool found = expr.has_prop(func_name);
 
                     if (!expr.has_unambiguous_method(func_name, nullptr, out.arg_types)) {
                         auto arg_types = out.arg_types;
@@ -730,8 +723,18 @@ namespace gjs {
                         }
                     }
 
+                    // [expression | var].[method]
                     out.callee = expr.method(func_name, nullptr, out.arg_types, !found);
-                    out.this_obj = expr;
+
+                    if (out.callee == nullptr && found) {
+                        // [expression | var].[function pointer]
+                        out.callee_v = expr.prop(func_name, false);
+                        bool found = out.callee_v.type() != ctx.type("error_type");
+                        out.this_obj = expr;
+                    } else if (out.callee != nullptr) {
+                        out.this_obj = expr;
+                    }
+
                     return out.callee != nullptr || found;
                 }
             } else if (is_identifier(callee)) {
@@ -835,7 +838,7 @@ namespace gjs {
             if (rtp->size == 0) {
                 // no return
                 ctx.add(operation::call).func(func);
-                check_trace(ctx);
+                if (!no_trace) check_trace(ctx);
                 return ctx.empty_var(rtp);
             }
 
@@ -843,7 +846,7 @@ namespace gjs {
             if (func->type->signature->returns_pointer) {
                 var result = ctx.empty_var(rtp);
                 ctx.add(operation::call).operand(result).func(func);
-                check_trace(ctx);
+                if (!no_trace) check_trace(ctx);
 
                 if (rtp->is_primitive) {
                     // load value from pointer
@@ -863,14 +866,14 @@ namespace gjs {
                 // callee will construct return value in $stack_ret (or copy it to $stack_ret),
                 // which is passed as an argument
                 ctx.add(operation::call).func(func);
-                check_trace(ctx);
+                if (!no_trace) check_trace(ctx);
                 return stack_ret;
             }
 
             // basic return
             var ret = ctx.empty_var(rtp);
             ctx.add(operation::call).operand(ret).func(func);
-            check_trace(ctx);
+            if (!no_trace) check_trace(ctx);
             return ret;
         }
 
@@ -962,7 +965,7 @@ namespace gjs {
             if (rtp->size == 0) {
                 // no return
                 ctx.add(operation::call).operand(func).func(func);
-                check_trace(ctx);
+                if (!no_trace) check_trace(ctx);
                 return ctx.empty_var(rtp);
             }
 
@@ -970,7 +973,7 @@ namespace gjs {
             if (sig->returns_pointer) {
                 var result = ctx.empty_var(rtp);
                 ctx.add(operation::call).operand(func).operand(result).func(func);
-                check_trace(ctx);
+                if (!no_trace) check_trace(ctx);
 
                 if (rtp->is_primitive) {
                     // load value from pointer
@@ -990,14 +993,14 @@ namespace gjs {
                 // callee will construct return value in $stack_ret (or copy it to $stack_ret),
                 // which is passed as an argument
                 ctx.add(operation::call).operand(func).func(func);
-                check_trace(ctx);
+                if (!no_trace) check_trace(ctx);
                 return stack_ret;
             }
 
             // basic return
             var ret = ctx.empty_var(rtp);
             ctx.add(operation::call).operand(func).operand(ret).func(func);
-            check_trace(ctx);
+            if (!no_trace) check_trace(ctx);
             return ret;
         }
     };

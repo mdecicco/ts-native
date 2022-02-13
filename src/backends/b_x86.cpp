@@ -108,6 +108,11 @@ namespace gjs {
                     fsb.addArg(Type::kIdUIntPtr);
                     fsb.addArg(Type::kIdUIntPtr);
                     fsb.addArg(Type::kIdUIntPtr);
+                } else if (f->access.wrapped->cdecl_wrapper_func) {
+                    // ret ptr, cdecl_wrapper_func, func_ptr, call_params...
+                    fsb.addArg(Type::kIdUIntPtr);
+                    fsb.addArg(Type::kIdUIntPtr);
+                    fsb.addArg(Type::kIdUIntPtr);
                 } else {
                     // ret ptr, func_ptr, call_params...
                     fsb.addArg(Type::kIdUIntPtr);
@@ -1458,6 +1463,28 @@ namespace gjs {
                                         passArg(a >= raidx ? a + 1 : a, p);
                                         a++;
                                     }
+                                } else if (i.callee->access.wrapped->cdecl_wrapper_func) {
+                                    // ret ptr, cdecl_wrapper_func, func_ptr, call_params...
+                                    fsig(i.callee, cs);
+                                    addr = i.callee->access.wrapped->srv_wrapper_func;
+
+                                    u8 raidx = 0;
+                                    for (;raidx < sig->args.size();raidx++) {
+                                        if (sig->args[raidx].implicit == function_signature::argument::implicit_type::ret_addr) {
+                                            retAddr = v2r(params[raidx]);
+                                            params.erase(params.begin() + raidx);
+                                            break;
+                                        }
+                                    }
+
+                                    implicitArgs.push_back(i.callee->access.wrapped->cdecl_wrapper_func);
+                                    implicitArgs.push_back(i.callee->access.wrapped->func_ptr);
+
+                                    u8 a = 0;
+                                    for (var& p : params) {
+                                        passArg(a >= raidx ? a + 1 : a, p);
+                                        a++;
+                                    }
                                 } else {
                                     // ret ptr, func_ptr, call_params...
                                     fsig(i.callee, cs);
@@ -1830,7 +1857,15 @@ namespace gjs {
                 } else {
                     switch (rtp->size) {
                         case sizeof(i8): {
-                            if (rtp->name == "bool") *(bool*)ret = dcCallBool(cvm, f);
+                            if (rtp->name == "bool") {
+                                // dcCallBool actually loads an int from EAX and returns it as such.
+                                // Gjs treats bools as single bytes, so everything but just the lowest
+                                // byte of EAX is undefined. Since dcCallBool interprets that as an int
+                                // it may return false positives.
+                                // Eg. EAX = 0xdeadbe00 != 0 == true
+                                //      AL = 0x......00 == 0 == false
+                                *(bool*)ret = dcCallChar(cvm, f);
+                            }
                             else *(i8*)ret = dcCallChar(cvm, f);
                             break;
                         }

@@ -260,7 +260,7 @@ namespace gjs {
 
             exec_context *ectx = new exec_context();
             std::vector<void*> vargs = { (void*)ectx, cb->ptr->data, to_arg(args)... };
-            if (cb->ptr->self_obj()) vargs.insert(vargs.begin() + 1, cb->ptr->self_obj());
+            if (cb->ptr->self_obj()) vargs.insert(vargs.begin() + 2, cb->ptr->self_obj());
 
             script_object out = script_object(func->ctx(), (script_module*)nullptr, func->type->signature->return_type, nullptr);
             if (func->type->signature->return_type->size > 0) {
@@ -303,7 +303,7 @@ namespace gjs {
 
             exec_context *ectx = new exec_context();
             std::vector<void*> vargs = { (void*)ectx, cb->ptr->data };
-            if (cb->ptr->self_obj()) vargs.insert(vargs.begin() + 1, cb->ptr->self_obj());
+            if (cb->ptr->self_obj()) vargs.insert(vargs.begin() + 2, cb->ptr->self_obj());
 
             script_object out = script_object(func->ctx(), (script_module*)nullptr, func->type->signature->return_type, nullptr);
             if (func->type->signature->return_type->size > 0) {

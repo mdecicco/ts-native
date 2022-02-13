@@ -1004,6 +1004,8 @@ namespace gjs {
                 false, // stack_alloc
                 false, // stack_free
                 false, // module_data
+                false, // reserve
+                false, // resolve
                 false, // iadd
                 false, // isub
                 false, // imul
@@ -1064,11 +1066,7 @@ namespace gjs {
                 false, // label
                 false, // branch
                 false, // jump
-                false, // term
-                false, // meta_if_branch
-                false, // meta_for_loop
-                false, // meta_while_loop
-                false  // meta_do_while_loop
+                false  // term
             };
 
             operation op = get_op(_op, a.type());
