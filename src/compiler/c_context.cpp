@@ -646,14 +646,21 @@ namespace gjs {
                 while (last_parent_id != u32(-1)) {
                     regs_to_preserve.push_back(last_parent_id);
 
+                    bool found = false;
                     // see if the register is a stack object
                     for (u16 i = 0;i < b->stack_objs.size();i++) {
                         var& v = b->stack_objs[i];
                         if (v.reg_id() == last_parent_id) {
                             // it is, continue to check the next parent, if one exists
                             last_parent_id = v.parent_reg_id();
+                            found = true;
                             break;
                         }
+                    }
+
+                    if (!found) {
+                        // it's not a stack object
+                        break;
                     }
                 }
 

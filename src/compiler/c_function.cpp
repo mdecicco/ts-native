@@ -4,6 +4,7 @@
 #include <gjs/parser/ast.h>
 #include <gjs/common/compile_log.h>
 #include <gjs/common/errors.h>
+#include <gjs/common/source_map.h>
 #include <gjs/vm/register.h>
 
 #include <gjs/gjs.hpp>
@@ -143,15 +144,11 @@ namespace gjs {
 
             var refPtr = ctx.get_var("@t_nrp");
 
-            // statically allocate source ref and get offset
-            script_buffer* mmem = ctx.out.mod->data();
-            u64 offset = mmem->position();
-            void* ptr = mmem->data(offset);
-            mmem->position(offset + sizeof(source_ref));
-            new (ptr) source_ref(ctx.node()->ref);
+            // add call source location to module's trace map
+            u64 idx = ctx.out.mod->add_trace(ctx.node()->ref);
 
             // set source ref offset
-            ctx.add(operation::store).operand(refPtr).operand(ctx.imm(offset));
+            ctx.add(operation::store).operand(refPtr).operand(ctx.imm(idx));
         }
 
         void pop_trace_node(context& ctx, const var& ncp) {

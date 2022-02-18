@@ -15,6 +15,7 @@ namespace gjs {
     class script_buffer;
     class script_enum;
     class type_manager;
+    class source_map;
 
     class script_module {
         public:
@@ -68,6 +69,8 @@ namespace gjs {
             void* local_ptr(const std::string& name) const;
             script_object local(const std::string& name) const;
 
+            u64 add_trace(const source_ref& ref);
+
             inline std::string name() const { return m_name; }
             inline module_id id() const { return m_id; }
             inline const std::vector<local_var>& locals() const { return m_locals; }
@@ -76,6 +79,7 @@ namespace gjs {
             inline type_manager* types() const { return m_types; }
             inline script_buffer* data() { return m_data; }
             inline script_context* context() const { return m_ctx; }
+            inline source_map* trace_map() const { return m_traceMap; }
 
         protected:
             friend class pipeline;
@@ -96,6 +100,7 @@ namespace gjs {
             type_manager* m_types;
             script_context* m_ctx;
             script_buffer* m_data;
+            source_map* m_traceMap;
             bool m_initialized;
     };
 };

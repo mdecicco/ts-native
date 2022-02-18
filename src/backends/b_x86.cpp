@@ -492,7 +492,7 @@ namespace gjs {
         if (cc.finalize()) {
             String content = std::move(sl.content());
             printf("%s\n", content.data());
-            abort();
+            throw std::exception("JIT error");
         }
 
         void* addr = nullptr;
@@ -521,7 +521,7 @@ namespace gjs {
         return 0;
     }
 
-    bool x86_backend::perform_register_allocation() const {
+    bool x86_backend::needs_register_allocation() const {
         return false;
     }
 

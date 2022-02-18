@@ -143,7 +143,7 @@ namespace gjs {
                     }
                 }
 
-                if (generator->perform_register_allocation()) {
+                if (generator->needs_register_allocation()) {
                     for (u16 i = 0;i < out.funcs.size();i++) {
                         if (!out.funcs[i].func || out.funcs[i].func->is_external) continue;
                         out.funcs[i].regs.m_gpc = generator->gp_count();

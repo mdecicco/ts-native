@@ -5,6 +5,7 @@
 #include <gjs/common/script_type.h>
 #include <gjs/common/function_signature.h>
 #include <gjs/util/util.h>
+#include <gjs/common/source_map.h>
 
 namespace gjs {
     script_tracer::script_tracer() : node_count(0), node_capacity(128), has_error(false) {
@@ -38,10 +39,10 @@ namespace gjs {
 
             script_module* mod = ctx->module(nodes[i].mod);
             script_function* fn = ctx->function(nodes[i].func);
-            source_ref* ref = (source_ref*)mod->data()->data(nodes[i].ref_offset);
-            error += format("In function '%s' of module '%s' at %d:%d:\n", fn->type->signature->to_string(fn->name, fn->is_method_of, nullptr, true).c_str(), ref->module.c_str(), ref->line, ref->col);
+            source_ref ref = mod->trace_map()->get(nodes[i].ref_offset);
+            error += format("In function '%s' of module '%s' at %d:%d:\n", fn->type->signature->to_string(fn->name, fn->is_method_of, nullptr, true).c_str(), ref.module.c_str(), ref.line, ref.col);
             error += "\t";
-            const char* ln = ref->line_text.c_str();
+            const char* ln = ref.line_text.c_str();
             u16 wscount = 0;
             while (isspace(*ln)) {
                 ln++;
@@ -49,7 +50,7 @@ namespace gjs {
             }
             error += ln;
             error += "\n\t";
-            for (u16 c = 0;c < ref->col - wscount;c++) error += " ";
+            for (u16 c = 0;c < ref.col - wscount;c++) error += " ";
             error += "^";
         }
     }

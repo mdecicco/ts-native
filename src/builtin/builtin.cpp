@@ -291,7 +291,7 @@ namespace gjs {
         tp = proc.finalize(ctx->global());
         tp->is_builtin = true;
 
-        bind<void*, u32, void*, u64>(ctx, raw_callback::make, "$makefunc");
+        bind(ctx, FUNC_PTR(raw_callback::make, void*, u32, void*, u64), "$makefunc");
         bind(ctx, script_allocate, "alloc");
         bind(ctx, script_free, "free");
         bind(ctx, script_copymem, "memcopy");

@@ -31,7 +31,7 @@ namespace gjs {
             virtual void generate(compilation_output& in);
             virtual u16 gp_count() const;
             virtual u16 fp_count() const;
-            virtual bool perform_register_allocation() const;
+            virtual bool needs_register_allocation() const;
             virtual void call(script_function* func, void* ret, void** args);
 
         protected:
