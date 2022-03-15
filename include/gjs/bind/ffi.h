@@ -131,7 +131,7 @@ namespace gjs {
             // For class methods, the signature of this function is:
             //     void (return_type*, call_method_func, func_ptr, exec_context*, this_ptr, arg_types...)
             // For global functions, the signature of this function is:
-            //     void (return_type*, func_ptr, exec_context*, arg_types...)
+            //     void (return_type*, cdecl_wrapper_func, func_ptr, exec_context*, arg_types...)
             void* srv_wrapper_func;
 
             // Address of the call_class_method/call_const_class_method function wrapper

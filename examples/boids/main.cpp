@@ -122,9 +122,9 @@ vec2<f32> window_size() {
 int main(int arg_count, const char** args) {
     srand(time(nullptr));
 
-    basic_malloc_allocator alloc;
-    vm_backend be(&alloc, 8 * 1024 * 1024, 8 * 1024 * 1024);
-    // x86_backend be;
+    // basic_malloc_allocator alloc;
+    // vm_backend be(&alloc, 8 * 1024 * 1024, 8 * 1024 * 1024);
+    x86_backend be;
     script_context ctx(&be);
 
     bind(&ctx, deltaT, "deltaT");
