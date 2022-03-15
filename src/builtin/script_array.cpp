@@ -25,14 +25,12 @@ namespace gjs {
             m_data = new u8[u64(m_capacity) * m_type->size];
 
             if (m_count > 0) {
-                for (u32 i = 0;i < m_count;i++) {
-                    subtype_t* elem = (subtype_t*)(o.m_data + (u64(i) * u64(m_type->size)));
-                    if (m_type->is_trivially_copyable) {
-                        if (m_type->is_primitive) memcpy(m_data + (u64(i) * u64(m_type->size)), elem, m_type->size);
-                        else memcpy(m_data + (u64(m_count) * u64(m_type->size)), elem, m_type->size);
-                    } else {
+                if (m_type->is_trivially_copyable) memcpy(m_data, o.m_data, u64(m_count) * u64(m_type->size));
+                else {
+                    for (u32 i = 0;i < m_count;i++) {
+                        subtype_t* elem = (subtype_t*)(o.m_data + (u64(i) * u64(m_type->size)));
                         script_object obj(m_type, (u8*)elem);
-                        construct_at(m_type, m_data + (u64(m_count) * u64(m_type->size)), obj);
+                        construct_at(m_type, m_data + (u64(i) * u64(m_type->size)), obj);
                     }
                 }
             }

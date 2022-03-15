@@ -1,6 +1,7 @@
 #include <gjs/common/type_manager.h>
 #include <gjs/common/function_signature.h>
 #include <gjs/common/script_function.h>
+#include <gjs/common/script_module.h>
 #include <gjs/bind/ffi.h>
 #include <gjs/util/util.h>
 
@@ -167,18 +168,16 @@ namespace gjs {
         m_types_by_id[type->m_id] = type;
     }
 
+    void type_manager::remove(script_type* tp) {
+        if (m_types_by_id.count(tp->m_id) == 0) return;
+        m_types.erase(tp->internal_name);
+        m_types_by_id.erase(tp->m_id);
+    }
+
     script_type* type_manager::finalize_class(ffi::wrapped_class* wrapped, script_module* mod) {
         auto it = m_types.find(wrapped->internal_name);
         if (it == m_types.end()) {
             throw error::bind_exception(error::ecode::b_type_not_found_cannot_finalize, wrapped->name.c_str());
-        }
-
-        if (wrapped->dtor) {
-            // gjs considers constructors and destructors methods, but they are
-            // bound like regular C functions. Remove explicit 'this' argument
-            // because gjs implicitly adds it.
-            wrapped->dtor->arg_types.erase(wrapped->dtor->arg_types.begin());
-            wrapped->dtor->arg_is_ptr.erase(wrapped->dtor->arg_is_ptr.begin());
         }
 
         script_type* t = it->getSecond();
@@ -189,17 +188,17 @@ namespace gjs {
         t->size = (u32)wrapped->size;
         t->destructor = wrapped->dtor ? new script_function(this, t, wrapped->dtor, false, true, mod) : nullptr;
 
-        for (auto i = wrapped->properties.begin();i != wrapped->properties.end();++i) {
+        for (auto p : wrapped->ordered_props) {
             t->properties.push_back({
-                i->getSecond()->flags,
-                i->getFirst(),
-                i->getSecond()->type,
-                i->getSecond()->offset,
-                i->getSecond()->getter ? new script_function(this, t, i->getSecond()->getter, false, false, mod) : nullptr,
-                i->getSecond()->setter ? new script_function(this, t, i->getSecond()->setter, false, false, mod) : nullptr
+                p->flags,
+                p->name,
+                p->type,
+                p->offset,
+                p->getter ? new script_function(this, t, p->getter, false, false, mod) : nullptr,
+                p->setter ? new script_function(this, t, p->setter, false, false, mod) : nullptr
             });
 
-            if (i->getSecond()->type->name == "subtype") {
+            if (p->type->name == "subtype") {
                 t->requires_subtype = true;
             }
         }
@@ -216,16 +215,10 @@ namespace gjs {
         for (u32 i = 0;i < wrapped->methods.size();i++) {
             ffi::wrapped_function* f = wrapped->methods[i];
             if (f->name.find("::constructor") != std::string::npos) {
-                // gjs considers constructors and destructors methods, but they are
-                // bound like regular C functions. Remove explicit 'this' argument
-                // because gjs implicitly adds it.
-                f->arg_types.erase(f->arg_types.begin());
-                f->arg_is_ptr.erase(f->arg_is_ptr.begin());
-
                 if (t->requires_subtype) {
-                    // second argument is a moduletype id, but should not be
-                    // explicitly listed as an argument. gjs deals with passing
-                    // that parameter internally
+                    // First argument (by this point) is a moduletype id, but
+                    // should not be explicitly listed as an argument. gjs deals
+                    // with passing that parameter internally
                     f->arg_is_ptr.erase(f->arg_is_ptr.begin());
                     f->arg_types.erase(f->arg_types.begin());
                 }

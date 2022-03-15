@@ -113,6 +113,8 @@ namespace gjs {
 
     script_function* function_search(const std::string& name, const std::vector<script_function*>& source, const function_signature& sig) {
         for (u32 i = 0;i < source.size();i++) {
+            if (!source[i]) continue;
+
             // match name
             if (name.find_first_of(' ') != std::string::npos && source[i]->name.find_first_of(' ') != std::string::npos) {
                 // probably an operator

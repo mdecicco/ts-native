@@ -15,7 +15,7 @@ namespace gjs {
             fptr
         });
 
-        printf("Allocated host raw_callback 0x%lX\n", (u64)p);
+        printf("Allocated host raw_callback 0x%llX\n", (u64)p);
         return new raw_callback*(p);
     }
 
@@ -29,7 +29,7 @@ namespace gjs {
             new function_pointer(fid, dataSz, data)
         });
 
-        printf("Allocated raw_callback 0x%lX\n", (u64)p);
+        printf("Allocated raw_callback 0x%llX\n", (u64)p);
 
         return (void*)p;
     }
@@ -37,7 +37,7 @@ namespace gjs {
     void raw_callback::destroy(raw_callback** cbp) {
         raw_callback* cb = *cbp;
         if (cb) {
-            printf("Destroyed raw_callback 0x%lX\n", (u64)cb);
+            printf("Destroyed raw_callback 0x%llX\n", (u64)cb);
             if (cb->owns_func && cb->ptr) {
                 delete cb->ptr->target->access.wrapped;
                 delete cb->ptr->target;

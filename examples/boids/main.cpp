@@ -164,6 +164,7 @@ int main(int arg_count, const char** args) {
     // be.log_instructions(true);
     // be.log_lines(true);
 
+
     if (!init_ui()) {
         return 1;
     }

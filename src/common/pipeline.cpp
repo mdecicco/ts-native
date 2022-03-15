@@ -120,7 +120,7 @@ namespace gjs {
                 // the generator can associate functions with IDs if it needs
                 // to
                 function_id next = m_ctx->functions().size() + 1;
-                for (u16 i = 1;i < out.funcs.size();i++) {
+                for (u16 i = 0;i < out.funcs.size();i++) {
                     if (out.funcs[i].func) out.funcs[i].func->m_id = next++;
                 }
 
@@ -143,7 +143,7 @@ namespace gjs {
                     }
                 }
 
-                if (generator->perform_register_allocation()) {
+                if (generator->needs_register_allocation()) {
                     for (u16 i = 0;i < out.funcs.size();i++) {
                         if (!out.funcs[i].func || out.funcs[i].func->is_external) continue;
                         out.funcs[i].regs.m_gpc = generator->gp_count();
@@ -163,14 +163,14 @@ namespace gjs {
                 generator->generate(out);
 
                 // reset so the context can accept them
-                for (u16 i = 1;i < out.funcs.size();i++) {
+                for (u16 i = 0;i < out.funcs.size();i++) {
                     if (out.funcs[i].func) out.funcs[i].func->m_id = 0;
                 }
 
                 if (m_log.errors.size() == 0) {
                     out.mod->m_init = out.funcs[0].func;
 
-                    for (u16 i = 1;i < out.funcs.size();i++) {
+                    for (u16 i = 0;i < out.funcs.size();i++) {
                         if (!out.funcs[i].func) continue;
                         out.mod->add(out.funcs[i].func);
                     }

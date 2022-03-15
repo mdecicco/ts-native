@@ -26,6 +26,7 @@ namespace gjs {
             m_is_imm = true;
             m_instantiation = ctx->node()->ref;
             m_reg_id = -1;
+            m_parent_reg_id = -1;
             m_imm.u = u;
             m_type = ctx->type("u64");
             m_stack_loc = -1;
@@ -44,6 +45,7 @@ namespace gjs {
             m_instantiation = ctx->node()->ref;
             m_flags = 0;
             m_reg_id = -1;
+            m_parent_reg_id = -1;
             m_imm.i = i;
             m_type = ctx->type("i64");
             m_stack_loc = -1;
@@ -61,6 +63,7 @@ namespace gjs {
             m_instantiation = ctx->node()->ref;
             m_flags = 0;
             m_reg_id = -1;
+            m_parent_reg_id = -1;
             m_imm.f = f;
             m_type = ctx->type("f32");
             m_stack_loc = -1;
@@ -78,6 +81,7 @@ namespace gjs {
             m_instantiation = ctx->node()->ref;
             m_flags = 0;
             m_reg_id = -1;
+            m_parent_reg_id = -1;
             m_imm.d = d;
             m_type = ctx->type("f64");
             m_stack_loc = -1;
@@ -95,6 +99,7 @@ namespace gjs {
             m_instantiation = ctx->node()->ref;
             m_flags = 0;
             m_reg_id = -1;
+            m_parent_reg_id = -1;
             m_type = ctx->type("string");
             m_stack_loc = -1;
             m_arg_idx = -1;
@@ -112,6 +117,7 @@ namespace gjs {
             m_instantiation = ctx->node()->ref;
             m_flags = 0;
             m_reg_id = reg_id;
+            m_parent_reg_id = -1;
             m_type = type;
             m_stack_loc = -1;
             m_arg_idx = -1;
@@ -128,6 +134,7 @@ namespace gjs {
             m_is_imm = false;
             m_flags = 0;
             m_reg_id = -1;
+            m_parent_reg_id = -1;
             m_type = nullptr;
             m_stack_loc = -1;
             m_arg_idx = -1;
@@ -145,6 +152,7 @@ namespace gjs {
             m_instantiation = v.m_instantiation;
             m_flags = v.m_flags;
             m_reg_id = v.m_reg_id;
+            m_parent_reg_id = v.m_parent_reg_id;
             m_imm = v.m_imm;
             m_type = v.m_type;
             m_stack_loc = v.m_stack_loc;
@@ -174,7 +182,15 @@ namespace gjs {
                 if (m_type->properties[i].name == prop) return true;
             }
 
-            return false;
+            return has_any_method(prop);
+        }
+
+        bool var::has_parent() const {
+            return m_parent_reg_id != -1;
+        }
+
+        u32 var::parent_reg_id() const {
+            return m_parent_reg_id;
         }
 
         var var::prop(const std::string& prop, bool log_errors) const {
@@ -272,6 +288,19 @@ namespace gjs {
                     }
                 }
             }
+
+            script_function* method = nullptr;
+            for (u16 i = 0;i < m_type->methods.size();i++) {
+                if (m_type->methods[i]->name == m_type->name + "::" + prop) {
+                    if (method) {
+                        if (log_errors) m_ctx->log()->err(ec::c_ambiguous_method_name, m_ctx->node()->ref, prop.c_str());
+                        return m_ctx->error_var();
+                    }
+                    method = m_type->methods[i];
+                }
+            }
+
+            if (method) return m_ctx->func_var(method);
 
             if (log_errors) m_ctx->log()->err(ec::c_no_such_property, m_ctx->node()->ref, m_type->name.c_str(), prop.c_str());
             return m_ctx->error_var();
@@ -640,6 +669,10 @@ namespace gjs {
             m_stack_loc = stack_loc;
         }
 
+        void var::set_parent_reg_id(u32 reg_id) {
+            m_parent_reg_id = reg_id;
+        }
+
         script_type* var::call_this_tp() const {
             return m_type->base_type && m_type->is_host ? m_type->base_type : m_type;
         }
@@ -971,6 +1004,8 @@ namespace gjs {
                 false, // stack_alloc
                 false, // stack_free
                 false, // module_data
+                false, // reserve
+                false, // resolve
                 false, // iadd
                 false, // isub
                 false, // imul
@@ -1031,11 +1066,7 @@ namespace gjs {
                 false, // label
                 false, // branch
                 false, // jump
-                false, // term
-                false, // meta_if_branch
-                false, // meta_for_loop
-                false, // meta_while_loop
-                false  // meta_do_while_loop
+                false  // term
             };
 
             operation op = get_op(_op, a.type());
@@ -1366,6 +1397,8 @@ namespace gjs {
                 // optimization specifically for array element access
                 var idx = rhs.convert(u64t);
                 var v = m_ctx->empty_var(m_type->sub_type);
+                v.set_parent_reg_id(m_reg_id);
+
                 var ptr = m_ctx->empty_var(m_ctx->type("data"));
                 // ptr = &this.m_data
                 m_ctx->add(operation::uadd).operand(ptr).operand(*this).operand(m_ctx->imm((u64)offsetof(script_array, m_data)));

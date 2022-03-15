@@ -550,6 +550,12 @@ namespace gjs {
             ctx.new_functions.push_back(init);
             ctx.push_block(init);
 
+            // execution context should always be the first argument of every function
+            var& ectx = ctx.empty_var(ctx.type("$ectx"), "@ectx");
+            ectx.set_arg_idx(0);
+
+            push_trace_node(ctx);
+
             ast* n = input->body;
             try {
                 while (n) {

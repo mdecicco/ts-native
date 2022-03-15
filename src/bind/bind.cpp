@@ -13,13 +13,15 @@ namespace gjs {
             is_static_method = false;
             func_ptr = nullptr;
             ret_is_ptr = false;
+            cdecl_wrapper_func = nullptr;
             srv_wrapper_func = nullptr;
             call_method_func = nullptr;
             pass_this = false;
             is_anonymous = anonymous;
         }
 
-        wrapped_class::property::property(wrapped_function* g, wrapped_function* s, script_type* t, u64 o, u8 f) {
+        wrapped_class::property::property(const std::string& n, wrapped_function* g, wrapped_function* s, script_type* t, u64 o, u8 f) {
+            name = n;
             getter = g;
             setter = s;
             type = t;
@@ -38,9 +40,8 @@ namespace gjs {
         }
 
         wrapped_class::~wrapped_class() {
-            for (auto i = properties.begin();i != properties.end();++i) {
-                delete i->getSecond();
-            }
+            for (auto p : ordered_props) delete p;
+            ordered_props.clear();
             properties.clear();
         }
 

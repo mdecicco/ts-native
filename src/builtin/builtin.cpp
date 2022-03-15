@@ -6,6 +6,8 @@
 #include <gjs/builtin/script_math.h>
 #include <gjs/builtin/script_dylib.h>
 #include <gjs/builtin/script_process.h>
+#include <gjs/common/script_tracer.h>
+#include <gjs/common/exec_context.h>
 
 #include <gjs/gjs.hpp>
 
@@ -31,14 +33,103 @@ namespace gjs {
         return script_string(out, out_count);
     }
 
+    template <typename T, bool do_throw = false>
+    T from_str(const script_string& str) {
+        if constexpr (std::is_floating_point_v<T>) {
+            const char* s = str.c_str();
+            while (isspace(*s) && *s != 0) s++;
+
+            if constexpr (sizeof(T) == sizeof(f64)) {
+                static T _NaN = nan("");
+                if (!*s) return _NaN;
+                errno = 0;
+                T val = strtod(s, nullptr);
+                if (val == 0 && *s != '0' || errno != 0) return _NaN;
+                return val;
+            } else {
+                static T _NaN = nanf("");
+                if (!*s) return _NaN;
+                errno = 0;
+                T val = strtod(s, nullptr);
+                if (val > FLT_MAX || val == 0 && *s != '0' || errno != 0) return _NaN;
+                return val;
+            }
+        } else {
+            if (str.length() == 0) {
+                if constexpr (do_throw) throw std::exception("Empty string provided to parse function");
+                return T(0);
+            }
+
+            const char* s = str.c_str();
+            while (isspace(*s)) s++;
+            if (!*s) {
+                if constexpr (do_throw) throw std::exception("Empty string provided to parse function");
+                return T(0);
+            }
+
+            if constexpr (std::is_unsigned_v<T>) {
+                errno = 0;
+                if (*s == '-') {
+                    if constexpr (do_throw) throw std::exception("Attempted to parse negative value to unsigned integer type");
+                    return T(0);
+                }
+
+                u64 val = strtoull(s, nullptr, 10);
+                if (val > std::numeric_limits<T>::max()) {
+                    if constexpr (do_throw) throw std::exception("Attempted to parse value that is larger than maximum supported value for type");
+                    return T(0);
+                }
+
+                if (val == 0 && *s != '0' || errno != 0) {
+                    if constexpr (do_throw) throw std::exception("Attempted to parse value that is either not a number or is larger than maximum supported value for type");
+                    return T(0);
+                }
+                return val;
+            } else {
+                errno = 0;
+                i64 val = strtoll(s, nullptr, 10);
+                if (val > std::numeric_limits<T>::max() || val < std::numeric_limits<T>::min()) {
+                    if constexpr (do_throw) throw std::exception("Attempted to parse value that is outside the range of supported values for type");
+                    return T(0);
+                }
+
+                if (val == 0 && *s != '0' || errno != 0) {
+                    if constexpr (do_throw) throw std::exception("Attempted to parse value that is either not a number or is outside the range of supported values for type");
+                    return T(0);
+                }
+                return val;
+            }
+        }
+    }
+
     template <typename T>
     ffi::pseudo_class<T>& bind_number_methods(ffi::pseudo_class<T>& tp) {
+        static T _min = std::numeric_limits<T>::min();
+        static T _max = std::numeric_limits<T>::max();
+
+        // non-static
         tp.method("toFixed", to_fixed<T>);
+        if constexpr (std::is_floating_point_v<T>) {
+            tp.prop("isNaN", isnan<T>);
+        }
+
+        tp.prop("min", &_min);
+        tp.prop("max", &_max);
+
+        // static
+        tp.method("parse", from_str<T>);
+        tp.method("parseThrow", from_str<T, true>);
+
         return tp;
     }
 
     void init_context(script_context* ctx) {
         set_builtin_context(ctx);
+
+        auto tnode = bind<trace_node>(ctx, "$tnode");
+        auto trace = bind<script_tracer>(ctx, "$tracer");
+        auto ectx = bind<exec_context>(ctx, "$ectx");
+
         auto str = bind<script_string>(ctx, "string");
 
         auto nt0 = bind<i64>(ctx, "i64");
@@ -151,7 +242,6 @@ namespace gjs {
         buf.method("data", METHOD_PTR(script_buffer, data, void*, u64));
         buf.method("data", METHOD_PTR(script_buffer, data, void*));
 
-        #define rm(tp) buf.method("read", &script_buffer::read<tp>);
         buf.method("read", &script_buffer::read<u8>);
         buf.method("read", &script_buffer::read<i8>);
         buf.method("read", &script_buffer::read<u16>);
@@ -193,17 +283,37 @@ namespace gjs {
         auto proc = bind<script_process>(ctx, "$proc");
         proc.constructor();
         proc.prop("argc", &script_process::argc);
-        proc.method("get_arg", &script_process::get_arg);
         proc.prop("raw_argc", &script_process::raw_argc);
+        proc.method("get_arg", &script_process::get_arg);
         proc.method("get_raw_arg", &script_process::get_raw_arg);
+        proc.method("exit", &script_process::exit);
+        proc.method("env", &script_process::env);
         tp = proc.finalize(ctx->global());
         tp->is_builtin = true;
 
-        bind<void*, u32, void*, u64>(ctx, raw_callback::make, "$makefunc");
+        bind(ctx, FUNC_PTR(raw_callback::make, void*, u32, void*, u64), "$makefunc");
         bind(ctx, script_allocate, "alloc");
         bind(ctx, script_free, "free");
         bind(ctx, script_copymem, "memcopy");
         bind(ctx, script_print, "print");
+
+        tnode.prop("func", &trace_node::func);
+        tnode.prop("mod", &trace_node::mod);
+        tnode.prop("ref_offset", &trace_node::ref_offset);
+        tp = tnode.finalize(ctx->global());
+        tp->is_builtin = true;
+
+        trace.prop("node_count", &script_tracer::node_count);
+        trace.prop("node_capacity", &script_tracer::node_capacity);
+        trace.prop("nodes", &script_tracer::nodes);
+        trace.prop("errored", &script_tracer::has_error);
+        trace.method("expand", &script_tracer::expand);
+        tp = trace.finalize(ctx->global());
+        tp->is_builtin = true;
+
+        ectx.prop("trace", &exec_context::trace);
+        tp = ectx.finalize(ctx->global());
+        tp->is_builtin = true;
 
         bind_number_methods(nt0).finalize(ctx->global());
         bind_number_methods(nt1).finalize(ctx->global());

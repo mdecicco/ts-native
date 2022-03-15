@@ -39,9 +39,12 @@ namespace gjs {
             v.method("dot", &vec3<T>::dot);
             v.method("cross", &vec3<T>::cross);
             v.method("normalize", &vec3<T>::normalize);
-            v.prop("normalized", &vec3<T>::normalized);
+            v.prop("x", &vec3<T>::x);
+            v.prop("y", &vec3<T>::y);
+            v.prop("z", &vec3<T>::z);
             v.prop("length", &vec3<T>::mag);
             v.prop("lengthSq", &vec3<T>::magSq);
+            v.prop("normalized", &vec3<T>::normalized);
             v.prop("xx", &vec3<T>::xx);
             v.prop("xy", &vec3<T>::xy);
             v.prop("xz", &vec3<T>::xz);
@@ -51,9 +54,6 @@ namespace gjs {
             v.prop("zx", &vec3<T>::zx);
             v.prop("zy", &vec3<T>::zy);
             v.prop("zz", &vec3<T>::zz);
-            v.prop("x", &vec3<T>::x);
-            v.prop("y", &vec3<T>::y);
-            v.prop("z", &vec3<T>::z);
             script_type* tp = v.finalize(mod);
             tp->owner = mod;
             tp->is_builtin = true;
@@ -71,6 +71,7 @@ namespace gjs {
             v.template constructor<T>();
             v.template constructor<T, T, T, T, T, T, T, T, T>();
             v.template constructor<const vec3<T>&, const vec3<T>&, const vec3<T>&>();
+            v.template constructor<const mat3<T>&>();
             v.method("operator +", CONST_METHOD_PTR(mat3<T>, operator +, mat3<T>, const mat3<T>&));
             v.method("operator +=", METHOD_PTR(mat3<T>, operator +=, mat3<T>, const mat3<T>&));
             v.method("operator -", CONST_METHOD_PTR(mat3<T>, operator -, mat3<T>, const mat3<T>&));

@@ -79,6 +79,7 @@ namespace gjs {
                     y({ yx, yy })
                 { }
                 mat2(const vec2<T>& _x, const vec2<T>& _y) : x(_x), y(_y) { }
+                mat2(const mat2<T>& o) : x(o.x), y(o.y) { }
 
                 mat2<T> operator + (const mat2<T>& rhs) const { return mat2<T>(x + rhs.x, y + rhs.y); }
                 mat2<T> operator += (const mat2<T>& rhs) { return mat2<T>(x += rhs.x, y += rhs.y); }

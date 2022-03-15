@@ -1,6 +1,7 @@
 #pragma once
 #include <gjs/common/types.h>
 #include <gjs/common/source_ref.h>
+#include <gjs/common/script_object.h>
 #include <gjs/builtin/script_buffer.h>
 #include <gjs/util/robin_hood.h>
 
@@ -13,8 +14,8 @@ namespace gjs {
     class script_type;
     class script_buffer;
     class script_enum;
-    class script_object;
     class type_manager;
+    class source_map;
 
     class script_module {
         public:
@@ -26,9 +27,8 @@ namespace gjs {
                 script_module* owner;
                 bool is_exported;
             };
-            ~script_module();
 
-            void init();
+            script_object init();
 
             // todo: tidy this mess up
 
@@ -69,24 +69,28 @@ namespace gjs {
             void* local_ptr(const std::string& name) const;
             script_object local(const std::string& name) const;
 
+            u64 add_trace(const source_ref& ref);
+
             inline std::string name() const { return m_name; }
-            inline u32 id() const { return m_id; }
+            inline module_id id() const { return m_id; }
             inline const std::vector<local_var>& locals() const { return m_locals; }
             inline const std::vector<script_function*>& functions() const { return m_functions; }
             inline const std::vector<script_enum*>& enums() const { return m_enums; }
             inline type_manager* types() const { return m_types; }
             inline script_buffer* data() { return m_data; }
             inline script_context* context() const { return m_ctx; }
+            inline source_map* trace_map() const { return m_traceMap; }
 
         protected:
             friend class pipeline;
             friend class script_context;
             friend class script_function;
             script_module(script_context* ctx, const std::string& name, const std::string& path);
+            ~script_module();
             void add(script_function* func);
 
             std::string m_name;
-            u32 m_id;
+            module_id m_id;
             script_function* m_init;
             std::vector<local_var> m_locals;
             std::vector<script_enum*> m_enums;
@@ -96,6 +100,7 @@ namespace gjs {
             type_manager* m_types;
             script_context* m_ctx;
             script_buffer* m_data;
+            source_map* m_traceMap;
             bool m_initialized;
     };
 };

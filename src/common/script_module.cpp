@@ -5,7 +5,7 @@
 #include <gjs/common/function_signature.h>
 #include <gjs/common/script_context.h>
 #include <gjs/common/script_enum.h>
-#include <gjs/common/script_object.h>
+#include <gjs/common/source_map.h>
 
 #include <gjs/builtin/script_buffer.h>
 #include <gjs/util/util.h>
@@ -19,6 +19,7 @@ namespace gjs {
         m_id = hash(path);
         m_data = new script_buffer();
         m_initialized = false;
+        m_traceMap = new source_map();
     }
 
     script_module::~script_module() {
@@ -33,13 +34,13 @@ namespace gjs {
 
         if (m_types) delete m_types;
         if (m_data) delete m_data;
-        if (m_init) delete m_init;
+        if (m_traceMap) delete m_traceMap;
     }
 
-    void script_module::init() {
-        if (!m_init || m_initialized) return;
+    script_object script_module::init() {
+        if (!m_init || m_initialized) return script_object(m_ctx);
         m_initialized = true;
-        call(m_init);
+        return call(m_init);
     }
 
     script_object script_module::define_local(const std::string& name, script_type* type, bool is_exported) {
@@ -99,6 +100,12 @@ namespace gjs {
         auto it = m_local_map.find(name);
         if (it == m_local_map.end()) return nullptr;
         return m_data->data(m_locals[it->getSecond()].offset);
+    }
+
+    u64 script_module::add_trace(const source_ref& ref) {
+        u64 idx = m_traceMap->map.size();
+        m_traceMap->append(ref);
+        return idx;
     }
 
     bool script_module::has_function(const std::string& name, bool include_private) {

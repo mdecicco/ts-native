@@ -1,7 +1,6 @@
 #pragma once
 #include <gjs/common/types.h>
 #include <gjs/common/errors.h>
-#include <gjs/common/script_module.h>
 #include <gjs/util/robin_hood.h>
 #include <gjs/util/template_utils.h>
 
@@ -13,6 +12,7 @@ namespace gjs {
         struct wrapped_class;
     };
 
+    class script_context;
     class script_module;
     class function_signature;
 
@@ -68,6 +68,7 @@ namespace gjs {
 
         protected:
             friend class type_manager;
+            friend class script_context;
             ffi::wrapped_class* m_wrapped;
             u32 m_id;
 

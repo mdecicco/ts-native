@@ -1,6 +1,7 @@
 #include <gjs/util/template_utils.h>
 #include <gjs/common/script_function.h>
 #include <gjs/common/function_signature.h>
+#include <gjs/common/exec_context.h>
 
 namespace gjs {
     template <typename... Args>
@@ -45,13 +46,15 @@ namespace gjs {
                 return script_object(func->ctx());
             }
 
-            std::vector<void*> vargs = { to_arg(args)... };
-            if (self) vargs.insert(vargs.begin(), self);
+            exec_context *ectx = new exec_context();
+            std::vector<void*> vargs = { (void*)ectx, to_arg(args)... };
+            if (self) vargs.insert(vargs.begin() + 1, self);
 
             script_object out = script_object(func->ctx(), (script_module*)nullptr, func->type->signature->return_type, nullptr);
             if (func->type->signature->return_type->size > 0) {
                 out.set_self(new u8[func->type->signature->return_type->size]); 
             }
+
             func->ctx()->generator()->call(func, out.self(), vargs.data());
 
             static constexpr bool arg_is_wrapped_cb[] = { is_callback_v<Args>... };
@@ -72,6 +75,14 @@ namespace gjs {
                 }
             }
 
+            if (ectx->trace.has_error) {
+                script_string err = ectx->trace.error;
+                delete ectx;
+                throw error::runtime_exception(error::ecode::r_any_error, err.c_str());
+            }
+
+            delete ectx;
+
             return out;
         } else {
             if (func->type->signature->explicit_argc != 0) valid_call = false;
@@ -81,11 +92,24 @@ namespace gjs {
                 return script_object(func->ctx());
             }
 
+            exec_context *ectx = new exec_context();
+            std::vector<void*> vargs = { (void*)ectx };
+            if (self) vargs.insert(vargs.begin() + 1, self);
+
             script_object out = script_object(func->ctx(), (script_module*)nullptr, func->type->signature->return_type, nullptr);
             if (func->type->signature->return_type->size > 0) {
                 out.set_self(new u8[func->type->signature->return_type->size]); 
             }
-            func->ctx()->generator()->call(func, out.self(), &self);
+
+            func->ctx()->generator()->call(func, out.self(), vargs.data());
+
+            if (ectx->trace.has_error) {
+                script_string err = ectx->trace.error;
+                delete ectx;
+                throw error::runtime_exception(error::ecode::r_any_error, err.c_str());
+            }
+
+            delete ectx;
             
             return out;
         }
@@ -135,8 +159,9 @@ namespace gjs {
                 return script_object(func->ctx());
             }
 
-            std::vector<void*> vargs = { to_arg(moduletype_id), to_arg(args)... };
-            if (self) vargs.insert(vargs.begin(), self);
+            exec_context *ectx = new exec_context();
+            std::vector<void*> vargs = { (void*)ectx, to_arg(moduletype_id), to_arg(args)... };
+            if (self) vargs.insert(vargs.begin() + 1, self);
 
             script_object out = script_object(func->ctx(), (script_module*)nullptr, func->type->signature->return_type, nullptr);
             if (func->type->signature->return_type->size > 0) {
@@ -162,6 +187,12 @@ namespace gjs {
                 }
             }
 
+            if (ectx->trace.has_error) {
+                script_string err = ectx->trace.error;
+                delete ectx;
+                throw error::runtime_exception(error::ecode::r_any_error, err.c_str());
+            }
+
             return out;
         } else {
             if (func->type->signature->explicit_argc != 0) valid_call = false;
@@ -176,10 +207,17 @@ namespace gjs {
                 out.set_self(new u8[func->type->signature->return_type->size]); 
             }
 
-            std::vector<void*> vargs = { to_arg(moduletype_id), to_arg(args)... };
-            if (self) vargs.insert(vargs.begin(), self);
+            exec_context *ectx = new exec_context();
+            std::vector<void*> vargs = { (void*)ectx, to_arg(moduletype_id), to_arg(args)... };
+            if (self) vargs.insert(vargs.begin() + 1, self);
 
             func->ctx()->generator()->call(func, out.self(), vargs.data());
+
+            if (ectx->trace.has_error) {
+                script_string err = ectx->trace.error;
+                delete ectx;
+                throw error::runtime_exception(error::ecode::r_any_error, err.c_str());
+            }
             
             return out;
         }
@@ -220,8 +258,9 @@ namespace gjs {
                 return script_object(func->ctx());
             }
 
-            std::vector<void*> vargs = { cb->ptr->data, to_arg(args)... };
-            if (cb->ptr->self_obj()) vargs.insert(vargs.begin(), cb->ptr->self_obj());
+            exec_context *ectx = new exec_context();
+            std::vector<void*> vargs = { (void*)ectx, cb->ptr->data, to_arg(args)... };
+            if (cb->ptr->self_obj()) vargs.insert(vargs.begin() + 2, cb->ptr->self_obj());
 
             script_object out = script_object(func->ctx(), (script_module*)nullptr, func->type->signature->return_type, nullptr);
             if (func->type->signature->return_type->size > 0) {
@@ -246,7 +285,13 @@ namespace gjs {
                     raw_callback::destroy((raw_callback**)vargs[a]);
                 }
             }
-                
+
+            if (ectx->trace.has_error) {
+                script_string err = ectx->trace.error;
+                delete ectx;
+                throw error::runtime_exception(error::ecode::r_any_error, err.c_str());
+            }
+
             return out;
         } else {
             if (func->type->signature->explicit_argc != 0) valid_call = false;
@@ -256,11 +301,22 @@ namespace gjs {
                 return script_object(func->ctx());
             }
 
+            exec_context *ectx = new exec_context();
+            std::vector<void*> vargs = { (void*)ectx, cb->ptr->data };
+            if (cb->ptr->self_obj()) vargs.insert(vargs.begin() + 2, cb->ptr->self_obj());
+
             script_object out = script_object(func->ctx(), (script_module*)nullptr, func->type->signature->return_type, nullptr);
             if (func->type->signature->return_type->size > 0) {
                 out.set_self(new u8[func->type->signature->return_type->size]); 
             }
-            func->ctx()->generator()->call(func, out.self(), &cb->ptr->data);
+
+            func->ctx()->generator()->call(func, out.self(), vargs.data());
+
+            if (ectx->trace.has_error) {
+                script_string err = ectx->trace.error;
+                delete ectx;
+                throw error::runtime_exception(error::ecode::r_any_error, err.c_str());
+            }
             
             return out;
         }

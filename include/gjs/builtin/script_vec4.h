@@ -160,6 +160,7 @@ namespace gjs {
                     w = c1 * c2 * c3 + s1 * s2 * s3;
                 }
                 quat(T _x, T _y, T _z, T _w) : x(_x), y(_y), z(_z), w(_w) { }
+                quat(const quat<T>& o) : x(o.x), y(o.y), z(o.z), w(o.w) { }
 
                 quat<T> operator * (const quat<T>& rhs) const {
                     return {
@@ -229,6 +230,7 @@ namespace gjs {
                     w({ T(0), T(0), T(0), T(1) })
                 { }
                 mat4(const vec4<T>& _x, const vec4<T>& _y, const vec4<T>& _z, const vec4<T>& _w) : x(_x), y(_y), z(_z), w(_w) { }
+                mat4(const mat4<T>& o) : x(o.x), y(o.y), z(o.z), w(o.w) { }
 
                 mat4<T> operator + (const mat4<T>& rhs) const { return mat4<T>(x + rhs.x, y + rhs.y, z + rhs.z, w + rhs.w); }
                 mat4<T> operator += (const mat4<T>& rhs) { return mat4<T>(x += rhs.x, y += rhs.y, z += rhs.z, w += rhs.w); }

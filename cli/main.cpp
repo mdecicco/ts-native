@@ -1,7 +1,10 @@
 #include <gjs/gjs.h>
 #include <gjs/gjs.hpp>
 
+#include <gjs/builtin/script_array.h>
+
 #include <stdio.h>
+#include <iostream>
 
 using namespace gjs;
 
@@ -20,18 +23,14 @@ void print_help() {
     printf("\tNo arguments specified before <file> will be provided to the scripts through the global process variable\n");
 }
 
-int print (const script_string& s) {
-    return printf("%s\n", s.c_str());
-}
-
 void bind_ctx(script_context* ctx) {
-    //ctx->bind(print, "print");
 }
 
 vm_allocator* g_allocator = nullptr;
 bool log_ir = false;
 bool log_asm = false;
 bool dont_run = false;
+bool repl_mode = false;
 
 bool do_print_help(std::vector<std::string>& args) {
     for (u32 i = 0;i < args.size();i++) {
@@ -128,7 +127,6 @@ bool do_not_run(std::vector<std::string>& args) {
     return false;
 }
 
-
 backend* create_backend(std::vector<std::string>& args) {
     for (u32 i = 0;i < args.size();i++) {
         if (args[i][0] != '-') break;
@@ -166,39 +164,155 @@ script_context* create_ctx(std::vector<std::string>& args) {
     log_asm = do_log_asm(args);
     dont_run = do_not_run(args);
 
+    backend->log_asm(log_asm);
+
     if (do_print_help(args)) {
         print_help();
         return nullptr;
     }
 
+    repl_mode = args.size() == 0;
+    /*
     if (args.size() == 0) {
         printf("No script specified. Usage: gjs [options] <file> [file arguments]. Use -h for more info.\n");
         if (backend) delete backend;
         if (g_allocator) delete g_allocator;
         return nullptr;
     }
-
-    if (args[0][0] == '-') {
-        printf("Unrecognized argument: '%s'\n", args[0].c_str());
-        return nullptr;
-    }
+    */
 
     // all args used to configure the context must be consumed
     // before this point or they will be passed to the script
     // itself
-    std::vector<const char*> argp;
-    for (u32 i = 1;i < args.size();i++) argp.push_back(args[i].c_str());
+    if (repl_mode) {
+        if (args.size() > 0) {
+            printf("Unrecognized argument: '%s'\n", args[0].c_str());
+            return nullptr;
+        }
 
-    script_context* ctx = new script_context(argp.size(), argp.data(), backend);
-    if (log_ir) ctx->compiler()->add_ir_step(debug_ir_step);
+        // no args passed to repl
+        script_context* ctx = new script_context(0, nullptr, backend);
+        if (log_ir) ctx->compiler()->add_ir_step(debug_ir_step);
 
-    return ctx;
+        return ctx;
+    } else {
+
+        if (args[0][0] == '-') {
+            printf("Unrecognized argument: '%s'\n", args[0].c_str());
+            return nullptr;
+        }
+
+        std::vector<const char*> argp;
+        for (u32 i = 1;i < args.size();i++) argp.push_back(args[i].c_str());
+
+        script_context* ctx = new script_context(argp.size(), argp.data(), backend);
+        if (log_ir) ctx->compiler()->add_ir_step(debug_ir_step);
+
+        return ctx;
+    }
+    return nullptr;
 }
 
 script_context* parse_args(std::vector<std::string>& args) {
     script_context* ctx = create_ctx(args);
 
     return ctx;
+}
+
+std::string to_string(script_object& o, u8 indent = 0, script_type* parent_tp = nullptr) {
+    if (o.is_null()) {
+        return "null";
+    }
+
+    script_type* tp = o.type();
+    if (tp->is_primitive) {
+        if (tp->is_floating_point) {
+            switch (tp->size) {
+                case sizeof(f32): { return format("%f", *(f32*)o.self()); break; }
+                case sizeof(f64): { return format("%f", *(f64*)o.self()); break; }
+            }
+        } else {
+            if (tp->name == "bool") {
+                return format((*(bool*)o.self()) ? "true" : "false");
+            } else if (tp->is_unsigned) {
+                switch (tp->size) {
+                    case 1: { return format("%u", *(u8*)o.self()); break; }
+                    case 2: { return format("%u", *(u16*)o.self()); break; }
+                    case 4: { return format("%lu", *(u32*)o.self()); break; }
+                    case 8: { return format("%llu", *(u64*)o.self()); break; }
+                }
+            } else {
+                switch (tp->size) {
+                    case 1: { return format("%d", *(u8*)o.self()); break; }
+                    case 2: { return format("%d", *(u16*)o.self()); break; }
+                    case 4: { return format("%ld", *(u32*)o.self()); break; }
+                    case 8: { return format("%lld", *(u64*)o.self()); break; }
+                }
+            }
+        }
+    } else if (tp->name == "string") {
+        return format("'%s'", ((script_string*)o.self())->c_str());
+    } else if (tp->base_type && tp->base_type->name == "array") {
+        std::string out = "[";
+
+        script_array* arr = (script_array*)o.self();
+        std::vector<std::string> eles;
+        u32 len = 1;
+
+        for (u32 i = 0;i < arr->length();i++) {
+            std::string ele = to_string(script_object(tp->sub_type, (u8*)(*arr)[i]));
+            len += ele.length();
+            if (i < arr->length() - 1) len += 2; // ', '
+            eles.push_back(ele);
+        }
+
+        if (len > 120) {
+            for (u32 i = 0;i < eles.size();i++) {
+                out += "\n";
+                for (u8 i = 0;i < indent + 1;i++) out += "    ";
+                out += eles[i];
+                if (i < eles.size() - 1) out += ",";
+            }
+            out += "\n";
+            for (u8 i = 0;i < indent;i++) out += "    ";
+        } else {
+            for (u32 i = 0;i < eles.size();i++) {
+                out += eles[i];
+                if (i < eles.size() - 1) out += ", ";
+            }
+        }
+
+        out += "]";
+        return out;
+    } else if (tp->signature) {
+        raw_callback* cb = *(raw_callback**)o.self();
+
+        if (cb->ptr) {
+            return format("<Function '%s'>", tp->signature->to_string(cb->ptr->target->name, cb->ptr->target->is_method_of, cb->ptr->target->owner, false).c_str());
+        } else {
+            return format("<Function '%s'>", tp->signature->to_string(false).c_str());
+        }
+    } else {
+        std::string out = "{";
+        indent++;
+        for(u16 i = 0;i < tp->properties.size();i++) {
+            out += "\n";
+            auto& p = tp->properties[i];
+            for (u8 i = 0;i < indent;i++) out += "    ";
+            out += format("%s: ", p.name.c_str());
+
+            if (parent_tp == p.type) out += "<recursion>";
+            else out += to_string(o[p.name], indent, tp);
+            if (i < tp->properties.size() - 1) out += ",";
+        }
+        indent--;
+        if (tp->properties.size() > 0) out += "\n";
+        else out += " ";
+
+        for (u8 i = 0;i < indent;i++) printf("    ");
+        out += "}";
+        return out;
+    }
 }
 
 int main(i32 argc, const char** argp) {
@@ -216,15 +330,43 @@ int main(i32 argc, const char** argp) {
         bind_ctx(ctx);
         ctx->generator()->commit_bindings();
 
-        script_module* mod = ctx->resolve(args[0]);
-        if (!mod) {
-            print_log(ctx);
-            return -1;
+        if (repl_mode) {
+            // import 'math'; for (f32 i = 0.0f;i < 300.0f;i += 0.2f) { string a; for (i32 j = 0;j < (math.sin(i) * 5) + 5;j++) a += j.toFixed(0) + ' '; print(a); }
+            u32 i = 0;
+            while (true) {
+                std::cout << "> ";
+                std::string in;
+                std::getline(std::cin, in);
+
+                if (in == "$q") {
+                    printf("Exit...");
+                    break;
+                }
+                
+                script_module* mod = ctx->add_code(format("repl_%d", i), "./repl", in);
+                if (!mod) {
+                    print_log(ctx);
+                    continue;
+                }
+
+                if (!dont_run) {
+                    printf(to_string(mod->init()).c_str());
+                    printf("\n");
+                }
+
+                ctx->destroy_module(mod);
+            }
+        } else {
+            script_module* mod = ctx->resolve(args[0]);
+            if (!mod) {
+                print_log(ctx);
+                return -1;
+            }
+
+            if (log_asm && g_allocator) print_code((vm_backend*)ctx->generator());
+
+            if (!dont_run) mod->init();
         }
-
-        if (log_asm && g_allocator) print_code((vm_backend*)ctx->generator());
-
-        if (!dont_run) mod->init();
 
         backend* be = ctx->generator();
         delete ctx;

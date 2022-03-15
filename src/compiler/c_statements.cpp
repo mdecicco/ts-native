@@ -85,17 +85,43 @@ namespace gjs {
                 add_implicit_destructor_code(ctx, n, f->is_method_of);
             }
 
-            if (!f) {
-                f = ctx.out.funcs[0].func;
-                
+            if (f == ctx.out.funcs[0].func) {
                 if (n->body) {
                     if (f->type) {
                         var rv = expression(ctx, n->body).convert(f->type->signature->return_type);
-                        ctx.add(operation::ret).operand(rv);
+
+                        if (f->type->signature->returns_on_stack) {
+                            var& ret_ptr = ctx.get_var("@ret");
+                            if (rv.type()->is_primitive) {
+                                ctx.add(operation::store).operand(ret_ptr).operand(rv);
+                                ctx.add(operation::ret);
+                            } else {
+                                construct_in_place(ctx, ret_ptr, { rv });
+                                ctx.add(operation::ret);
+                            }
+                        } else ctx.add(operation::ret).operand(rv);
                     } else {
                         var rv = expression(ctx, n->body);
-                        ctx.add(operation::ret).operand(rv);
+
                         f->type = ctx.env->types()->get(function_signature(ctx.env, rv.type(), false, nullptr, 0, nullptr));
+                        if (f->type->signature->returns_on_stack) {
+                            for (u8 c = 0;c < f->type->signature->args.size();c++) {
+                                if (f->type->signature->args[c].implicit == function_signature::argument::implicit_type::ret_addr) {
+                                    var& ret_ptr = ctx.empty_var(rv.type(), "@ret");
+                                    ret_ptr.set_arg_idx(c);
+
+                                    if (rv.type()->is_primitive) {
+                                        ctx.add(operation::store).operand(ret_ptr).operand(rv);
+                                        ctx.add(operation::ret);
+                                    } else {
+                                        construct_in_place(ctx, ret_ptr, { rv });
+                                        ctx.add(operation::ret);
+                                    }
+                                    break;
+                                }
+                            }
+
+                        } else ctx.add(operation::ret).operand(rv);
                     }
                 } else if (!f->type) {
                     ctx.add(operation::ret);

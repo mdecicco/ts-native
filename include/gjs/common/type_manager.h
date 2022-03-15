@@ -76,6 +76,8 @@ namespace gjs {
 
             script_type* add(const std::string& name, const std::string& internal_name);
 
+            void remove(script_type* tp);
+
             script_type* finalize_class(ffi::wrapped_class* wrapped, script_module* mod);
 
             std::vector<script_type*> all();

@@ -57,6 +57,8 @@ namespace gjs {
 
                 u64 size() const;
                 bool has_prop(const std::string& name) const;
+                bool has_parent() const;
+                u32 parent_reg_id() const;
                 var prop(const std::string& name, bool log_errors = true) const;
                 var prop_ptr(const std::string& name, bool log_errors = true) const;
                 bool has_any_method(const std::string& name) const;
@@ -70,6 +72,7 @@ namespace gjs {
                 void adopt_stack_flag(var& from);
                 void set_register(u32 reg_id);
                 void set_stack_loc(u32 stack_loc);
+                void set_parent_reg_id(u32 reg_id);
 
                 // type used for first argument when calling methods
                 script_type* call_this_tp() const;
@@ -138,6 +141,7 @@ namespace gjs {
 
                 bool m_is_imm;
                 u32 m_reg_id;
+                u32 m_parent_reg_id;
                 
                 // Used in the register allocation phase when no registers are available
                 u64 m_stack_loc;

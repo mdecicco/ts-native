@@ -67,6 +67,7 @@ namespace gjs {
             "External imports can only appear in the global scope",
             "'export' statement can only appear in the global scope",
             "Expected class, format, function, or global variable declaration",
+            "Empty array expressions are not allowed",
             "", // end parse errors
 
             "", // compile errors
@@ -75,8 +76,10 @@ namespace gjs {
             "Type '%s' has no property '%s'",
             "Type '%s' has no method '%s' that matches the argument list '%s' and return type '%s'",
             "No function '%s' matching argument list '%s' and return type '%s' was found",
-            "Reference to method '%s' of type '%s' is ambiguous with the argument list '%s' and return type '%s'",
-            "Reference to function '%s' is ambiguous with the argument list '%s' and return type '%s'",
+            "Reference to method '%s' of type '%s' with the argument list '%s' and return type '%s' is ambiguous",
+            "Reference to method '%s' of type '%s' with no argument list or return type specified is ambiguous",
+            "Reference to function '%s' with the argument list '%s' and return type '%s' is ambiguous",
+            "Reference to function '%s' with no argument list or return type specified is ambiguous",
             "Function '%s %s %s' was already declared",
             "Function '%s %s %s' already has a body",
             "Not all paths of function '%s' return a value",
@@ -113,6 +116,7 @@ namespace gjs {
             "Object of type '%s' is not callable",
             "Call does not match expected signature '%s'",
             "No definition found for function '%s'",
+            "Array expression elements must be of uniform type, or implicitly convertible to the first element's type",
             "", // end compile errors
 
             "", // start runtime errors
@@ -141,6 +145,7 @@ namespace gjs {
             "Invalid signature type id provided to external module function loader (%s)",
             "Function '%s' not found in external module (%s)",
             "Failed to link function '%s' to external module",
+            "%s",
             "", // end runtime errors
 
             "", // vm errors

@@ -73,6 +73,8 @@ namespace gjs {
             // get a named variable (or imported global variable)
             var& get_var(const std::string& name);
 
+            var& func_var(script_function* func);
+
             // promote an unnamed variable to a named variable
             void promote_var(var& v, const std::string& name);
 
@@ -96,7 +98,12 @@ namespace gjs {
             script_function* find_func(const std::string& from_aliased_import, const std::string& name, script_type* ret, const std::vector<script_type*>& args);
 
             // get a declared, imported, or implicit (global) data type by name
+            // All uses should be hard-coded for types which do in fact exist
+            // and are in fact subtype classes.
             script_type* type(const std::string& name, bool do_throw = true);
+
+            // get global subtype type with substitution
+            script_type* type(const std::string& name, script_type* subtype);
 
             // get a declared, imported, or implicit (global) data type by type
             // identifier AST node. This function is also used for getting subtype

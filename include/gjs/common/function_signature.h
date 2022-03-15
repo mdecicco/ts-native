@@ -24,6 +24,7 @@ namespace gjs {
                     capture_data_ptr,
                     this_ptr,
                     moduletype_id,
+                    exec_ctx,
                     ret_addr
                 };
 
@@ -41,8 +42,8 @@ namespace gjs {
 
             const argument& explicit_arg(u8 idx) const;
 
-            std::string to_string() const;
-            std::string to_string(const std::string& funcName, script_type* method_of = nullptr, script_module* mod = nullptr) const;
+            std::string to_string(bool exclude_implicit = false) const;
+            std::string to_string(const std::string& funcName, script_type* method_of = nullptr, script_module* mod = nullptr, bool exclude_implicit = false) const;
 
             script_type* method_of;
             script_type* return_type;

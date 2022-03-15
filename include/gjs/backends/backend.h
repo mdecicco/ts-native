@@ -5,9 +5,11 @@ namespace gjs {
     class backend {
         public:
             backend();
-            virtual ~backend() { }
+            virtual ~backend();
 
-            inline script_context* context() { return m_ctx; }
+            script_context* context();
+
+            void log_asm(bool do_log);
 
             /*
             * Takes the final IR code and generates instructions for some target
@@ -23,7 +25,7 @@ namespace gjs {
             virtual u16 fp_count() const = 0;
 
             // whether or not to perform the register allocation step
-            virtual bool perform_register_allocation() const = 0;
+            virtual bool needs_register_allocation() const = 0;
 
             // called by script_context after it has been constructed
             virtual void init();
@@ -53,5 +55,7 @@ namespace gjs {
         protected:
             friend class script_context;
             script_context* m_ctx;
+
+            bool m_log_asm;
     };
 };

@@ -53,6 +53,7 @@ namespace gjs {
 
         var eval_member_op(context& ctx, ast* n) {
             // [type].[static var]
+            // [type].[method] (not a call)
             // [module].[type].[static var]
             // [module].[global var]
             // [module].[enum].[name]
@@ -69,6 +70,11 @@ namespace gjs {
                 var dummy = ctx.dummy_var(tp);
                 var ret = dummy.prop(pname);
                 ctx.pop_node();
+
+                if (ret.valid() && ret.type()->signature) {
+                    // [type].[method] (not a call)
+                    return ret;
+                }
 
                 // Checks if it has the property after because var::prop
                 // will log an error about the property not existing, which
@@ -456,6 +462,42 @@ namespace gjs {
                 }
                 case nt::lambda_expression: {
                     return lambda_expression(ctx, n);
+                }
+                case nt::array_expression: {
+                    // todo: optimize
+                    // - reserve the space in the array and copy-construct in place
+
+                    script_type* arrTp = nullptr;
+                    ast* ele_n = n->body;
+
+                    var first = expression(ctx, ele_n);
+                    ele_n = ele_n->next;
+
+                    var ret = ctx.empty_var(ctx.type("array", first.type()));
+                    construct_on_stack(ctx, ret, { });
+                    ret.add_to_stack();
+
+                    script_function* push = ret.method("push", ctx.type("void"), { first.type() }, true);
+                    call(ctx, push, { first }, &ret);
+
+                    while (ele_n) {
+                        var ele = expression(ctx, ele_n);
+                        if (ele.type() != first.type()) {
+                            if (ele.convertible_to(first.type())) {
+                                ele = ele.convert(first.type());
+                            } else {
+                                ctx.log()->err(ec::c_array_expression_type_consistency, ele_n->ref);
+                                return ret;
+                            }
+                        }
+
+                        call(ctx, push, { ele }, &ret);
+
+                        ele_n = ele_n->next;
+                    }
+
+                    return ret;
+                    break;
                 }
                 default: {
                 }

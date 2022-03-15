@@ -1,6 +1,7 @@
 #include <gjs/builtin/script_process.h>
 #include <gjs/common/errors.h>
-#include <gjs/parser/parse_utils.h>
+
+#include <cstdlib>
 
 namespace gjs {
     script_process::script_process() {
@@ -59,5 +60,15 @@ namespace gjs {
         }
 
         return m_raw_args[idx];
+    }
+
+    void script_process::exit(i32 code) const {
+        ::exit(code);
+    }
+
+    script_string script_process::env(const script_string& name) const {
+        const char* val = std::getenv(name.c_str());
+        if (val) return val;
+        return "";
     }
 };

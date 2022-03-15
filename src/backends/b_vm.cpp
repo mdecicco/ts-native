@@ -1,5 +1,7 @@
 #include <gjs/backends/b_vm.h>
 #include <gjs/backends/register_allocator.h>
+#include <gjs/common/exec_context.h>
+#include <gjs/common/script_tracer.h>
 #include <gjs/compiler/tac.h>
 #include <gjs/gjs.hpp>
 
@@ -44,6 +46,8 @@ namespace gjs {
             if (!in.funcs[f].func) continue;
             gen_function(in, tmap, f);
         }
+
+        if (m_log_asm) print_code(this);
     }
     
     void vm_backend::gen_function(compilation_output& in, tac_map& tmap, u16 fidx) {
@@ -703,7 +707,15 @@ namespace gjs {
                     // If it's a method of a subtype class, pass the subtype ID through $v3
                     if (sig->method_of && sig->method_of->requires_subtype) {
                         // get subtype from the this obj parameter
-                        script_type* st = params[0].type()->sub_type;
+                        script_type* st = nullptr;
+                        
+                        for (u8 a = 0;a < sig->args.size();a++) {
+                            if (sig->args[a].implicit == function_signature::argument::implicit_type::this_ptr) {
+                                st = params[a].type()->sub_type;
+                                break;
+                            }
+                        }
+
                         u64 moduletype = join_u32(st->owner->id(), st->id());
                         m_instructions += encode(vmi::addui).operand(vmr::v3).operand(vmr::zero).operand(moduletype);
                         m_map.append(i.src);
@@ -1148,7 +1160,7 @@ namespace gjs {
         return 16;
     }
     
-    bool vm_backend::perform_register_allocation() const {
+    bool vm_backend::needs_register_allocation() const {
         return true;
     }
 
