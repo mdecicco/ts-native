@@ -150,7 +150,7 @@ namespace gjs {
 
     template <typename Ret, typename ...Args>
     script_function* function_search(script_module* mod, const std::string& name) {
-        if (!mod->has_function(name)) return nullptr;
+        if (!mod->has_function(name, true)) return nullptr;
         auto funcs = mod->function_overloads(name);
         return function_search<Ret, Args...>(mod->context(), name, funcs);
     }

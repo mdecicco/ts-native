@@ -6,17 +6,17 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 set(
-    include_dirs
+    gjs_include_dirs
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/deps/dyncall/include
     ${CMAKE_CURRENT_SOURCE_DIR}/deps/asmjit/src
 )
 set(
-    library_dirs
+    gjs_library_dirs
     ${CMAKE_CURRENT_SOURCE_DIR}/deps/dyncall/lib
 )
-include_directories(${include_dirs})
-link_directories(${library_dirs})
+include_directories(${gjs_include_dirs})
+link_directories(${gjs_library_dirs})
 
 set (all_sources "")
 macro(add_sources group dir)
@@ -56,12 +56,34 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/lib)
 add_library(gjs ${all_sources})
 
 add_subdirectory("./deps")
-add_subdirectory("./tests")
+
+set(GJS_BUILD_TESTS TRUE CACHE BOOL "Build gjs test targets")
+set(GJS_BUILD_PLAYGROUND TRUE CACHE BOOL "Build gjs playground target")
+set(GJS_BUILD_EXAMPLES TRUE CACHE BOOL "Build gjs example targets")
+set(GJS_BUILD_CLI TRUE CACHE BOOL "Build gjs CLI target")
+
+if (GJS_BUILD_TESTS)
+    add_subdirectory("./tests")
+endif ()
+
+if (GJS_BUILD_PLAYGROUND)
 add_subdirectory("./playground")
+endif ()
+
+if (GJS_BUILD_EXAMPLES)
 add_subdirectory("./examples")
+endif ()
+
+if (GJS_BUILD_CLI)
 add_subdirectory("./cli")
+endif ()
+
 
 target_link_libraries(gjs
     dyncall_s
     asmjit
 )
+
+set_target_properties(dyncall_s PROPERTIES FOLDER dependencies)
+set_target_properties(dynload_s PROPERTIES FOLDER dependencies)
+set_target_properties(dyncallback_s PROPERTIES FOLDER dependencies)
