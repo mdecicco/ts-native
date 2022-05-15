@@ -46,7 +46,7 @@ namespace gs {
 
         template <typename Cls>
         template <typename Ret, typename... Args>
-        PrimitiveTypeBinder<Cls>& PrimitiveTypeBinder<Cls>::method(const utils::String& name, Ret (*method)(Args...), access_modifier access) {
+        PrimitiveTypeBinder<Cls>& PrimitiveTypeBinder<Cls>::staticMethod(const utils::String& name, Ret (*method)(Args...), access_modifier access) {
             Function* f = bind_function(funcRegistry, typeRegistry, m_type->getName() + "::" + name, method, access);
             if (f) addMethod(f);
             return *this;
@@ -246,7 +246,7 @@ namespace gs {
 
         template <typename Cls>
         template <typename Ret, typename... Args>
-        ObjectTypeBinder<Cls>& ObjectTypeBinder<Cls>::method(const utils::String& name, Ret (*method)(Args...), access_modifier access) {
+        ObjectTypeBinder<Cls>& ObjectTypeBinder<Cls>::staticMethod(const utils::String& name, Ret (*method)(Args...), access_modifier access) {
             Function* f = bind_function(funcRegistry, typeRegistry, m_type->getName() + "::" + name, method, access);
             if (f) addMethod(f);
             return *this;

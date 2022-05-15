@@ -1,22 +1,29 @@
 #pragma once
 #include <gs/common/Object.h>
+#include <gs/common/Context.h>
 #include <gs/common/DataType.h>
 #include <gs/bind/bind.h>
 #include <gs/bind/calling.hpp>
 #include <gs/utils/function_match.hpp>
 
 #include <utils/Array.hpp>
+#include <type_traits>
 
 namespace gs {
     template <typename... Args>
-    Object::Object(Context* ctx, ffi::DataType* tp, Args... args) : ITypedObject(tp), IContextual(ctx) {
+    Object::Object(Context* ctx, ffi::DataType* tp, Args&&... args) : ITypedObject(tp), IContextual(ctx) {
         ffi::Function* ctor = nullptr;
 
-        utils::Array<ffi::Function*> ctors = function_match<void, Args...>(
-            ctx->getTypes(),
+        constexpr int argc = std::tuple_size_v<std::tuple<Args...>>;
+        ffi::DataType* argTps[argc + 1] = { m_ctx->getTypes()->getType<Args>(std::forward<Args>(args))..., nullptr };
+
+        utils::Array<ffi::Function*> ctors = function_match(
             tp->getName() + "::constructor",
+            nullptr,
+            argTps,
+            argc,
             tp->getMethods(),
-            fm_strict | fm_skip_implicit_args
+            fm_skip_implicit_args | fm_strict
         );
 
         if (ctors.size() == 1) {
@@ -90,13 +97,13 @@ namespace gs {
 
         T* ptr = (T*)((u8*)m_data + p.offset);
         *ptr = value;
-        return Object(m_ctx, p.type, (void*)ptr);
+        return Object(m_ctx, false, p.type, (void*)ptr);
     }
 
     template <typename... Args>
-    Object Object::call(const utils::String& funcName, Args... args) {
+    Object Object::call(const utils::String& funcName, Args&&... args) {
         constexpr int argc = std::tuple_size_v<std::tuple<Args...>>;
-        ffi::DataType* argTps[argc + 1] = { m_ctx->getTypes()->getType<Args>()..., nullptr };
+        ffi::DataType* argTps[argc + 1] = { m_ctx->getTypes()->getType<Args>(std::forward<Args>(args))..., nullptr };
 
         utils::Array<ffi::Function*> matches = function_match(
             m_type->getName() + "::" + funcName,
@@ -123,8 +130,8 @@ namespace gs {
             ));
         }
 
-        if (f->isThisCall()) return ffi::call_method(m_ctx, f, m_data, args...);
-        else return ffi::call(m_ctx, f, args...);
+        if (f->isThisCall()) return ffi::call_method(m_ctx, f, m_data, std::forward<Args>(args)...);
+        else return ffi::call(m_ctx, f, std::forward<Args>(args)...);
     }
 
     template <typename T>

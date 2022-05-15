@@ -6,12 +6,6 @@
 #include <gs/interfaces/IDataTypeHolder.hpp>
 
 namespace gs {
-    template <typename T>
-    struct _remove_all_except_void_ptr { using type = ffi::remove_all<T>::type; };
-
-    template <>
-    struct _remove_all_except_void_ptr<void*> { using type = void*; };
-
     template <typename Ret, typename...Args>
     utils::Array<ffi::Function*> function_match(
         ffi::DataTypeRegistry* types,
@@ -21,7 +15,7 @@ namespace gs {
     ) {
         constexpr int argc = std::tuple_size_v<std::tuple<Args...>>;
 
-        ffi::DataType* retTp = types->getType<_remove_all_except_void_ptr<Ret>::type>();
+        ffi::DataType* retTp = types->getType<Ret>();
         if (!retTp) {
             throw ffi::BindException(utils::String::Format(
                 "function_match: Provided return type '%s' has not been bound",
@@ -29,7 +23,7 @@ namespace gs {
             ));
         }
 
-        ffi::DataType* argTps[] = { types->getType<_remove_all_except_void_ptr<Args>::type>()... };
+        ffi::DataType* argTps[] = { types->getType<Args>()... };
         for (u8 a = 0;a < argc;a++) {
             if (!argTps[a]) {
                 throw ffi::BindException(utils::String::Format(

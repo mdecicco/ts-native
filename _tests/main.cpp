@@ -1,6 +1,23 @@
-#define CATCH_CONFIG_MAIN
+#define CATCH_CONFIG_RUNNER
 #include "catch.hpp"
+#include <utils/String.h>
+#include <utils/Allocator.hpp>
 
-int main() {
-    return 0;
+int main(int argc, const char *argv[]) {
+    utils::String::Allocator::Create(16384, 1024);
+    utils::Mem::Create();
+
+    const char* _argv[] = {
+        argv[0],
+        "-s"
+    };
+
+    int result = Catch::Session().run(argc, argv);
+
+    utils::Mem::Destroy();
+    utils::String::Allocator::Destroy();
+    return result;
 }
+
+
+#include "ffi/host2host.hpp"

@@ -1,4 +1,4 @@
-#include <gs/common/Object.h>
+#include <gs/common/Object.hpp>
 #include <gs/common/DataType.h>
 #include <gs/bind/calling.hpp>
 
@@ -17,9 +17,12 @@ namespace gs {
         }
     }
 
-    Object::Object(Context* ctx, ffi::DataType* tp, void* ptr) : ITypedObject(tp), IContextual(ctx) {
+    Object::Object(Context* ctx, bool takeOwnership, ffi::DataType* tp, void* ptr) : ITypedObject(tp), IContextual(ctx) {
         m_data = ptr;
-        m_dataRefCount = nullptr;
+
+        if (takeOwnership) {
+            m_dataRefCount = new u32(1);
+        } else m_dataRefCount = nullptr;
     }
 
     Object::Object(const Object& o) : ITypedObject(o.getType()), IContextual(o.getContext()) {
@@ -76,7 +79,7 @@ namespace gs {
             }
         }
 
-        return Object(m_ctx, p.type, (void*)((u8*)m_data + p.offset));
+        return Object(m_ctx, false, p.type, (void*)((u8*)m_data + p.offset));
     }
 
     Object Object::prop(const utils::String& propName) {
@@ -90,7 +93,7 @@ namespace gs {
         }
 
         const auto& p = props[(u32)idx];
-        return Object(m_ctx, p.type, (void*)((u8*)m_data + p.offset));
+        return Object(m_ctx, false, p.type, (void*)((u8*)m_data + p.offset));
     }
 
     void* Object::getPtr() const {

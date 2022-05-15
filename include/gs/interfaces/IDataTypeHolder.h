@@ -18,6 +18,10 @@ namespace gs {
 
             template <typename T>
             ffi::DataType* getType() const;
+            
+            template <typename T>
+            ffi::DataType* getType(T&& arg) const;
+
             ffi::DataType* getType(type_id id) const;
             const utils::Array<ffi::DataType*>& allTypes() const;
             u32 typeCount() const;

@@ -20,13 +20,17 @@ namespace gs {
         public:
             // Constructs an object of the given type with the provided arguments
             template <typename... Args>
-            Object(Context* ctx, ffi::DataType* tp, Args...);
+            Object(Context* ctx, ffi::DataType* tp, Args&&... args);
 
             // Creates an empty object of the given type that is prepared for construction
             Object(Context* ctx, ffi::DataType* tp);
 
-            // Creates a view of an object of the given type at the given address
-            Object(Context* ctx, ffi::DataType* tp, void* ptr);
+            // Creates a view of an object of the given type at the given address, optionally
+            // taking ownership of the memory pointed to by the given address.
+            //
+            // IMPORTANT: If the Object should take ownership of 'ptr', then it _MUST_ be
+            // allocated via utils::Mem::alloc. Ignore this rule at your own peril.
+            Object(Context* ctx, bool takeOwnership, ffi::DataType* tp, void* ptr);
 
             // References the given object
             Object(const Object& o);
@@ -42,7 +46,7 @@ namespace gs {
             Object prop(const utils::String& propName);
 
             template <typename... Args>
-            Object call(const utils::String& funcName, Args... args);
+            Object call(const utils::String& funcName, Args&&... args);
 
             void* getPtr() const;
 

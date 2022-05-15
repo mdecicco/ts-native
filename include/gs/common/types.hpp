@@ -1,5 +1,6 @@
 #pragma once
 #include <gs/common/types.hpp>
+#include <gs/utils/remove_all.h>
 
 #include <type_traits>
 #include <typeinfo>
@@ -34,6 +35,6 @@ namespace gs {
     template <typename T>
     const char* type_name() {
         if constexpr (std::is_same_v<void, T>) return "void";
-        else return std::type_index(typeid(remove_all<T>::type)).name();
+        else return std::type_index(typeid(ffi::remove_all<T>::type)).name();
     }
 };

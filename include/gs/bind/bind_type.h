@@ -47,7 +47,7 @@ namespace gs {
 
                 // static method
                 template <typename Ret, typename... Args>
-                PrimitiveTypeBinder<Cls>& method(const utils::String& name, Ret (*method)(Args...), access_modifier access = public_access);
+                PrimitiveTypeBinder<Cls>& staticMethod(const utils::String& name, Ret (*method)(Args...), access_modifier access = public_access);
 
                 // static member
                 template <typename T>
@@ -88,7 +88,7 @@ namespace gs {
                 ObjectTypeBinder<Cls>& method(const utils::String& name, Ret (Cls::*method)(Args...) const, access_modifier access = public_access);
 
                 template <typename Ret, typename... Args>
-                ObjectTypeBinder<Cls>& method(const utils::String& name, Ret (*method)(Args...), access_modifier access = public_access);
+                ObjectTypeBinder<Cls>& staticMethod(const utils::String& name, Ret (*method)(Args...), access_modifier access = public_access);
 
                 // normal member
                 template <typename T>
