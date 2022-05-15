@@ -41,12 +41,6 @@ include_directories(${utils_include_dirs})
 link_directories(${utils_library_dirs}) 
 add_library(utils ${all_utils_sources}) 
 
-set(UTILS_BUILD_TESTS TRUE CACHE BOOL "Build utils unit test target")
-
-if (UTILS_BUILD_TESTS)
-    add_subdirectory("./tests") 
-endif()
-
 set(UTILS_BUILD_PLAYGROUNDS TRUE CACHE BOOL "Build utils playground targets")
 
 if (UTILS_BUILD_PLAYGROUNDS)
