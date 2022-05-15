@@ -15,6 +15,8 @@ namespace gs {
 
             DataType* type;
             value_flags flags;
+            Function* getter;
+            Function* setter;
         };
 
         struct type_base {

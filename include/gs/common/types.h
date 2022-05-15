@@ -16,6 +16,9 @@ namespace gs {
     typedef u64         type_id;
     typedef u64         function_id;
 
+    typedef u8 function_match_flags;
+    typedef u8 value_flag_mask;
+
     enum access_modifier {
         public_access,
         private_access
@@ -45,12 +48,12 @@ namespace gs {
         size_t host_hash;
     };
 
-    enum value_flag_mask {
-        vf_read    = 0b0001,
-        vf_write   = 0b0010,
-        vf_static  = 0b0100,
-        vf_pointer = 0b1000,
-        vf_rw      = 0b0011
+    enum _value_flag_mask {
+        vf_read    = 0b00000001,
+        vf_write   = 0b00000010,
+        vf_static  = 0b00000100,
+        vf_pointer = 0b00001000,
+        vf_rw      = 0b00000011
     };
 
     struct value_flags {

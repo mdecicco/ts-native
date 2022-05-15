@@ -12,7 +12,7 @@
 namespace gs {
     namespace ffi {
         template <typename Ret, typename... Args>
-        void __cdecl _func_wrapper(Ret (*func)(Args... args), Ret* out, ExecutionContext* ctx, Args... args) {
+        void __cdecl _func_wrapper(Ret (*func)(Args...), Ret* out, ExecutionContext* ctx, Args... args) {
             if constexpr (std::is_same_v<void, Ret>) {
                 func(args...);
             } else {
@@ -21,7 +21,7 @@ namespace gs {
         }
         
         template <typename Cls, typename Ret, typename... Args>
-        void __cdecl _method_wrapper(Ret (Cls::*method)(Args... args), Ret* out, ExecutionContext* ctx, Cls* self, Args... args) {
+        void __cdecl _method_wrapper(Ret (Cls::*method)(Args...), Ret* out, ExecutionContext* ctx, Cls* self, Args... args) {
             if constexpr (std::is_same_v<void, Ret>) {
                 (*self.*method)(args...);
             } else {
@@ -30,7 +30,7 @@ namespace gs {
         }
 
         template <typename Cls, typename Ret, typename... Args>
-        void __cdecl _method_wrapper(Ret (Cls::*method)(Args... args) const, Ret* out, ExecutionContext* ctx, Cls* self, Args... args) {
+        void __cdecl _method_wrapper(Ret (Cls::*method)(Args...) const, Ret* out, ExecutionContext* ctx, Cls* self, Args... args) {
             if constexpr (std::is_same_v<void, Ret>) {
                 (*self.*method)(args...);
             } else {
@@ -125,7 +125,54 @@ namespace gs {
         }
         
         template <typename Cls, typename Ret, typename... Args>
-        Function* bind_method(FunctionRegistry* freg, DataTypeRegistry* treg, const utils::String& name, Ret (Cls::*func)(Args... args), access_modifier access) {
+        Function* bind_pseudo_method(FunctionRegistry* freg, DataTypeRegistry* treg, const utils::String& name, Ret (*func)(Cls*, Args...), access_modifier access) {
+            DataType* selfTp = treg->getType<Cls>();
+            if (!selfTp) {
+                throw BindException(utils::String::Format(
+                    "Primitive type of pseudo-class method '%s::%s' is '%s', which has not been bound",
+                    type_name<Cls>(), name.c_str(), type_name<Cls>()
+                ));
+            }
+
+            DataType* retTp = treg->getType<Ret>();
+            if (!retTp) {
+                throw BindException(utils::String::Format(
+                    "Return type of pseudo-class method '%s::%s' is '%s', which has not been bound",
+                    selfTp->getName().c_str(), name.c_str(), type_name<Ret>()
+                ));
+            }
+
+            DataType* ptrTp = treg->getType<void*>();
+
+            utils::Array<function_argument> args;
+            args.push({ arg_type::func_ptr, ptrTp });
+            args.push({ arg_type::ret_ptr, retTp });
+            args.push({ arg_type::context_ptr, ptrTp });
+            args.push({ arg_type::this_ptr, selfTp });
+            if (!validateAndGetArgs<Args...>(treg, args, name)) {
+                return nullptr;
+            }
+
+            FunctionSignatureType tmp(retTp, args);
+            FunctionSignatureType* sig = (FunctionSignatureType*)treg->getType(tmp.getId());
+            if (!sig) {
+                sig = new FunctionSignatureType(tmp);
+                treg->addFuncType(sig);
+            }
+
+            void (*wrapper)(Ret (*)(Cls*, Args...), Ret*, ExecutionContext*, Cls*, Args...) = &_func_wrapper<Ret, Cls*, Args...>;
+
+            return new Function(
+                name,
+                sig,
+                access,
+                *reinterpret_cast<void**>(&func),
+                *reinterpret_cast<void**>(&wrapper)
+            );
+        }
+        
+        template <typename Cls, typename Ret, typename... Args>
+        Function* bind_method(FunctionRegistry* freg, DataTypeRegistry* treg, const utils::String& name, Ret (Cls::*func)(Args...), access_modifier access) {
             DataType* selfTp = treg->getType<Cls>();
             if (!selfTp) {
                 throw BindException(utils::String::Format(
@@ -149,7 +196,7 @@ namespace gs {
             args.push({ arg_type::ret_ptr, retTp });
             args.push({ arg_type::context_ptr, ptrTp });
             args.push({ arg_type::this_ptr, selfTp });
-            validateAndGetArgs<Args...>(treg, args);
+            validateAndGetArgs<Args...>(treg, args, name);
 
             FunctionSignatureType tmp(retTp, args);
             FunctionSignatureType* sig = (FunctionSignatureType*)treg->getType(tmp.getId());
@@ -170,7 +217,7 @@ namespace gs {
         }
         
         template <typename Cls, typename Ret, typename... Args>
-        Function* bind_method(FunctionRegistry* freg, DataTypeRegistry* treg, const utils::String& name, Ret (Cls::*func)(Args... args) const, access_modifier access) {
+        Function* bind_method(FunctionRegistry* freg, DataTypeRegistry* treg, const utils::String& name, Ret (Cls::*func)(Args...) const, access_modifier access) {
             DataType* selfTp = treg->getType<Cls>();
             if (!selfTp) {
                 throw BindException(utils::String::Format(
@@ -194,7 +241,7 @@ namespace gs {
             args.push({ arg_type::ret_ptr, retTp });
             args.push({ arg_type::context_ptr, ptrTp });
             args.push({ arg_type::this_ptr, selfTp });
-            validateAndGetArgs<Args...>(treg, args);
+            validateAndGetArgs<Args...>(treg, args, name);
 
             FunctionSignatureType tmp(retTp, args);
             FunctionSignatureType* sig = (FunctionSignatureType*)treg->getType(tmp.getId());

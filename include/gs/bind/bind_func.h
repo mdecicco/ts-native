@@ -26,13 +26,16 @@ namespace gs {
 
 
         template <typename Ret, typename... Args>
-        Function* bind_function(FunctionRegistry* freg, DataTypeRegistry* treg, const utils::String& name, Ret (*func)(Args... args), access_modifier access);
+        Function* bind_function(FunctionRegistry* freg, DataTypeRegistry* treg, const utils::String& name, Ret (*func)(Args...), access_modifier access);
         
         template <typename Cls, typename Ret, typename... Args>
-        Function* bind_method(FunctionRegistry* freg, DataTypeRegistry* treg, const utils::String& name, Ret (Cls::*func)(Args... args), access_modifier access);
+        Function* bind_pseudo_method(FunctionRegistry* freg, DataTypeRegistry* treg, const utils::String& name, Ret (*func)(Cls*, Args...), access_modifier access);
         
         template <typename Cls, typename Ret, typename... Args>
-        Function* bind_method(FunctionRegistry* freg, DataTypeRegistry* treg, const utils::String& name, Ret (Cls::*func)(Args... args) const, access_modifier access);
+        Function* bind_method(FunctionRegistry* freg, DataTypeRegistry* treg, const utils::String& name, Ret (Cls::*func)(Args...), access_modifier access);
+        
+        template <typename Cls, typename Ret, typename... Args>
+        Function* bind_method(FunctionRegistry* freg, DataTypeRegistry* treg, const utils::String& name, Ret (Cls::*func)(Args...) const, access_modifier access);
 
         template <typename Cls, typename... Args>
         Function* bind_constructor(FunctionRegistry* freg, DataTypeRegistry* treg, DataType* forType, access_modifier access);

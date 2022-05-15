@@ -1,5 +1,6 @@
 #include <gs/common/Function.h>
 #include <gs/common/DataType.h>
+#include <utils/Array.hpp>
 
 namespace gs {
     namespace ffi {
@@ -34,6 +35,12 @@ namespace gs {
 
         access_modifier Function::getAccessModifier() const {
             return m_access;
+        }
+
+        bool Function::isThisCall() const {
+            return m_signature->getArguments().some([](const function_argument& a) { 
+                return a.argType == arg_type::this_ptr;
+            });
         }
 
         void* Function::getAddress() const {

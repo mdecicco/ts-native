@@ -57,7 +57,7 @@ namespace gs {
         }
         
         bool DataTypeBinder::propNameExists(const utils::String& name) const {
-            return !m_type->m_properties.some([name](const type_property& p) {
+            return m_type->m_properties.some([name](const type_property& p) {
                 return p.name == name;
             });
         }

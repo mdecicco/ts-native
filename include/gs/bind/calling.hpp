@@ -4,10 +4,12 @@
 #include <gs/bind/call_host_to_script.hpp>
 
 namespace gs {
+    class Context;
+
     namespace ffi {
         template <typename ...Args>
-        Object call(Function* f, Args&&... args) {
-            Object ret = Object(f->getSignature()->getReturnType());
+        Object call(Context* ctx, Function* f, Args&&... args) {
+            Object ret = Object(ctx, f->getSignature()->getReturnType());
 
             if (f->getWrapperAddress()) {
                 call_hostToHost(f, ret.getPtr(), args...);
@@ -28,8 +30,8 @@ namespace gs {
         }
         
         template <typename ...Args>
-        Object call_method(Function* f, void* self, Args&&... args) {
-            Object ret = Object(f->getSignature()->getReturnType());
+        Object call_method(Context* ctx, Function* f, void* self, Args&&... args) {
+            Object ret = Object(ctx, f->getSignature()->getReturnType());
 
             if (f->getWrapperAddress()) {
                 call_hostToHost(f, ret.getPtr(), self, args...);

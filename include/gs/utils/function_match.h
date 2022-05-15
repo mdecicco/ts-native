@@ -18,7 +18,6 @@ namespace gs {
     /**
      * @brief Function match search options
      */
-    typedef u8 function_match_flags;
     enum _function_match_flags {
         /**
          * @brief Ignore the implicit arguments of functions being compared to the provided signature
@@ -54,7 +53,7 @@ namespace gs {
      * @param types Context's type registry
      * @param name Function name
      * @param funcs Set of functions to search
-     * @param flags Search options (See 'function_match_flags' documentation for more info)
+     * @param flags Search options (See '_function_match_flags' documentation for more info)
      * 
      * @return Subset of 'funcs' that match the provided signature
      */
@@ -74,7 +73,7 @@ namespace gs {
      * @param argTps Signature argument types
      * @param argCount Signature argument count
      * @param funcs Set of functions to search
-     * @param flags Search options (See 'function_match_flags' documentation for more info)
+     * @param flags Search options (See '_function_match_flags' documentation for more info)
      * @return Subset of 'funcs' that match the provided signature
      */
     utils::Array<ffi::Function*> function_match(

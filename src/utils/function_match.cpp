@@ -32,10 +32,11 @@ namespace gs {
             // arg count check (excluding implicit)
             if (flags & fm_skip_implicit_args) {
                 u8 implicitCount = 0;
-                args.some([&implicitCount](const ffi::function_argument& a, u32 idx) {
+                bool all_implicit = !args.some([&implicitCount](const ffi::function_argument& a, u32 idx) {
                     implicitCount = (u8)idx;
                     return !a.isImplicit();
                 });
+                if (all_implicit) implicitCount++;
 
                 if (argCount != (args.size() - implicitCount)) return false;
             }

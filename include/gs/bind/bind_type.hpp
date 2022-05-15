@@ -15,10 +15,10 @@ namespace gs {
 
         value_flags convertPropertyMask(value_flag_mask mask) {
             return {
-                mask & (u32)vf_read,
-                mask & (u32)vf_write,
-                mask & (u32)vf_static,
-                mask & (u32)vf_pointer
+                (u32)((mask & (u32)vf_read) ? 1 : 0),
+                (u32)((mask & (u32)vf_write) ? 1 : 0),
+                (u32)((mask & (u32)vf_static) ? 1 : 0),
+                (u32)((mask & (u32)vf_pointer) ? 1 : 0)
             };
         }
 
@@ -37,17 +37,138 @@ namespace gs {
         }
 
         template <typename Cls>
+        template <typename Ret, typename... Args>
+        PrimitiveTypeBinder<Cls>& PrimitiveTypeBinder<Cls>::method(const utils::String& name, Ret (*method)(Cls*, Args...), access_modifier access) {
+            Function* f = bind_pseudo_method<Cls, Ret, Args...>(funcRegistry, typeRegistry, m_type->getName() + "::" + name, method, access);
+            if (f) addMethod(f);
+            return *this;
+        }
+
+        template <typename Cls>
+        template <typename Ret, typename... Args>
+        PrimitiveTypeBinder<Cls>& PrimitiveTypeBinder<Cls>::method(const utils::String& name, Ret (*method)(Args...), access_modifier access) {
+            Function* f = bind_function(funcRegistry, typeRegistry, m_type->getName() + "::" + name, method, access);
+            if (f) addMethod(f);
+            return *this;
+        }
+
+        template <typename Cls>
         template <typename T>
-        PrimitiveTypeBinder<Cls>& PrimitiveTypeBinder<Cls>::prop(const utils::String& name, T* member, value_flag_mask flags) {
+        PrimitiveTypeBinder<Cls>& PrimitiveTypeBinder<Cls>::prop(const utils::String& name, T* member, access_modifier access, value_flag_mask flags) {
             if (!checkNewProp<T>(name)) return *this;
+
+            DataType* tp = typeRegistry->getType<T>();
+            if (!tp->getInfo().is_primitive) flags |= vf_pointer;
+            flags |= vf_static;
 
             addProperty({
                 name,
-                // Hard coded because if it's private then just don't bind it...
-                public_access,
+                access,
                 (u64)member,
-                typeRegistry->getType<T>(),
-                convertPropertyMask(flags)
+                tp,
+                convertPropertyMask(flags),
+                nullptr,
+                nullptr
+            });
+
+            return *this;
+        }
+
+        template <typename Cls>
+        template <typename T>
+        PrimitiveTypeBinder<Cls>& PrimitiveTypeBinder<Cls>::prop(const utils::String& name, T (*getter)(), T (*setter)(const T&), access_modifier access) {
+            if (!checkNewProp<T>(name)) return *this;
+
+            value_flag_mask flags = vf_static;
+
+            DataType* tp = typeRegistry->getType<T>();
+            if (getter) flags |= vf_read;
+            if (setter) flags |= vf_write;
+            if (!tp->getInfo().is_primitive) flags |= vf_pointer;
+
+            addProperty({
+                name,
+                access,
+                0,
+                tp,
+                convertPropertyMask(flags),
+                getter ? bind_function(funcRegistry, typeRegistry, m_type->getName() + "::$get_" + name, getter, private_access) : nullptr,
+                setter ? bind_function(funcRegistry, typeRegistry, m_type->getName() + "::$set_" + name, setter, private_access) : nullptr
+            });
+
+            return *this;
+        }
+        
+        template <typename Cls>
+        template <typename T>
+        PrimitiveTypeBinder<Cls>& PrimitiveTypeBinder<Cls>::prop(const utils::String& name, T (*getter)(), T (*setter)(T), access_modifier access) {
+            if (!checkNewProp<T>(name)) return *this;
+
+            value_flag_mask flags = vf_static;
+
+            DataType* tp = typeRegistry->getType<T>();
+            if (getter) flags |= vf_read;
+            if (setter) flags |= vf_write;
+            if (!tp->getInfo().is_primitive) flags |= vf_pointer;
+
+            addProperty({
+                name,
+                access,
+                0,
+                tp,
+                convertPropertyMask(flags),
+                getter ? bind_function(funcRegistry, typeRegistry, m_type->getName() + "::$get_" + name, getter, private_access) : nullptr,
+                setter ? bind_function(funcRegistry, typeRegistry, m_type->getName() + "::$set_" + name, setter, private_access) : nullptr
+            });
+
+            return *this;
+        }
+
+        template <typename Cls>
+        template <typename T>
+        PrimitiveTypeBinder<Cls>& PrimitiveTypeBinder<Cls>::prop(const utils::String& name, T (*getter)(Cls*), T (*setter)(Cls*, const T&), access_modifier access) {
+            if (!checkNewProp<T>(name)) return *this;
+
+            value_flag_mask flags = 0;
+
+            DataType* tp = typeRegistry->getType<T>();
+            if (getter) flags |= vf_read;
+            if (setter) flags |= vf_write;
+            if (!tp->getInfo().is_primitive) flags |= vf_pointer;
+
+            addProperty({
+                name,
+                access,
+                0,
+                tp,
+                convertPropertyMask(flags),
+                getter ? bind_pseudo_function<Cls, T&>(funcRegistry, typeRegistry, m_type->getName() + "::$get_" + name, getter, private_access) : nullptr,
+                setter ? bind_pseudo_function<Cls, T&, const T&>(funcRegistry, typeRegistry, m_type->getName() + "::$set_" + name, setter, private_access) : nullptr
+            });
+
+            return *this;
+        }
+
+        template <typename Cls>
+        template <typename T>
+        PrimitiveTypeBinder<Cls>& PrimitiveTypeBinder<Cls>::prop(const utils::String& name, T (*getter)(Cls*), T (*setter)(Cls*, T), access_modifier access) {
+            if (!checkNewProp<T>(name)) return *this;
+
+            value_flag_mask flags = 0;
+
+            DataType* tp = typeRegistry->getType<T>();
+            if (getter) flags |= vf_read;
+            if (setter) flags |= vf_write;
+            if (!tp->getInfo().is_primitive) flags |= vf_pointer;
+
+            addProperty({
+                name,
+                access,
+                0,
+                tp,
+                convertPropertyMask(flags),
+                getter ? bind_pseudo_function<Cls, T&>(funcRegistry, typeRegistry, m_type->getName() + "::$get_" + name, getter, private_access) : nullptr,
+                setter ? bind_pseudo_function<Cls, T&, T>(funcRegistry, typeRegistry, m_type->getName() + "::$set_" + name, setter, private_access) : nullptr
             });
 
             return *this;
@@ -74,7 +195,7 @@ namespace gs {
                 ));
             }
 
-            return exists;
+            return !exists;
         }
 
 
@@ -110,7 +231,7 @@ namespace gs {
         template <typename Cls>
         template <typename Ret, typename... Args>
         ObjectTypeBinder<Cls>& ObjectTypeBinder<Cls>::method(const utils::String& name, Ret (Cls::*method)(Args...), access_modifier access) {
-            Function* f = bind_method(funcRegistry, typeRegistry, name, method, access);
+            Function* f = bind_method(funcRegistry, typeRegistry, m_type->getName() + "::" + name, method, access);
             if (f) addMethod(f);
             return *this;
         }
@@ -118,7 +239,7 @@ namespace gs {
         template <typename Cls>
         template <typename Ret, typename... Args>
         ObjectTypeBinder<Cls>& ObjectTypeBinder<Cls>::method(const utils::String& name, Ret (Cls::*method)(Args...) const, access_modifier access) {
-            Function* f = bind_method(funcRegistry, typeRegistry, name, method, access);
+            Function* f = bind_method(funcRegistry, typeRegistry, m_type->getName() + "::" + name, method, access);
             if (f) addMethod(f);
             return *this;
         }
@@ -126,24 +247,29 @@ namespace gs {
         template <typename Cls>
         template <typename Ret, typename... Args>
         ObjectTypeBinder<Cls>& ObjectTypeBinder<Cls>::method(const utils::String& name, Ret (*method)(Args...), access_modifier access) {
-            Function* f = bind_function(funcRegistry, typeRegistry, name, method, access);
+            Function* f = bind_function(funcRegistry, typeRegistry, m_type->getName() + "::" + name, method, access);
             if (f) addMethod(f);
             return *this;
         }
 
         template <typename Cls>
         template <typename T>
-        ObjectTypeBinder<Cls>& ObjectTypeBinder<Cls>::prop(const utils::String& name, T Cls::* member, value_flag_mask flags) {
+        ObjectTypeBinder<Cls>& ObjectTypeBinder<Cls>::prop(const utils::String& name, T Cls::* member, access_modifier access, value_flag_mask flags) {
             if (!checkNewProp<T>(name)) return *this;
+
+            DataType* tp = typeRegistry->getType<T>();
+            if (!tp->getInfo().is_primitive) flags |= vf_pointer;
+            flags &= ~vf_static;
 
             u64 offset = (u8*)&((Cls*)nullptr->*member) - (u8*)nullptr;
             addProperty({
                 name,
-                // Hard coded because if it's private then just don't bind it...
-                public_access,
+                access,
                 offset,
-                typeRegistry->getType<T>(),
-                convertPropertyMask(flags)
+                tp,
+                convertPropertyMask(flags),
+                nullptr,
+                nullptr
             });
 
             return *this;
@@ -151,21 +277,126 @@ namespace gs {
 
         template <typename Cls>
         template <typename T>
-        ObjectTypeBinder<Cls>& ObjectTypeBinder<Cls>::prop(const utils::String& name, T* member, value_flag_mask flags) {
+        ObjectTypeBinder<Cls>& ObjectTypeBinder<Cls>::prop(const utils::String& name, T* member, access_modifier access, value_flag_mask flags) {
             if (!checkNewProp<T>(name)) return *this;
+
+            DataType* tp = typeRegistry->getType<T>();
+            if (!tp->getInfo().is_primitive) flags |= vf_pointer;
+            flags |= vf_static;
 
             addProperty({
                 name,
-                // Hard coded because if it's private then just don't bind it...
-                public_access,
+                access,
                 (u64)member,
-                typeRegistry->getType<T>(),
-                convertPropertyMask(flags)
+                tp,
+                convertPropertyMask(flags),
+                nullptr,
+                nullptr
             });
 
             return *this;
         }
 
+        template <typename Cls>
+        template <typename T>
+        ObjectTypeBinder<Cls>& ObjectTypeBinder<Cls>::prop(const utils::String& name, T (*getter)(), T (*setter)(const T&), access_modifier access) {
+            if (!checkNewProp<T>(name)) return *this;
+
+            value_flag_mask flags = vf_static;
+
+            DataType* tp = typeRegistry->getType<T>();
+            if (getter) flags |= vf_read;
+            if (setter) flags |= vf_write;
+            if (!tp->getInfo().is_primitive) flags |= vf_pointer;
+
+            addProperty({
+                name,
+                access,
+                0,
+                tp,
+                convertPropertyMask(flags),
+                getter ? bind_function(funcRegistry, typeRegistry, m_type->getName() + "::$get_" + name, getter, private_access) : nullptr,
+                setter ? bind_function(funcRegistry, typeRegistry, m_type->getName() + "::$set_" + name, setter, private_access) : nullptr
+            });
+
+            return *this;
+        }
+
+        template <typename Cls>
+        template <typename T>
+        ObjectTypeBinder<Cls>& ObjectTypeBinder<Cls>::prop(const utils::String& name, T (*getter)(), T (*setter)(T), access_modifier access) {
+            if (!checkNewProp<T>(name)) return *this;
+
+            value_flag_mask flags = vf_static;
+
+            DataType* tp = typeRegistry->getType<T>();
+            if (getter) flags |= vf_read;
+            if (setter) flags |= vf_write;
+            if (!tp->getInfo().is_primitive) flags |= vf_pointer;
+
+            addProperty({
+                name,
+                access,
+                0,
+                tp,
+                convertPropertyMask(flags),
+                getter ? bind_function(funcRegistry, typeRegistry, m_type->getName() + "::$get_" + name, getter, private_access) : nullptr,
+                setter ? bind_function(funcRegistry, typeRegistry, m_type->getName() + "::$set_" + name, setter, private_access) : nullptr
+            });
+
+            return *this;
+        }
+
+        template <typename Cls>
+        template <typename T>
+        ObjectTypeBinder<Cls>& ObjectTypeBinder<Cls>::prop(const utils::String& name, T (Cls::*getter)(Cls*), T (Cls::*setter)(const T&), access_modifier access) {
+            if (!checkNewProp<T>(name)) return *this;
+
+            value_flag_mask flags = 0;
+
+            DataType* tp = typeRegistry->getType<T>();
+            if (getter) flags |= vf_read;
+            if (setter) flags |= vf_write;
+            if (!tp->getInfo().is_primitive) flags |= vf_pointer;
+
+            addProperty({
+                name,
+                access,
+                0,
+                tp,
+                convertPropertyMask(flags),
+                getter ? bind_method(funcRegistry, typeRegistry, m_type->getName() + "::$get_" + name, getter, private_access) : nullptr,
+                setter ? bind_method(funcRegistry, typeRegistry, m_type->getName() + "::$set_" + name, setter, private_access) : nullptr
+            });
+
+            return *this;
+        }
+
+        template <typename Cls>
+        template <typename T>
+        ObjectTypeBinder<Cls>& ObjectTypeBinder<Cls>::prop(const utils::String& name, T (Cls::*getter)(Cls*), T (Cls::*setter)(T), access_modifier access) {
+            if (!checkNewProp<T>(name)) return *this;
+
+            value_flag_mask flags = 0;
+
+            DataType* tp = typeRegistry->getType<T>();
+            if (getter) flags |= vf_read;
+            if (setter) flags |= vf_write;
+            if (!tp->getInfo().is_primitive) flags |= vf_pointer;
+
+            addProperty({
+                name,
+                access,
+                0,
+                tp,
+                convertPropertyMask(flags),
+                getter ? bind_method(funcRegistry, typeRegistry, m_type->getName() + "::$get_" + name, getter, private_access) : nullptr,
+                setter ? bind_method(funcRegistry, typeRegistry, m_type->getName() + "::$set_" + name, setter, private_access) : nullptr
+            });
+
+            return *this;
+        }
+        
         template <typename Cls>
         template <typename T>
         bool ObjectTypeBinder<Cls>::checkNewProp(const utils::String& name) const {
@@ -187,7 +418,7 @@ namespace gs {
                 ));
             }
 
-            return exists;
+            return !exists;
         }
     };
 };

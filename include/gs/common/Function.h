@@ -16,6 +16,7 @@ namespace gs {
                 const utils::String& getFullyQualifiedNameName() const;
                 FunctionSignatureType* getSignature() const;
                 access_modifier getAccessModifier() const;
+                bool isThisCall() const;
                 
                 // Signature:
                 // If host function:

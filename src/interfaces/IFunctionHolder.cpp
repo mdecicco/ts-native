@@ -1,5 +1,6 @@
 #include <gs/interfaces/IFunctionHolder.h>
 #include <gs/common/Function.h>
+#include <gs/utils/function_match.h>
 #include <utils/Array.hpp>
 
 namespace gs {
@@ -42,5 +43,16 @@ namespace gs {
         if (m_funcIdMap.count(fn->getId()) > 0) return;
         m_funcIdMap[fn->getId()] = m_funcs.size();
         m_funcs.push(fn);
+    }
+
+    utils::Array<ffi::Function*> IFunctionHolder::findFunctions(
+        const utils::String& name,
+        ffi::DataType* retTp,
+        ffi::DataType** argTps,
+        u8 argCount,
+        const utils::Array<ffi::Function*>& funcs,
+        function_match_flags flags
+    ) {
+        return function_match(name, retTp, argTps, argCount, funcs, flags);
     }
 };
