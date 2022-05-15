@@ -1,4 +1,4 @@
 [submodule "_deps/libffi"]
 	path = _deps/libffi
-	url = https://github.com/am11/libffi
+	url = https://github.com/mdecicco/libffi
 	branch = feature/cmake-build-configs
