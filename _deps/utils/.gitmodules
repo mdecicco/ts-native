@@ -1,0 +1,9 @@
+[submodule "deps/gjs"]
+	path = deps/gjs
+	url = https://github.com/mdecicco/gjs.git
+[submodule "deps/sqlite3"]
+	path = deps/sqlite3
+	url = https://github.com/azadkuh/sqlite-amalgamation.git
+[submodule "tests/deps/catch2"]
+	path = tests/deps/catch2
+	url = https://github.com/catchorg/Catch2.git

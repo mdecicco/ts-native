@@ -1,0 +1,10 @@
+{
+    "files.associations": {
+        "xtr1common": "cpp",
+        "typeindex": "cpp",
+        "type_traits": "cpp"
+    },
+    "cmake.configureArgs": [
+        "-Wno-dev"
+    ]
+}
