@@ -24,4 +24,4 @@ include_directories(${gs_tests_include_dirs})
 link_directories(${gs_tests_library_dirs})
 add_executable(gs_tests ${gs_tests_src})
 
-target_link_libraries(gs_tests gs)
+target_link_libraries(gs_tests gs ffi_shared)

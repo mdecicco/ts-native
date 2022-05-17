@@ -12,20 +12,20 @@ namespace gs {
             Object ret = Object(ctx, f->getSignature()->getReturnType());
 
             if (f->getWrapperAddress()) {
-                call_hostToHost(f, ret.getPtr(), args...);
+                call_hostToHost(ctx, f, ret.getPtr(), args...);
             } else {
-                call_hostToScript(f, ret.getPtr(), args...);
+                call_hostToScript(ctx, f, ret.getPtr(), args...);
             }
 
             return ret;
         }
 
         template <typename ...Args>
-        void call(void* ret, Function* f, Args&&... args) {
+        void call(Context* ctx, void* ret, Function* f, Args&&... args) {
             if (f->getWrapperAddress()) {
-                call_hostToHost(f, ret, args...);
+                call_hostToHost(ctx, f, ret, args...);
             } else {
-                call_hostToScript(f, ret, args...);
+                call_hostToScript(ctx, f, ret, args...);
             }
         }
         
@@ -34,20 +34,20 @@ namespace gs {
             Object ret = Object(ctx, f->getSignature()->getReturnType());
 
             if (f->getWrapperAddress()) {
-                call_hostToHost(f, ret.getPtr(), self, args...);
+                call_hostToHost(ctx, f, ret.getPtr(), self, args...);
             } else {
-                call_hostToScript(f, ret.getPtr(), self, args...);
+                call_hostToScript(ctx, f, ret.getPtr(), self, args...);
             }
 
             return ret;
         }
 
         template <typename ...Args>
-        void call_method(void* ret, Function* f, void* self, Args&&... args) {
+        void call_method(Context* ctx, void* ret, Function* f, void* self, Args&&... args) {
             if (f->getWrapperAddress()) {
-                call_hostToHost(f, ret, self, args...);
+                call_hostToHost(ctx, f, ret, self, args...);
             } else {
-                call_hostToScript(f, ret, self, args...);
+                call_hostToScript(ctx, f, ret, self, args...);
             }
         }
     };

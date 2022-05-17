@@ -6,7 +6,7 @@
 namespace gs {
     namespace ffi {
         template <typename ...Args>
-        void call_hostToScript(Function* f, void* result, Args&&... args) {
+        void call_hostToScript(Context* ctx, Function* f, void* result, Args&&... args) {
         }
     };
 };

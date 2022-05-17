@@ -1,6 +1,7 @@
 #pragma once
 #include <gs/bind/bind.h>
 #include <gs/bind/bind_func.h>
+#include <gs/bind/ExecutionContext.h>
 #include <gs/common/DataType.h>
 #include <gs/common/TypeRegistry.h>
 #include <gs/common/Function.h>

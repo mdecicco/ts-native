@@ -7,11 +7,6 @@ int main(int argc, const char *argv[]) {
     utils::String::Allocator::Create(16384, 1024);
     utils::Mem::Create();
 
-    const char* _argv[] = {
-        argv[0],
-        "-s"
-    };
-
     int result = Catch::Session().run(argc, argv);
 
     utils::Mem::Destroy();
@@ -20,4 +15,4 @@ int main(int argc, const char *argv[]) {
 }
 
 
-#include "ffi/host2host.hpp"
+#include "ffi/host2host_args.hpp"

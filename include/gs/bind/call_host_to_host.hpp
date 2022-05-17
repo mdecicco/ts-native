@@ -6,9 +6,10 @@
 namespace gs {
     namespace ffi {
         template <typename ...Args>
-        void call_hostToHost(Function* f, void* result, Args&&... args) {
+        void call_hostToHost(Context* ctx, Function* f, void* result, Args&&... args) {
             constexpr int argc = std::tuple_size_v<std::tuple<Args...>>;
             void* fptr = f->getAddress();
+
             void* ectx = nullptr;
 
             // + 1 because argc can be 0
@@ -36,7 +37,10 @@ namespace gs {
                 return;
             }
 
+            ExecutionContext exec;
+            ectx = (void*)&ectx;
             ffi_call(&cif, reinterpret_cast<void (*)()>(f->getWrapperAddress()), result, argBuf);
+            
         }
     };
 };

@@ -118,12 +118,14 @@ namespace utils {
             i64 lastIndexOf(char c) const;
 
             static String Format(const char* fmt, ...);
+            static const String View(char* str, u32 length = 0);
 
         protected:
             friend struct std::hash<String>;
             
             void resize(u32 cap);
             char* m_data;
+            bool m_readOnly;
             u32 m_len;
             u32 m_capacity;
     };

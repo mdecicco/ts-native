@@ -13,35 +13,42 @@ namespace std {
 };
 
 namespace utils {
-    String::String() : m_data(nullptr), m_len(0), m_capacity(0) {
+    String::String() : m_data(nullptr), m_len(0), m_capacity(0), m_readOnly(false) {
     }
 
-    String::String(const char* str) : m_data(nullptr), m_len(u32(strlen(str))), m_capacity(m_len) {
+    String::String(const char* str) : m_data(nullptr), m_len(u32(strlen(str))), m_capacity(m_len), m_readOnly(false) {
         m_data = (char*)Allocator::Get()->alloc(m_capacity + u64(1));
         memcpy(m_data, str, m_len);
         m_data[m_len] = 0;
     }
 
-    String::String(const std::string& str) : m_data(nullptr), m_len(u32(str.size())), m_capacity(m_len) {
+    String::String(const std::string& str) : m_data(nullptr), m_len(u32(str.size())), m_capacity(m_len), m_readOnly(false) {
         m_data = (char*)Allocator::Get()->alloc(m_capacity + u64(1));
         memcpy(m_data, str.c_str(), str.length());
         m_data[m_len] = 0;
     }
 
-    String::String(const String& str) : m_data(nullptr), m_len(str.size()), m_capacity(m_len) {
-        m_data = (char*)Allocator::Get()->alloc(m_capacity + u64(1));
-        memcpy(m_data, str.c_str(), str.size());
-        m_data[m_len] = 0;
+    String::String(const String& str) : m_data(nullptr), m_len(str.size()), m_capacity(m_len), m_readOnly(false) {
+        if (str.m_readOnly) {
+            m_data = str.m_data;
+            m_capacity = str.m_capacity;
+            m_len = str.m_len;
+            m_readOnly = str.m_readOnly;
+        } else {
+            m_data = (char*)Allocator::Get()->alloc(m_capacity + u64(1));
+            memcpy(m_data, str.c_str(), str.size());
+            m_data[m_len] = 0;
+        }
     }
 
-    String::String(char* str, u32 len) : m_data(nullptr), m_len(len), m_capacity(len) {
+    String::String(char* str, u32 len) : m_data(nullptr), m_len(len), m_capacity(len), m_readOnly(false) {
         m_data = (char*)Allocator::Get()->alloc(m_capacity + u32(1));
         memcpy(m_data, str, len);
         m_data[m_len] = 0;
     }
 
     String::~String() {
-        if (m_data) Allocator::Get()->free(m_data);
+        if (m_data && !m_readOnly) Allocator::Get()->free(m_data);
         m_data = nullptr;
     }
 
@@ -58,6 +65,10 @@ namespace utils {
     }
     
     String& String::operator =(const char* rhs) {
+        if (m_readOnly) {
+            throw std::exception("Attempted to modify read-only string");
+        }
+
         u32 slen = (u32)strlen(rhs);
         u32 cap = slen > 32 ? slen + 32 : 32;
         if (slen > 0 && slen < m_capacity) {
@@ -76,6 +87,10 @@ namespace utils {
     }
 
     String& String::operator =(const std::string& rhs) {
+        if (m_readOnly) {
+            throw std::exception("Attempted to modify read-only string");
+        }
+
         u32 cap = u32(rhs.length() > 32 ? rhs.length() + 32 : 32);
         if (rhs.length() > 0 && rhs.length() < m_capacity) {
             memcpy(m_data, rhs.c_str(), rhs.length());
@@ -93,6 +108,10 @@ namespace utils {
     }
 
     String& String::operator =(const String& rhs) {
+        if (m_readOnly) {
+            throw std::exception("Attempted to modify read-only string");
+        }
+
         u32 cap = u32(rhs.size() > 32 ? rhs.size() + 32 : 32);
         if (rhs.size() > 0 && rhs.size() < m_capacity) {
             memcpy(m_data, rhs.m_data, rhs.m_len);
@@ -110,6 +129,10 @@ namespace utils {
     }
 
     String& String::operator +=(const String& rhs) {
+        if (m_readOnly) {
+            throw std::exception("Attempted to modify read-only string");
+        }
+        
         if ((m_len + rhs.size() + 1) < m_capacity) {
             memcpy(m_data + m_len, rhs.m_data, rhs.m_len);
             m_len += rhs.m_len;
@@ -130,6 +153,10 @@ namespace utils {
     }
 
     String& String::operator +=(char ch) {
+        if (m_readOnly) {
+            throw std::exception("Attempted to modify read-only string");
+        }
+
         if ((m_len + 1) >= m_capacity) resize(m_capacity + 32);
 
         m_data[m_len++] = ch;
@@ -162,9 +189,16 @@ namespace utils {
     }
 
     void String::replaceAll(const String& str, const String& with) {
+        if (m_readOnly) {
+            throw std::exception("Attempted to modify read-only string");
+        }
     }
 
     void String::replaceAll(const char* str, const String& with) {
+        if (m_readOnly) {
+            throw std::exception("Attempted to modify read-only string");
+        }
+        
         u32 slen = (u32)strlen(str);
         if (slen == 0 || slen > m_len) return;
 
@@ -504,8 +538,21 @@ namespace utils {
 
         return out;
     }
+    
+    const String String::View(char* str, u32 length) {
+        String out;
+        out.m_data = str;
+        out.m_capacity = 0;
+        out.m_len = length ? length : strlen(str);
+        out.m_readOnly = true;
+        return out;
+    }
 
     void String::resize(u32 cap) {
+        if (m_readOnly) {
+            throw std::exception("Attempted to modify read-only string");
+        }
+
         m_capacity = cap;
         char* data = (char*)Allocator::Get()->alloc(cap);
         if (m_len < m_capacity) memset(data + m_len, 0, m_capacity - m_len);
