@@ -19,6 +19,6 @@
         </Expand>
     </Type>
     <Type Name="utils::String">
-        <DisplayString>{m_data}</DisplayString>
+        <DisplayString>{m_data,[m_len]}</DisplayString>
     </Type>
 </AutoVisualizer>
