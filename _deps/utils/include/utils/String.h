@@ -118,7 +118,7 @@ namespace utils {
             i64 lastIndexOf(char c) const;
 
             static String Format(const char* fmt, ...);
-            static const String View(char* str, u32 length = 0);
+            static const String View(const char* str, u32 length = 0);
 
         protected:
             friend struct std::hash<String>;

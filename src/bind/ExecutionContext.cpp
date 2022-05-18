@@ -1,4 +1,5 @@
 #include <gs/bind/ExecutionContext.h>
+#include <utils/Array.hpp>
 
 namespace gs {
     namespace ffi {

@@ -15,6 +15,7 @@ namespace gs {
                 void raiseException(const utils::String& message, const SourceLocation& src);
                 bool hasException() const;
                 const utils::String& getMessage() const;
+                const utils::Array<SourceLocation>& getCallStack() const;
             
             private:
                 bool m_exceptionCaught;

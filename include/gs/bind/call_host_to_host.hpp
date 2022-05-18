@@ -2,6 +2,7 @@
 #include <gs/bind/call_common.hpp>
 #include <gs/bind/ffi_argument.hpp>
 #include <gs/common/Function.h>
+#include <gs/bind/ExecutionContext.h>
 
 namespace gs {
     namespace ffi {
@@ -37,10 +38,9 @@ namespace gs {
                 return;
             }
 
-            ExecutionContext exec;
-            ectx = (void*)&ectx;
+            ExecutionContext exec(ctx);
+            ectx = (void*)&exec;
             ffi_call(&cif, reinterpret_cast<void (*)()>(f->getWrapperAddress()), result, argBuf);
-            
         }
     };
 };

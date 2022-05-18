@@ -16,3 +16,5 @@ int main(int argc, const char *argv[]) {
 
 
 #include "ffi/host2host_args.hpp"
+#include "input/program_source.hpp"
+#include "compiler/lexer.hpp"

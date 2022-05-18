@@ -15,7 +15,7 @@ set(
 )
 set(
     gs_library_dirs
-    ${CMAKE_CURRENT_SOURCE_DIR}/_lib/Debug
+    ${CMAKE_CURRENT_SOURCE_DIR}/_bin/Debug
 )
 
 set (all_sources "")
@@ -25,7 +25,7 @@ macro(add_sources group dir)
     file(GLOB _inc "include/gs/${dir}/*.h" "include/gs/${dir}/*.hpp" "include/gs/${dir}/*.inl")
     list(APPEND _all ${_inc})
 
-    file(GLOB _src "src/${dir}/*.cpp")
+    file(GLOB _src "src/${dir}/*.cpp" "src/${dir}/*.c")
     list(APPEND _all ${_src})
 
     list(APPEND all_sources ${_all})
@@ -42,11 +42,12 @@ add_sources("src/bind"       "bind")
 add_sources("src/common"     "common")
 add_sources("src/interfaces" "interfaces")
 add_sources("src/utils"      "utils")
+add_sources("src/compiler"   "compiler")
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/_lib)
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/_lib)
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/_lib)
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/_bin)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/_bin)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/_bin)
 
 
 include_directories(${gs_include_dirs})

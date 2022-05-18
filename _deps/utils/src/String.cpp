@@ -539,9 +539,9 @@ namespace utils {
         return out;
     }
     
-    const String String::View(char* str, u32 length) {
+    const String String::View(const char* str, u32 length) {
         String out;
-        out.m_data = str;
+        out.m_data = const_cast<char*>(str);
         out.m_capacity = 0;
         out.m_len = length ? length : strlen(str);
         out.m_readOnly = true;
