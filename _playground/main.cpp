@@ -35,11 +35,11 @@ int main(i32 argc, const char** argv) {
     try {
         Context ctx;
 
-        auto i_  = bind<i32>(&ctx, "i32");
+        auto i_ = bind<i32>(&ctx, "i32");
         auto f  = bind<f32>(&ctx, "f32").finalize();
         auto v  = bind<void>(&ctx, "void").finalize();
         auto vp = bind<void*>(&ctx, "data").finalize();
-        auto i = i_.method("squared", squared).method("square", square).finalize();
+        auto i  = i_.method("squared", squared).method("square", square).finalize();
         auto t  = bind<test>(&ctx, "test")
             .ctor<i32, i32, i32>()
             .dtor()

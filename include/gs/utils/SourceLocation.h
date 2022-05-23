@@ -14,6 +14,7 @@ namespace gs {
             SourceLocation(ProgramSource* src, u32 line, u32 col);
             ~SourceLocation();
 
+            ProgramSource* getSource() const;
             utils::String getLineText() const;
             const char* getPointer() const;
             u32 getLine() const;

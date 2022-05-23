@@ -3,15 +3,25 @@
 
 namespace gs {
     SourceLocation::SourceLocation(ProgramSource* src, u32 line, u32 col) {
-        const utils::String& ln = src->getLine(line);
         m_ref = src;
         m_line = line;
-        m_lineLen = ln.size();
-        m_linePtr = ln.c_str();
         m_col = col;
+
+        if (src->getLineCount() <= line) {
+            m_lineLen = 0;
+            m_linePtr = nullptr;
+        } else {
+            const utils::String& ln = src->getLine(line);
+            m_lineLen = ln.size();
+            m_linePtr = ln.c_str();
+        }
     }
 
     SourceLocation::~SourceLocation() {
+    }
+
+    ProgramSource* SourceLocation::getSource() const {
+        return m_ref;
     }
 
     utils::String SourceLocation::getLineText() const {

@@ -4,6 +4,10 @@
 
 namespace gs {
     namespace compiler {
+        utils::String token::str() const {
+            return utils::String(const_cast<char*>(text.c_str()), text.size());
+        }
+
         Lexer::Lexer(ProgramSource* src) : m_curSrc(src, 0, 0) {
             m_source = src;
         }
@@ -14,9 +18,16 @@ namespace gs {
 
         utils::Array<token> Lexer::tokenize() {
             reset();
-            if (!m_curSrc.isValid()) return {};
-
             utils::Array<token> out;
+
+            if (!m_curSrc.isValid()) {
+                out.push({
+                    tt_eof,
+                    utils::String::View(m_curSrc.getPointer(), 0),
+                    m_curSrc
+                });
+                return out;
+            }
             
             bool at_end = false;
             while (!at_end) {
@@ -32,12 +43,10 @@ namespace gs {
 
                 token_type tp = tt_unknown;
 
-                if (isalpha(*begin)) {
+                if (isalpha(*begin) || *begin == '_') {
                     tp = tt_keyword;
-                    while (!(at_end = !m_curSrc++)) {
-                        end++;
-                        char c = *m_curSrc;
-                        if (!isalnum(c) && c != '_') break;
+                    while (end++ && !(at_end = !m_curSrc++)) {
+                        if (!isalnum(*end) && *end != '_') break;
                     }
 
                     const char* tmp = begin;
@@ -62,9 +71,23 @@ namespace gs {
                             break;
                         }
                         case 'c': {
-                            // class, const, continue
+                            // case, catch, class, const, continue
                             n = *tmp++;
-                            if (n == 'l') {
+                            if (n == 'a') {
+                                n = *tmp++;
+                                if (n == 's') {
+                                    if (*tmp++ != 'e') {
+                                        tp = tt_identifier;
+                                    }
+                                } else if (n == 't') {
+                                    if (
+                                        *tmp++ != 'c' ||
+                                        *tmp++ != 'h'
+                                    ) {
+                                        tp = tt_identifier;
+                                    }
+                                } else tp = tt_identifier;
+                            } else if (n == 'l') {
                                 if (
                                     *tmp++ != 'a' ||
                                     *tmp++ != 's' ||
@@ -88,16 +111,27 @@ namespace gs {
                                         ) {
                                             tp = tt_identifier;
                                         }
-                                    }
+                                    } else tp = tt_identifier;
                                 }
-                            }
+                            } else tp = tt_identifier;
                             break;
                         }
                         case 'd': {
-                            // do
-                            if (*tmp++ != 'o') {
-                                tp = tt_identifier;
-                            }
+                            // do, default
+                            n = *tmp++;
+                            if (n == 'o') {
+                                // tp is already tt_keyword
+                            } else if (n == 'e') {
+                                if (
+                                    *tmp++ != 'f' ||
+                                    *tmp++ != 'a' ||
+                                    *tmp++ != 'u' ||
+                                    *tmp++ != 'l' ||
+                                    *tmp++ != 't'
+                                ) {
+                                    tp = tt_identifier;
+                                }
+                            } else tp = tt_identifier;
                             break;
                         }
                         case 'e': {
@@ -136,14 +170,22 @@ namespace gs {
                                     ) {
                                         tp = tt_identifier;
                                     }
-                                }
-                            }
+                                } else tp = tt_identifier;
+                            } else tp = tt_identifier;
                             break;
                         }
                         case 'f': {
-                            // for, from
+                            // false, for, from, function
                             n = *tmp++;
-                            if (n == 'o') {
+                            if (n == 'a') {
+                                if (
+                                    *tmp++ != 'l' ||
+                                    *tmp++ != 's' ||
+                                    *tmp++ != 'e'
+                                ) {
+                                    tp = tt_identifier;
+                                }
+                            } else if (n == 'o') {
                                 if (*tmp++ != 'r') {
                                     tp = tt_identifier;
                                 }
@@ -154,7 +196,18 @@ namespace gs {
                                 ) {
                                     tp = tt_identifier;
                                 }
-                            }
+                            } else if (n == 'u') {
+                                if (
+                                    *tmp++ != 'n' ||
+                                    *tmp++ != 'c' ||
+                                    *tmp++ != 't' ||
+                                    *tmp++ != 'i' ||
+                                    *tmp++ != 'o' ||
+                                    *tmp++ != 'n'
+                                ) {
+                                    tp = tt_identifier;
+                                }
+                            } else tp = tt_identifier;
                             break;
                         }
                         case 'g': {
@@ -181,18 +234,34 @@ namespace gs {
                                 ) {
                                     tp = tt_identifier;
                                 }
+                            } else tp = tt_identifier;
+                            break;
+                        }
+                        case 'l': {
+                            // let,
+                            if (
+                                *tmp++ != 'e' ||
+                                *tmp++ != 't'
+                            ) {
+                                tp = tt_identifier;
                             }
                             break;
                         }
                         case 'n': {
-                            // null
-                            if (
-                                *tmp++ != 'u' ||
-                                *tmp++ != 'l' ||
-                                *tmp++ != 'l'
-                            ) {
-                                tp = tt_identifier;
-                            }
+                            // null, new
+                            n = *tmp++;
+                            if (n == 'u') {
+                                if (
+                                    *tmp++ != 'l' ||
+                                    *tmp++ != 'l'
+                                ) {
+                                    tp = tt_identifier;
+                                }
+                            } else if (n == 'e') {
+                                if (*tmp++ != 'w') {
+                                    tp = tt_identifier;
+                                }
+                            } else tp = tt_identifier;
                             break;
                         }
                         case 'o': {
@@ -203,8 +272,7 @@ namespace gs {
                                 *tmp++ != 'a' ||
                                 *tmp++ != 't' ||
                                 *tmp++ != 'o' ||
-                                *tmp++ != 'r' ||
-                                isalnum(*tmp) || *tmp == '_'
+                                *tmp++ != 'r'
                             ) {
                                 tp = tt_identifier;
                             }
@@ -232,11 +300,23 @@ namespace gs {
                                 ) {
                                     tp = tt_identifier;
                                 }
+                            } else tp = tt_identifier;
+                            break;
+                        }
+                        case 'r': {
+                            // return
+                            if (*tmp++ != 'e' ||
+                                *tmp++ != 't' ||
+                                *tmp++ != 'u' ||
+                                *tmp++ != 'r' ||
+                                *tmp++ != 'n'
+                            ) {
+                                tp = tt_identifier;
                             }
                             break;
                         }
                         case 's': {
-                            // set, static
+                            // set, static, switch
                             n = *tmp++;
                             if (n == 'e') {
                                 if (*tmp++ != 't') tp = tt_identifier;
@@ -249,18 +329,45 @@ namespace gs {
                                 ) {
                                     tp = tt_identifier;
                                 }
-                            }
+                            } else if (n == 'w') {
+                                if (
+                                    *tmp++ != 'i' ||
+                                    *tmp++ != 't' ||
+                                    *tmp++ != 'c' ||
+                                    *tmp++ != 'h'
+                                ) {
+                                    tp = tt_identifier;
+                                }
+                            } else tp = tt_identifier;
                             break;
                         }
                         case 't': {
-                            // type
-                            if (
-                                *tmp++ != 'y' ||
-                                *tmp++ != 'p' ||
-                                *tmp++ != 'e'
-                            ) {
-                                tp = tt_identifier;
-                            }
+                            // type, try, true, this
+                            n = *tmp++;
+                            if (n == 'y') {
+                                if (
+                                    *tmp++ != 'p' ||
+                                    *tmp++ != 'e'
+                                ) {
+                                    tp = tt_identifier;
+                                }
+                            } else if (n == 'r') {
+                                n = *tmp++;
+                                if (n == 'y') {
+                                    // already tt_keyword
+                                } else if (n == 'u') {
+                                    if (*tmp++ != 'e') {
+                                        tp = tt_identifier;
+                                    }
+                                } else tp = tt_identifier;
+                            } else if (n == 'h') {
+                                if (
+                                    *tmp++ != 'i' ||
+                                    *tmp++ != 's'
+                                ) {
+                                    tp = tt_identifier;
+                                }
+                            } else tp = tt_identifier;
                             break;
                         }
                         case 'w': {
@@ -326,6 +433,17 @@ namespace gs {
                         });
                         
                         at_end = !m_curSrc++;
+                    } else if (n == 'l') {
+                        if (::tolower(*(begin + 1) == 'l')) {
+                            out.push({
+                                tt_number_suffix,
+                                utils::String::View(m_curSrc.getPointer(), 2),
+                                m_curSrc
+                            });
+
+                            at_end = !m_curSrc++;
+                            at_end = !m_curSrc++;
+                        }
                     } else if (n == 'u') {
                         n = ::tolower(*(begin + 1));
                         if (n == 's' || n == 'b') {
@@ -358,14 +476,13 @@ namespace gs {
                     char q = *begin;
                     end++;
                     at_end = !m_curSrc++;
+                    bool terminated = false;
 
                     while (!at_end) {
                         if (*end == '\\') {
                             end++;
                             at_end = !m_curSrc++;
-                            if (at_end) {
-                                throw SourceException("Encountered unexpected end of input while scanning string literal", tokBegin);
-                            }
+                            if (at_end) break;
 
                             switch (*end) {
                                 case 'n' : { str += '\n'; break; }
@@ -393,13 +510,17 @@ namespace gs {
                                 str,
                                 tokBegin
                             });
-
+                            terminated = true;
                             break;
                         }
                         
                         str += *end;
                         end++;
                         at_end = !m_curSrc++;
+                    }
+
+                    if (!terminated) {
+                        throw SourceException("Encountered unexpected end of input while scanning string literal", tokBegin);
                     }
                     continue;
                 } else {
@@ -416,6 +537,7 @@ namespace gs {
                                 end++;
                                 at_end = !m_curSrc++;
                             }
+                            break;
                         }
                         case '%' : {
                             end++;
@@ -427,6 +549,7 @@ namespace gs {
                                 end++;
                                 at_end = !m_curSrc++;
                             }
+                            break;
                         }
                         case '&' : {
                             end++;
@@ -448,6 +571,7 @@ namespace gs {
                                     at_end = !m_curSrc++;
                                 }
                             }
+                            break;
                         }
                         case '(' : {
                             end++;
@@ -471,6 +595,7 @@ namespace gs {
                                 end++;
                                 at_end = !m_curSrc++;
                             }
+                            break;
                         }
                         case '+' : {
                             end++;
@@ -478,10 +603,11 @@ namespace gs {
                             at_end = !m_curSrc++;
 
                             tp = tt_symbol;
-                            if (*tmp == '=') {
+                            if (*tmp == '=' || *tmp == '+') {
                                 end++;
                                 at_end = !m_curSrc++;
-                            }
+                            } 
+                            break;
                         }
                         case ',' : {
                             end++;
@@ -495,10 +621,11 @@ namespace gs {
                             at_end = !m_curSrc++;
 
                             tp = tt_symbol;
-                            if (*tmp == '=') {
+                            if (*tmp == '=' || *tmp == '-') {
                                 end++;
                                 at_end = !m_curSrc++;
                             }
+                            break;
                         }
                         case '.' : {
                             end++;
@@ -516,6 +643,7 @@ namespace gs {
                                 end++;
                                 at_end = !m_curSrc++;
                             }
+                            break;
                         }
                         case ':' : {
                             end++;
@@ -538,7 +666,18 @@ namespace gs {
                             if (*tmp == '=') {
                                 end++;
                                 at_end = !m_curSrc++;
+                            } else if (*tmp == '<') {
+                                end++;
+                                at_end = !m_curSrc++;
+                                tmp++;
+
+                                if (*tmp == '=') {
+                                    end++;
+                                    at_end = !m_curSrc++;
+                                    tmp++;
+                                }
                             }
+                            break;
                         }
                         case '=' : {
                             end++;
@@ -549,7 +688,12 @@ namespace gs {
                             if (*tmp == '=') {
                                 end++;
                                 at_end = !m_curSrc++;
+                            } else if (*tmp == '>') {
+                                tp = tt_forward;
+                                end++;
+                                at_end = !m_curSrc++;
                             }
+                            break;
                         }
                         case '>' : {
                             end++;
@@ -560,13 +704,25 @@ namespace gs {
                             if (*tmp == '=') {
                                 end++;
                                 at_end = !m_curSrc++;
+                            } else if (*tmp == '>') {
+                                end++;
+                                at_end = !m_curSrc++;
+                                tmp++;
+
+                                if (*tmp == '=') {
+                                    end++;
+                                    at_end = !m_curSrc++;
+                                    tmp++;
+                                }
                             }
+                            break;
                         }
                         case '?' : {
                             end++;
                             tmp++;
                             at_end = !m_curSrc++;
                             tp = tt_symbol;
+                            break;
                         }
                         case '[' : {
                             end++;
@@ -590,6 +746,7 @@ namespace gs {
                                 end++;
                                 at_end = !m_curSrc++;
                             }
+                            break;
                         }
                         case '{' : {
                             end++;
@@ -617,6 +774,7 @@ namespace gs {
                                     at_end = !m_curSrc++;
                                 }
                             }
+                            break;
                         }
                         case '}' : {
                             end++;
@@ -634,6 +792,7 @@ namespace gs {
                                 end++;
                                 at_end = !m_curSrc++;
                             }
+                            break;
                         }
                         default  : {
                             end++;
@@ -652,6 +811,12 @@ namespace gs {
                     });
                 }
             }
+
+            out.push({
+                tt_eof,
+                utils::String::View(m_curSrc.getPointer(), 0),
+                m_curSrc
+            });
 
             return out;
         }

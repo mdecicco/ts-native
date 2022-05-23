@@ -56,6 +56,7 @@ namespace utils {
             void replaceAll(const char* str, const String& with);
 
             String trim() const;
+            String clone() const;
             String toUpperCase() const;
             String toLowerCase() const;
 

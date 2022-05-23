@@ -259,6 +259,10 @@ namespace utils {
         return out;
     }
 
+    String String::clone() const {
+        return String(m_data, m_len);
+    }
+
     String String::toUpperCase() const {
         String out(*this);
         for (u32 i = 0;i < m_len;i++) out.m_data[i] = toupper(out.m_data[i]);
@@ -541,10 +545,16 @@ namespace utils {
     
     const String String::View(const char* str, u32 length) {
         String out;
-        out.m_data = const_cast<char*>(str);
-        out.m_capacity = 0;
-        out.m_len = length ? length : strlen(str);
-        out.m_readOnly = true;
+        if (!str) {
+            out.m_data = nullptr;
+            out.m_capacity = out.m_len = 0;
+            out.m_readOnly = true;
+        } else {
+            out.m_data = const_cast<char*>(str);
+            out.m_capacity = 0;
+            out.m_len = length ? length : strlen(str);
+            out.m_readOnly = true;
+        }
         return out;
     }
 

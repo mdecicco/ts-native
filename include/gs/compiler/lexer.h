@@ -13,9 +13,12 @@ namespace gs {
         enum token_type {
             tt_unknown,
             tt_identifier,
-            // if, else, do, while, for, break, continue, type, enum,
-            // class, extends, public, private, import, export, from,
-            // as, operator, static, const, get, set, null
+            // if, else, do, while, for, break, continue,
+            // type, enum, class, extends, public, private,
+            // import, export, from, as, operator, static,
+            // const, get, set, null, return, switch, case,
+            // default, true, false, this, function, let
+            // new
             tt_keyword,
 
             // + , - , * , / , ~ , ! , % , ^ , < , > , = , & , && , | , || ,
@@ -26,9 +29,9 @@ namespace gs {
 
             // [f, b, ub, s, us, ul, ll, ull] (case insensitive)
             tt_number_suffix,
-            tt_right_arrow,                     // =>
-            tt_string,                          // ['...', "..."]
-            tt_template_string,                 // `...`
+            tt_forward,         // =>
+            tt_string,          // ['...', "..."]
+            tt_template_string, // `...`
             tt_dot,
             tt_comma,
             tt_colon,
@@ -48,6 +51,8 @@ namespace gs {
             // View of ProgramSource::m_rawCode, read only, unless tp == tt_string | tt_template_string
             utils::String text;
             SourceLocation src;
+
+            utils::String str() const;
         };
 
         class Lexer {

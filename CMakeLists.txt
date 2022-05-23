@@ -63,6 +63,7 @@ add_subdirectory("./_deps")
 
 set(GS_BUILD_TESTS TRUE CACHE BOOL "Build gs test targets")
 set(GS_BUILD_PLAYGROUND TRUE CACHE BOOL "Build gs playground")
+set(GS_BUILD_TOOLS TRUE CACHE BOOL "Build gs tools")
 
 if (GS_BUILD_TESTS)
     add_subdirectory("./_tests")
@@ -70,4 +71,8 @@ endif ()
 
 if (GS_BUILD_PLAYGROUND)
     add_subdirectory("./_playground")
+endif ()
+
+if (GS_BUILD_TOOLS)
+    add_subdirectory("./_tools")
 endif ()
