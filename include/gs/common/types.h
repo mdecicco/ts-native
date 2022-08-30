@@ -13,11 +13,9 @@ namespace gs {
     typedef float       f32;
     typedef double      f64;
 
-    typedef u64         type_id;
-    typedef u64         function_id;
+    typedef i32         type_id;
+    typedef i32         function_id;
 
-    typedef u8 function_match_flags;
-    typedef u8 value_flag_mask;
 
     enum access_modifier {
         public_access,
@@ -43,7 +41,10 @@ namespace gs {
         unsigned is_integral : 1;
         unsigned is_unsigned : 1;
         unsigned is_function : 1;
+        unsigned is_template : 1;
+        unsigned is_alias : 1;
         unsigned is_host : 1;
+        unsigned is_anonymous : 1;
         unsigned size : 16;
         size_t host_hash;
     };
@@ -55,6 +56,7 @@ namespace gs {
         vf_pointer = 0b00001000,
         vf_rw      = 0b00000011
     };
+    typedef u8 value_flag_mask;
 
     struct value_flags {
         unsigned can_read : 1;
@@ -62,6 +64,41 @@ namespace gs {
         unsigned is_static : 1;
         unsigned is_pointer : 1;
     };
+
+    /**
+     * @brief Function match search options
+     */
+    enum _function_match_flags {
+        /**
+         * @brief Ignore the implicit arguments of functions being compared to the provided signature
+         */
+        fm_skip_implicit_args = 0b00000001,
+        
+        /**
+         * @brief Exclude functions with signatures that don't strictly match the provided return type.
+         *        Without this flag, return types that are convertible to the provided return type with
+         *        only one degree of separation will be considered matching.
+         */
+        fm_strict_return      = 0b00000010,
+        
+        /**
+         * @brief Exclude functions with signatures that don't strictly match the provided argument types.
+         *        Without this flag, argument types that are convertible to the provided argument types
+         *        with only one degree of separation will be considered matching.
+         */
+        fm_strict_args        = 0b00000100,
+        
+        /**
+         * @brief Same as fm_strict_return | fm_strict_args
+         */
+        fm_strict             = 0b00000110,
+
+        /**
+         * @brief Exclude private functions
+         */
+        fm_exclude_private    = 0b00001000
+    };
+    typedef u8 function_match_flags;
 
     template <typename T>
     type_meta meta();

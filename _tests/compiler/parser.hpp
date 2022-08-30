@@ -1,8 +1,8 @@
 #include "../catch.hpp"
 
 #include <gs/utils/ProgramSource.h>
-#include <gs/compiler/lexer.h>
-#include <gs/compiler/parser.h>
+#include <gs/compiler/Lexer.h>
+#include <gs/compiler/Parser.h>
 
 #include <utils/Array.hpp>
 
@@ -19,7 +19,7 @@ TEST_CASE("Parser", "[parser]") {
     ;
     ProgramSource src = ProgramSource("Parser.gs", testSource);
     Lexer l(&src);
-    ParserState ps(&l);
+    Parser ps(&l);
 
     ast_node* n = ps.parse();
     const auto& errors = ps.errors();

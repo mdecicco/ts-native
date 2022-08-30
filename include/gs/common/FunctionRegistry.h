@@ -11,6 +11,10 @@ namespace utils {
 };
 
 namespace gs {
+    namespace compiler {
+        class Compiler;
+    };
+
     namespace ffi {
         class Function;
         class DataType;
@@ -29,15 +33,13 @@ namespace gs {
                  * 
                  * @param types Context's type registry
                  * @param name Function name
-                 * @param funcs Set of functions to search
                  * @param flags Search options (See 'function_match_flags' documentation for more info)
                  * 
-                 * @return Subset of 'funcs' that match the provided signature
+                 * @return Subset of held functions that match the provided signature
                  */
                 template <typename Ret, typename...Args>
                 utils::Array<ffi::Function*> findFunctions(
                     const utils::String& name,
-                    const utils::Array<ffi::Function*>& funcs,
                     function_match_flags flags
                 );
 
@@ -48,16 +50,14 @@ namespace gs {
                  * @param retTp Signature return type
                  * @param argTps Signature argument types
                  * @param argCount Signature argument count
-                 * @param funcs Set of functions to search
                  * @param flags Search options (See 'function_match_flags' documentation for more info)
-                 * @return Subset of 'funcs' that match the provided signature
+                 * @return Subset of held functions that match the provided signature
                  */
                 utils::Array<ffi::Function*> findFunctions(
                     const utils::String& name,
                     ffi::DataType* retTp,
                     ffi::DataType** argTps,
                     u8 argCount,
-                    const utils::Array<ffi::Function*>& funcs,
                     function_match_flags flags
                 );
         };

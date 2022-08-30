@@ -1,6 +1,6 @@
 #pragma once
 #include <gs/common/types.h>
-#include <gs/compiler/lexer.h>
+#include <gs/compiler/Lexer.h>
 
 #include <utils/String.h>
 #include <utils/Array.h>
@@ -11,11 +11,12 @@ namespace gs {
         enum node_type {
             nt_empty = 0,
             nt_root,
+            nt_eos,
+
             nt_break,
             nt_catch,
             nt_class,
             nt_continue,
-            nt_eos,
             nt_export,
             nt_expression,
             nt_function,
@@ -23,8 +24,8 @@ namespace gs {
             nt_identifier,
             nt_if,
             nt_import,
-            nt_import_symbol,
             nt_import_module,
+            nt_import_symbol,
             nt_literal,
             nt_loop,
             nt_object_decompositor,
@@ -60,7 +61,6 @@ namespace gs {
             op_xor,
             op_xorEq,
             op_bitInv,
-            op_bitInvEq,
             op_bitAnd,
             op_bitAndEq,
             op_bitOr,
@@ -142,7 +142,9 @@ namespace gs {
             pec_expected_import_name,
             pec_expected_export_decl,
             pec_expected_symbol,
-            pec_expected_parameter_list
+            pec_expected_parameter_list,
+            pec_malformed_class_element,
+            pec_empty_class
         };
 
         struct ast_node {
@@ -163,6 +165,7 @@ namespace gs {
 
             utils::String str() const;
             void json(u32 indent = 0, u32 index = 0, bool noIndentOpenBrace = true) const;
+            ast_node* clone();
 
             struct {
                 unsigned is_const   : 1;
@@ -170,6 +173,8 @@ namespace gs {
                 unsigned is_private : 1;
                 unsigned is_array   : 1;
                 unsigned is_pointer : 1;
+                unsigned is_getter  : 1;
+                unsigned is_setter  : 1;
 
                 // for do ... while loops
                 unsigned defer_cond : 1;
@@ -196,6 +201,9 @@ namespace gs {
             // functions, function calls
             ast_node* parameters;
 
+            // functions, classes, types
+            ast_node* template_parameters;
+
             // for loops, type specifiers, type_modifiers
             ast_node* modifier;
 
@@ -204,6 +212,8 @@ namespace gs {
 
             // anything sequential
             ast_node* next;
+
+            static void destroyDetachedAST(ast_node* n);
         };
 
         struct parse_error {
@@ -212,10 +222,10 @@ namespace gs {
             token src;
         };
 
-        class ParserState {
+        class Parser {
             public:
-                ParserState(Lexer* l);
-                ~ParserState();
+                Parser(Lexer* l);
+                ~Parser();
 
                 void push();
                 void revert();
@@ -253,87 +263,87 @@ namespace gs {
         //
         // Exposed for unit test purposes
         //
-        ast_node* eos                       (ParserState* ps);
-        ast_node* eosRequired               (ParserState* ps);
-        ast_node* statementList             (ParserState* ps);
-        ast_node* block                     (ParserState* ps);
-        ast_node* identifier                (ParserState* ps);
-        ast_node* typedIdentifier           (ParserState* ps);
-        ast_node* typeModifier              (ParserState* ps);
-        ast_node* typeProperty              (ParserState* ps);
-        ast_node* parenthesizedTypeSpecifier(ParserState* ps);
-        ast_node* typeSpecifier             (ParserState* ps);
-        ast_node* assignable                (ParserState* ps);
-        ast_node* typedAssignable           (ParserState* ps);
-        ast_node* parameter                 (ParserState* ps);
-        ast_node* typedParameter            (ParserState* ps);
-        ast_node* maybeTypedParameterList   (ParserState* ps);
-        ast_node* maybeParameterList        (ParserState* ps);
-        ast_node* parameterList             (ParserState* ps);
-        ast_node* arguments                 (ParserState* ps);
-        ast_node* objectDecompositorProperty(ParserState* ps);
-        ast_node* objectDecompositor        (ParserState* ps);
-        ast_node* anonymousFunction         (ParserState* ps);
-        ast_node* numberLiteral             (ParserState* ps);
-        ast_node* stringLiteral             (ParserState* ps);
-        ast_node* templateStringLiteral     (ParserState* ps);
-        ast_node* arrayLiteral              (ParserState* ps);
-        ast_node* objectLiteralProperty     (ParserState* ps, bool expected);
-        ast_node* objectLiteral             (ParserState* ps);
-        ast_node* primaryExpression         (ParserState* ps);
-        ast_node* opAssignmentExpression    (ParserState* ps);
-        ast_node* assignmentExpression      (ParserState* ps);
-        ast_node* conditionalExpression     (ParserState* ps);
-        ast_node* logicalOrExpression       (ParserState* ps);
-        ast_node* logicalAndExpression      (ParserState* ps);
-        ast_node* bitwiseOrExpression       (ParserState* ps);
-        ast_node* bitwiseXOrExpression      (ParserState* ps);
-        ast_node* bitwiseAndExpression      (ParserState* ps);
-        ast_node* equalityExpression        (ParserState* ps);
-        ast_node* relationalExpression      (ParserState* ps);
-        ast_node* shiftExpression           (ParserState* ps);
-        ast_node* additiveExpression        (ParserState* ps);
-        ast_node* multiplicativeExpression  (ParserState* ps);
-        ast_node* notExpression             (ParserState* ps);
-        ast_node* invertExpression          (ParserState* ps);
-        ast_node* negateExpression          (ParserState* ps);
-        ast_node* prefixDecExpression       (ParserState* ps);
-        ast_node* prefixIncExpression       (ParserState* ps);
-        ast_node* postfixDecExpression      (ParserState* ps);
-        ast_node* postfixIncExpression      (ParserState* ps);
-        ast_node* callExpression            (ParserState* ps);
-        ast_node* newExpression             (ParserState* ps);
-        ast_node* memberExpression          (ParserState* ps);
-        ast_node* indexExpression           (ParserState* ps);
-        ast_node* expression                (ParserState* ps);
-        ast_node* variableDecl              (ParserState* ps);
-        ast_node* variableDeclList          (ParserState* ps);
-        ast_node* variableStatement         (ParserState* ps);
-        ast_node* emptyStatement            (ParserState* ps);
-        ast_node* expressionSequence        (ParserState* ps);
-        ast_node* expressionSequenceGroup   (ParserState* ps);
-        ast_node* expressionStatement       (ParserState* ps);
-        ast_node* ifStatement               (ParserState* ps);
-        ast_node* continueStatement         (ParserState* ps);
-        ast_node* breakStatement            (ParserState* ps);
-        ast_node* iterationStatement        (ParserState* ps);
-        ast_node* returnStatement           (ParserState* ps);
-        ast_node* switchCase                (ParserState* ps);
-        ast_node* switchStatement           (ParserState* ps);
-        ast_node* throwStatement            (ParserState* ps);
-        ast_node* catchBlock                (ParserState* ps);
-        ast_node* tryStatement              (ParserState* ps);
-        ast_node* functionDecl              (ParserState* ps);
-        ast_node* functionDef               (ParserState* ps);
-        ast_node* classDef                  (ParserState* ps);
-        ast_node* typeDef                   (ParserState* ps);
-        ast_node* symbolImport              (ParserState* ps);
-        ast_node* importList                (ParserState* ps);
-        ast_node* importModule              (ParserState* ps);
-        ast_node* declaration               (ParserState* ps);
-        ast_node* importStatement           (ParserState* ps);
-        ast_node* exportStatement           (ParserState* ps);
-        ast_node* statement                 (ParserState* ps);
-        ast_node* program                   (ParserState* ps);
+        ast_node* eos                       (Parser* ps);
+        ast_node* eosRequired               (Parser* ps);
+        ast_node* statementList             (Parser* ps);
+        ast_node* block                     (Parser* ps);
+        ast_node* identifier                (Parser* ps);
+        ast_node* typedIdentifier           (Parser* ps);
+        ast_node* typeModifier              (Parser* ps);
+        ast_node* typeProperty              (Parser* ps);
+        ast_node* parenthesizedTypeSpecifier(Parser* ps);
+        ast_node* typeSpecifier             (Parser* ps);
+        ast_node* assignable                (Parser* ps);
+        ast_node* typedAssignable           (Parser* ps);
+        ast_node* parameter                 (Parser* ps);
+        ast_node* typedParameter            (Parser* ps);
+        ast_node* maybeTypedParameterList   (Parser* ps);
+        ast_node* maybeParameterList        (Parser* ps);
+        ast_node* parameterList             (Parser* ps);
+        ast_node* arguments                 (Parser* ps);
+        ast_node* objectDecompositorProperty(Parser* ps);
+        ast_node* objectDecompositor        (Parser* ps);
+        ast_node* anonymousFunction         (Parser* ps);
+        ast_node* numberLiteral             (Parser* ps);
+        ast_node* stringLiteral             (Parser* ps);
+        ast_node* templateStringLiteral     (Parser* ps);
+        ast_node* arrayLiteral              (Parser* ps);
+        ast_node* objectLiteralProperty     (Parser* ps, bool expected);
+        ast_node* objectLiteral             (Parser* ps);
+        ast_node* primaryExpression         (Parser* ps);
+        ast_node* opAssignmentExpression    (Parser* ps);
+        ast_node* assignmentExpression      (Parser* ps);
+        ast_node* conditionalExpression     (Parser* ps);
+        ast_node* logicalOrExpression       (Parser* ps);
+        ast_node* logicalAndExpression      (Parser* ps);
+        ast_node* bitwiseOrExpression       (Parser* ps);
+        ast_node* bitwiseXOrExpression      (Parser* ps);
+        ast_node* bitwiseAndExpression      (Parser* ps);
+        ast_node* equalityExpression        (Parser* ps);
+        ast_node* relationalExpression      (Parser* ps);
+        ast_node* shiftExpression           (Parser* ps);
+        ast_node* additiveExpression        (Parser* ps);
+        ast_node* multiplicativeExpression  (Parser* ps);
+        ast_node* notExpression             (Parser* ps);
+        ast_node* invertExpression          (Parser* ps);
+        ast_node* negateExpression          (Parser* ps);
+        ast_node* prefixDecExpression       (Parser* ps);
+        ast_node* prefixIncExpression       (Parser* ps);
+        ast_node* postfixDecExpression      (Parser* ps);
+        ast_node* postfixIncExpression      (Parser* ps);
+        ast_node* callExpression            (Parser* ps);
+        ast_node* newExpression             (Parser* ps);
+        ast_node* memberExpression          (Parser* ps);
+        ast_node* indexExpression           (Parser* ps);
+        ast_node* expression                (Parser* ps);
+        ast_node* variableDecl              (Parser* ps);
+        ast_node* variableDeclList          (Parser* ps);
+        ast_node* variableStatement         (Parser* ps);
+        ast_node* emptyStatement            (Parser* ps);
+        ast_node* expressionSequence        (Parser* ps);
+        ast_node* expressionSequenceGroup   (Parser* ps);
+        ast_node* expressionStatement       (Parser* ps);
+        ast_node* ifStatement               (Parser* ps);
+        ast_node* continueStatement         (Parser* ps);
+        ast_node* breakStatement            (Parser* ps);
+        ast_node* iterationStatement        (Parser* ps);
+        ast_node* returnStatement           (Parser* ps);
+        ast_node* switchCase                (Parser* ps);
+        ast_node* switchStatement           (Parser* ps);
+        ast_node* throwStatement            (Parser* ps);
+        ast_node* catchBlock                (Parser* ps);
+        ast_node* tryStatement              (Parser* ps);
+        ast_node* functionDecl              (Parser* ps);
+        ast_node* functionDef               (Parser* ps);
+        ast_node* classDef                  (Parser* ps);
+        ast_node* typeDef                   (Parser* ps);
+        ast_node* symbolImport              (Parser* ps);
+        ast_node* importList                (Parser* ps);
+        ast_node* importModule              (Parser* ps);
+        ast_node* declaration               (Parser* ps);
+        ast_node* importStatement           (Parser* ps);
+        ast_node* exportStatement           (Parser* ps);
+        ast_node* statement                 (Parser* ps);
+        ast_node* program                   (Parser* ps);
     };
 };

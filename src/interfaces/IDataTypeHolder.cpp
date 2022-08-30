@@ -23,11 +23,6 @@ namespace gs {
         return m_types.size();
     }
 
-    void IDataTypeHolder::mergeTypes(IDataTypeHolder& types) {
-        utils::Array<ffi::DataType*>& t = types.m_types;
-
-    }
-
     void IDataTypeHolder::addHostType(size_t hash, ffi::DataType* tp) {
         if (m_typeHashMap.count(hash) > 0) return;
         m_typeHashMap[hash] = m_types.size();

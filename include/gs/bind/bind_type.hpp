@@ -258,7 +258,7 @@ namespace gs {
             if (!checkNewProp<T>(name)) return *this;
 
             DataType* tp = typeRegistry->getType<T>();
-            if (!tp->getInfo().is_primitive) flags |= vf_pointer;
+            if (std::is_pointer_v<T> || std::is_reference_v<T>) flags |= vf_pointer;
             flags &= ~vf_static;
 
             u64 offset = (u8*)&((Cls*)nullptr->*member) - (u8*)nullptr;
@@ -281,7 +281,7 @@ namespace gs {
             if (!checkNewProp<T>(name)) return *this;
 
             DataType* tp = typeRegistry->getType<T>();
-            if (!tp->getInfo().is_primitive) flags |= vf_pointer;
+            if (std::is_pointer_v<T> || std::is_reference_v<T>) flags |= vf_pointer;
             flags |= vf_static;
 
             addProperty({

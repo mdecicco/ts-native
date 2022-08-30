@@ -1,6 +1,8 @@
 #include <gs/utils/ProgramSource.h>
-#include <gs/compiler/lexer.h>
-#include <gs/compiler/parser.h>
+#include <gs/common/Context.h>
+#include <gs/compiler/Lexer.h>
+#include <gs/compiler/Parser.h>
+#include <gs/compiler/Compiler.h>
 
 #include <utils/Array.hpp>
 
@@ -8,6 +10,7 @@ using namespace gs;
 using namespace compiler;
 using namespace utils;
 
+void handleAST(Context* ctx, ast_node* n);
 
 i32 main (i32 argc, const char** argv) {
     argc = 2;
@@ -60,9 +63,10 @@ i32 main (i32 argc, const char** argv) {
 
     bool success = true;
     {
+        Context ctx;
         ProgramSource src = ProgramSource(argv[1], code);
         Lexer l(&src);
-        ParserState ps(&l);
+        Parser ps(&l);
         ast_node* n = ps.parse();
 
         const auto& errors = ps.errors();
@@ -88,7 +92,7 @@ i32 main (i32 argc, const char** argv) {
                 printf("^\n\n");
             }
         } else {
-            if (n) n->json();
+            if (n) handleAST(&ctx, n);
             else {
                 printf("An unknown error occurred...\n");
                 success = false;
@@ -102,4 +106,14 @@ i32 main (i32 argc, const char** argv) {
     delete [] code;
 
     return success ? 1 : -1;
+}
+
+void handleAST(Context* ctx, ast_node* n) {
+    Compiler c(ctx, n);
+    CompilerOutput* out = c.compile();
+
+    if (out) {
+        n->json();
+        delete out;
+    }
 }

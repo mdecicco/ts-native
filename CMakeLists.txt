@@ -39,6 +39,7 @@ endmacro(add_sources)
 
 add_sources("src"            ".")
 add_sources("src/bind"       "bind")
+add_sources("src/builtin"    "builtin")
 add_sources("src/common"     "common")
 add_sources("src/interfaces" "interfaces")
 add_sources("src/utils"      "utils")

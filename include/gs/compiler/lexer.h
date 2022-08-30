@@ -42,6 +42,7 @@ namespace gs {
             tt_close_brace,
             tt_open_bracket,
             tt_close_bracket,
+            tt_comment,
             tt_eof
         };
 

@@ -1,7 +1,7 @@
 #include "../catch.hpp"
 
 #include <gs/utils/ProgramSource.h>
-#include <gs/compiler/lexer.h>
+#include <gs/compiler/Lexer.h>
 
 #include <utils/Array.hpp>
 

@@ -2,6 +2,12 @@
 #include <gs/utils/ProgramSource.h>
 
 namespace gs {
+    SourceLocation::SourceLocation() {
+        m_ref = nullptr;
+        m_linePtr = nullptr;
+        m_line = m_col = m_lineLen = 0;
+    }
+
     SourceLocation::SourceLocation(ProgramSource* src, u32 line, u32 col) {
         m_ref = src;
         m_line = line;

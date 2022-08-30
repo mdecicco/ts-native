@@ -1,5 +1,5 @@
-#include <gs/compiler/parser.h>
-#include <gs/compiler/lexer.h>
+#include <gs/compiler/Parser.h>
+#include <gs/compiler/Lexer.h>
 #include <gs/utils/ProgramSource.h>
 #include <utils/Array.hpp>
 
@@ -29,11 +29,11 @@ namespace gs {
             static const char* nts[] = {
                 "empty",
                 "root",
+                "eos",
                 "break",
                 "catch",
                 "class",
                 "continue",
-                "eos",
                 "export",
                 "expression",
                 "function",
@@ -41,8 +41,8 @@ namespace gs {
                 "identifier",
                 "if",
                 "import",
-                "import_symbol",
                 "import_module",
+                "import_symbol",
                 "literal",
                 "loop",
                 "object_decompositor",
@@ -77,7 +77,6 @@ namespace gs {
                 "xor",
                 "xorEq",
                 "bitInv",
-                "bitInvEq",
                 "bitAnd",
                 "bitAndEq",
                 "bitOr",
@@ -256,6 +255,11 @@ namespace gs {
                 iprintf(indent, "\"parameters\": ");
                 parameters->json(indent);
             }
+            if (template_parameters) {
+                printf(",\n");
+                iprintf(indent, "\"template_parameters\": ");
+                template_parameters->json(indent);
+            }
             if (modifier) {
                 printf(",\n");
                 iprintf(indent, "\"modifier\": ");
@@ -282,58 +286,127 @@ namespace gs {
             }
         }
         
+        ast_node* ast_node::clone() {
+            ast_node* c = new ast_node();
+            c->tok = tok;
+            c->tp = tp;
+            c->value_tp = value_tp;
+            c->op = op;
+            c->str_len = str_len;
+            c->value = value;
+            c->flags = flags;
 
+            if (str_len > 0) {
+                c->value.s = new char[str_len + 1];
+                strcpy_s(const_cast<char*>(c->value.s), str_len, value.s);
+                const_cast<char*>(c->value.s)[str_len] = 0;
+            }
+            
+            if (data_type) c->data_type = data_type->clone();
+            else c->data_type = nullptr;
+
+            if (lvalue) c->lvalue = lvalue->clone();
+            else c->lvalue = nullptr;
+
+            if (rvalue) c->rvalue = rvalue->clone();
+            else c->rvalue = nullptr;
+
+            if (cond) c->cond = cond->clone();
+            else c->cond = nullptr;
+
+            if (body) c->body = body->clone();
+            else c->body = nullptr;
+
+            if (else_body) c->else_body = else_body->clone();
+            else c->else_body = nullptr;
+
+            if (initializer) c->initializer = initializer->clone();
+            else c->initializer = nullptr;
+
+            if (parameters) c->parameters = parameters->clone();
+            else c->parameters = nullptr;
+
+            if (template_parameters) c->template_parameters = template_parameters->clone();
+            else c->template_parameters = nullptr;
+
+            if (modifier) c->modifier = modifier->clone();
+            else c->modifier = nullptr;
+
+            if (alias) c->alias = alias->clone();
+            else c->alias = nullptr;
+
+            if (next) c->next = next->clone();
+            else c->next = nullptr;
+
+            return c;
+        }
+
+        void ast_node::destroyDetachedAST(ast_node* n) {
+            if (n->str_len > 0) delete [] n->value.s;
+            if (n->data_type) ast_node::destroyDetachedAST(n->data_type);
+            if (n->lvalue) ast_node::destroyDetachedAST(n->lvalue);
+            if (n->rvalue) ast_node::destroyDetachedAST(n->rvalue);
+            if (n->cond) ast_node::destroyDetachedAST(n->cond);
+            if (n->body) ast_node::destroyDetachedAST(n->body);
+            if (n->else_body) ast_node::destroyDetachedAST(n->else_body);
+            if (n->initializer) ast_node::destroyDetachedAST(n->initializer);
+            if (n->parameters) ast_node::destroyDetachedAST(n->parameters);
+            if (n->template_parameters) ast_node::destroyDetachedAST(n->template_parameters);
+            if (n->modifier) ast_node::destroyDetachedAST(n->modifier);
+            if (n->alias) ast_node::destroyDetachedAST(n->alias);
+            if (n->next) ast_node::destroyDetachedAST(n->next);
+        }
 
         //
-        // ParserState
+        // Parser
         //
         
-        ParserState::ParserState(Lexer* l) : m_tokens(l->tokenize()), m_currentIdx(32), m_nodeAlloc(1024, 1024, true) {
+        Parser::Parser(Lexer* l) : m_tokens(l->tokenize()), m_currentIdx(32), m_nodeAlloc(1024, 1024, true) {
             m_currentIdx.push(0);
         }
 
-        ParserState::~ParserState() {
+        Parser::~Parser() {
         }
 
-        void ParserState::push() {
+        void Parser::push() {
             m_currentIdx.push(m_currentIdx[m_currentIdx.size() - 1]);
         }
 
-        void ParserState::revert() {
+        void Parser::revert() {
             m_currentIdx.pop();
         }
 
-        void ParserState::commit() {
+        void Parser::commit() {
             u32 idx = m_currentIdx.pop();
             m_currentIdx[m_currentIdx.size() - 1] = idx;
         }
 
-        void ParserState::consume() {
+        void Parser::consume() {
             m_currentIdx[m_currentIdx.size() - 1]++;
         }
 
-        const token& ParserState::get() const {
+        const token& Parser::get() const {
             return m_tokens[m_currentIdx[m_currentIdx.size() - 1]];
         }
 
-        const token& ParserState::getPrev() const {
+        const token& Parser::getPrev() const {
             u32 idx = m_currentIdx[m_currentIdx.size() - 1];
             return m_tokens[idx > 0 ? idx - 1 : 0];
         }
 
-        ast_node* ParserState::parse() {
+        ast_node* Parser::parse() {
             m_nodeAlloc.reset();
             return program(this);
         }
 
-        ast_node* ParserState::newNode(node_type tp, const token* src) {
+        ast_node* Parser::newNode(node_type tp, const token* src) {
             ast_node* n = m_nodeAlloc.alloc();
             n->tok = src ? src : &get();
             n->tp = tp;
             return n;
         }
 
-        void ParserState::freeNode(ast_node* n) {
+        void Parser::freeNode(ast_node* n) {
             if (n->data_type) freeNode(n->data_type);
             if (n->lvalue) freeNode(n->lvalue);
             if (n->rvalue) freeNode(n->rvalue);
@@ -341,40 +414,42 @@ namespace gs {
             if (n->body) freeNode(n->body);
             if (n->else_body) freeNode(n->else_body);
             if (n->initializer) freeNode(n->initializer);
+            if (n->template_parameters) freeNode(n->template_parameters);
             if (n->parameters) freeNode(n->parameters);
             if (n->modifier) freeNode(n->modifier);
             if (n->alias) freeNode(n->alias);
             if (n->next) freeNode(n->next);
+            
             m_nodeAlloc.free(n);
         }
 
-        const utils::Array<parse_error>& ParserState::errors() const {
+        const utils::Array<parse_error>& Parser::errors() const {
             return m_errors;
         }
 
-        bool ParserState::typeIs(token_type tp) const {
+        bool Parser::typeIs(token_type tp) const {
             return get().tp == tp;
         }
 
-        bool ParserState::textIs(const char* str) const {
+        bool Parser::textIs(const char* str) const {
             return get().text == str;
         }
 
-        bool ParserState::isKeyword(const char* str) const {
+        bool Parser::isKeyword(const char* str) const {
             const token& t = get();
             return t.tp == tt_keyword && t.text == str;
         }
 
-        bool ParserState::isSymbol(const char* str) const {
+        bool Parser::isSymbol(const char* str) const {
             const token& t = get();
             return t.tp == tt_symbol && t.text == str;
         }
 
-        void ParserState::error(parse_error_code code, const utils::String& msg) {
+        void Parser::error(parse_error_code code, const utils::String& msg) {
             error(code, msg, get());
         }
         
-        void ParserState::error(parse_error_code code, const utils::String& msg, const token& tok) {
+        void Parser::error(parse_error_code code, const utils::String& msg, const token& tok) {
             m_errors.push({
                 code,
                 msg,
@@ -387,8 +462,9 @@ namespace gs {
         //
         // Helpers
         //
-        typedef ast_node* (*parser_fn)(ParserState*);
-        ast_node* array_of(ParserState* ps, parser_fn fn) {
+
+        typedef ast_node* (*parser_fn)(Parser*);
+        ast_node* array_of(Parser* ps, parser_fn fn) {
             ast_node* f = fn(ps);
             ast_node* n = f;
             while (n) {
@@ -397,7 +473,7 @@ namespace gs {
             }
             return f;
         }
-        ast_node* one_of(ParserState* ps, std::initializer_list<parser_fn> rules) {
+        ast_node* one_of(Parser* ps, std::initializer_list<parser_fn> rules) {
             for (auto fn : rules) {
                 ast_node* n = fn(ps);
                 if (n) return n;
@@ -405,7 +481,7 @@ namespace gs {
 
             return nullptr;
         }
-        ast_node* all_of(ParserState* ps, std::initializer_list<parser_fn> rules) {
+        ast_node* all_of(Parser* ps, std::initializer_list<parser_fn> rules) {
             ast_node* f = nullptr;
             ast_node* n = nullptr;
             for (auto fn : rules) {
@@ -429,12 +505,13 @@ namespace gs {
         //
         // Parser logic
         //
-        ast_node* eos(ParserState* ps) {
+
+        ast_node* eos(Parser* ps) {
             if (!ps->typeIs(tt_semicolon)) return nullptr;
             ps->consume();
             return ps->newNode(nt_eos, &ps->getPrev());
         }
-        ast_node* eosRequired(ParserState* ps) {
+        ast_node* eosRequired(Parser* ps) {
             if (!ps->typeIs(tt_semicolon)) {
                 ps->error(pec_expected_eos, "Expected ';'");
                 return nullptr;
@@ -442,10 +519,10 @@ namespace gs {
             ps->consume();
             return ps->newNode(nt_eos, &ps->getPrev());
         }
-        ast_node* statementList(ParserState* ps) {
+        ast_node* statementList(Parser* ps) {
             return array_of(ps, statement);
         }
-        ast_node* block(ParserState* ps) {
+        ast_node* block(Parser* ps) {
             if (!ps->typeIs(tt_open_brace)) return nullptr;
             ps->consume();
 
@@ -460,7 +537,7 @@ namespace gs {
 
             return b;
         }
-        ast_node* identifier(ParserState* ps) {
+        ast_node* identifier(Parser* ps) {
             if (!ps->typeIs(tt_identifier)) return nullptr;
             ast_node* n = ps->newNode(nt_identifier);
             const token& t = ps->get();
@@ -469,7 +546,7 @@ namespace gs {
             ps->consume();
             return n;
         }
-        ast_node* typedIdentifier(ParserState* ps) {
+        ast_node* typedIdentifier(Parser* ps) {
             ps->push();
             ast_node* id = identifier(ps);
             if (!id) {
@@ -493,7 +570,75 @@ namespace gs {
             ps->commit();
             return id;
         }
-        ast_node* typeModifier(ParserState* ps) {
+        ast_node* templateArgs(Parser* ps) {
+            if (!ps->isSymbol("<")) return nullptr;
+            ps->consume();
+
+            ast_node* args = typeSpecifier(ps);
+            if (!args) {
+                ps->error(pec_expected_type_specifier, "Expected template argument");
+                // attempt to continue
+            }
+
+            ast_node* n = args;
+            while (n) {
+                if (!ps->typeIs(tt_comma)) break;
+                ps->consume();
+
+                n->next = typeSpecifier(ps);
+                n = n->next;
+                if (!n) {
+                    ps->error(pec_expected_type_specifier, "Expected template argument");
+                    ps->freeNode(args);
+                    return nullptr;
+                }
+            }
+
+            if (!ps->isSymbol(">")) {
+                ps->error(pec_expected_symbol, "Expected '>' after template argument list");
+                if (args) ps->freeNode(args);
+                return nullptr;
+            }
+
+            ps->consume();
+
+            return args;
+        }
+        ast_node* templateParams(Parser* ps) {
+            if (!ps->isSymbol("<")) return nullptr;
+            ps->consume();
+
+            ast_node* args = identifier(ps);
+            if (!args) {
+                ps->error(pec_expected_type_specifier, "Expected template parameter");
+                // attempt to continue
+            }
+
+            ast_node* n = args;
+            while (n) {
+                if (!ps->typeIs(tt_comma)) break;
+                ps->consume();
+
+                n->next = identifier(ps);
+                n = n->next;
+                if (!n) {
+                    ps->error(pec_expected_type_specifier, "Expected template parameter");
+                    ps->freeNode(args);
+                    return nullptr;
+                }
+            }
+
+            if (!ps->isSymbol(">")) {
+                ps->error(pec_expected_symbol, "Expected '>' after template parameter list");
+                if (args) ps->freeNode(args);
+                return nullptr;
+            }
+
+            ps->consume();
+
+            return args;
+        }
+        ast_node* typeModifier(Parser* ps) {
             ast_node* mod = nullptr;
             if (ps->isSymbol("*")) {
                 ps->consume();
@@ -515,7 +660,7 @@ namespace gs {
             if (mod) mod->modifier = typeModifier(ps);
             return mod;
         }
-        ast_node* typeProperty(ParserState* ps) {
+        ast_node* typeProperty(Parser* ps) {
             ps->push();
             ast_node* n = identifier(ps);
             if (!n) {
@@ -542,7 +687,7 @@ namespace gs {
 
             return n;
         }
-        ast_node* parenthesizedTypeSpecifier(ParserState* ps) {
+        ast_node* parenthesizedTypeSpecifier(Parser* ps) {
             if (!ps->typeIs(tt_open_parenth)) return nullptr;
             const token* t = &ps->get();
             ps->push();
@@ -567,15 +712,17 @@ namespace gs {
 
             return n;
         }
-        ast_node* typeSpecifier(ParserState* ps) {
+        ast_node* typeSpecifier(Parser* ps) {
             const token* tok = &ps->get();
             ast_node* id = identifier(ps);
             if (id) {
                 id->modifier = typeModifier(ps);
+                id->template_parameters = templateArgs(ps);
 
                 ast_node* n = ps->newNode(nt_type_specifier, tok);
                 n->body = id;
-                return id;
+
+                return n;
             }
 
             if (ps->typeIs(tt_open_brace)) {
@@ -651,10 +798,10 @@ namespace gs {
 
             return n;
         }
-        ast_node* assignable(ParserState* ps) {
+        ast_node* assignable(Parser* ps) {
             return identifier(ps);
         }
-        ast_node* typedAssignable(ParserState* ps) {
+        ast_node* typedAssignable(Parser* ps) {
             ps->push();
             ast_node* id = identifier(ps);
             if (!id) {
@@ -678,16 +825,16 @@ namespace gs {
             ps->commit();
             return id;
         }
-        ast_node* parameter(ParserState* ps) {
+        ast_node* parameter(Parser* ps) {
             return one_of(ps, {
                 typedAssignable,
                 assignable
             });
         }
-        ast_node* typedParameter(ParserState* ps) {
+        ast_node* typedParameter(Parser* ps) {
             return typedAssignable(ps);
         }
-        ast_node* maybeTypedParameterList(ParserState* ps) {
+        ast_node* maybeTypedParameterList(Parser* ps) {
             if (!ps->typeIs(tt_open_parenth)) return nullptr;
             ps->consume();
 
@@ -714,7 +861,7 @@ namespace gs {
 
             return f;
         }
-        ast_node* maybeParameterList(ParserState* ps) {
+        ast_node* maybeParameterList(Parser* ps) {
             if (!ps->typeIs(tt_open_parenth)) return nullptr;
             ps->consume();
 
@@ -741,7 +888,7 @@ namespace gs {
 
             return f;
         }
-        ast_node* parameterList(ParserState* ps) {
+        ast_node* parameterList(Parser* ps) {
             if (!ps->typeIs(tt_open_parenth)) return nullptr;
             ps->consume();
 
@@ -769,7 +916,35 @@ namespace gs {
 
             return f;
         }
-        ast_node* arguments(ParserState* ps) {
+        ast_node* typedParameterList(Parser* ps) {
+            if (!ps->typeIs(tt_open_parenth)) return nullptr;
+            ps->consume();
+
+            ast_node* f = typedParameter(ps);
+            ast_node* n = f;
+            while (n) {
+                if (!ps->typeIs(tt_comma)) break;
+                ps->consume();
+
+                n->next = parameter(ps);
+                n = n->next;
+                if (!n) {
+                    ps->error(pec_expected_parameter, "Expected parameter after ','");
+                    // attempt to continue
+                    break;
+                }
+            }
+
+            if (!ps->typeIs(tt_close_parenth)) {
+                ps->error(pec_expected_closing_parenth, "Expected ')' to close parameter list");
+                if (f) ps->freeNode(f);
+                return nullptr;
+            }
+            ps->consume();
+
+            return f;
+        }
+        ast_node* arguments(Parser* ps) {
             if (!ps->typeIs(tt_open_parenth)) return nullptr;
             ps->consume();
 
@@ -784,13 +959,13 @@ namespace gs {
 
             return n;
         }
-        ast_node* objectDecompositorProperty(ParserState* ps) {
+        ast_node* objectDecompositorProperty(Parser* ps) {
             return one_of(ps, {
                 typedAssignable,
                 assignable
             });
         }
-        ast_node* objectDecompositor(ParserState* ps) {
+        ast_node* objectDecompositor(Parser* ps) {
             const token* tok = &ps->get();
             if (!ps->typeIs(tt_open_brace)) return nullptr;
             ps->push();
@@ -829,7 +1004,7 @@ namespace gs {
 
             return n;
         }
-        ast_node* anonymousFunction(ParserState* ps) {
+        ast_node* anonymousFunction(Parser* ps) {
             const token* tok = &ps->get();
             ps->push();
             ast_node* params = one_of(ps, { identifier, maybeParameterList });
@@ -859,7 +1034,7 @@ namespace gs {
             return n;
         }
         
-        ast_node* numberLiteral(ParserState* ps) {
+        ast_node* numberLiteral(Parser* ps) {
             if (!ps->typeIs(tt_number)) return nullptr;
 
             const token& t = ps->get();
@@ -918,7 +1093,7 @@ namespace gs {
 
             return n;
         }
-        ast_node* stringLiteral(ParserState* ps) {
+        ast_node* stringLiteral(Parser* ps) {
             if (!ps->typeIs(tt_string)) return nullptr;
             const token& t = ps->get();
             ps->consume();
@@ -928,7 +1103,7 @@ namespace gs {
             n->str_len = t.text.size();
             return n;
         }
-        ast_node* templateStringLiteral(ParserState* ps) {
+        ast_node* templateStringLiteral(Parser* ps) {
             if (!ps->typeIs(tt_template_string)) return nullptr;
             // todo...
 
@@ -940,7 +1115,7 @@ namespace gs {
             n->str_len = t.text.size();
             return n;
         }
-        ast_node* arrayLiteral(ParserState* ps) {
+        ast_node* arrayLiteral(Parser* ps) {
             const token* tok = &ps->get();
             if (!ps->typeIs(tt_open_bracket)) return nullptr;
             ps->push();
@@ -965,7 +1140,7 @@ namespace gs {
             a->body = n;
             return a;
         }
-        ast_node* objectLiteralProperty(ParserState* ps, bool expected) {
+        ast_node* objectLiteralProperty(Parser* ps, bool expected) {
             const token* tok = &ps->get();
             ps->push();
             ast_node* name = identifier(ps);
@@ -985,7 +1160,7 @@ namespace gs {
 
             ast_node* n = ps->newNode(nt_object_literal_property, tok);
             n->lvalue = name;
-            n->rvalue = expression(ps);
+            n->rvalue = singleExpression(ps);
             if (!n->rvalue) {
                 ps->error(pec_expected_expr, utils::String::Format("Expected expression after '%s:'", name->str().c_str()));
                 ps->revert();
@@ -996,7 +1171,7 @@ namespace gs {
             ps->commit();
             return n;
         }
-        ast_node* objectLiteral(ParserState* ps) {
+        ast_node* objectLiteral(Parser* ps) {
             const token* tok = &ps->get();
             if (!ps->typeIs(tt_open_brace)) return nullptr;
             ps->push();
@@ -1034,7 +1209,7 @@ namespace gs {
             return a;
         }
 
-        ast_node* primaryExpression(ParserState* ps) {
+        ast_node* primaryExpression(Parser* ps) {
             if (ps->isKeyword("this")) {
                 ps->consume();
                 return ps->newNode(nt_this, &ps->getPrev());
@@ -1063,7 +1238,7 @@ namespace gs {
 
             return nullptr;
         }
-        ast_node* opAssignmentExpression(ParserState* ps) {
+        ast_node* opAssignmentExpression(Parser* ps) {
             ast_node* n = primaryExpression(ps);
             if (!n || !ps->typeIs(tt_symbol)) return n;
             const token& t = ps->get();
@@ -1075,7 +1250,6 @@ namespace gs {
                 case '-': { op = op_subEq; break; }
                 case '*': { op = op_mulEq; break; }
                 case '/': { op = op_divEq; break; }
-                case '~': { op = op_bitInvEq; break; }
                 case '%': { op = op_modEq; break; }
                 case '^': { op = op_xorEq; break; }
                 case '&': {
@@ -1131,7 +1305,7 @@ namespace gs {
             ast_node* o = ps->newNode(nt_expression, n->tok);
             o->op = op;
             o->lvalue = n;
-            o->rvalue = expression(ps);
+            o->rvalue = singleExpression(ps);
             if (!o->rvalue) {
                 ps->error(pec_expected_expr, utils::String::Format("Expected expression after '%s'", t.text.c_str()));
                 ps->freeNode(o);
@@ -1140,7 +1314,7 @@ namespace gs {
 
             return o;
         }
-        ast_node* assignmentExpression(ParserState* ps) {
+        ast_node* assignmentExpression(Parser* ps) {
             ast_node* n = opAssignmentExpression(ps);
             if (!n) return nullptr;
 
@@ -1150,7 +1324,7 @@ namespace gs {
             ast_node* o = ps->newNode(nt_expression, n->tok);
             o->op = op_assign;
             o->lvalue = n;
-            o->rvalue = expression(ps);
+            o->rvalue = singleExpression(ps);
             if (!o->rvalue) {
                 ps->error(pec_expected_expr, "Expected expression after '='");
                 ps->freeNode(o);
@@ -1158,7 +1332,7 @@ namespace gs {
             }
             return o;
         }
-        ast_node* conditionalExpression(ParserState* ps) {
+        ast_node* conditionalExpression(Parser* ps) {
             ast_node* n = assignmentExpression(ps);
             if (!n) return nullptr;
 
@@ -1168,7 +1342,7 @@ namespace gs {
             ast_node* o = ps->newNode(nt_expression, n->tok);
             o->op = op_conditional;
             o->cond = n;
-            o->lvalue = expression(ps);
+            o->lvalue = singleExpression(ps);
             if (!o->lvalue) {
                 ps->error(pec_expected_expr, "Expected expression after '?'");
                 ps->freeNode(o);
@@ -1182,7 +1356,7 @@ namespace gs {
             }
             ps->consume();
 
-            o->rvalue = expression(ps);
+            o->rvalue = singleExpression(ps);
             if (!o->rvalue) {
                 ps->error(pec_expected_expr, "Expected expression after '<expression> ? <expression> : '");
                 ps->freeNode(o);
@@ -1190,7 +1364,7 @@ namespace gs {
             }
             return o;
         }
-        ast_node* logicalOrExpression(ParserState* ps) {
+        ast_node* logicalOrExpression(Parser* ps) {
             ast_node* n = conditionalExpression(ps);
             if (!n) return nullptr;
 
@@ -1200,7 +1374,7 @@ namespace gs {
             ast_node* o = ps->newNode(nt_expression, n->tok);
             o->op = op_logOr;
             o->lvalue = n;
-            o->rvalue = expression(ps);
+            o->rvalue = singleExpression(ps);
             if (!o->rvalue) {
                 ps->error(pec_expected_expr, "Expected expression after '||'");
                 ps->freeNode(o);
@@ -1208,7 +1382,7 @@ namespace gs {
             }
             return o;
         }
-        ast_node* logicalAndExpression(ParserState* ps) {
+        ast_node* logicalAndExpression(Parser* ps) {
             ast_node* n = logicalOrExpression(ps);
             if (!n) return nullptr;
 
@@ -1218,7 +1392,7 @@ namespace gs {
             ast_node* o = ps->newNode(nt_expression, n->tok);
             o->op = op_logAnd;
             o->lvalue = n;
-            o->rvalue = expression(ps);
+            o->rvalue = singleExpression(ps);
             if (!o->rvalue) {
                 ps->error(pec_expected_expr, "Expected expression after '&&'");
                 ps->freeNode(o);
@@ -1226,7 +1400,7 @@ namespace gs {
             }
             return o;
         }
-        ast_node* bitwiseOrExpression(ParserState* ps) {
+        ast_node* bitwiseOrExpression(Parser* ps) {
             ast_node* n = logicalAndExpression(ps);
             if (!n) return nullptr;
 
@@ -1236,7 +1410,7 @@ namespace gs {
             ast_node* o = ps->newNode(nt_expression, n->tok);
             o->op = op_bitOr;
             o->lvalue = n;
-            o->rvalue = expression(ps);
+            o->rvalue = singleExpression(ps);
             if (!o->rvalue) {
                 ps->error(pec_expected_expr, "Expected expression after '|'");
                 ps->freeNode(o);
@@ -1244,7 +1418,7 @@ namespace gs {
             }
             return o;
         }
-        ast_node* bitwiseXOrExpression(ParserState* ps) {
+        ast_node* bitwiseXOrExpression(Parser* ps) {
             ast_node* n = bitwiseOrExpression(ps);
             if (!n) return nullptr;
 
@@ -1254,7 +1428,7 @@ namespace gs {
             ast_node* o = ps->newNode(nt_expression, n->tok);
             o->op = op_xor;
             o->lvalue = n;
-            o->rvalue = expression(ps);
+            o->rvalue = singleExpression(ps);
             if (!o->rvalue) {
                 ps->error(pec_expected_expr, "Expected expression after '^'");
                 ps->freeNode(o);
@@ -1262,7 +1436,7 @@ namespace gs {
             }
             return o;
         }
-        ast_node* bitwiseAndExpression(ParserState* ps) {
+        ast_node* bitwiseAndExpression(Parser* ps) {
             ast_node* n = bitwiseXOrExpression(ps);
             if (!n) return nullptr;
 
@@ -1272,7 +1446,7 @@ namespace gs {
             ast_node* o = ps->newNode(nt_expression, n->tok);
             o->op = op_bitAnd;
             o->lvalue = n;
-            o->rvalue = expression(ps);
+            o->rvalue = singleExpression(ps);
             if (!o->rvalue) {
                 ps->error(pec_expected_expr, "Expected expression after '&'");
                 ps->freeNode(o);
@@ -1280,7 +1454,7 @@ namespace gs {
             }
             return o;
         }
-        ast_node* equalityExpression(ParserState* ps) {
+        ast_node* equalityExpression(Parser* ps) {
             ast_node* n = bitwiseAndExpression(ps);
             if (!n) return nullptr;
 
@@ -1290,7 +1464,7 @@ namespace gs {
                 ast_node* o = ps->newNode(nt_expression, n->tok);
                 o->op = op_compare;
                 o->lvalue = n;
-                o->rvalue = expression(ps);
+                o->rvalue = singleExpression(ps);
                 if (!o->rvalue) {
                     ps->error(pec_expected_expr, "Expected expression after '=='");
                     ps->freeNode(o);
@@ -1305,7 +1479,7 @@ namespace gs {
                 ast_node* o = ps->newNode(nt_expression, n->tok);
                 o->op = op_notEq;
                 o->lvalue = n;
-                o->rvalue = expression(ps);
+                o->rvalue = singleExpression(ps);
                 if (!o->rvalue) {
                     ps->error(pec_expected_expr, "Expected expression after '!='");
                     ps->freeNode(o);
@@ -1316,7 +1490,7 @@ namespace gs {
 
             return n;
         }
-        ast_node* relationalExpression(ParserState* ps) {
+        ast_node* relationalExpression(Parser* ps) {
             ast_node* n = equalityExpression(ps);
             if (!n) return nullptr;
 
@@ -1326,7 +1500,7 @@ namespace gs {
                 ast_node* o = ps->newNode(nt_expression, n->tok);
                 o->op = op_lessThan;
                 o->lvalue = n;
-                o->rvalue = expression(ps);
+                o->rvalue = singleExpression(ps);
                 if (!o->rvalue) {
                     ps->error(pec_expected_expr, "Expected expression after '<'");
                     ps->freeNode(o);
@@ -1341,7 +1515,7 @@ namespace gs {
                 ast_node* o = ps->newNode(nt_expression, n->tok);
                 o->op = op_greaterThan;
                 o->lvalue = n;
-                o->rvalue = expression(ps);
+                o->rvalue = singleExpression(ps);
                 if (!o->rvalue) {
                     ps->error(pec_expected_expr, "Expected expression after '>'");
                     ps->freeNode(o);
@@ -1356,7 +1530,7 @@ namespace gs {
                 ast_node* o = ps->newNode(nt_expression, n->tok);
                 o->op = op_lessThanEq;
                 o->lvalue = n;
-                o->rvalue = expression(ps);
+                o->rvalue = singleExpression(ps);
                 if (!o->rvalue) {
                     ps->error(pec_expected_expr, "Expected expression after '<='");
                     ps->freeNode(o);
@@ -1371,7 +1545,7 @@ namespace gs {
                 ast_node* o = ps->newNode(nt_expression, n->tok);
                 o->op = op_greaterThanEq;
                 o->lvalue = n;
-                o->rvalue = expression(ps);
+                o->rvalue = singleExpression(ps);
                 if (!o->rvalue) {
                     ps->error(pec_expected_expr, "Expected expression after '>='");
                     ps->freeNode(o);
@@ -1382,7 +1556,7 @@ namespace gs {
         
             return n;
         }
-        ast_node* shiftExpression(ParserState* ps) {
+        ast_node* shiftExpression(Parser* ps) {
             ast_node* n = relationalExpression(ps);
             if (!n) return nullptr;
 
@@ -1392,7 +1566,7 @@ namespace gs {
                 ast_node* o = ps->newNode(nt_expression, n->tok);
                 o->op = op_shLeft;
                 o->lvalue = n;
-                o->rvalue = expression(ps);
+                o->rvalue = singleExpression(ps);
                 if (!o->rvalue) {
                     ps->error(pec_expected_expr, "Expected expression after '<<'");
                     ps->freeNode(o);
@@ -1407,7 +1581,7 @@ namespace gs {
                 ast_node* o = ps->newNode(nt_expression, n->tok);
                 o->op = op_shRight;
                 o->lvalue = n;
-                o->rvalue = expression(ps);
+                o->rvalue = singleExpression(ps);
                 if (!o->rvalue) {
                     ps->error(pec_expected_expr, "Expected expression after '>>'");
                     ps->freeNode(o);
@@ -1418,7 +1592,7 @@ namespace gs {
 
             return n;
         }
-        ast_node* additiveExpression(ParserState* ps) {
+        ast_node* additiveExpression(Parser* ps) {
             ast_node* n = shiftExpression(ps);
             if (!n) return nullptr;
 
@@ -1428,7 +1602,7 @@ namespace gs {
                 ast_node* o = ps->newNode(nt_expression, n->tok);
                 o->op = op_add;
                 o->lvalue = n;
-                o->rvalue = expression(ps);
+                o->rvalue = singleExpression(ps);
                 if (!o->rvalue) {
                     ps->error(pec_expected_expr, "Expected expression after '+'");
                     ps->freeNode(o);
@@ -1443,7 +1617,7 @@ namespace gs {
                 ast_node* o = ps->newNode(nt_expression, n->tok);
                 o->op = op_sub;
                 o->lvalue = n;
-                o->rvalue = expression(ps);
+                o->rvalue = singleExpression(ps);
                 if (!o->rvalue) {
                     ps->error(pec_expected_expr, "Expected expression after '-'");
                     ps->freeNode(o);
@@ -1454,7 +1628,7 @@ namespace gs {
 
             return n;
         }
-        ast_node* multiplicativeExpression(ParserState* ps) {
+        ast_node* multiplicativeExpression(Parser* ps) {
             ast_node* n = additiveExpression(ps);
             if (!n) return nullptr;
 
@@ -1464,7 +1638,7 @@ namespace gs {
                 ast_node* o = ps->newNode(nt_expression, n->tok);
                 o->op = op_mul;
                 o->lvalue = n;
-                o->rvalue = expression(ps);
+                o->rvalue = singleExpression(ps);
                 if (!o->rvalue) {
                     ps->error(pec_expected_expr, "Expected expression after '*'");
                     ps->freeNode(o);
@@ -1479,7 +1653,7 @@ namespace gs {
                 ast_node* o = ps->newNode(nt_expression, n->tok);
                 o->op = op_div;
                 o->lvalue = n;
-                o->rvalue = expression(ps);
+                o->rvalue = singleExpression(ps);
                 if (!o->rvalue) {
                     ps->error(pec_expected_expr, "Expected expression after '/'");
                     ps->freeNode(o);
@@ -1494,7 +1668,7 @@ namespace gs {
                 ast_node* o = ps->newNode(nt_expression, n->tok);
                 o->op = op_mod;
                 o->lvalue = n;
-                o->rvalue = expression(ps);
+                o->rvalue = singleExpression(ps);
                 if (!o->rvalue) {
                     ps->error(pec_expected_expr, "Expected expression after '%'");
                     ps->freeNode(o);
@@ -1505,12 +1679,12 @@ namespace gs {
 
             return n;
         }
-        ast_node* notExpression(ParserState* ps) {
+        ast_node* notExpression(Parser* ps) {
             if (ps->isSymbol("!")) {
                 ps->consume();
                 ast_node* n = ps->newNode(nt_expression, &ps->getPrev());
                 n->op = op_not;
-                n->lvalue = expression(ps);
+                n->lvalue = singleExpression(ps);
 
                 if (!n->lvalue) {
                     ps->error(pec_expected_expr, "Expected expression or literal after '!'");
@@ -1523,12 +1697,12 @@ namespace gs {
 
             return multiplicativeExpression(ps);
         }
-        ast_node* invertExpression(ParserState* ps) {
+        ast_node* invertExpression(Parser* ps) {
             if (ps->isSymbol("~")) {
                 ps->consume();
                 ast_node* n = ps->newNode(nt_expression, &ps->getPrev());
                 n->op = op_bitInv;
-                n->lvalue = expression(ps);
+                n->lvalue = singleExpression(ps);
 
                 if (!n->lvalue) {
                     ps->error(pec_expected_expr, "Expected expression or literal after '~'");
@@ -1541,12 +1715,12 @@ namespace gs {
 
             return notExpression(ps);
         }
-        ast_node* negateExpression(ParserState* ps) {
+        ast_node* negateExpression(Parser* ps) {
             if (ps->isSymbol("-")) {
                 ps->consume();
                 ast_node* n = ps->newNode(nt_expression, &ps->getPrev());
                 n->op = op_negate;
-                n->lvalue = expression(ps);
+                n->lvalue = singleExpression(ps);
 
                 if (!n->lvalue) {
                     ps->error(pec_expected_expr, "Expected expression or literal after '-'");
@@ -1559,12 +1733,12 @@ namespace gs {
 
             return invertExpression(ps);
         }
-        ast_node* prefixDecExpression(ParserState* ps) {
+        ast_node* prefixDecExpression(Parser* ps) {
             if (ps->isSymbol("--")) {
                 ps->consume();
                 ast_node* n = ps->newNode(nt_expression, &ps->getPrev());
                 n->op = op_preDec;
-                n->lvalue = expression(ps);
+                n->lvalue = singleExpression(ps);
 
                 if (!n->lvalue) {
                     ps->error(pec_expected_expr, "Expected expression after '--'");
@@ -1577,12 +1751,12 @@ namespace gs {
 
             return negateExpression(ps);
         }
-        ast_node* prefixIncExpression(ParserState* ps) {
+        ast_node* prefixIncExpression(Parser* ps) {
             if (ps->isSymbol("++")) {
                 ps->consume();
                 ast_node* n = ps->newNode(nt_expression, &ps->getPrev());
                 n->op = op_preInc;
-                n->lvalue = expression(ps);
+                n->lvalue = singleExpression(ps);
 
                 if (!n->lvalue) {
                     ps->error(pec_expected_expr, "Expected expression after '++'");
@@ -1595,7 +1769,7 @@ namespace gs {
 
             return prefixDecExpression(ps);
         }
-        ast_node* postfixDecExpression(ParserState* ps) {
+        ast_node* postfixDecExpression(Parser* ps) {
             ast_node* n = prefixIncExpression(ps);
 
             if (ps->isSymbol("--")) {
@@ -1608,7 +1782,7 @@ namespace gs {
 
             return n;
         }
-        ast_node* postfixIncExpression(ParserState* ps) {
+        ast_node* postfixIncExpression(Parser* ps) {
             ast_node* n = postfixDecExpression(ps);
 
             if (ps->isSymbol("++")) {
@@ -1621,7 +1795,7 @@ namespace gs {
 
             return n;
         }
-        ast_node* callExpression(ParserState* ps) {
+        ast_node* callExpression(Parser* ps) {
             ast_node* n = postfixIncExpression(ps);
             if (!n) return nullptr;
             
@@ -1635,7 +1809,7 @@ namespace gs {
 
             return n;
         }
-        ast_node* newExpression(ParserState* ps) {
+        ast_node* newExpression(Parser* ps) {
             if (ps->isKeyword("new")) {
                 ps->consume();
                 ast_node* n = ps->newNode(nt_expression, &ps->getPrev());
@@ -1657,7 +1831,7 @@ namespace gs {
 
             return callExpression(ps);
         }
-        ast_node* memberExpression(ParserState* ps) {
+        ast_node* memberExpression(Parser* ps) {
             ast_node* n = newExpression(ps);
             if (!n) return nullptr;
 
@@ -1674,12 +1848,13 @@ namespace gs {
                 ps->freeNode(i);
                 return nullptr;
             }
+            ps->consume();
             i->value.s = t.text.c_str();
             i->str_len = t.text.size();
 
             return i;
         }
-        ast_node* indexExpression(ParserState* ps) {
+        ast_node* indexExpression(Parser* ps) {
             ast_node* n = memberExpression(ps);
             if (!n) return nullptr;
 
@@ -1703,13 +1878,60 @@ namespace gs {
 
             return i;
         }
-        ast_node* expression(ParserState* ps) {
-            ast_node* n = anonymousFunction(ps);
-            if (!n) return indexExpression(ps);
-            return n;
+        ast_node* singleExpression(Parser* ps) {
+            ast_node* n = nullptr;
+            
+            n = anonymousFunction(ps);
+            if (n) return n;
+
+            n = indexExpression(ps);
+            if (n) return n;
+            
+            return nullptr;
         }
         
-        ast_node* variableDecl(ParserState* ps) {
+
+
+
+        ast_node* r_callExpression(Parser* ps) {
+
+        }
+        ast_node* r_memberExpression(Parser* ps) {
+
+        }
+        ast_node* r_leftHandSideExpression(Parser* ps) {
+            ast_node* n = r_callExpression(ps);
+            if (n) return n;
+
+            return r_memberExpression(ps);
+        }
+        ast_node* r_assignmentExpression(Parser* ps) {
+            // ( LeftHandSideExpression AssignmentOperator AssignmentExpression | ConditionalExpression )
+            return nullptr;
+        }
+        ast_node* r_expression(Parser* ps) {
+            ast_node* n = r_assignmentExpression(ps);
+            ast_node* b = n;
+            while (ps->typeIs(tt_comma)) {
+                ps->consume();
+
+                b->next = r_assignmentExpression(ps);
+                if (!b->next) {
+                    ps->error(pec_expected_expr, "Expected expression after ','");
+                    // attempt to continue
+                    break;
+                }
+
+                b = b->next;
+            }
+
+            return n;
+        }
+
+
+
+
+        ast_node* variableDecl(Parser* ps) {
             ast_node* _assignable = one_of(ps, { typedAssignable, assignable, objectDecompositor });
             if (!_assignable) return nullptr;
 
@@ -1717,7 +1939,7 @@ namespace gs {
             decl->body = _assignable;
             if (ps->isSymbol("=")) {
                 ps->consume();
-                decl->initializer = expression(ps);
+                decl->initializer = singleExpression(ps);
                 if (!decl->initializer) {
                     ps->error(pec_expected_expr, "Expected expression for variable initializer");
                 }
@@ -1725,7 +1947,7 @@ namespace gs {
 
             return decl;
         }
-        ast_node* variableDeclList(ParserState* ps) {
+        ast_node* variableDeclList(Parser* ps) {
             bool isConst = ps->isKeyword("const");
             if (!isConst && !ps->isKeyword("let")) return nullptr;
             const token* tok = &ps->get();
@@ -1765,22 +1987,22 @@ namespace gs {
 
             return f;
         }
-        ast_node* variableStatement(ParserState* ps) {
+        ast_node* variableStatement(Parser* ps) {
             return all_of(ps, { variableDeclList, eosRequired });
         }
-        ast_node* emptyStatement(ParserState* ps) {
+        ast_node* emptyStatement(Parser* ps) {
             return eos(ps);
         }
-        ast_node* expressionSequence(ParserState* ps) {
-            ast_node* f = expression(ps);
+        ast_node* expressionSequence(Parser* ps) {
+            ast_node* f = singleExpression(ps);
             if (!f) return nullptr;
             
             ast_node* n = f;
-            while(true) {
+            while (true) {
                 if (!ps->typeIs(tt_comma)) break;
                 ps->consume();
 
-                n->next = expression(ps);
+                n->next = singleExpression(ps);
                 n = n->next;
 
                 if (!n) {
@@ -1792,7 +2014,7 @@ namespace gs {
 
             return f;
         }
-        ast_node* expressionSequenceGroup(ParserState* ps) {
+        ast_node* expressionSequenceGroup(Parser* ps) {
             if (!ps->typeIs(tt_open_parenth)) return nullptr;
             ps->push();
             ps->consume();
@@ -1815,10 +2037,10 @@ namespace gs {
 
             return n;
         }
-        ast_node* expressionStatement(ParserState* ps) {
+        ast_node* expressionStatement(Parser* ps) {
             return all_of(ps, { expressionSequence, eosRequired });
         }
-        ast_node* ifStatement(ParserState* ps) {
+        ast_node* ifStatement(Parser* ps) {
             if (!ps->isKeyword("if")) return nullptr;
             ps->consume();
             ast_node* n = ps->newNode(nt_if, &ps->getPrev());
@@ -1848,7 +2070,7 @@ namespace gs {
 
             return n;
         }
-        ast_node* continueStatement(ParserState* ps) {
+        ast_node* continueStatement(Parser* ps) {
             if (!ps->isKeyword("continue")) return nullptr;
             ps->consume();
 
@@ -1859,7 +2081,7 @@ namespace gs {
 
             return ps->newNode(nt_continue, &ps->getPrev());
         }
-        ast_node* breakStatement(ParserState* ps) {
+        ast_node* breakStatement(Parser* ps) {
             if (!ps->isKeyword("break")) return nullptr;
             ps->consume();
 
@@ -1870,7 +2092,7 @@ namespace gs {
 
             return ps->newNode(nt_continue, &ps->getPrev());
         }
-        ast_node* iterationStatement(ParserState* ps) {
+        ast_node* iterationStatement(Parser* ps) {
             if (ps->isKeyword("do")) {
                 ps->consume();
                 ast_node* n = ps->newNode(nt_loop, &ps->getPrev());
@@ -1970,12 +2192,12 @@ namespace gs {
 
             return nullptr;
         }
-        ast_node* returnStatement(ParserState* ps) {
+        ast_node* returnStatement(Parser* ps) {
             if (!ps->isKeyword("return")) return nullptr;
             ps->consume();
 
             ast_node* n = ps->newNode(nt_return, &ps->getPrev());
-            n->body = expression(ps);
+            n->body = singleExpression(ps);
 
             if (!ps->typeIs(tt_semicolon)) {
                 ps->error(pec_expected_eos, "Expected ';' after return statement");
@@ -1984,7 +2206,7 @@ namespace gs {
 
             return n;
         }
-        ast_node* switchCase(ParserState* ps) {
+        ast_node* switchCase(Parser* ps) {
             if (!ps->isKeyword("case")) return nullptr;
             ps->consume();
 
@@ -2005,7 +2227,7 @@ namespace gs {
 
             return n;
         }
-        ast_node* switchStatement(ParserState* ps) {
+        ast_node* switchStatement(Parser* ps) {
             if (!ps->isKeyword("switch")) return nullptr;
             ps->consume();
 
@@ -2042,11 +2264,11 @@ namespace gs {
 
             return n;
         }
-        ast_node* throwStatement(ParserState* ps) {
+        ast_node* throwStatement(Parser* ps) {
             if (!ps->isKeyword("throw")) return nullptr;
             const token* t = &ps->get();
             ps->consume();
-            ast_node* expr = expression(ps);
+            ast_node* expr = singleExpression(ps);
             if (!expr) {
                 ps->error(pec_expected_expr, "Expected expression after 'throw'");
                 return nullptr;
@@ -2061,7 +2283,7 @@ namespace gs {
             n->body = expr;
             return n;
         }
-        ast_node* catchBlock(ParserState* ps) {
+        ast_node* catchBlock(Parser* ps) {
             if (!ps->isKeyword("catch")) return nullptr;
             const token* t = &ps->get();
             ps->consume();
@@ -2097,7 +2319,7 @@ namespace gs {
 
             return n;
         }
-        ast_node* tryStatement(ParserState* ps) {
+        ast_node* tryStatement(Parser* ps) {
             if (!ps->isKeyword("try")) return nullptr;
             const token* t = &ps->get();
             ps->consume();
@@ -2125,7 +2347,7 @@ namespace gs {
 
             return n;
         }
-        ast_node* functionDecl(ParserState* ps) {
+        ast_node* functionDecl(Parser* ps) {
             if (!ps->isKeyword("function")) return nullptr;
             const token* t = &ps->get();
             ps->consume();
@@ -2136,8 +2358,10 @@ namespace gs {
                 return nullptr;
             }
 
+
             n->tp = nt_function;
             n->tok = t;
+            n->template_parameters = templateParams(ps);
             n->parameters = parameterList(ps);
             if (!n->parameters) {
                 ps->error(pec_expected_parameter_list, "Expected function parameter list");
@@ -2147,28 +2371,189 @@ namespace gs {
 
             return n;
         }
-        ast_node* functionDef(ParserState* ps) {
+        ast_node* functionDef(Parser* ps) {
             ast_node* n = functionDecl(ps);
             if (!n) return nullptr;
 
             n->body = block(ps);
 
             if (!n->body) {
-                if (!ps->typeIs(tt_semicolon)) {
-                    ps->error(pec_expected_eos, "Expected either ';' or a function body");
-                    // attempt to continue
-                } else ps->consume();
+                ps->error(pec_expected_eos, "Expected function body");
             }
 
             return n;
         }
-        ast_node* classDef(ParserState* ps) { return nullptr; }
-        ast_node* typeDef(ParserState* ps) {
+        ast_node* classPropertyOrMethod(Parser* ps) {
+            access_modifier am = public_access;
+            bool isStatic = false;
+            const token& ft = ps->get();
+
+            bool didCommit = false;
+            ps->push();
+
+            if (ps->isKeyword("public")) {
+                ps->commit();
+                didCommit = true;
+                ps->consume();
+            } else if (ps->isKeyword("private")) {
+                ps->commit();
+                didCommit = true;
+                am = private_access;
+                ps->consume();
+            }
+
+            if (ps->isKeyword("static")) {
+                ps->commit();
+                didCommit = true;
+                isStatic = true;
+            }
+
+            bool isGetter = false;
+            bool isSetter = false;
+
+            if (ps->isKeyword("get")) {
+                ps->commit();
+                didCommit = true;
+                isGetter = true;
+                ps->consume();
+            } else if (ps->isKeyword("set")) {
+                ps->commit();
+                didCommit = true;
+                isSetter = true;
+                ps->consume();
+            }
+
+            ast_node* n = identifier(ps);
+            if (!n) {
+                if (isGetter) {
+                    ps->error(pec_expected_identifier, "Expected property name for getter method");
+                } else if (isSetter) {
+                    ps->error(pec_expected_identifier, "Expected property name for setter method");
+                } else if (didCommit) {
+                    ps->error(pec_expected_identifier, "Expected property or method name");
+                }
+
+                ps->revert();
+                return nullptr;
+            }
+
+            if (!didCommit) {
+                ps->commit();
+                didCommit = true;
+            }
+            
+            n->flags.is_private = (am == private_access) ? 1 : 0;
+            n->flags.is_static = isStatic ? 1 : 0;
+            n->flags.is_getter = isGetter ? 1 : 0;
+            n->flags.is_setter = isSetter ? 1 : 0;
+            n->tok = &ft;
+
+            if (!isGetter && !isSetter && ps->typeIs(tt_colon)) {
+                ps->consume();
+                n->tp = nt_property;
+                n->data_type = typeSpecifier(ps);
+                if (!n->data_type) {
+                    ps->error(pec_expected_type_specifier, "Expected type specifier for class property");
+                    ps->freeNode(n);
+                    return nullptr;
+                }
+
+                if (!ps->typeIs(tt_semicolon)) {
+                    ps->error(pec_expected_eos, "Expected ';' after property declaration");
+                    // attempt to continue
+                } else ps->consume();
+
+                return n;
+            }
+
+            if (ps->typeIs(tt_open_parenth)) {
+                n->tp = nt_function;
+                n->parameters = typedParameterList(ps);
+                if (!n->parameters) {
+                    // an error was already posted
+                    ps->freeNode(n);
+                    return nullptr;
+                }
+
+                if (ps->typeIs(tt_colon)) {
+                    ps->consume();
+                    n->data_type = typeSpecifier(ps);
+                    if (!n->data_type) {
+                        ps->error(pec_expected_type_specifier, "Expected type specifier for return value of class method");
+                        ps->freeNode(n);
+                        return nullptr;
+                    }
+                }
+
+                n->body = block(ps);
+                if (!n->body) {
+                    ps->error(pec_expected_function_body, "Expected function body after class method declaration");
+                    ps->freeNode(n);
+                    return nullptr;
+                }
+
+                return n;
+            } else if (isGetter) {
+                ps->error(pec_expected_identifier, "Expected class property getter method");
+                ps->freeNode(n);
+                return nullptr;
+            } else if (isSetter) {
+                ps->error(pec_expected_identifier, "Expected class property setter method");
+                ps->freeNode(n);
+                return nullptr;
+            }
+        
+            ps->freeNode(n);
+            ps->error(pec_malformed_class_element, "Expected property type specifier or method parameter list after identifier");
+            return nullptr;
+        }
+        ast_node* classDef(Parser* ps) {
+            if (!ps->isKeyword("class")) return nullptr;
+            const token& ft = ps->get();
+            ps->consume();
+
+            ast_node* n = identifier(ps);
+            n->tok = &ft;
+            n->tp = nt_class;
+            n->template_parameters = templateParams(ps);
+
+            if (!ps->typeIs(tt_open_brace)) {
+                ps->error(pec_expected_open_brace, "Expected '{' after class name");
+                ps->freeNode(n);
+                return nullptr;
+            }
+            ps->consume();
+
+            n->body = array_of(ps, classPropertyOrMethod);
+
+            if (!n->body) {
+                ps->error(pec_empty_class, "Class body cannot be empty");
+                ps->freeNode(n);
+                return nullptr;
+            }
+
+            if (!ps->typeIs(tt_close_brace)) {
+                ps->error(pec_expected_open_brace, "Expected '}' after class body");
+                ps->freeNode(n);
+                return nullptr;
+            }
+            ps->consume();
+
+            if (!ps->typeIs(tt_semicolon)) {
+                ps->error(pec_expected_eos, "Expected ';' after class definition");
+                // attempt to continue
+            } else ps->consume();
+
+            return n;
+        }
+        ast_node* typeDef(Parser* ps) {
             if (!ps->isKeyword("type")) return nullptr;
             const token* t = &ps->get();
             ps->consume();
 
             ast_node* n = identifier(ps);
+
+            n->template_parameters = templateParams(ps);
 
             if (!n) {
                 ps->error(pec_expected_identifier, "Expected identifier for type name");
@@ -2198,7 +2583,7 @@ namespace gs {
 
             return n;
         }
-        ast_node* symbolImport(ParserState* ps) {
+        ast_node* symbolImport(Parser* ps) {
             ast_node* n = one_of(ps, {
                 typedIdentifier,
                 identifier
@@ -2207,7 +2592,7 @@ namespace gs {
             n->tp = nt_import_symbol;
             return n;
         }
-        ast_node* importList(ParserState* ps) {
+        ast_node* importList(Parser* ps) {
             if (!ps->typeIs(tt_open_brace)) return nullptr;
             ps->consume();
 
@@ -2235,7 +2620,7 @@ namespace gs {
 
             return f;
         }
-        ast_node* importModule(ParserState* ps) {
+        ast_node* importModule(Parser* ps) {
             if (!ps->typeIs(tt_open_brace)) return nullptr;
             ps->push();
             ps->consume();
@@ -2269,7 +2654,7 @@ namespace gs {
             n->tp = nt_import_module;
             return n;
         }
-        ast_node* declaration(ParserState* ps) {
+        ast_node* declaration(Parser* ps) {
             return one_of(ps, {
                 variableStatement,
                 classDef,
@@ -2277,7 +2662,7 @@ namespace gs {
                 functionDef
             });
         }
-        ast_node* importStatement(ParserState* ps) {
+        ast_node* importStatement(Parser* ps) {
             if (!ps->isKeyword("import")) return nullptr;
             ps->consume();
 
@@ -2310,7 +2695,7 @@ namespace gs {
 
             return n;
         }
-        ast_node* exportStatement(ParserState* ps) {
+        ast_node* exportStatement(Parser* ps) {
             if (!ps->isKeyword("export")) return nullptr;
             const token* t = &ps->get();
             ps->consume();
@@ -2325,7 +2710,7 @@ namespace gs {
             e->body = decl;
             return e;
         }
-        ast_node* statement(ParserState* ps) {
+        ast_node* statement(Parser* ps) {
             ast_node* n = one_of(ps, {
                 block,
                 variableStatement,
@@ -2348,7 +2733,7 @@ namespace gs {
 
             return n;
         }
-        ast_node* program(ParserState* ps) {
+        ast_node* program(Parser* ps) {
             ast_node* statements = array_of(ps, statement);
 
             if (!ps->typeIs(tt_eof)) {

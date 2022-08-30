@@ -26,8 +26,6 @@ namespace gs {
             const utils::Array<ffi::Function*>& allFunctions() const;
             u32 functionCount() const;
 
-            void mergeFunctions(IFunctionHolder& funcs);
-
             void addFunction(ffi::Function* fn);
 
             /**
@@ -38,7 +36,6 @@ namespace gs {
              * 
              * @param types Context's type registry
              * @param name Function name
-             * @param funcs Set of functions to search
              * @param flags Search options (See 'function_match_flags' documentation for more info)
              * 
              * @return Subset of 'funcs' that match the provided signature
@@ -47,7 +44,6 @@ namespace gs {
             utils::Array<ffi::Function*> findFunctions(
                 ffi::DataTypeRegistry* types,
                 const utils::String& name,
-                const utils::Array<ffi::Function*>& funcs,
                 function_match_flags flags
             );
 
@@ -58,7 +54,6 @@ namespace gs {
              * @param retTp Signature return type
              * @param argTps Signature argument types
              * @param argCount Signature argument count
-             * @param funcs Set of functions to search
              * @param flags Search options (See 'function_match_flags' documentation for more info)
              * @return Subset of 'funcs' that match the provided signature
              */
@@ -67,7 +62,6 @@ namespace gs {
                 ffi::DataType* retTp,
                 ffi::DataType** argTps,
                 u8 argCount,
-                const utils::Array<ffi::Function*>& funcs,
                 function_match_flags flags
             );
         

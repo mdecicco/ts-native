@@ -3,21 +3,24 @@
 #include <gs/utils/SourceLocation.h>
 #include <gs/compiler/Value.h>
 #include <gs/compiler/types.h>
+#include <gs/interfaces/ICodeHolder.h>
 
 #include <utils/Array.h>
 #include <utils/String.h>
 
 namespace gs {
-    class DataType;
-
     namespace compiler {
+        class FunctionDef;
+
         //
         // 'vreg' refers to a val which represents a virtual register
         // 'imm' refers to a val which represents a hard-coded value
         // 'val' can mean either of the above two things
         //
-        // The operands for all binary operations must be of the same
-        // data type, with the exception of the result operand.
+        // The operands for all unary/binary operations must be of the
+        // same data type, with the following exceptions:
+        // - Result operand for boolean operators must be of boolean
+        //   type
         // 
         enum ir_instruction {
             // Do nothing. Should be ignored when processing and translating to target arch
@@ -185,41 +188,48 @@ namespace gs {
             ir_xor   // op0 = op1 ^ op2
         };
 
+        class Instruction {
+            public:
+                Instruction(ir_instruction i, const SourceLocation& src);
 
+                ir_instruction op;
+                Value operands[3];
+                label_id labels[2];
+                SourceLocation src;
+                u8 oCnt;
+                u8 lCnt;
 
-        struct instruction {
-            ir_instruction op;
-            Value operands[3];
-            label_id labels[2];
-            SourceLocation src;
-            u8 oCnt;
-            u8 lCnt;
+                // since function IDs won't be known until a function has finished compiling
+                // a pointer to the function must be stored when referring to an uncompiled
+                // function. The corresponding operands will be updated later, when finished
+                // compiling
+                FunctionDef* fn_operands[3];
 
-            /**
-             * @brief Returns pointer to Value that would be assigned by this instruction
-             * 
-             * @return Pointer to Value if op refers to an assigning instruction, otherwise null
-             */
-            Value* assigns() const;
+                /**
+                 * @brief Returns pointer to Value that would be assigned by this instruction
+                 * 
+                 * @return Pointer to Value if op refers to an assigning instruction, otherwise null
+                 */
+                Value* assigns() const;
 
-            /**
-             * @brief Returns true if this instruction involves the specified vreg ID
-             * 
-             * @param reg vreg ID to check
-             * @param excludeAssignment Whether to ignore involvement if the vreg ID is
-             *                          only involved by being assigned to by operation
-             * @return Whether or not the specified vreg ID is involved 
-             */
-            bool involves(vreg_id reg, bool excludeAssignment = false) const;
+                /**
+                 * @brief Returns true if this instruction involves the specified vreg ID
+                 * 
+                 * @param reg vreg ID to check
+                 * @param excludeAssignment Whether to ignore involvement if the vreg ID is
+                 *                          only involved by being assigned to by operation
+                 * @return Whether or not the specified vreg ID is involved 
+                 */
+                bool involves(vreg_id reg, bool excludeAssignment = false) const;
         };
 
-        class ICodeHolder;
         class InstructionRef {
             public:
-                InstructionRef(ICodeHolder* owner, u64 index, ir_instruction i);
+                InstructionRef(ICodeHolder* owner, u32 index);
 
                 InstructionRef& instr(ir_instruction i);
                 InstructionRef& op(const Value& v);
+                InstructionRef& op(FunctionDef* fn);
                 InstructionRef& label(label_id l);
                 void remove();
 
@@ -227,54 +237,7 @@ namespace gs {
                 
             private:
                 ICodeHolder* m_owner;
-                u64 index;
-        };
-
-        class CompiledFunction {
-            public:
-                CompiledFunction();
-
-            protected:
-        };
-
-        class CompiledFunction;
-        class ICodeHolder {
-            public:
-                ICodeHolder();
-                ~ICodeHolder();
-
-                InstructionRef add(ir_instruction i);
-                label_id label();
-                void remove(const InstructionRef& i);
-                void remove(u64 index);
-
-                // Takes care of updating label and vreg IDs
-                void append(const ICodeHolder& code);
-
-                // Takes care of updating label and vreg IDs
-                void inlineCall(const CompiledFunction& f, const utils::Array<Value>& params);
-
-                Value& val(const utils::String& name, DataType* tp);
-                Value val(DataType* tp);
-                
-                template <typename T>
-                Value val();
-
-                template <typename T>
-                Value imm(T value);
-            
-            protected:
-                utils::Array<instruction> m_instructions;
-                label_id m_nextLabelId;
-                vreg_id m_nextRegId;
-        };
-
-        class CompiledFunction : public ICodeHolder {
-            public:
-                CompiledFunction();
-
-                Value stackAlloc(u32 size);
-                void stackFree(const Value& val);
+                u32 m_index;
         };
     };
 };

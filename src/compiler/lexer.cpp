@@ -1,4 +1,4 @@
-#include <gs/compiler/lexer.h>
+#include <gs/compiler/Lexer.h>
 #include <gs/utils/ProgramSource.h>
 #include <utils/Array.hpp>
 
@@ -642,6 +642,29 @@ namespace gs {
                             if (*tmp == '=') {
                                 end++;
                                 at_end = !m_curSrc++;
+                            } else if (*tmp == '/') {
+                                end++;
+                                at_end = !m_curSrc++;
+
+                                tp = tt_comment;
+                                while (!at_end && (*end) != '\n' && (*end) != '\r') {
+                                    end++;
+                                    at_end = !m_curSrc++;
+                                }
+                            } else if (*tmp == '*') {
+                                end++;
+                                at_end = !m_curSrc++;
+
+                                tp = tt_comment;
+                                while (!at_end) {
+                                    if ((*(end - 1)) == '*' && (*end) == '/') {
+                                        end++;
+                                        at_end = !m_curSrc++;
+                                        break;
+                                    }
+                                    end++;
+                                    at_end = !m_curSrc++;
+                                }
                             }
                             break;
                         }
@@ -803,7 +826,7 @@ namespace gs {
                     }
                 }
             
-                if (begin != end) {
+                if (begin != end && tp != tt_comment) {
                     out.push({
                         tp,
                         utils::String::View(begin, end - begin),

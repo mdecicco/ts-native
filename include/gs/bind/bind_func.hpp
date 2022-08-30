@@ -208,12 +208,13 @@ namespace gs {
 
             void (*wrapper)(Ret (Cls::*)(Args...), Ret*, ExecutionContext*, Cls*, Args...) = &_method_wrapper<Cls, Ret, Args...>;
 
-            return new Function(
+            return new Method(
                 name,
                 sig,
                 access,
                 *reinterpret_cast<void**>(&func),
-                *reinterpret_cast<void**>(&wrapper)
+                *reinterpret_cast<void**>(&wrapper),
+                0
             );
         }
         
@@ -253,12 +254,13 @@ namespace gs {
 
             void (*wrapper)(Ret (Cls::*)(Args...) const, Ret*, ExecutionContext*, Cls*, Args...) = &_method_wrapper<Cls, Ret, Args...>;
 
-            return new Function(
+            return new Method(
                 name,
                 sig,
                 access,
                 *reinterpret_cast<void**>(&func),
-                *reinterpret_cast<void**>(&wrapper)
+                *reinterpret_cast<void**>(&wrapper),
+                0
             );
         }
 

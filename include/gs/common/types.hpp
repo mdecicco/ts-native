@@ -21,6 +21,9 @@ namespace gs {
             std::is_integral_v<T>,
             std::is_unsigned_v<T>,
             std::is_function_v<T>,
+            false,
+            false,
+            false,
             true,
             sz,
             std::type_index(typeid(T)).hash_code()

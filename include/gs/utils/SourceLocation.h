@@ -11,6 +11,7 @@ namespace gs {
     class ProgramSource;
     class SourceLocation {
         public:
+            SourceLocation();
             SourceLocation(ProgramSource* src, u32 line, u32 col);
             ~SourceLocation();
 

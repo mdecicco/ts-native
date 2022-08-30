@@ -35,10 +35,6 @@ namespace gs {
         return m_funcs.size();
     }
 
-    void IFunctionHolder::mergeFunctions(IFunctionHolder& funcs) {
-        utils::Array<ffi::Function*>& t = funcs.m_funcs;
-    }
-
     void IFunctionHolder::addFunction(ffi::Function* fn) {
         if (m_funcIdMap.count(fn->getId()) > 0) return;
         m_funcIdMap[fn->getId()] = m_funcs.size();
@@ -50,9 +46,8 @@ namespace gs {
         ffi::DataType* retTp,
         ffi::DataType** argTps,
         u8 argCount,
-        const utils::Array<ffi::Function*>& funcs,
         function_match_flags flags
     ) {
-        return function_match(name, retTp, argTps, argCount, funcs, flags);
+        return function_match(name, retTp, argTps, argCount, m_funcs, flags);
     }
 };

@@ -7,9 +7,8 @@ namespace gs {
     utils::Array<ffi::Function*> IFunctionHolder::findFunctions(
         ffi::DataTypeRegistry* types,
         const utils::String& name,
-        const utils::Array<ffi::Function*>& funcs,
         function_match_flags flags
     ) {
-        return function_match<Ret, Args...>(types, name, funcs, flags);
+        return function_match<Ret, Args...>(types, name, m_funcs, flags);
     }
 };
