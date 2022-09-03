@@ -18,7 +18,7 @@ namespace gs {
             // import, export, from, as, operator, static,
             // const, get, set, null, return, switch, case,
             // default, true, false, this, function, let
-            // new
+            // new, sizeof
             tt_keyword,
 
             // + , - , *  , / , ~  , ! , % , ^ , < , > , = , & , && , | , || ,

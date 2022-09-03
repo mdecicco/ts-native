@@ -15,17 +15,17 @@ export class Array<T> {
     constructor (initialCapacity: u32) {
         this._length = 0;
         this._capacity = initialCapacity;
-        this._data = newMem(initialCapacity * sizeof(T));
+        this._data = newMem(initialCapacity * sizeof<T>);
     }
 
     constructor (rhs: Array<T>) {
         this._length = rhs._length;
         this._capacity = rhs._length;
-        this._data = newMem(rhs._length * sizeof(T));
+        this._data = newMem(rhs._length * sizeof<T>);
 
         for (let i = 0;i < this._length;i++) {
-            const newE = (this._data + (idx * sizeof(T)));
-            const oldE = (rhs._data + (idx * sizeof(T)));
+            const newE = (this._data + (idx * sizeof<T>));
+            const oldE = (rhs._data + (idx * sizeof<T>));
             new T(oldE as T) => newE;
         }
     }
@@ -46,10 +46,10 @@ export class Array<T> {
     }
 
     reserve (count: u32) {
-        const nm = newMem((this._capacity + count) * sizeof(T));
+        const nm = newMem((this._capacity + count) * sizeof<T>);
         for (let i = 0;i < this._length;i++) {
-            const newE = (nm + (idx * sizeof(T)));
-            const oldE = (this._data + (idx * sizeof(T)));
+            const newE = (nm + (idx * sizeof<T>));
+            const oldE = (this._data + (idx * sizeof<T>));
             new T(oldE as T) => newE;
         }
 
@@ -65,10 +65,10 @@ export class Array<T> {
         }
         this._length = rhs._length;
         this._capacity = rhs._length;
-        this._data = newMem(rhs._length * sizeof(T));
+        this._data = newMem(rhs._length * sizeof<T>);
         for (let i = 0;i < this._length;i++) {
-            const newE = (this._data + (idx * sizeof(T)));
-            const oldE = (rhs._data + (idx * sizeof(T)));
+            const newE = (this._data + (idx * sizeof<T>));
+            const oldE = (rhs._data + (idx * sizeof<T>));
             new T(oldE as T) => newE;
         }
     }
@@ -78,26 +78,26 @@ export class Array<T> {
             this.reserve(this._capacity / 2);
         }
 
-        const newE = (this._data + (this._length * sizeof(T)));
+        const newE = (this._data + (this._length * sizeof<T>));
         new T(item) => newE;
         this._length++;
     }
 
     forEach (cb: (ele: T, idx: u32) => void) {
         for (let i = 0ul;i < this._length;i++) {
-            cb((this._data + (i * sizeof(T))) as T, i);
+            cb((this._data + (i * sizeof<T>)) as T, i);
         }
     }
 
     forEach (cb: (ele: T) => void) {
         for (let i = 0ul;i < this._length;i++) {
-            cb((this._data + (i * sizeof(T))) as T);
+            cb((this._data + (i * sizeof<T>)) as T);
         }
     }
 
     some (cb: (ele: T, idx: u32) => boolean) {
         for (let i = 0ul;i < this._length;i++) {
-            if (cb((this._data + (i * sizeof(T))) as T, i)) return true;
+            if (cb((this._data + (i * sizeof<T>)) as T, i)) return true;
         }
 
         return false;
@@ -105,7 +105,7 @@ export class Array<T> {
 
     some (cb: (ele: T) => boolean) {
         for (let i = 0ul;i < this._length;i++) {
-            if (cb((this._data + (i * sizeof(T))) as T)) return true;
+            if (cb((this._data + (i * sizeof<T>)) as T)) return true;
         }
 
         return false;
@@ -113,7 +113,7 @@ export class Array<T> {
 
     find (cb: (ele: T, idx: u32) => boolean) {
         for (let i = 0ul;i < this._length;i++) {
-            const ele = (this._data + (i * sizeof(T)));
+            const ele = (this._data + (i * sizeof<T>));
             if (cb(ele as T, i)) return ele;
         }
 
@@ -122,7 +122,7 @@ export class Array<T> {
 
     find (cb: (ele: T) => boolean) {
         for (let i = 0ul;i < this._length;i++) {
-            const ele = (this._data + (i * sizeof(T)));
+            const ele = (this._data + (i * sizeof<T>));
             if (cb(ele as T)) return true;
         }
 
@@ -133,7 +133,7 @@ export class Array<T> {
         const out : Array<T>;
 
         for (let i = 0ul;i < this._length;i++) {
-            const ele = (this._data + (i * sizeof(T))) as T;
+            const ele = (this._data + (i * sizeof<T>)) as T;
             if (cb(ele, i)) out.push(ele);
         }
 
@@ -144,7 +144,7 @@ export class Array<T> {
         const out : Array<T>;
 
         for (let i = 0ul;i < this._length;i++) {
-            const ele = (this._data + (i * sizeof(T))) as T;
+            const ele = (this._data + (i * sizeof<T>)) as T;
             if (cb(ele)) out.push(ele);
         }
 
@@ -155,7 +155,7 @@ export class Array<T> {
         const out : Array<M>;
 
         for (let i = 0ul;i < this._length;i++) {
-            const ele = (this._data + (i * sizeof(T))) as T;
+            const ele = (this._data + (i * sizeof<T>)) as T;
             out.push(cb(ele, i));
         }
 
@@ -166,7 +166,7 @@ export class Array<T> {
         const out : Array<M>;
 
         for (let i = 0ul;i < this._length;i++) {
-            const ele = (this._data + (i * sizeof(T))) as T;
+            const ele = (this._data + (i * sizeof<T>)) as T;
             out.push(cb(ele));
         }
 
@@ -174,6 +174,6 @@ export class Array<T> {
     }
 
     operator[] (idx: u32) {
-        return (this._data + (idx * sizeof(T)));
+        return (this._data + (idx * sizeof<T>));
     }
 };

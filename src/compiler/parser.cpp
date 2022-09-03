@@ -61,7 +61,8 @@ namespace gs {
                 "type_property",
                 "type_specifier",
                 "variable",
-                "cast"
+                "cast",
+                "sizeof"
             };
             static const char* ops[] = {
                 "undefined",
@@ -1376,6 +1377,31 @@ namespace gs {
                 ps->consume();
                 ast_node* n = ps->newNode(nt_literal, &ps->getPrev());
                 n->value_tp = lt_false;
+                return n;
+            }
+
+            if (ps->isKeyword("sizeof")) {
+                ps->consume();
+                ast_node* n = ps->newNode(nt_sizeof, &ps->getPrev());
+
+                if (!ps->isSymbol("<")) {
+                    ps->error(pec_expected_symbol, "Expected single template parameter after 'sizeof'");
+                    ps->freeNode(n);
+                    return nullptr;
+                }
+
+                n->data_type = templateArgs(ps);
+                if (!n->data_type) {
+                    // error already emitted
+                    ps->freeNode(n);
+                    return nullptr;
+                }
+
+                if (n->data_type->next) {
+                    ps->error(pec_expected_single_template_arg, "Expected single template parameter after 'sizeof'");
+                    // attempt to continue
+                }
+
                 return n;
             }
 

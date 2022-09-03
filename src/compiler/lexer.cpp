@@ -316,7 +316,7 @@ namespace gs {
                             break;
                         }
                         case 's': {
-                            // set, static, switch
+                            // set, static, switch, sizeof
                             n = *tmp++;
                             if (n == 'e') {
                                 if (*tmp++ != 't') tp = tt_identifier;
@@ -335,6 +335,15 @@ namespace gs {
                                     *tmp++ != 't' ||
                                     *tmp++ != 'c' ||
                                     *tmp++ != 'h'
+                                ) {
+                                    tp = tt_identifier;
+                                }
+                            } else if (n == 'i') {
+                                if (
+                                    *tmp++ != 'z' ||
+                                    *tmp++ != 'e' ||
+                                    *tmp++ != 'o' ||
+                                    *tmp++ != 'f'
                                 ) {
                                     tp = tt_identifier;
                                 }

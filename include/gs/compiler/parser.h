@@ -49,7 +49,8 @@ namespace gs {
             nt_type_property,
             nt_type_specifier,
             nt_variable,
-            nt_cast
+            nt_cast,
+            nt_sizeof
         };
         
         enum expr_operator {
@@ -157,6 +158,7 @@ namespace gs {
             pec_expected_export_decl,
             pec_expected_symbol,
             pec_expected_parameter_list,
+            pec_expected_single_template_arg,
             pec_malformed_class_element,
             pec_empty_class,
             pec_reserved_word
