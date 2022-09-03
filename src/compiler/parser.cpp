@@ -294,6 +294,11 @@ namespace gs {
                 iprintf(indent, "\"alias\": ");
                 alias->json(indent);
             }
+            if (inheritance) {
+                printf(",\n");
+                iprintf(indent, "\"extends\": ");
+                inheritance->json(indent);
+            }
 
             printf("\n");
             iprintf(indent > 0 ? indent - 1 : 0, "}");
@@ -359,6 +364,9 @@ namespace gs {
             if (alias) c->alias = alias->clone();
             else c->alias = nullptr;
 
+            if (inheritance) c->inheritance = inheritance->clone();
+            else c->inheritance = nullptr;
+
             if (next) c->next = next->clone();
             else c->next = nullptr;
 
@@ -378,6 +386,7 @@ namespace gs {
             if (n->template_parameters) ast_node::destroyDetachedAST(n->template_parameters);
             if (n->modifier) ast_node::destroyDetachedAST(n->modifier);
             if (n->alias) ast_node::destroyDetachedAST(n->alias);
+            if (n->inheritance) ast_node::destroyDetachedAST(n->inheritance);
             if (n->next) ast_node::destroyDetachedAST(n->next);
         }
 
@@ -444,6 +453,7 @@ namespace gs {
             if (n->parameters) freeNode(n->parameters);
             if (n->modifier) freeNode(n->modifier);
             if (n->alias) freeNode(n->alias);
+            if (n->inheritance) freeNode(n->inheritance);
             if (n->next) freeNode(n->next);
             
             m_nodeAlloc.free(n);
@@ -496,6 +506,34 @@ namespace gs {
                 n->next = fn(ps);
                 n = n->next;
             }
+            return f;
+        }
+        ast_node* list_of(
+            Parser* ps, parsefn fn,
+            parse_error_code before_comma_err, const utils::String& before_comma_msg,
+            parse_error_code after_comma_err, const utils::String& after_comma_msg
+        ) {
+            ast_node* f = fn(ps);
+            if (!f) {
+                if (before_comma_err != pec_none) {
+                    ps->error(before_comma_err, before_comma_msg);
+                }
+                return nullptr;
+            }
+
+            ast_node* n = f;
+            while (ps->typeIs(tt_comma)) {
+                ps->consume();
+                n->next = fn(ps);
+                if (!n->next) {
+                    ps->error(after_comma_err, after_comma_msg);
+                    ps->freeNode(f);
+                    return nullptr;
+                }
+
+                n = n->next;
+            }
+
             return f;
         }
         ast_node* one_of(Parser* ps, std::initializer_list<parsefn> rules) {
@@ -2294,6 +2332,24 @@ namespace gs {
             n->tok = &ft;
             n->tp = nt_class;
             n->template_parameters = templateParams(ps);
+
+            if (ps->isKeyword("extends")) {
+                ps->consume();
+                n->inheritance = list_of(
+                    ps,
+                    typeSpecifier,
+                    pec_expected_type_specifier,
+                    "Expected one or more type specifiers after 'extends'",
+                    pec_expected_type_specifier,
+                    "Expected type specifier after ','"
+                );
+                
+                if (!n->inheritance) {
+                    // error already emitted
+                    ps->freeNode(n);
+                    return nullptr;
+                }
+            }
 
             if (!ps->typeIs(tt_open_brace)) {
                 ps->error(pec_expected_open_brace, "Expected '{' after class name");
