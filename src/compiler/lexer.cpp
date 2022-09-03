@@ -806,15 +806,10 @@ namespace gs {
                             break;
                         }
                         case '~' : {
+                            tp = tt_symbol;
                             end++;
                             tmp++;
                             at_end = !m_curSrc++;
-
-                            tp = tt_symbol;
-                            if (*tmp == '=') {
-                                end++;
-                                at_end = !m_curSrc++;
-                            }
                             break;
                         }
                         default  : {

@@ -24,9 +24,9 @@ export class Array<T> {
         this._data = newMem(rhs._length * sizeof(T));
 
         for (let i = 0;i < this._length;i++) {
-            data newE = (this._data + (idx * sizeof(T)));
-            const oldE = (rhs._data + (idx * sizeof(T))) as T;
-            new T(oldE) => newE;
+            const newE = (this._data + (idx * sizeof(T)));
+            const oldE = (rhs._data + (idx * sizeof(T)));
+            new T(oldE as T) => newE;
         }
     }
 
@@ -46,11 +46,11 @@ export class Array<T> {
     }
 
     reserve (count: u32) {
-        data nm = newMem((this._capacity + count) * sizeof(T));
+        const nm = newMem((this._capacity + count) * sizeof(T));
         for (let i = 0;i < this._length;i++) {
-            data newE = (nm + (idx * sizeof(T)));
-            const oldE = (this._data + (idx * sizeof(T))) as T;
-            new T(oldE) => newE;
+            const newE = (nm + (idx * sizeof(T)));
+            const oldE = (this._data + (idx * sizeof(T)));
+            new T(oldE as T) => newE;
         }
 
         this._capacity += count;
@@ -67,9 +67,9 @@ export class Array<T> {
         this._capacity = rhs._length;
         this._data = newMem(rhs._length * sizeof(T));
         for (let i = 0;i < this._length;i++) {
-            data newE = (this._data + (idx * sizeof(T)));
-            const oldE = (rhs._data + (idx * sizeof(T))) as T;
-            new T(oldE) => newE;
+            const newE = (this._data + (idx * sizeof(T)));
+            const oldE = (rhs._data + (idx * sizeof(T)));
+            new T(oldE as T) => newE;
         }
     }
 
@@ -78,7 +78,7 @@ export class Array<T> {
             this.reserve(this._capacity / 2);
         }
 
-        const newE = (this._data + (this._length * sizeof(T))) as T;
+        const newE = (this._data + (this._length * sizeof(T)));
         new T(item) => newE;
         this._length++;
     }
@@ -130,7 +130,7 @@ export class Array<T> {
     }
 
     filter (cb: (ele: T, idx: u32) => boolean) {
-        Array<T> out;
+        const out : Array<T>;
 
         for (let i = 0ul;i < this._length;i++) {
             const ele = (this._data + (i * sizeof(T))) as T;
@@ -141,7 +141,7 @@ export class Array<T> {
     }
 
     filter (cb: (ele: T) => boolean) {
-        Array<T> out;
+        const out : Array<T>;
 
         for (let i = 0ul;i < this._length;i++) {
             const ele = (this._data + (i * sizeof(T))) as T;
@@ -152,7 +152,7 @@ export class Array<T> {
     }
 
     map <M> (cb: (ele: T, idx: u32) => M) {
-        Array<M> out;
+        const out : Array<M>;
 
         for (let i = 0ul;i < this._length;i++) {
             const ele = (this._data + (i * sizeof(T))) as T;
@@ -163,7 +163,7 @@ export class Array<T> {
     }
 
     map <M> (cb: (ele: T) => M) {
-        Array<M> out;
+        const out : Array<M>;
 
         for (let i = 0ul;i < this._length;i++) {
             const ele = (this._data + (i * sizeof(T))) as T;
@@ -173,7 +173,7 @@ export class Array<T> {
         return out;
     }
 
-    operator[] (u32 idx) {
+    operator[] (idx: u32) {
         return (this._data + (idx * sizeof(T)));
     }
 };
