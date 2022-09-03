@@ -159,6 +159,7 @@ namespace gs {
             pec_expected_symbol,
             pec_expected_parameter_list,
             pec_expected_single_template_arg,
+            pec_expected_operator_override_target,
             pec_malformed_class_element,
             pec_empty_class,
             pec_reserved_word

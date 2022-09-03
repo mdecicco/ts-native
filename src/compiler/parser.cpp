@@ -2161,7 +2161,7 @@ namespace gs {
                     return nullptr;
                 }
 
-                // treat "operator <symbol>" as an identifier for the method name
+                // treat "operator" as an identifier for the method name
                 n = ps->newNode(nt_identifier);
                 const token& t = ps->get();
                 n->value.s = t.text.c_str();
@@ -2169,14 +2169,17 @@ namespace gs {
                 ps->consume();
                 n->op = getOperatorType(ps);
                 if (n->op == op_undefined) {
-                    ps->error(pec_expected_symbol, "Expected operator after 'operator' keyword");
-                    ps->freeNode(n);
-                }
-
-                ps->consume();
-                if (n->op == op_call || n->op == op_index) {
-                    // actually two tokens
+                    n->data_type = typeSpecifier(ps);
+                    if (!n->data_type) {
+                        ps->error(pec_expected_operator_override_target, "Expected operator or type specifier after 'operator' keyword");
+                        ps->freeNode(n);
+                    }
+                } else {
                     ps->consume();
+                    if (n->op == op_call || n->op == op_index) {
+                        // actually two tokens
+                        ps->consume();
+                    }
                 }
 
                 isOperator = true;
