@@ -7,7 +7,7 @@
 namespace gs {
     namespace ffi {
         class DataType;
-        class FunctionSignatureType;
+        class FunctionType;
     };
         
     class IDataTypeHolder {
@@ -27,7 +27,7 @@ namespace gs {
 
             void addHostType(size_t hash, ffi::DataType* tp);
             void addForeignType(ffi::DataType* tp);
-            void addFuncType(ffi::FunctionSignatureType* tp);
+            void addFuncType(ffi::FunctionType* tp);
             void removeType(ffi::DataType* tp);
         
         private:

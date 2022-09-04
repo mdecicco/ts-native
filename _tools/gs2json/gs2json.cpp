@@ -1,5 +1,10 @@
 #include <gs/utils/ProgramSource.h>
 #include <gs/common/Context.h>
+#include <gs/common/Module.h>
+#include <gs/common/DataType.h>
+#include <gs/common/Function.h>
+#include <gs/interfaces/IDataTypeHolder.h>
+#include <gs/interfaces/IFunctionHolder.h>
 #include <gs/compiler/Lexer.h>
 #include <gs/compiler/Parser.h>
 #include <gs/compiler/Compiler.h>
@@ -113,7 +118,160 @@ void handleAST(Context* ctx, ast_node* n) {
     CompilerOutput* out = c.compile();
 
     if (out) {
-        n->json();
+        printf("{\n");
+
+        const auto& types = c.getAddedDataTypes();
+        if (types.size() > 0) {
+            printf("    \"types\": [\n");
+            for (u32 i = 0;i < types.size();i++) {
+                ffi::DataType* t = types[i];
+                const type_meta& info = t->getInfo();
+                printf("        {\n");
+                printf("            \"id\": %d,\n", t->getId());
+                printf("            \"size\": %u,\n", info.size);
+                printf("            \"host_hash\": %zu,\n", info.host_hash);
+                printf("            \"name\": \"%s\",\n", t->getName().c_str());
+                printf("            \"fullyQualifiedName\": \"%s\",\n", t->getFullyQualifiedName().c_str());
+                printf("            \"destructor\": ");
+                if (t->getDestructor()) {
+                    printf("{\n");
+                    printf("                \"name\": \"%s\",\n", t->getDestructor()->getFullyQualifiedName().c_str());
+                    printf("                \"access\": \"%s\",\n", (t->getDestructor()->getAccessModifier() == private_access) ? "private" : "public");
+                    printf("            },\n");
+                } else printf("null,\n");
+                printf("            \"flags\": [\n");
+                u8 f = 0;
+                if (info.is_pod                    ) { printf("                \"is_pod\""); f++; }
+                if (info.is_trivially_constructible) { printf("%s\"is_trivially_constructible\"", (f > 0) ? ",\n                " : "                "); f++; }
+                if (info.is_trivially_copyable     ) { printf("%s\"is_trivially_copyable\"",      (f > 0) ? ",\n                " : "                "); f++; }
+                if (info.is_trivially_destructible ) { printf("%s\"is_trivially_destructible\"",  (f > 0) ? ",\n                " : "                "); f++; }
+                if (info.is_primitive              ) { printf("%s\"is_primitive\"",               (f > 0) ? ",\n                " : "                "); f++; }
+                if (info.is_floating_point         ) { printf("%s\"is_floating_point\"",          (f > 0) ? ",\n                " : "                "); f++; }
+                if (info.is_integral               ) { printf("%s\"is_integral\"",                (f > 0) ? ",\n                " : "                "); f++; }
+                if (info.is_unsigned               ) { printf("%s\"is_unsigned\"",                (f > 0) ? ",\n                " : "                "); f++; }
+                if (info.is_function               ) { printf("%s\"is_function\"",                (f > 0) ? ",\n                " : "                "); f++; }
+                if (info.is_template               ) { printf("%s\"is_template\"",                (f > 0) ? ",\n                " : "                "); f++; }
+                if (info.is_alias                  ) { printf("%s\"is_alias\"",                   (f > 0) ? ",\n                " : "                "); f++; }
+                if (info.is_host                   ) { printf("%s\"is_host\"",                    (f > 0) ? ",\n                " : "                "); f++; }
+                if (info.is_anonymous              ) { printf("%s\"is_anonymous\"",               (f > 0) ? ",\n                " : "                "); f++; }
+                printf("\n            ],\n");
+
+                if (info.is_alias) {
+                    ffi::AliasType* a = (ffi::AliasType*)t;
+                    printf("            \"alias_of\": \"%s\",\n", a->getRefType()->getName().c_str());
+                }
+
+                const auto& bases = t->getBases();
+                if (bases.size() > 0) {
+                    printf("            \"inherits\": [\n");
+                    for (u32 b = 0;b < bases.size();b++) {
+                        const ffi::type_base& base = bases[b];
+                        printf("                {\n");
+                        printf("                    \"type\": \"%s\",\n", base.type->getFullyQualifiedName().c_str());
+                        printf("                    \"access\": \"%s\",\n", (base.access == private_access) ? "private" : "public");
+                        printf("                    \"data_offset\": %llu\n", base.offset);
+                        printf("                }%s\n", (b == bases.size() - 1) ? "" : ",");
+                    }
+                    printf("             ],\n");
+                } else printf("            \"inherits\": [],\n");
+
+                const auto& props = t->getProperties();
+                if (props.size() > 0) {
+                    printf("            \"properties\": [\n");
+                    for (u32 p = 0;p < props.size();p++) {
+                        const ffi::type_property& prop = props[p];
+                        printf("                {\n");
+                        printf("                    \"name\": \"%s\",\n", prop.name.c_str());
+                        printf("                    \"type\": \"%s\",\n", prop.type->getFullyQualifiedName().c_str());
+                        printf("                    \"offset\": \"%llu\",\n", prop.offset);
+                        printf("                    \"access\": \"%s\",\n", (prop.access == private_access) ? "private" : "public");
+                        printf("                    \"getter\": %s,\n", prop.getter ? ("\"" + prop.getter->getName() + "\"").c_str() : "null");
+                        printf("                    \"setter\": %s,\n", prop.setter ? ("\"" + prop.setter->getName() + "\"").c_str() : "null");
+                        printf("                    \"flags\": [");
+                        u8 f = 0;
+                        if (prop.flags.is_static) { printf("\"is_static\""); f++; }
+                        if (prop.flags.is_pointer) { printf("%s\"is_pointer\"", (f > 0) ? ", " : ""); f++; }
+                        if (prop.flags.can_read) { printf("%s\"can_read\"", (f > 0) ? ", " : ""); f++; }
+                        if (prop.flags.can_write) { printf("%s\"can_write\"", (f > 0) ? ", " : ""); f++; }
+                        printf("]\n");
+                        printf("                }%s\n", (p == props.size() - 1) ? "" : ",");
+                    }
+                    printf("             ],\n");
+                } else printf("            \"properties\": [],\n");
+
+                const auto& methods = t->getMethods();
+                if (methods.size() > 0) {
+                    printf("            \"methods\": [\n");
+                    for (u32 m = 0;m < methods.size();m++) {
+                        const ffi::Function* method = methods[m];
+                        printf("                {\n");
+                        printf("                    \"name\": \"%s\",\n", method->getFullyQualifiedName().c_str());
+                        printf("                    \"access\": \"%s\",\n", (method->getAccessModifier() == private_access) ? "private" : "public");
+                        printf("                }%s\n", (m == methods.size() - 1) ? "" : ",");
+                    }
+                    printf("             ]\n");
+                } else printf("            \"methods\": []");
+
+                if (info.is_template) {
+                    printf(",\n");
+                    printf("            \"ast\": ");
+                    ffi::TemplateType* tt = (ffi::TemplateType*)t;
+                    tt->getAST()->json(3);
+                    printf("\n");
+                } else printf("\n");
+                
+                printf("        }%s\n", (i == types.size() - 1) ? "" : ",");
+            }
+            printf("    ],\n");
+        } else printf("    \"types\": [],\n");
+
+        const auto& funcs = c.getAddedFunctions();
+        if (funcs.size() > 0) {
+            printf("    \"functions\": [\n");
+            for (u32 i = 1;i < funcs.size();i++) {
+                ffi::Function* f = funcs[i];
+                printf("        {\n");
+                printf("            \"id\": %d,\n", f->getId());
+                printf("            \"name\": \"%s\",\n", f->getName().c_str());
+                printf("            \"fullyQualifiedName\": \"%s\",\n", f->getFullyQualifiedName().c_str());
+                printf("            \"signature\": \"%s\",\n", f->getSignature()->getFullyQualifiedName().c_str());
+                printf("            \"access\": \"%s\",\n", (f->getAccessModifier() == private_access) ? "private" : "public");
+                printf("            \"is_method\": %s,\n", f->isMethod() ? "true" : "false");
+                printf("            \"is_thiscall\": %s,\n", f->isThisCall() ? "true" : "false");
+                
+                ffi::FunctionType* sig = f->getSignature();
+                const auto& args = sig->getArguments();
+                if (args.size() > 0) {
+                    printf("            \"args\": [\n");
+
+                    static const char* argTpStr[] = {
+                        "func_ptr",
+                        "ret_ptr",
+                        "ectx_ptr",
+                        "this_ptr",
+                        "value",
+                        "ptr"
+                    };
+                    
+                    for (u8 a = 0;a < args.size();a++) {
+                        const auto& arg = args[a];
+                        printf("                {\n");
+                        printf("                    \"arg_type\": \"%s\",\n", argTpStr[u32(arg.argType)]);
+                        printf("                    \"is_implicit\": %s,\n", arg.isImplicit() ? "true" : "false");
+                        printf("                    \"data_type\": \"%s\"\n", arg.dataType->getFullyQualifiedName().c_str());
+                        printf("                }%s\n", (a == args.size() - 1) ? "" : ",");
+                    }
+                    printf("            ]\n");
+                } else printf("            \"args\": []\n");
+                
+                printf("        }%s\n", (i == funcs.size() - 1) ? "" : ",");
+            }
+            printf("    ],\n");
+        } else printf("    \"functions\": [],\n");
+
+        printf("    \"ast\": ");
+        n->json(1);
+        printf("\n}\n");
         delete out;
     }
 }

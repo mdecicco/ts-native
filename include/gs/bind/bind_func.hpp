@@ -107,10 +107,10 @@ namespace gs {
                 return nullptr;
             }
 
-            FunctionSignatureType tmp(retTp, args);
-            FunctionSignatureType* sig = (FunctionSignatureType*)treg->getType(tmp.getId());
+            FunctionType tmp(retTp, args);
+            FunctionType* sig = (FunctionType*)treg->getType(tmp.getId());
             if (!sig) {
-                sig = new FunctionSignatureType(tmp);
+                sig = new FunctionType(tmp);
                 treg->addFuncType(sig);
             }
 
@@ -154,10 +154,10 @@ namespace gs {
                 return nullptr;
             }
 
-            FunctionSignatureType tmp(retTp, args);
-            FunctionSignatureType* sig = (FunctionSignatureType*)treg->getType(tmp.getId());
+            FunctionType tmp(retTp, args);
+            FunctionType* sig = (FunctionType*)treg->getType(tmp.getId());
             if (!sig) {
-                sig = new FunctionSignatureType(tmp);
+                sig = new FunctionType(tmp);
                 treg->addFuncType(sig);
             }
 
@@ -199,10 +199,10 @@ namespace gs {
             args.push({ arg_type::this_ptr, selfTp });
             validateAndGetArgs<Args...>(treg, args, name);
 
-            FunctionSignatureType tmp(retTp, args);
-            FunctionSignatureType* sig = (FunctionSignatureType*)treg->getType(tmp.getId());
+            FunctionType tmp(retTp, args);
+            FunctionType* sig = (FunctionType*)treg->getType(tmp.getId());
             if (!sig) {
-                sig = new FunctionSignatureType(tmp);
+                sig = new FunctionType(tmp);
                 treg->addFuncType(sig);
             }
 
@@ -245,10 +245,10 @@ namespace gs {
             args.push({ arg_type::this_ptr, selfTp });
             validateAndGetArgs<Args...>(treg, args, name);
 
-            FunctionSignatureType tmp(retTp, args);
-            FunctionSignatureType* sig = (FunctionSignatureType*)treg->getType(tmp.getId());
+            FunctionType tmp(retTp, args);
+            FunctionType* sig = (FunctionType*)treg->getType(tmp.getId());
             if (!sig) {
-                sig = new FunctionSignatureType(tmp);
+                sig = new FunctionType(tmp);
                 treg->addFuncType(sig);
             }
 
@@ -289,10 +289,10 @@ namespace gs {
                 return nullptr;
             }
 
-            FunctionSignatureType tmp(voidTp, args);
-            FunctionSignatureType* sig = (FunctionSignatureType*)treg->getType(tmp.getId());
+            FunctionType tmp(voidTp, args);
+            FunctionType* sig = (FunctionType*)treg->getType(tmp.getId());
             if (!sig) {
-                sig = new FunctionSignatureType(tmp);
+                sig = new FunctionType(tmp);
                 treg->addFuncType(sig);
             }
 
@@ -329,10 +329,10 @@ namespace gs {
             args.push({ arg_type::context_ptr, ptrTp });
             args.push({ arg_type::this_ptr, selfTp });
             
-            FunctionSignatureType tmp(voidTp, args);
-            FunctionSignatureType* sig = (FunctionSignatureType*)treg->getType(tmp.getId());
+            FunctionType tmp(voidTp, args);
+            FunctionType* sig = (FunctionType*)treg->getType(tmp.getId());
             if (!sig) {
-                sig = new FunctionSignatureType(tmp);
+                sig = new FunctionType(tmp);
                 treg->addFuncType(sig);
             }
 

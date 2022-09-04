@@ -170,7 +170,7 @@ namespace gs {
             node_type tp;
             literal_type value_tp;
             expr_operator op;
-            u32 stlen;
+            u32 str_len;
             union {
                 u64 u;
                 i64 i;
@@ -183,7 +183,7 @@ namespace gs {
 
             utils::String str() const;
             void json(u32 indent = 0, u32 index = 0, bool noIndentOpenBrace = true) const;
-            ast_node* clone();
+            ast_node* clone(bool copyNext = false);
 
             struct {
                 unsigned is_const   : 1;

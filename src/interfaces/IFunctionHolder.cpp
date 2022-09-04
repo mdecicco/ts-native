@@ -36,6 +36,10 @@ namespace gs {
     }
 
     void IFunctionHolder::addFunction(ffi::Function* fn) {
+        if (fn->getId() == -1) {
+            throw std::exception("Function has not been added to the registry");
+        }
+
         if (m_funcIdMap.count(fn->getId()) > 0) return;
         m_funcIdMap[fn->getId()] = m_funcs.size();
         m_funcs.push(fn);

@@ -13,10 +13,10 @@ namespace gs {
         //
         
         utils::String ast_node::str() const {
-            if (stlen == 0) return utils::String();
-            return utils::String(const_cast<char*>(value.s), stlen);
+            if (str_len == 0) return utils::String();
+            return utils::String(const_cast<char*>(value.s), str_len);
         }
-
+        
         void iprintf(u32 indent, const char* fmt, ...) {
             va_list l;
             va_start(l, fmt);
@@ -24,7 +24,7 @@ namespace gs {
             vprintf(fmt, l);
             va_end(l);    
         }
-
+        
         void ast_node::json(u32 indent, u32 index, bool noIndentOpenBrace) const {
             static const char* nts[] = {
                 "empty",
@@ -218,7 +218,7 @@ namespace gs {
                         break;
                     }
                 }
-            } else if (stlen > 0) {
+            } else if (str_len > 0) {
                 printf(",\n");
                 iprintf(indent, "\"text\": \"%s\"", str().c_str());
             }
@@ -315,66 +315,70 @@ namespace gs {
             }
         }
         
-        ast_node* ast_node::clone() {
+        ast_node* ast_node::clone(bool copyNext) {
             ast_node* c = new ast_node();
             c->tok = tok;
             c->tp = tp;
             c->value_tp = value_tp;
             c->op = op;
-            c->stlen = stlen;
+            c->str_len = str_len;
             c->value = value;
             c->flags = flags;
 
-            if (stlen > 0) {
-                c->value.s = new char[stlen + 1];
-                strcpy_s(const_cast<char*>(c->value.s), stlen, value.s);
-                const_cast<char*>(c->value.s)[stlen] = 0;
+            if (str_len > 0) {
+                c->value.s = new char[str_len + 1];
+                for (u32 i = 0;i < str_len;i++) {
+                    const_cast<char*>(c->value.s)[i] = value.s[i];
+                }
+                const_cast<char*>(c->value.s)[str_len] = 0;
             }
             
-            if (data_type) c->data_type = data_type->clone();
+            if (data_type) c->data_type = data_type->clone(true);
             else c->data_type = nullptr;
 
-            if (lvalue) c->lvalue = lvalue->clone();
+            if (lvalue) c->lvalue = lvalue->clone(true);
             else c->lvalue = nullptr;
 
-            if (rvalue) c->rvalue = rvalue->clone();
+            if (rvalue) c->rvalue = rvalue->clone(true);
             else c->rvalue = nullptr;
 
-            if (cond) c->cond = cond->clone();
+            if (cond) c->cond = cond->clone(true);
             else c->cond = nullptr;
 
-            if (body) c->body = body->clone();
+            if (body) c->body = body->clone(true);
             else c->body = nullptr;
 
-            if (else_body) c->else_body = else_body->clone();
+            if (else_body) c->else_body = else_body->clone(true);
             else c->else_body = nullptr;
 
-            if (initializer) c->initializer = initializer->clone();
+            if (initializer) c->initializer = initializer->clone(true);
             else c->initializer = nullptr;
 
-            if (parameters) c->parameters = parameters->clone();
+            if (parameters) c->parameters = parameters->clone(true);
             else c->parameters = nullptr;
 
-            if (template_parameters) c->template_parameters = template_parameters->clone();
+            if (template_parameters) c->template_parameters = template_parameters->clone(true);
             else c->template_parameters = nullptr;
 
-            if (modifier) c->modifier = modifier->clone();
+            if (modifier) c->modifier = modifier->clone(true);
             else c->modifier = nullptr;
 
-            if (alias) c->alias = alias->clone();
+            if (alias) c->alias = alias->clone(true);
             else c->alias = nullptr;
 
-            if (inheritance) c->inheritance = inheritance->clone();
+            if (inheritance) c->inheritance = inheritance->clone(true);
             else c->inheritance = nullptr;
 
-            if (next) c->next = next->clone();
-            else c->next = nullptr;
+            if (copyNext) {
+                if (next) c->next = next->clone(true);
+                else c->next = nullptr;
+            } else c->next = nullptr;
 
             return c;
         }
-
+        
         void ast_node::destroyDetachedAST(ast_node* n) {
-            if (n->stlen > 0) delete [] n->value.s;
+            if (n->str_len > 0) delete [] n->value.s;
             if (n->data_type) ast_node::destroyDetachedAST(n->data_type);
             if (n->lvalue) ast_node::destroyDetachedAST(n->lvalue);
             if (n->rvalue) ast_node::destroyDetachedAST(n->rvalue);
@@ -389,9 +393,9 @@ namespace gs {
             if (n->inheritance) ast_node::destroyDetachedAST(n->inheritance);
             if (n->next) ast_node::destroyDetachedAST(n->next);
         }
-
-
-
+        
+        
+        
         //
         // Parser
         //
@@ -399,48 +403,48 @@ namespace gs {
         Parser::Parser(Lexer* l) : m_tokens(l->tokenize()), m_currentIdx(32), m_nodeAlloc(1024, 1024, true) {
             m_currentIdx.push(0);
         }
-
+        
         Parser::~Parser() {
         }
-
+        
         void Parser::push() {
             m_currentIdx.push(m_currentIdx[m_currentIdx.size() - 1]);
         }
-
+        
         void Parser::revert() {
             m_currentIdx.pop();
         }
-
+        
         void Parser::commit() {
             u32 idx = m_currentIdx.pop();
             m_currentIdx[m_currentIdx.size() - 1] = idx;
         }
-
+        
         void Parser::consume() {
             m_currentIdx[m_currentIdx.size() - 1]++;
         }
-
+        
         const token& Parser::get() const {
             return m_tokens[m_currentIdx[m_currentIdx.size() - 1]];
         }
-
+        
         const token& Parser::getPrev() const {
             u32 idx = m_currentIdx[m_currentIdx.size() - 1];
             return m_tokens[idx > 0 ? idx - 1 : 0];
         }
-
+        
         ast_node* Parser::parse() {
             m_nodeAlloc.reset();
             return program(this);
         }
-
+        
         ast_node* Parser::newNode(node_type tp, const token* src) {
             ast_node* n = m_nodeAlloc.alloc();
             n->tok = src ? src : &get();
             n->tp = tp;
             return n;
         }
-
+        
         void Parser::freeNode(ast_node* n) {
             if (n->data_type) freeNode(n->data_type);
             if (n->lvalue) freeNode(n->lvalue);
@@ -458,29 +462,29 @@ namespace gs {
             
             m_nodeAlloc.free(n);
         }
-
+        
         const utils::Array<parse_error>& Parser::errors() const {
             return m_errors;
         }
-
+        
         bool Parser::typeIs(token_type tp) const {
             return get().tp == tp;
         }
-
+        
         bool Parser::textIs(const char* str) const {
             return get().text == str;
         }
-
+        
         bool Parser::isKeyword(const char* str) const {
             const token& t = get();
             return t.tp == tt_keyword && t.text == str;
         }
-
+        
         bool Parser::isSymbol(const char* str) const {
             const token& t = get();
             return t.tp == tt_symbol && t.text == str;
         }
-
+        
         void Parser::error(parse_error_code code, const utils::String& msg) {
             error(code, msg, get());
         }
@@ -492,13 +496,13 @@ namespace gs {
                 tok
             });
         }
-
-
-
+        
+        
+        
         //
         // Helpers
         //
-
+        
         ast_node* array_of(Parser* ps, parsefn fn) {
             ast_node* f = fn(ps);
             ast_node* n = f;
@@ -703,13 +707,13 @@ namespace gs {
 
             return op_undefined;
         }
-
-
-
+        
+        
+        
         //
         // Misc
         //
-
+        
         ast_node* eos(Parser* ps) {
             if (!ps->typeIs(tt_semicolon)) return nullptr;
             ps->consume();
@@ -728,7 +732,7 @@ namespace gs {
             ast_node* n = ps->newNode(nt_identifier);
             const token& t = ps->get();
             n->value.s = t.text.c_str();
-            n->stlen = t.text.size();
+            n->str_len = t.text.size();
             ps->consume();
             return n;
         }
@@ -807,7 +811,7 @@ namespace gs {
         //
         // Parameters / Arguments
         //
-
+        
         ast_node* templateArgs(Parser* ps) {
             if (!ps->isSymbol("<")) return nullptr;
             ps->consume();
@@ -1015,7 +1019,7 @@ namespace gs {
         //
         // Types
         //
-
+        
         ast_node* typeModifier(Parser* ps) {
             ast_node* mod = nullptr;
             if (ps->isSymbol("*")) {
@@ -1276,7 +1280,7 @@ namespace gs {
             ast_node* n = ps->newNode(nt_literal, &t);
             n->value_tp = lt_string;
             n->value.s = t.text.c_str();
-            n->stlen = t.text.size();
+            n->str_len = t.text.size();
             return n;
         }
         ast_node* templateStringLiteral(Parser* ps) {
@@ -1288,7 +1292,7 @@ namespace gs {
             ast_node* n = ps->newNode(nt_literal, &t);
             n->value_tp = lt_string;
             n->value.s = t.text.c_str();
-            n->stlen = t.text.size();
+            n->str_len = t.text.size();
             return n;
         }
         ast_node* arrayLiteral(Parser* ps) {
@@ -1390,7 +1394,7 @@ namespace gs {
         //
         // Expressions
         //
-
+        
         ast_node* primaryExpression(Parser* ps) {
             if (ps->isKeyword("this")) {
                 ps->consume();
@@ -2090,8 +2094,8 @@ namespace gs {
 
             return n;
         }
-
-
+        
+        
         //
         // Declarations
         //
@@ -2203,7 +2207,7 @@ namespace gs {
                 n = ps->newNode(nt_identifier);
                 const token& t = ps->get();
                 n->value.s = t.text.c_str();
-                n->stlen = t.text.size();
+                n->str_len = t.text.size();
                 ps->consume();
                 n->op = getOperatorType(ps);
                 if (n->op == op_undefined) {
@@ -2461,9 +2465,9 @@ namespace gs {
                 functionDef
             });
         }
-
-
-
+        
+        
+        
         //
         // Statements
         //
@@ -2933,7 +2937,7 @@ namespace gs {
             ps->consume();
 
             n->value.s = t.text.c_str();
-            n->stlen = t.text.size();
+            n->str_len = t.text.size();
 
             return n;
         }
@@ -2996,7 +3000,7 @@ namespace gs {
         }
         
         
-
+        
         //
         // Entry
         //

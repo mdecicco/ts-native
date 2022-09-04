@@ -17,8 +17,6 @@ using namespace gs::ffi;
 
 namespace gs {
     namespace compiler {
-        void compileAny(ast_node* n, Compiler* c);
-
         //
         // CompilerOutput
         //
@@ -92,6 +90,14 @@ namespace gs {
             return m_scopeMgr;
         }
 
+        void Compiler::addDataType(ffi::DataType* tp) {
+            m_addedTypes.push(tp);
+        }
+        
+        void Compiler::addFunction(ffi::Function* fn) {
+            m_addedFuncs.push(fn);
+        }
+
         CompilerOutput* Compiler::getOutput() {
             return m_output;
         }
@@ -133,14 +139,20 @@ namespace gs {
             return m_output;
         }
 
+        const utils::Array<ffi::DataType*>& Compiler::getAddedDataTypes() const {
+            return m_addedTypes;
+        }
+
+        const utils::Array<ffi::Function*>& Compiler::getAddedFunctions() const {
+            return m_addedFuncs;
+        }
+
         
 
 
         //
         // Data type resolution
         //
-
-        DataType* resolveTypeSpecifier(ast_node* n, Compiler* c);
 
         DataType* getArrayType(DataType* elemTp, Compiler* c) {
             DataType* outTp = nullptr;
@@ -165,7 +177,7 @@ namespace gs {
                     outTp = resolveTypeSpecifier(arrayAst->data_type, c);
                 } else if (arrayAst->tp == nt_class) {
                     // todo
-                    // outTp = compileClass(arrayAst, c);
+                    outTp = compileClass(arrayAst, c);
                 }
                 
                 c->getOutput()->getModule()->addForeignType(outTp);
@@ -198,7 +210,7 @@ namespace gs {
                     outTp = resolveTypeSpecifier(pointerAst->data_type, c);
                 } else if (pointerAst->tp == nt_class) {
                     // todo
-                    // outTp = compileClass(pointerAst, c);
+                    outTp = compileClass(pointerAst, c);
                 }
 
                 c->getOutput()->getModule()->addForeignType(outTp);
@@ -208,7 +220,6 @@ namespace gs {
 
             return outTp;
         }
-
         DataType* resolveTemplateTypeSubstitution(ast_node* templateArgs, DataType* _type, Compiler* c) {
             if (!_type->getInfo().is_template) {
                 // todo: errors
@@ -273,8 +284,7 @@ namespace gs {
             if (tpAst->tp == nt_type) {
                 tp = resolveTypeSpecifier(tpAst->data_type, c);
             } else if (tpAst->tp == nt_class) {
-                // todo
-                // tp = compileClass(tpAst, c);
+                tp = compileClass(tpAst, c);
             }
             
             c->scope().exit();
@@ -282,25 +292,18 @@ namespace gs {
             tp = new AliasType(name, fullName, tp);
             c->scope().getBase().add(name, tp);
             c->getOutput()->getModule()->addForeignType(tp);
+            c->addDataType(tp);
             return tp;
         }
         DataType* resolveObjectTypeSpecifier(ast_node* n, Compiler* c) {
             Array<type_property> props;
             Function* dtor = nullptr;
-            type_meta info;
+            type_meta info = { 0 };
             info.is_pod = 1;
             info.is_trivially_constructible = 1;
             info.is_trivially_copyable = 1;
             info.is_trivially_destructible = 1;
-            info.is_primitive = 0;
-            info.is_floating_point = 0;
-            info.is_integral = 0;
-            info.is_unsigned = 0;
-            info.is_function = 0;
-            info.is_host = 0;
             info.is_anonymous = 1;
-            info.size = 0;
-            info.host_hash = 0;
 
             // todo
             ast_node* b = n->body;
@@ -363,6 +366,7 @@ namespace gs {
 
             if (!alreadyExisted) {
                 c->getContext()->getTypes()->addForeignType(tp);
+                c->addDataType(tp);
             }
 
             return tp;
@@ -386,15 +390,16 @@ namespace gs {
                 a = a->next;
             }
 
-            return new FunctionSignatureType(retTp, args);
+            DataType* tp = new FunctionType(retTp, args);
+            c->addDataType(tp);
+            return tp;
         }
         DataType* resolveTypeNameSpecifier(ast_node* n, Compiler* c) {
             String name = n->body->str();
             symbol* s = c->scope().get(name);
 
             if (n->body->template_parameters) {
-                DataType* tp = resolveTemplateTypeSubstitution(n->body->template_parameters, s->type, c);
-                return tp;
+                return resolveTemplateTypeSubstitution(n->body->template_parameters, s->type, c);
             }
 
             if (!s || s->tp != st_type) {
@@ -423,17 +428,19 @@ namespace gs {
             return applyTypeModifiers(tp, n->modifier, c);
         }
 
-        void compileType(ast_node* n, Compiler* c) {
+        DataType* compileType(ast_node* n, Compiler* c) {
             DataType* tp = nullptr;
             String name = n->str();
 
             if (n->template_parameters) {
-                tp = new TemplateType(name, c->getOutput()->getModule()->getName() + "::" + name, n);
+                tp = new TemplateType(name, c->getOutput()->getModule()->getName() + "::" + name, n->clone());
+                c->addDataType(tp);
             } else {
                 tp = resolveTypeSpecifier(n->data_type, c);
 
                 if (tp) {
                     tp = new AliasType(name, c->getOutput()->getModule()->getName() + "::" + name, tp);
+                    c->addDataType(tp);
                 }
             }
 
@@ -441,19 +448,12 @@ namespace gs {
                 c->scope().getBase().add(name, tp);
                 c->getOutput()->getModule()->addForeignType(tp);
             }
+
+            return tp;
         }
-
-
-
-        //
-        // Class compilation
-        //
-
-        void compileClass(ast_node* n, Compiler* c) {
-
+        DataType* compileClass(ast_node* n, Compiler* c) {
+            return nullptr;
         }
-
-
         void compileBlock(ast_node* n, Compiler* c) {
             n = n->body;
             while (n) {
@@ -468,7 +468,7 @@ namespace gs {
                 case nt_eos:
                 case nt_break:
                 case nt_catch: break;
-                case nt_class: return compileClass(n, c);
+                case nt_class: return (void)compileClass(n, c);
                 case nt_continue:
                 case nt_export:
                 case nt_expression:
@@ -492,7 +492,7 @@ namespace gs {
                 case nt_this:
                 case nt_throw:
                 case nt_try: break;
-                case nt_type: return compileType(n, c);
+                case nt_type: return (void)compileType(n, c);
                 case nt_type_modifier:
                 case nt_type_property:
                 case nt_type_specifier:

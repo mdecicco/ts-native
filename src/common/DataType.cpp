@@ -43,6 +43,8 @@ namespace gs {
 
         DataType::DataType() {
             m_id = -1;
+            m_destructor = nullptr;
+            memset(&m_info, 0, sizeof(type_meta));
         }
 
         DataType::~DataType() {
@@ -177,7 +179,7 @@ namespace gs {
         // FunctionSignatureType
         //
         
-        FunctionSignatureType::FunctionSignatureType(DataType* returnType, const utils::Array<function_argument>& args) {
+        FunctionType::FunctionType(DataType* returnType, const utils::Array<function_argument>& args) {
             m_name = returnType->m_name + "(";
             m_fullyQualifiedName = returnType->m_fullyQualifiedName + "(";
             args.each([this](const function_argument& arg, u32 idx) {
@@ -232,10 +234,10 @@ namespace gs {
             m_args = args;
         }
 
-        FunctionSignatureType::~FunctionSignatureType() {
+        FunctionType::~FunctionType() {
         }
 
-        utils::String FunctionSignatureType::generateFullyQualifiedFunctionName(const utils::String& funcName) {
+        utils::String FunctionType::generateFullyQualifiedFunctionName(const utils::String& funcName) {
             utils::String name = m_returnType->m_fullyQualifiedName + " " + funcName + "(";
             m_args.each([&name](const function_argument& arg, u32 idx) {
                 if (idx > 0) name += ",";
@@ -255,17 +257,17 @@ namespace gs {
             return name;
         }
 
-        DataType* FunctionSignatureType::getReturnType() const {
+        DataType* FunctionType::getReturnType() const {
             return m_returnType;
         }
 
-        const utils::Array<function_argument>& FunctionSignatureType::getArguments() const {
+        const utils::Array<function_argument>& FunctionType::getArguments() const {
             return m_args;
         }
 
-        bool FunctionSignatureType::isEquivalentTo(DataType* to) const {
+        bool FunctionType::isEquivalentTo(DataType* to) const {
             if (!to->getInfo().is_function) return false;
-            FunctionSignatureType* s = (FunctionSignatureType*)to;
+            FunctionType* s = (FunctionType*)to;
             
             if (m_args.size() != s->m_args.size()) return false;
             if (!m_returnType->isEquivalentTo(s->m_returnType)) return false;

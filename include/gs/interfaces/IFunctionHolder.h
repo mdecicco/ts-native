@@ -64,7 +64,7 @@ namespace gs {
                 u8 argCount,
                 function_match_flags flags
             );
-        
+            
         private:
             utils::Array<ffi::Function*> m_funcs;
             robin_hood::unordered_map<function_id, u32> m_funcIdMap;

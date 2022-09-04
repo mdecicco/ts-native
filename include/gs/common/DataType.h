@@ -87,7 +87,7 @@ namespace gs {
                 DataType();
             
             private:
-                friend class FunctionSignatureType;
+                friend class FunctionType;
                 friend class DataTypeBinder;
                 friend class DataTypeRegistry;
                 type_id m_id;
@@ -107,10 +107,10 @@ namespace gs {
             bool isImplicit() const;
         };
 
-        class FunctionSignatureType : public DataType {
+        class FunctionType : public DataType {
             public:
-                FunctionSignatureType(DataType* returnType, const utils::Array<function_argument>& args);
-                virtual ~FunctionSignatureType();
+                FunctionType(DataType* returnType, const utils::Array<function_argument>& args);
+                virtual ~FunctionType();
 
                 utils::String generateFullyQualifiedFunctionName(const utils::String& funcName);
                 DataType* getReturnType() const;

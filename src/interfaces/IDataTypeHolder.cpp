@@ -36,7 +36,7 @@ namespace gs {
         m_types.push(tp);
     }
 
-    void IDataTypeHolder::addFuncType(ffi::FunctionSignatureType* tp) {
+    void IDataTypeHolder::addFuncType(ffi::FunctionType* tp) {
         if (m_typeIdMap.count(tp->getId()) > 0) return;
         m_typeIdMap[tp->getId()] = m_types.size();
         m_types.push(tp);

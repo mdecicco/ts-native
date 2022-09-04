@@ -17,7 +17,7 @@ namespace gs {
         // Order checks by performance cost
         if ((flags & fm_exclude_private) && fn->getAccessModifier() == private_access) return false;
 
-        ffi::FunctionSignatureType* sig = fn->getSignature();
+        ffi::FunctionType* sig = fn->getSignature();
 
         // strict return check
         if (retTp && (flags & fm_strict_return) && sig->getReturnType()->getId() != retTp->getId()) return false;

@@ -11,6 +11,7 @@ namespace gs {
 
     namespace ffi {
         class DataType;
+        class Function;
     };
 
     namespace compiler {
@@ -44,15 +45,36 @@ namespace gs {
                 void exitNode();
                 const SourceLocation& getCurrentSrc() const;
                 ScopeManager& scope();
+                void addDataType(ffi::DataType* tp);
+                void addFunction(ffi::Function* fn);
 
                 CompilerOutput* getOutput();
                 CompilerOutput* compile();
+                
+                const utils::Array<ffi::DataType*>& getAddedDataTypes() const;
+                const utils::Array<ffi::Function*>& getAddedFunctions() const;
 
             private:
                 ast_node* m_program;
                 utils::Array<ast_node*> m_nodeStack;
+                utils::Array<ffi::DataType*> m_addedTypes;
+                utils::Array<ffi::Function*> m_addedFuncs;
                 CompilerOutput* m_output;
                 ScopeManager m_scopeMgr;
         };
+    
+        ffi::DataType* resolveTypeSpecifier(ast_node* n, Compiler* c);
+        ffi::DataType* getArrayType(ffi::DataType* elemTp, Compiler* c);
+        ffi::DataType* getPointerType(ffi::DataType* destTp, Compiler* c);
+        ffi::DataType* resolveTemplateTypeSubstitution(ast_node* templateArgs, ffi::DataType* _type, Compiler* c);
+        ffi::DataType* resolveObjectTypeSpecifier(ast_node* n, Compiler* c);
+        ffi::DataType* resolveFunctionTypeSpecifier(ast_node* n, Compiler* c);
+        ffi::DataType* resolveTypeNameSpecifier(ast_node* n, Compiler* c);
+        ffi::DataType* applyTypeModifiers(ffi::DataType* tp, ast_node* mod, Compiler* c);
+        ffi::DataType* resolveTypeSpecifier(ast_node* n, Compiler* c);
+        ffi::DataType* compileType(ast_node* n, Compiler* c);
+        ffi::DataType* compileClass(ast_node* n, Compiler* c);
+        void compileBlock(ast_node* n, Compiler* c);
+        void compileAny(ast_node* n, Compiler* c);
     };
 };

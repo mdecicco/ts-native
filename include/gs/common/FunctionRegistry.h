@@ -25,6 +25,8 @@ namespace gs {
                 FunctionRegistry(Context* ctx);
                 ~FunctionRegistry();
 
+                void registerFunction(ffi::Function* fn);
+
                 /**
                  * @brief Find functions that match the provided signature
                  * 

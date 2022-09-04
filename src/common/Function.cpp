@@ -4,7 +4,7 @@
 
 namespace gs {
     namespace ffi {
-        Function::Function(const utils::String& name, FunctionSignatureType* signature, access_modifier access, void* address, void* wrapperAddr) {
+        Function::Function(const utils::String& name, FunctionType* signature, access_modifier access, void* address, void* wrapperAddr) {
             m_fullyQualifiedName = signature->generateFullyQualifiedFunctionName(name);
             m_id = -1;
             m_name = name;
@@ -26,11 +26,11 @@ namespace gs {
             return m_name;
         }
 
-        const utils::String& Function::getFullyQualifiedNameName() const {
+        const utils::String& Function::getFullyQualifiedName() const {
             return m_fullyQualifiedName;
         }
 
-        FunctionSignatureType* Function::getSignature() const {
+        FunctionType* Function::getSignature() const {
             return m_signature;
         }
 
@@ -57,7 +57,7 @@ namespace gs {
         }
 
         
-        Method::Method(const utils::String& name, FunctionSignatureType* signature, access_modifier access, void* address, void* wrapperAddr, u64 baseOffset)
+        Method::Method(const utils::String& name, FunctionType* signature, access_modifier access, void* address, void* wrapperAddr, u64 baseOffset)
         : Function(name, signature, access, address, wrapperAddr)
         {
             m_baseOffset = baseOffset;

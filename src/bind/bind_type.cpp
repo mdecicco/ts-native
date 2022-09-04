@@ -2,6 +2,7 @@
 #include <gs/bind/bind.h>
 #include <gs/common/DataType.h>
 #include <gs/common/TypeRegistry.h>
+#include <gs/common/FunctionRegistry.h>
 #include <gs/common/Module.h>
 #include <utils/Array.hpp>
 
@@ -78,7 +79,21 @@ namespace gs {
             }
 
             m_isFinal = true;
-            if (mod) mod->addHostType(m_type->m_info.host_hash, m_type);
+
+            if (mod) {
+                mod->addHostType(m_type->m_info.host_hash, m_type);
+            }
+
+            if (m_type->m_destructor) {
+                funcRegistry->registerFunction(m_type->m_destructor);
+                if (mod) mod->addFunction(m_type->m_destructor);
+            }
+
+            for (u32 i = 0;i < m_type->m_methods.size();i++) {
+                funcRegistry->registerFunction(m_type->m_methods[i]);
+                if (mod) mod->addFunction(m_type->m_methods[i]);
+            }
+
             return m_type;
         }
     };

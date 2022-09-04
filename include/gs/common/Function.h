@@ -4,19 +4,19 @@
 
 namespace gs {
     namespace ffi {
-        class FunctionSignatureType;
+        class FunctionType;
         class FunctionRegistry;
         class DataTypeRegistry;
 
         class Function {
             public:
-                Function(const utils::String& name, FunctionSignatureType* signature, access_modifier access, void* address, void* wrapperAddr);
+                Function(const utils::String& name, FunctionType* signature, access_modifier access, void* address, void* wrapperAddr);
                 virtual ~Function();
 
                 function_id getId() const;
                 const utils::String& getName() const;
-                const utils::String& getFullyQualifiedNameName() const;
-                FunctionSignatureType* getSignature() const;
+                const utils::String& getFullyQualifiedName() const;
+                FunctionType* getSignature() const;
                 access_modifier getAccessModifier() const;
                 bool isMethod() const;
                 bool isThisCall() const;
@@ -52,7 +52,7 @@ namespace gs {
                 function_id m_id;
                 utils::String m_name;
                 utils::String m_fullyQualifiedName;
-                FunctionSignatureType* m_signature;
+                FunctionType* m_signature;
                 access_modifier m_access;
                 void* m_address;
                 void* m_wrapperAddress;
@@ -60,7 +60,7 @@ namespace gs {
 
         class Method : public Function {
             public:
-                Method(const utils::String& name, FunctionSignatureType* signature, access_modifier access, void* address, void* wrapperAddr, u64 baseOffset);
+                Method(const utils::String& name, FunctionType* signature, access_modifier access, void* address, void* wrapperAddr, u64 baseOffset);
 
                 u64 getThisPtrOffset() const;
                 Method* clone(const utils::String& name, u64 baseOffset) const;

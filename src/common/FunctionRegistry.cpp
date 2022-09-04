@@ -7,6 +7,15 @@ namespace gs {
         FunctionRegistry::FunctionRegistry(Context* ctx) : IContextual(ctx) { }
         FunctionRegistry::~FunctionRegistry() { }
 
+        void FunctionRegistry::registerFunction(ffi::Function* fn) {
+            if (fn->m_id != -1) {
+                throw std::exception("Function already registered");
+            }
+
+            fn->m_id = allFunctions().size();
+            addFunction(fn);
+        }
+
         utils::Array<ffi::Function*> FunctionRegistry::findFunctions(
             const utils::String& name,
             ffi::DataType* retTp,
