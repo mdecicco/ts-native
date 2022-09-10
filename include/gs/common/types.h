@@ -15,6 +15,8 @@ namespace gs {
 
     typedef i32         type_id;
     typedef i32         function_id;
+    
+    typedef struct { u8 dummy; } poison_t;
 
 
     enum access_modifier {

@@ -206,7 +206,7 @@ void handleAST(Context* ctx, ast_node* n) {
                         const ffi::Function* method = methods[m];
                         printf("                {\n");
                         printf("                    \"name\": \"%s\",\n", method->getFullyQualifiedName().c_str());
-                        printf("                    \"access\": \"%s\",\n", (method->getAccessModifier() == private_access) ? "private" : "public");
+                        printf("                    \"access\": \"%s\"\n", (method->getAccessModifier() == private_access) ? "private" : "public");
                         printf("                }%s\n", (m == methods.size() - 1) ? "" : ",");
                     }
                     printf("             ]\n");

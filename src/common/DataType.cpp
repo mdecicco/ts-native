@@ -53,11 +53,11 @@ namespace gs {
         
         utils::Array<ffi::Function*> DataType::findMethods(
             const utils::String& name,
-            DataType* retTp,
-            DataType** argTps,
+            const DataType* retTp,
+            const DataType** argTps,
             u8 argCount,
             function_match_flags flags
-        ) {
+        ) const {
             return function_match(name, retTp, argTps, argCount, m_methods, flags);
         }
 
@@ -93,15 +93,15 @@ namespace gs {
             return m_destructor;
         }
 
-        bool DataType::isConvertibleTo(DataType* to) const {
+        bool DataType::isConvertibleTo(const DataType* to) const {
             return false;
         }
 
-        bool DataType::isImplicitlyAssignableTo(DataType* to) const {
+        bool DataType::isImplicitlyAssignableTo(const DataType* to) const {
             return false;
         }
 
-        bool DataType::isEquivalentTo(DataType* to) const {
+        bool DataType::isEquivalentTo(const DataType* to) const {
             if (
                 m_info.size                         != to->m_info.size                          ||
                 m_info.is_pod                       != to->m_info.is_pod                        ||
@@ -277,6 +277,45 @@ namespace gs {
             }
 
             return true;
+        }
+
+        void FunctionType::setThisType(DataType* tp) {
+            if (m_args.size() < 4 || m_args[3].argType != arg_type::this_ptr) {
+                throw std::exception("Attempted to set 'this' type for function that is not a non-static class method");
+            }
+
+            m_args[3].dataType = tp;
+
+            m_name = m_returnType->m_name + "(";
+            m_fullyQualifiedName = m_returnType->m_fullyQualifiedName + "(";
+            m_args.each([this](const function_argument& arg, u32 idx) {
+                if (idx > 0) {
+                    m_name += ",";
+                    m_fullyQualifiedName += ",";
+                }
+
+                bool is_implicit = arg.argType == arg_type::func_ptr;
+                is_implicit = is_implicit || arg.argType == arg_type::ret_ptr;
+                is_implicit = is_implicit || arg.argType == arg_type::context_ptr;
+                is_implicit = is_implicit || arg.argType == arg_type::this_ptr;
+                bool is_ptr = is_implicit || arg.argType == arg_type::pointer;
+
+                if (is_implicit) {
+                    m_name += "$";
+                    m_fullyQualifiedName += "$";
+                }
+
+                m_name += arg.dataType->m_name;
+                m_fullyQualifiedName += arg.dataType->m_fullyQualifiedName;
+
+                if (is_ptr) {
+                    m_name += "*";
+                    m_fullyQualifiedName += "*";
+                }
+            });
+
+            m_name += ")";
+            m_fullyQualifiedName += ")";
         }
 
 

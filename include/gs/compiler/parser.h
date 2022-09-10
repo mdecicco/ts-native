@@ -160,6 +160,7 @@ namespace gs {
             pec_expected_parameter_list,
             pec_expected_single_template_arg,
             pec_expected_operator_override_target,
+            pec_unexpected_type_specifier,
             pec_malformed_class_element,
             pec_empty_class,
             pec_reserved_word
@@ -195,7 +196,7 @@ namespace gs {
                 unsigned is_setter  : 1;
 
                 // for do ... while loops
-                unsigned defecond : 1;
+                unsigned defer_cond : 1;
             } flags;
 
             ast_node* data_type;

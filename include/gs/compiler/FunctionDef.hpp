@@ -20,13 +20,13 @@ namespace gs {
         std::enable_if_t<is_imm_v<T>, Value>
         FunctionDef::imm(T value) {
             if constexpr (std::is_same_v<T, ffi::Function*>) {
-                return Value(m_comp, value);
+                return Value(this, value);
             } else if constexpr (std::is_unsigned_v<T>) {
-                return Value(m_comp, (u64)value);
+                return Value(this, (u64)value);
             } else if constexpr (std::is_floating_point_v<T>) {
-                return Value(m_comp, (f64)value);
+                return Value(this, (f64)value);
             } else {
-                return Value(m_comp, (i64)value);
+                return Value(this, (i64)value);
             }
         }
     };

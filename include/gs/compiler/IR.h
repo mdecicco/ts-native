@@ -185,7 +185,8 @@ namespace gs {
             ir_band, // op0 = op1 & op2
             ir_lor,  // op0 = op1 || op2
             ir_bor,  // op0 = op1 | op2
-            ir_xor   // op0 = op1 ^ op2
+            ir_xor,  // op0 = op1 ^ op2
+            ir_set   // op0 = op1
         };
 
         class Instruction {

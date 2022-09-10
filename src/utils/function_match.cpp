@@ -8,8 +8,8 @@
 namespace gs {
     bool func_match_filter(
         const utils::String& name,
-        ffi::DataType* retTp,
-        ffi::DataType** argTps,
+        const ffi::DataType* retTp,
+        const ffi::DataType** argTps,
         u8 argCount,
         function_match_flags flags,
         ffi::Function* fn
@@ -73,8 +73,8 @@ namespace gs {
     }
     utils::Array<ffi::Function*> function_match(
         const utils::String& name,
-        ffi::DataType* retTp,
-        ffi::DataType** argTps,
+        const ffi::DataType* retTp,
+        const ffi::DataType** argTps,
         u8 argCount,
         const utils::Array<ffi::Function*>& funcs,
         function_match_flags flags
@@ -86,8 +86,8 @@ namespace gs {
 
     utils::Array<ffi::Method*> function_match(
         const utils::String& name,
-        ffi::DataType* retTp,
-        ffi::DataType** argTps,
+        const ffi::DataType* retTp,
+        const ffi::DataType** argTps,
         u8 argCount,
         const utils::Array<ffi::Method*>& funcs,
         function_match_flags flags

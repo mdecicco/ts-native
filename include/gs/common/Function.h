@@ -3,10 +3,16 @@
 #include <utils/String.h>
 
 namespace gs {
+    namespace compiler {
+        struct ast_node;
+        class Compiler;
+    };
+
     namespace ffi {
         class FunctionType;
         class FunctionRegistry;
         class DataTypeRegistry;
+        class DataType;
 
         class Function {
             public:
@@ -19,6 +25,7 @@ namespace gs {
                 FunctionType* getSignature() const;
                 access_modifier getAccessModifier() const;
                 bool isMethod() const;
+                bool isTemplate() const;
                 bool isThisCall() const;
                 
                 // Signature:
@@ -45,7 +52,10 @@ namespace gs {
                 void* getWrapperAddress() const;
 
             protected:
+                friend class compiler::Compiler;
+                void setThisType(DataType* tp);
                 bool m_isMethod;
+                bool m_isTemplate;
             
             private:
                 friend class FunctionRegistry;
@@ -64,9 +74,27 @@ namespace gs {
 
                 u64 getThisPtrOffset() const;
                 Method* clone(const utils::String& name, u64 baseOffset) const;
-            
+
             private:
                 u64 m_baseOffset;
+        };
+    
+        class TemplateFunction : public Function {
+            public:
+                TemplateFunction(const utils::String& name, access_modifier access, compiler::ast_node* ast);
+                ~TemplateFunction();
+            
+            private:
+                compiler::ast_node* m_ast;
+        };
+    
+        class TemplateMethod : public Method {
+            public:
+                TemplateMethod(const utils::String& name, access_modifier access, u64 baseOffset, compiler::ast_node* ast);
+                ~TemplateMethod();
+            
+            private:
+                compiler::ast_node* m_ast;
         };
     };
 };

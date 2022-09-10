@@ -60,11 +60,11 @@ namespace gs {
                  */
                 utils::Array<ffi::Function*> findMethods(
                     const utils::String& name,
-                    DataType* retTp,
-                    DataType** argTps,
+                    const DataType* retTp,
+                    const DataType** argTps,
                     u8 argCount,
                     function_match_flags flags
-                );
+                ) const;
 
                 const type_property* getProp(const utils::String& name, bool excludeInherited = false, bool excludePrivate = false) const;
 
@@ -77,9 +77,9 @@ namespace gs {
                 const utils::Array<type_base>& getBases() const;
                 Function* getDestructor() const;
 
-                virtual bool isConvertibleTo(DataType* to) const;
-                virtual bool isImplicitlyAssignableTo(DataType* to) const;
-                virtual bool isEquivalentTo(DataType* to) const;
+                virtual bool isConvertibleTo(const DataType* to) const;
+                virtual bool isImplicitlyAssignableTo(const DataType* to) const;
+                virtual bool isEquivalentTo(const DataType* to) const;
 
                 DataType* clone(const utils::String& name, const utils::String& fullyQualifiedName) const;
             
@@ -116,6 +116,10 @@ namespace gs {
                 DataType* getReturnType() const;
                 const utils::Array<function_argument>& getArguments() const;
                 virtual bool isEquivalentTo(DataType* to) const;
+            
+            protected:
+                friend class Function;
+                void setThisType(DataType* tp);
 
             private:
                 DataType* m_returnType;

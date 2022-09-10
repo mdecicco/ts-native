@@ -20,6 +20,7 @@ namespace gs {
         class FunctionDef : public ICodeHolder {
             public:
                 FunctionDef(Compiler* c, const utils::String& name, ffi::DataType* methodOf);
+                FunctionDef(Compiler* c, ffi::Function* func);
                 ~FunctionDef();
 
                 InstructionRef add(ir_instruction i);
@@ -36,6 +37,10 @@ namespace gs {
                 u32 getArgCount() const;
                 void addArg(const utils::String& name, ffi::DataType* tp);
                 Value& getArg(u32 argIdx);
+                Value& getThis();
+                Value& getECtx();
+                Value& getRetPtr();
+                Value& getPoison();
 
                 Value& val(const utils::String& name, ffi::DataType* tp);
                 Value val(ffi::DataType* tp);
@@ -51,6 +56,7 @@ namespace gs {
                 imm(T value);
 
                 ffi::Function* getOutput() const;
+                void onEnter();
 
             private:
                 Compiler* m_comp;
@@ -59,6 +65,10 @@ namespace gs {
                 utils::Array<ffi::function_argument> m_argInfo;
                 utils::Array<utils::String> m_argNames;
                 utils::Array<Value*> m_args;
+                Value* m_thisArg;
+                Value* m_ectxArg;
+                Value* m_retpArg;
+                Value* m_poison;
                 ffi::DataType* m_thisTp;
                 ffi::Function* m_output;
                 

@@ -236,7 +236,7 @@ namespace gs {
             if (flags.is_private) printf("%s\"is_private\"", (i++) > 0 ? ", " : "");
             if (flags.is_array) printf("%s\"is_array\"", (i++) > 0 ? ", " : "");
             if (flags.is_pointer) printf("%s\"is_pointer\"", (i++) > 0 ? ", " : "");
-            if (flags.defecond) printf("%s\"defecond\"", (i++) > 0 ? ", " : "");
+            if (flags.defer_cond) printf("%s\"defecond\"", (i++) > 0 ? ", " : "");
             printf("]");
 
             if (data_type) {
@@ -2197,6 +2197,7 @@ namespace gs {
 
             ast_node* n = identifier(ps);
             bool isOperator = false;
+            bool isCastOperator = false;
             if (!n && ps->typeIs(tt_keyword) && ps->textIs("operator")) {
                 if (isGetter || isSetter) {
                     ps->error(pec_reserved_word, "Cannot name a getter or setter method 'operator', 'operator' is a reserved word");
@@ -2215,7 +2216,10 @@ namespace gs {
                     if (!n->data_type) {
                         ps->error(pec_expected_operator_override_target, "Expected operator or type specifier after 'operator' keyword");
                         ps->freeNode(n);
+                        return nullptr;
                     }
+
+                    isCastOperator = true;
                 } else {
                     ps->consume();
                     if (n->op == op_call || n->op == op_index) {
@@ -2291,10 +2295,23 @@ namespace gs {
                 n->template_parameters = templArgs;
 
                 if (ps->typeIs(tt_colon)) {
+                    if (isCastOperator) {
+                        ps->error(pec_unexpected_type_specifier, "Cast operator overrides should not have return types specified");
+                        // attempt to continue
+                        ps->freeNode(n->data_type); // (was already allocated)
+                        n->data_type = nullptr;
+                    } else if (n->str() == "constructor") {
+                        ps->error(pec_unexpected_type_specifier, "Class constructors should not have return types specified");
+                        // attempt to continue
+                    } else if (n->str() == "destructor") {
+                        ps->error(pec_unexpected_type_specifier, "Class destructors should not have return types specified");
+                        // attempt to continue
+                    }
+
                     ps->consume();
                     n->data_type = typeSpecifier(ps);
                     if (!n->data_type) {
-                        ps->error(pec_expected_type_specifier, "Expected type specifier for return value of class method");
+                        if (!isCastOperator && n->str() != "constructor" && n->str() == "destructor") ps->error(pec_expected_type_specifier, "Expected type specifier for return value of class method");
                         ps->freeNode(n);
                         return nullptr;
                     }
@@ -2562,7 +2579,7 @@ namespace gs {
                     // attempt to continue
                 } else ps->consume();
                 
-                n->flags.defecond = 1;
+                n->flags.defer_cond = 1;
                 return n;
             } else if (ps->isKeyword("while")) {
                 ps->consume();

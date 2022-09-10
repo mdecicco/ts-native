@@ -16,7 +16,7 @@ namespace gs {
     };
 
     namespace compiler {
-        class Compiler;
+        class FunctionDef;
 
         class Value : public ITypedObject {
             public:
@@ -34,6 +34,7 @@ namespace gs {
 
                 // Discards any info about the current value and adopts the info from another
                 void reset(const Value& o);
+                Value convertedTo(ffi::DataType* tp) const;
 
                 template <typename T>
                 std::enable_if_t<is_imm_v<T>, T> getImm() const;
@@ -98,13 +99,13 @@ namespace gs {
                 friend class ScopeManager;
                 friend class FunctionDef;
 
-                Value(Compiler* o, ffi::DataType* tp);
-                Value(Compiler* o, u64 imm);
-                Value(Compiler* o, i64 imm);
-                Value(Compiler* o, f64 imm);
-                Value(Compiler* o, ffi::Function* imm);
+                Value(FunctionDef* o, ffi::DataType* tp);
+                Value(FunctionDef* o, u64 imm);
+                Value(FunctionDef* o, i64 imm);
+                Value(FunctionDef* o, f64 imm);
+                Value(FunctionDef* o, ffi::Function* imm);
 
-                Compiler* m_compiler;
+                FunctionDef* m_func;
                 utils::String m_name;
                 SourceLocation m_src;
                 vreg_id m_regId;

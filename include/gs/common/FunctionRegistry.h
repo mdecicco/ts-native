@@ -57,8 +57,8 @@ namespace gs {
                  */
                 utils::Array<ffi::Function*> findFunctions(
                     const utils::String& name,
-                    ffi::DataType* retTp,
-                    ffi::DataType** argTps,
+                    const ffi::DataType* retTp,
+                    const ffi::DataType** argTps,
                     u8 argCount,
                     function_match_flags flags
                 );

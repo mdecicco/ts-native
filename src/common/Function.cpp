@@ -1,5 +1,6 @@
 #include <gs/common/Function.h>
 #include <gs/common/DataType.h>
+#include <gs/compiler/Parser.h>
 #include <utils/Array.hpp>
 
 namespace gs {
@@ -13,6 +14,7 @@ namespace gs {
             m_address = address;
             m_wrapperAddress = wrapperAddr;
             m_isMethod = false;
+            m_isTemplate = false;
         }
 
         Function::~Function() {
@@ -56,6 +58,14 @@ namespace gs {
             return m_wrapperAddress;
         }
 
+        void Function::setThisType(DataType* tp) {
+            FunctionType* sig = getSignature();
+            sig->setThisType(tp);
+            m_fullyQualifiedName = sig->generateFullyQualifiedFunctionName(tp->getFullyQualifiedName() + "::" + m_name);
+        }
+
+
+
         
         Method::Method(const utils::String& name, FunctionType* signature, access_modifier access, void* address, void* wrapperAddr, u64 baseOffset)
         : Function(name, signature, access, address, wrapperAddr)
@@ -70,6 +80,27 @@ namespace gs {
         
         Method* Method::clone(const utils::String& name, u64 baseOffset) const {
             return new Method(name, getSignature(), getAccessModifier(), getAddress(), getWrapperAddress(), baseOffset);
+        }
+
+
+
+        
+        TemplateFunction::TemplateFunction(const utils::String& name, access_modifier access, compiler::ast_node* ast)
+        : Function(name, nullptr, access, nullptr, nullptr) {
+            m_ast = ast;
+            m_isTemplate = true;
+        }
+        TemplateFunction::~TemplateFunction() {
+            compiler::ast_node::destroyDetachedAST(m_ast);
+        }
+
+        TemplateMethod::TemplateMethod(const utils::String& name, access_modifier access, u64 baseOffset, compiler::ast_node* ast)
+        : Method(name, nullptr, access, nullptr, nullptr, baseOffset) {
+            m_ast = ast;
+            m_isTemplate = true;
+        }
+        TemplateMethod::~TemplateMethod() {
+            compiler::ast_node::destroyDetachedAST(m_ast);
         }
     };
 };
