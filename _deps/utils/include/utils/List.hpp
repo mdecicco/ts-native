@@ -12,12 +12,12 @@ namespace utils {
     }
 
     template <typename T>
-    BidirectionalListIterator<T>::reference BidirectionalListIterator<T>::operator* () const {
+    typename BidirectionalListIterator<T>::reference BidirectionalListIterator<T>::operator* () const {
         return m_node->value;
     }
 
     template <typename T>
-    BidirectionalListIterator<T>::pointer BidirectionalListIterator<T>::operator->() const {
+    typename BidirectionalListIterator<T>::pointer BidirectionalListIterator<T>::operator->() const {
         return &m_node->value;
     }
 
@@ -34,7 +34,7 @@ namespace utils {
     }
 
     template <typename T>
-    BidirectionalListIterator<T>::difference_type BidirectionalListIterator<T>::operator-(const BidirectionalListIterator<T>& it) const {
+    typename BidirectionalListIterator<T>::difference_type BidirectionalListIterator<T>::operator-(const BidirectionalListIterator<T>& it) const {
         difference_type count = 0;
         BidirectionalListNode<T>* n = it.m_node;
         while (n) {
@@ -59,7 +59,7 @@ namespace utils {
     }
 
     template <typename T>
-    BidirectionalListIterator<T>::reference BidirectionalListIterator<T>::operator[] (const difference_type& offset) const {
+    typename BidirectionalListIterator<T>::reference BidirectionalListIterator<T>::operator[] (const difference_type& offset) const {
         BidirectionalListNode<T>* n = m_node;
         for (difference_type i = 0;i < offset;i++) n = n->m_next;
         return BidirectionalListIterator<T>(n);
@@ -115,22 +115,22 @@ namespace utils {
     }
 
     template <typename T>
-    BidirectionalList<T>::iterator BidirectionalList<T>::begin() {
+    typename BidirectionalList<T>::iterator BidirectionalList<T>::begin() {
         return BidirectionalList<T>::iterator(m_front);
     }
 
     template <typename T>
-    BidirectionalList<T>::const_iterator BidirectionalList<T>::begin() const {
+    typename BidirectionalList<T>::const_iterator BidirectionalList<T>::begin() const {
         return BidirectionalList<T>::const_iterator(m_front);
     }
 
     template <typename T>
-    BidirectionalList<T>::iterator BidirectionalList<T>::end() {
+    typename BidirectionalList<T>::iterator BidirectionalList<T>::end() {
         return BidirectionalList<T>::iterator(nullptr);
     }
 
     template <typename T>
-    BidirectionalList<T>::const_iterator BidirectionalList<T>::end() const {
+    typename BidirectionalList<T>::const_iterator BidirectionalList<T>::end() const {
         return BidirectionalList<T>::const_iterator(nullptr);
     }
 

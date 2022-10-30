@@ -13,12 +13,12 @@ namespace utils {
     }
 
     template <typename T>
-    ArrayIterator<T>::reference ArrayIterator<T>::operator* () const {
+    typename ArrayIterator<T>::reference ArrayIterator<T>::operator* () const {
         return *m_ptr;
     }
 
     template <typename T>
-    ArrayIterator<T>::pointer ArrayIterator<T>::operator->() const {
+    typename ArrayIterator<T>::pointer ArrayIterator<T>::operator->() const {
         return m_ptr;
     }
 
@@ -35,7 +35,7 @@ namespace utils {
     }
 
     template <typename T>
-    ArrayIterator<T>::difference_type ArrayIterator<T>::operator-(const ArrayIterator<T>& it) const {
+    typename ArrayIterator<T>::difference_type ArrayIterator<T>::operator-(const ArrayIterator<T>& it) const {
         return m_ptr - it.m_ptr;
     }
 
@@ -50,7 +50,7 @@ namespace utils {
     }
 
     template <typename T>
-    ArrayIterator<T>::reference ArrayIterator<T>::operator[] (const difference_type& offset) const {
+    typename ArrayIterator<T>::reference ArrayIterator<T>::operator[] (const difference_type& offset) const {
         return m_ptr[offset];
     }
 
@@ -104,26 +104,26 @@ namespace utils {
     }
 
     template <typename T>
-    ArrayView<T>::iterator ArrayView<T>::begin() {
+    typename ArrayView<T>::iterator ArrayView<T>::begin() {
         if (m_offset > m_target->m_size) return m_target->m_data + m_target->m_size;
         return m_target->m_data + m_offset;
     }
 
     template <typename T>
-    ArrayView<T>::const_iterator ArrayView<T>::begin() const {
+    typename ArrayView<T>::const_iterator ArrayView<T>::begin() const {
         if (m_offset > m_target->m_size) return m_target->m_data + m_target->m_size;
         return m_target->m_data + m_offset;
     }
 
     template <typename T>
-    ArrayView<T>::iterator ArrayView<T>::end() {
+    typename ArrayView<T>::iterator ArrayView<T>::end() {
         size_t end = m_offset + m_size;
         if (end > m_target->m_size) end = m_target->m_size;
         return m_target->m_data + end;
     }
 
     template <typename T>
-    ArrayView<T>::const_iterator ArrayView<T>::end() const {
+    typename ArrayView<T>::const_iterator ArrayView<T>::end() const {
         size_t end = m_offset + m_size;
         if (end > m_target->m_size) end = m_target->m_size;
         return m_target->m_data + end;
@@ -451,25 +451,25 @@ namespace utils {
 
 
     template <typename T>
-    Array<T>::iterator Array<T>::begin() {
+    typename Array<T>::iterator Array<T>::begin() {
         //return ArrayIterator<T>(this, 0);
         return Array<T>::iterator(m_data);
     }
 
     template <typename T>
-    Array<T>::const_iterator Array<T>::begin() const {
+    typename Array<T>::const_iterator Array<T>::begin() const {
         //return ConstArrayIterator<T>(this, 0);
         return Array<T>::const_iterator(m_data);
     }
 
     template <typename T>
-    Array<T>::iterator Array<T>::end() {
+    typename Array<T>::iterator Array<T>::end() {
         //return ArrayIterator<T>(this, m_size);
         return Array<T>::iterator(m_data + m_size);
     }
 
     template <typename T>
-    Array<T>::const_iterator Array<T>::end() const {
+    typename Array<T>::const_iterator Array<T>::end() const {
         //return ConstArrayIterator<T>(this, m_size);
         return Array<T>::const_iterator(m_data + m_size);
     }

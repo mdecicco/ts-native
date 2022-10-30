@@ -16,7 +16,7 @@ namespace gs {
 
         template <typename T>
         struct is_imm {
-            static constexpr bool value = std::is_integral_v<T> || std::is_same_v<T, ffi::Function*>;
+            static constexpr bool value = std::is_integral_v<T> || std::is_floating_point_v<T> || std::is_same_v<T, ffi::Function*>;
         };
 
         template <typename T>

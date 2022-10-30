@@ -1,4 +1,4 @@
-#include <gs/compiler/Value.h>
+#include <gs/compiler/Value.hpp>
 #include <gs/compiler/Compiler.h>
 #include <gs/compiler/FunctionDef.h>
 #include <gs/common/Context.h>

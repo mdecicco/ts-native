@@ -276,7 +276,7 @@ namespace utils {
     }
 
     template <typename T>
-    FixedAllocator<T>::elem_node* FixedAllocator<T>::getEmptyNode() {
+    typename FixedAllocator<T>::elem_node* FixedAllocator<T>::getEmptyNode() {
         if (!m_freeList) return nullptr;
 
         elem_node* out = m_freeList;

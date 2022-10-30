@@ -38,6 +38,7 @@ namespace gs {
 
                 template <typename T>
                 std::enable_if_t<is_imm_v<T>, T> getImm() const;
+
                 vreg_id getRegId() const;
                 alloc_id getStackAllocId() const;
                 const utils::String& getName() const;
