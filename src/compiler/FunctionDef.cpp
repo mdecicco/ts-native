@@ -159,23 +159,23 @@ namespace gs {
             DataType* ectx = m_comp->getContext()->getTypes()->getType<ExecutionContext>();
             DataType* errt = m_comp->getContext()->getTypes()->getType<poison_t>();
 
-            Value& s = val("@ret", voidp);
-            s.m_flags.is_argument = 1;
-            s.m_imm.u = 1;
-            m_ectxArg = &s;
+            Value& r = val("@ret", voidp);
+            r.m_flags.is_argument = 1;
+            r.m_imm.u = 1;
+            m_ectxArg = &r;
 
-            s = val("@ectx", ectx);
-            s.m_flags.is_argument = 1;
-            s.m_imm.u = 2;
-            m_ectxArg = &s;
+            Value& c = val("@ectx", ectx);
+            c.m_flags.is_argument = 1;
+            c.m_imm.u = 2;
+            m_ectxArg = &c;
 
-            s = val("@poison", errt);
+            Value& p = val("@poison", errt);
 
             if (m_thisTp) {
-                s = val("this", m_thisTp);
-                s.m_flags.is_argument = 1;
-                s.m_imm.u = 3;
-                m_thisArg = &s;
+                Value& t = val("this", m_thisTp);
+                t.m_flags.is_argument = 1;
+                t.m_imm.u = 3;
+                m_thisArg = &t;
             }
         }
     };

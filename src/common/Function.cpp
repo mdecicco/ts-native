@@ -6,7 +6,7 @@
 namespace gs {
     namespace ffi {
         Function::Function(const utils::String& name, FunctionType* signature, access_modifier access, void* address, void* wrapperAddr) {
-            m_fullyQualifiedName = signature->generateFullyQualifiedFunctionName(name);
+            m_fullyQualifiedName = signature ? signature->generateFullyQualifiedFunctionName(name) : "";
             m_id = -1;
             m_name = name;
             m_signature = signature;
@@ -38,6 +38,10 @@ namespace gs {
 
         bool Function::isMethod() const {
             return m_isMethod;
+        }
+
+        bool Function::isTemplate() const {
+            return m_isTemplate;
         }
 
         access_modifier Function::getAccessModifier() const {

@@ -11,6 +11,7 @@ namespace gs {
     namespace ffi {
         class DataType;
         class Function;
+        class Method;
         class DataTypeRegistry;
 
         struct type_property {
@@ -88,6 +89,7 @@ namespace gs {
             
             private:
                 friend class FunctionType;
+                friend class ClassType;
                 friend class DataTypeBinder;
                 friend class DataTypeRegistry;
                 type_id m_id;
@@ -146,6 +148,17 @@ namespace gs {
 
             private:
                 DataType* m_ref;
+        };
+
+        class ClassType : public DataType {
+            public:
+                ClassType(const utils::String& name, const utils::String& fullyQualifiedName);
+                virtual ~ClassType();
+
+                void addBase(DataType* tp, access_modifier access = public_access);
+                void addProperty(const utils::String& name, DataType* tp, value_flags flags, access_modifier access = public_access, Function* getter = nullptr, Function* setter = nullptr);
+                void addMethod(ffi::Method* method);
+                void setDestructor(ffi::Method* dtor);
         };
     };
 };

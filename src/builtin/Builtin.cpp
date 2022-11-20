@@ -36,6 +36,7 @@ namespace gs {
 
         auto v  = bind<void>(ctx, "void").finalize(ctx->getGlobal());
         auto vp = bind<void*>(ctx, "data").finalize(ctx->getGlobal());
+        auto b = bind<bool>(ctx, "boolean").finalize(ctx->getGlobal());
 
         BindString(ctx);
     }
