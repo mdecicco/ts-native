@@ -9,14 +9,14 @@
 namespace gs {
     template <typename T>
     ffi::DataType* IDataTypeHolder::getType() const {
-        auto it = m_typeHashMap.find(type_hash<ffi::remove_all_except_void_ptr<T>::type>());
+        auto it = m_typeHashMap.find(type_hash<typename ffi::remove_all_except_void_ptr<T>::type>());
         if (it == m_typeHashMap.end()) return nullptr;
         return m_types[it->second];
     }
             
     template <typename T>
     ffi::DataType* IDataTypeHolder::getType(T&& arg) const {
-        if constexpr (std::is_same_v<Object, ffi::remove_all<T>::type>) {
+        if constexpr (std::is_same_v<Object, typename ffi::remove_all<T>::type>) {
             Object* o = nullptr;
             if constexpr (std::is_pointer_v<T>) o = arg;
             else if constexpr (std::is_reference_v<T>) {
@@ -29,7 +29,7 @@ namespace gs {
 
             return o->getType();
         } else {
-            auto it = m_typeHashMap.find(type_hash<ffi::remove_all_except_void_ptr<T>::type>());
+            auto it = m_typeHashMap.find(type_hash<typename ffi::remove_all_except_void_ptr<T>::type>());
             if (it == m_typeHashMap.end()) return nullptr;
             return m_types[it->second];
         }
