@@ -1,6 +1,6 @@
 {
     "files.associations": {
-        "*.gjs": "javascript",
+        "*.gs": "typescript",
         "*.lex": "lex",
         "xtr1common": "cpp",
         "typeindex": "cpp",
