@@ -129,7 +129,6 @@ namespace gs {
             Module* m = new Module(m_ctx, "test");
             m_output = new CompilerOutput(this, m);
 
-            // todo: Import all symbols from global module
             const utils::Array<gs::ffi::DataType*>& importTypes = m_ctx->getGlobal()->allTypes();
             for (auto* t : importTypes) {
                 m_scopeMgr.add(t->getName(), t);
@@ -144,7 +143,6 @@ namespace gs {
             ast_node* n = m_program->body;
             while (n) {
                 if (n->tp == nt_import) {
-                    // todo: Deal with the import...
                     compileImport(n, this);
                 } else if (n->tp == nt_function) {
                     m_output->newFunc(n->str());
@@ -152,14 +150,17 @@ namespace gs {
                 n = n->next;
             }
 
+            // init function
+            FunctionDef* fd = m_output->newFunc("__init__");
+            enterFunction(fd);
+
             n = m_program->body;
             while (n) {
                 compileAny(n, this);
                 n = n->next;
             }
 
-            bool failureCondition = false;
-
+            exitFunction();
             return m_output;
         }
 
@@ -571,7 +572,7 @@ namespace gs {
                         name,
                         n->flags.is_private ? private_access : public_access,
                         thisOffset,
-                        n
+                        n->clone()
                     );
                     c->addFunction(m);
                     c->exitNode();
@@ -707,68 +708,47 @@ namespace gs {
                 fullName += '>';
             }
 
-            type_meta oinfo = { 0 };
-            oinfo.is_pod = 1;
-            oinfo.is_trivially_constructible = 1;
-            oinfo.is_trivially_copyable = 1;
-            oinfo.is_trivially_destructible = 1;
+            ClassType* tp = new ClassType(name, fullName);
+            c->addDataType(tp);
+            c->scope().getBase().add(name, tp);
             
-            u64 offset = 0;
             ast_node* inherits = n->inheritance;
-            utils::Array<type_base> bases;
             while (inherits) {
-                DataType* t = resolveTypeSpecifier(inherits, c);
-                const type_meta& info = t->getInfo();
-
                 // todo: Check added properties don't have name collisions with
                 //       existing properties
 
-                type_base b;
-                b.access = public_access;
-                b.offset = offset;
-                b.type = t;
-                bases.push(b);
-
+                DataType* t = resolveTypeSpecifier(inherits, c);
+                tp->addBase(t, public_access);
                 inherits = inherits->next;
-                offset += info.size;
             }
 
-            utils::Array<type_property> props;
             ast_node* prop = n->body;
-            u64 thisOffset = offset;
+            u64 thisOffset = tp->getInfo().size;
             while (prop) {
                 if (prop->tp != nt_property) {
                     prop = prop->next;
                     continue;
                 }
 
+                value_flags f = { 0 };
+                f.can_read = 1;
+                f.can_write = (!prop->flags.is_const) ? 1 : 0;
+                f.is_pointer = prop->flags.is_pointer;
+                f.is_static = prop->flags.is_static;
+
                 DataType* t = resolveTypeSpecifier(prop->data_type, c);
-                const type_meta& info = t->getInfo();
+                tp->addProperty(
+                    prop->str(),
+                    t,
+                    f,
+                    prop->flags.is_private ? private_access : public_access,
+                    nullptr,
+                    nullptr
+                );
 
-                type_property p;
-                p.name = prop->str();
-                p.access = prop->flags.is_private ? private_access : public_access;
-                p.flags.can_read = 1;
-                p.flags.can_write = (!prop->flags.is_const) ? 1 : 0;
-                p.flags.is_pointer = prop->flags.is_pointer;
-                p.flags.is_static = prop->flags.is_static;
-                p.getter = nullptr;
-                p.setter = nullptr;
-                p.offset = offset;
-                p.type = t;
-                props.push(p);
-                
-                if (!info.is_pod) oinfo.is_pod = 0;
-                if (!info.is_trivially_constructible) oinfo.is_trivially_constructible = 0;
-                if (!info.is_trivially_copyable) oinfo.is_trivially_copyable = 0;
-                if (!info.is_trivially_destructible) oinfo.is_trivially_destructible = 0;
-
-                offset += info.size;
                 prop = prop->next;
             }
 
-            ffi::Function* dtor = nullptr;
-            utils::Array<ffi::Function*> methods;
             ast_node* meth = n->body;
             while (meth) {
                 if (meth->tp != nt_function) {
@@ -777,23 +757,16 @@ namespace gs {
                 }
 
                 bool isDtor = false;
-                Method* m = compileMethodDecl(meth, c, thisOffset, &isDtor, false, dtor != nullptr);
-                if (isDtor) dtor = m;
-                else methods.push(m);
+                Method* m = compileMethodDecl(meth, c, thisOffset, &isDtor, false, tp->getDestructor() != nullptr);
+
+                if (isDtor) tp->setDestructor(m);
+                else tp->addMethod(m);
+
                 meth = meth->next;
             }
 
-            DataType* tp = new DataType(
-                name,
-                fullName,
-                oinfo,
-                props,
-                bases,
-                dtor,
-                methods
-            );
-
             u32 midx = 0;
+            const auto& methods = tp->getMethods();
             meth = n->body;
             while (meth) {
                 if (meth->tp != nt_function) {
@@ -801,12 +774,12 @@ namespace gs {
                     continue;
                 }
 
-                compileMethodDef(meth, c, tp, (Method*)methods[midx++]);
+                if (!methods[midx]->isTemplate()) {
+                    compileMethodDef(meth, c, tp, (Method*)methods[midx++]);
+                }
+                
                 meth = meth->next;
             }
-
-            c->addDataType(tp);
-            c->scope().add(name, tp);
             c->exitNode();
 
             return tp;
@@ -866,7 +839,23 @@ namespace gs {
             c->exitNode();
         }
         void compileExport(ast_node* n, Compiler* c) {
+            // todo: actually export the things
 
+            if (n->body->tp == nt_type) {
+                DataType* tp = compileType(n->body, c);
+                return;
+            } else if (n->body->tp == nt_function) {
+                compileFunction(n->body, c);
+                return;
+            } else if (n->body->tp == nt_variable) {
+                compileVarDecl(n->body, c);
+                return;
+            } else if (n->body->tp == nt_class) {
+                DataType* tp = compileClass(n->body, c);
+                return;
+            }
+
+            // todo: error
         }
         void compileImport(ast_node* n, Compiler* c) {
 

@@ -387,5 +387,64 @@ namespace gs {
         DataType* AliasType::getRefType() const {
             return m_ref;
         }
+
+
+
+        //
+        // ClassType
+        //
+        
+        ClassType::ClassType(const utils::String& name, const utils::String& fullyQualifiedName) : DataType(name, fullyQualifiedName, { 0 }, {}, {}, nullptr, {}) {
+            m_info.is_pod = 1;
+            m_info.is_trivially_constructible = 1;
+            m_info.is_trivially_copyable = 1;
+            m_info.is_trivially_destructible = 1;
+        }
+
+        ClassType::~ClassType() {
+        }
+
+        void ClassType::addBase(DataType* tp, access_modifier access) {
+            type_base b;
+            b.access = access;
+            b.offset = m_info.size;
+            b.type = tp;
+
+            m_info.size += tp->m_info.size;
+
+            if (!tp->m_info.is_pod) m_info.is_pod = 0;
+            if (!tp->m_info.is_trivially_constructible) m_info.is_trivially_constructible = 0;
+            if (!tp->m_info.is_trivially_copyable) m_info.is_trivially_copyable = 0;
+            if (!tp->m_info.is_trivially_destructible) m_info.is_trivially_destructible = 0;
+
+            m_bases.push(b);
+        }
+
+        void ClassType::addProperty(const utils::String& name, DataType* tp, value_flags flags, access_modifier access, Function* getter, Function* setter) {
+            type_property p;
+            p.name = name;
+            p.type = tp;
+            p.flags = flags;
+            p.access = access;
+            p.offset = m_info.size;
+            p.getter = getter;
+            p.setter = setter;
+            
+            m_info.size += tp->m_info.size;
+
+            if (!tp->m_info.is_pod) m_info.is_pod = 0;
+            if (!tp->m_info.is_trivially_constructible) m_info.is_trivially_constructible = 0;
+            if (!tp->m_info.is_trivially_copyable) m_info.is_trivially_copyable = 0;
+            if (!tp->m_info.is_trivially_destructible) m_info.is_trivially_destructible = 0;
+            m_properties.push(p);
+        }
+
+        void ClassType::addMethod(ffi::Method* method) {
+            m_methods.push(method);
+        }
+
+        void ClassType::setDestructor(ffi::Method* dtor) {
+            m_destructor = dtor;
+        }
     };
 };
