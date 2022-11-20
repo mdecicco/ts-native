@@ -41,7 +41,7 @@ namespace gs {
             // When arg is wrapped in a gs::Object
             //
 
-            if constexpr (std::is_same_v<Object, remove_all<T>::type>) {
+            if constexpr (std::is_same_v<Object, typename remove_all<T>::type>) {
                 Object* o = nullptr;
                 if constexpr (std::is_pointer_v<T>) o = arg;
                 else if constexpr (std::is_reference_v<T>) {
@@ -73,7 +73,7 @@ namespace gs {
             // one is 8.
             //
 
-            if constexpr (std::is_fundamental_v<remove_all<T>::type>) {
+            if constexpr (std::is_fundamental_v<typename remove_all<T>::type>) {
                 // Currently every arg_type other than arg_type::value is a pointer
                 if (argType == arg_type::value) {
                     // Expected type is a primitive

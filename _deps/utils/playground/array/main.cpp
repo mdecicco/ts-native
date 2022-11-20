@@ -1,4 +1,5 @@
 #include <utils/Array.hpp>
+#include <utils/String.h>
 
 using namespace utils;
 

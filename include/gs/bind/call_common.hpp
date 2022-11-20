@@ -30,7 +30,7 @@ namespace gs {
             else if constexpr (std::is_same_v<f32, T>) return &ffi_type_float;
             else if constexpr (std::is_same_v<f64, T>) return &ffi_type_double;
             else if constexpr (std::is_pointer_v<T> || std::is_reference_v<T> || !std::is_fundamental_v<T>) {
-                if constexpr (std::is_same_v<Object, remove_all<T>::type>) {
+                if constexpr (std::is_same_v<Object, typename remove_all<T>::type>) {
                     Object* o = nullptr;
                     if constexpr (std::is_pointer_v<T>) o = val;
                     else if constexpr (std::is_reference_v<T>) {

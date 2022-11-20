@@ -56,7 +56,7 @@ namespace gs {
             if constexpr (argc == 0) return true;
 
             if constexpr (argc > 0) {
-                DataType* argTypes[] = { reg->getType<remove_all<Args>::type>()... };
+                DataType* argTypes[] = { reg->getType<typename remove_all<Args>::type>()... };
                 const char* argTpNames[] = { type_name<Args>()... };
                 constexpr bool argIsPtr[] = { (std::is_reference_v<Args> || std::is_pointer_v<Args>)... };
                 constexpr bool argNeedsPtr[] = { !std::is_fundamental_v<Args>... };
