@@ -19,6 +19,7 @@ namespace gs {
             nt_eos,
 
             nt_break,
+            nt_cast,
             nt_catch,
             nt_class,
             nt_continue,
@@ -39,6 +40,7 @@ namespace gs {
             nt_property,
             nt_return,
             nt_scoped_block,
+            nt_sizeof,
             nt_switch,
             nt_switch_case,
             nt_this,
@@ -48,9 +50,7 @@ namespace gs {
             nt_type_modifier,
             nt_type_property,
             nt_type_specifier,
-            nt_variable,
-            nt_cast,
-            nt_sizeof
+            nt_variable
         };
         
         enum expr_operator {
@@ -88,16 +88,14 @@ namespace gs {
             op_lessThanEq,
             op_greaterThan,
             op_greaterThanEq,
-            op_conditional,
-            op_orderUnknownInc,
             op_preInc,
             op_postInc,
-            op_orderUnknownDec,
             op_preDec,
             op_postDec,
             op_negate,
-            op_member,
             op_index,
+            op_conditional,
+            op_member,
             op_new,
             op_placementNew,
             op_call

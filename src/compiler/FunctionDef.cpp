@@ -1,8 +1,9 @@
-#include <gs/compiler/FunctionDef.h>
+#include <gs/compiler/FunctionDef.hpp>
 #include <gs/compiler/Compiler.h>
 #include <gs/common/Context.h>
 #include <gs/common/Function.h>
 #include <gs/common/DataType.h>
+#include <gs/common/Module.h>
 #include <gs/common/TypeRegistry.h>
 #include <gs/interfaces/IDataTypeHolder.hpp>
 #include <gs/interfaces/ICodeHolder.h>
@@ -135,6 +136,14 @@ namespace gs {
             return *m_poison;
         }
 
+        alloc_id FunctionDef::reserveStackId() {
+            return m_nextAllocId++;
+        }
+
+        void FunctionDef::setStackId(Value& v, alloc_id id) {
+            v.m_allocId = id;
+        }
+
         Value& FunctionDef::val(const utils::String& name, DataType* tp) {
             // Must be dynamically allocated to be stored in symbol table
             Value* v = new Value(this, tp);
@@ -143,15 +152,27 @@ namespace gs {
             m_comp->scope().add(name, v);
             return *v;
         }
+        
+        Value& FunctionDef::val(const utils::String& name, u32 module_data_slot) {
+            const module_data& info = m_comp->getOutput()->getModule()->getDataInfo(module_data_slot);
+
+            // Must be dynamically allocated to be stored in symbol table
+            Value* v = new Value(this, info.type);
+            v->m_regId = m_nextRegId++;
+            v->m_name = name;
+            v->m_imm.u = module_data_slot;
+            v->m_flags.is_module_data = 1;
+            v->m_flags.is_pointer = 1;
+
+            add(ir_assign).op(*v).op(imm<u64>(reinterpret_cast<u64>(info.ptr)));
+            m_comp->scope().add(name, v);
+            return *v;
+        }
 
         Value FunctionDef::val(DataType* tp) {
             Value v = Value(this, tp);
             v.m_regId = m_nextRegId++;
             return v;
-        }
-
-        Function* FunctionDef::getOutput() const {
-            return m_output;
         }
 
         void FunctionDef::onEnter() {
@@ -177,6 +198,24 @@ namespace gs {
                 t.m_imm.u = 3;
                 m_thisArg = &t;
             }
+        }
+
+        Function* FunctionDef::onExit() {
+            if (m_output) return m_output;
+
+            m_output = new Function(
+                m_name,
+                new FunctionType(m_retTp, m_argInfo),
+                private_access,
+                nullptr,
+                nullptr
+            );
+
+            return m_output;
+        }
+        
+        ffi::Function* FunctionDef::getOutput() {
+            return m_output;
         }
     };
 };

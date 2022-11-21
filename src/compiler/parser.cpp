@@ -31,6 +31,7 @@ namespace gs {
                 "root",
                 "eos",
                 "break",
+                "cast",
                 "catch",
                 "class",
                 "continue",
@@ -51,6 +52,7 @@ namespace gs {
                 "property",
                 "return",
                 "scoped_block",
+                "sizeof"
                 "switch",
                 "switch_case",
                 "this",
@@ -60,9 +62,7 @@ namespace gs {
                 "type_modifier",
                 "type_property",
                 "type_specifier",
-                "variable",
-                "cast",
-                "sizeof"
+                "variable"
             };
             static const char* ops[] = {
                 "undefined",
@@ -99,16 +99,14 @@ namespace gs {
                 "lessThanEq",
                 "greaterThan",
                 "greaterThanEq",
-                "conditional",
-                "orderUnknownInc",
                 "preInc",
                 "postInc",
-                "orderUnknownDec",
                 "preDec",
                 "postDec",
                 "negate",
-                "member",
                 "index",
+                "conditional",
+                "member",
                 "new",
                 "placementNew",
                 "call"
@@ -784,7 +782,7 @@ namespace gs {
                 if (!ps->typeIs(tt_comma)) break;
                 ps->consume();
 
-                n->next = parameter(ps);
+                n->next = objectDecompositorProperty(ps);
                 n = n->next;
                 if (!n) {
                     ps->error(pec_expected_parameter, "Expected property after ','");

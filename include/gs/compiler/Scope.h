@@ -16,6 +16,7 @@ namespace gs {
 
     namespace compiler {
         class FunctionDef;
+        class Compiler;
 
         enum symbol_type {
             st_variable,
@@ -47,16 +48,21 @@ namespace gs {
                 void add(const utils::String& name, Module* m);
                 symbol* get(const utils::String& name);
 
+                void addToStack(const Value& v);
+
             private:
                 robin_hood::unordered_map<utils::String, symbol> m_symbols;
                 utils::Array<Value*> m_namedVars;
+            
+            protected:
+                friend class ScopeManager;
                 utils::Array<Value> m_stackObjs;
         };
 
         class FunctionDef;
         class ScopeManager {
             public:
-                ScopeManager();
+                ScopeManager(Compiler* comp);
 
                 Scope& enter();
                 void exit();
@@ -75,6 +81,7 @@ namespace gs {
             
             private:
                 utils::Array<Scope> m_scopes;
+                Compiler* m_comp;
         };
     };
 };

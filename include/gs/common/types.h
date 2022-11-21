@@ -75,30 +75,35 @@ namespace gs {
          * @brief Ignore the implicit arguments of functions being compared to the provided signature
          */
         fm_skip_implicit_args = 0b00000001,
+
+        /**
+         * @brief Ignore all argument related checks
+         */
+        fm_ignore_args        = 0b00000010,
         
         /**
          * @brief Exclude functions with signatures that don't strictly match the provided return type.
          *        Without this flag, return types that are convertible to the provided return type with
          *        only one degree of separation will be considered matching.
          */
-        fm_strict_return      = 0b00000010,
+        fm_strict_return      = 0b00000100,
         
         /**
          * @brief Exclude functions with signatures that don't strictly match the provided argument types.
          *        Without this flag, argument types that are convertible to the provided argument types
          *        with only one degree of separation will be considered matching.
          */
-        fm_strict_args        = 0b00000100,
+        fm_strict_args        = 0b00001000,
         
         /**
          * @brief Same as fm_strict_return | fm_strict_args
          */
-        fm_strict             = 0b00000110,
+        fm_strict             = fm_strict_return | fm_strict_args,
 
         /**
          * @brief Exclude private functions
          */
-        fm_exclude_private    = 0b00001000
+        fm_exclude_private    = 0b00010000
     };
     typedef u8 function_match_flags;
 

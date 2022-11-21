@@ -25,13 +25,13 @@ namespace gs {
         const auto& args = sig->getArguments();
 
         // arg count check (including implicit)
-        if (!(flags & fm_skip_implicit_args) && argCount != args.size()) return false;
+        if (!((flags & fm_skip_implicit_args) || (flags & fm_ignore_args)) && argCount != args.size()) return false;
         
         // function name match
         if (fn->getName() != name) return false;
 
         // arg count check (excluding implicit)
-        if (flags & fm_skip_implicit_args) {
+        if (!(flags & fm_ignore_args) && (flags & fm_skip_implicit_args)) {
             u8 implicitCount = 0;
             bool all_implicit = !args.some([&implicitCount](const ffi::function_argument& a, u32 idx) {
                 implicitCount = (u8)idx;
@@ -43,7 +43,7 @@ namespace gs {
         }
 
         // strict arg type check
-        if (flags & fm_strict_args) {
+        if (!(flags & fm_ignore_args) && (flags & fm_strict_args)) {
             u8 argIdx = 0;
             bool argsMatch = !args.some([argTps, argCount, flags, &argIdx](const ffi::function_argument& a) {
                 if ((flags & fm_skip_implicit_args) && a.isImplicit()) return false;
@@ -58,7 +58,7 @@ namespace gs {
         if (retTp && !(flags & fm_strict_return) && !sig->getReturnType()->isConvertibleTo(retTp)) return false;
         
         // flexible arg type check
-        if (!(flags & fm_strict_args)) {
+        if (!(flags & fm_ignore_args) && !(flags & fm_strict_args)) {
             u8 argIdx = 0;
             bool argsMatch = !args.some([argTps, argCount, flags, &argIdx](const ffi::function_argument& a) {
                 if ((flags & fm_skip_implicit_args) && a.isImplicit()) return false;

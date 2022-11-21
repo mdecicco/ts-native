@@ -42,7 +42,11 @@ namespace gs {
                 Value& getRetPtr();
                 Value& getPoison();
 
+                alloc_id reserveStackId();
+                void setStackId(Value& v, alloc_id id);
+
                 Value& val(const utils::String& name, ffi::DataType* tp);
+                Value& val(const utils::String& name, u32 module_data_slot);
                 Value val(ffi::DataType* tp);
                 
                 template <typename T>
@@ -55,8 +59,10 @@ namespace gs {
                 std::enable_if_t<is_imm_v<T>, Value>
                 imm(T value);
 
-                ffi::Function* getOutput() const;
                 void onEnter();
+                ffi::Function* onExit();
+
+                ffi::Function* getOutput();
 
             private:
                 Compiler* m_comp;

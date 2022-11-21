@@ -95,6 +95,56 @@ namespace gs {
             return *this;
         }
 
+        Value Value::getProp(const utils::String& name, bool excludeInherited, bool excludePrivate, bool doError) {
+            const ffi::type_property* prop = m_type->getProp(name, excludeInherited, excludePrivate);
+
+            if (!prop) {
+                if (doError) {
+                    // todo: errors
+                }
+                return m_func->getPoison();
+            }
+
+            if (prop->access == private_access && m_func->getCompiler()->currentClass() != m_type) {
+                if (doError) {
+                    // todo: errors
+                }
+                return m_func->getPoison();
+            }
+
+            if (prop->flags.is_static) {
+                if (doError) {
+                    // todo: errors
+                }
+                return m_func->getPoison();
+            }
+
+            if (!prop->flags.can_read) {
+                if (doError) {
+                    // todo: errors
+                }
+                return m_func->getPoison();
+            }
+
+            if (prop->getter) {
+                return m_func->getCompiler()->generateCall(prop->getter, {}, this);
+            }
+
+            Value out = m_func->val(prop->type);
+            m_func->add(ir_uadd).op(out).op(*this).op(m_func->imm(prop->offset));
+
+            if (prop->type->getInfo().is_primitive || prop->flags.is_pointer) {
+                m_func->add(ir_load).op(out).op(out);
+            }
+            
+            if (prop->type->getInfo().is_primitive && prop->flags.is_pointer) {
+                // load primitive from pointer to primitive
+                m_func->add(ir_load).op(out).op(out);
+            }
+
+            return out;
+        }
+
         vreg_id Value::getRegId() const {
             return m_regId;
         }
@@ -132,19 +182,23 @@ namespace gs {
             return m_allocId > 0;
         }
 
-        Value genBinaryOp(
+        Value Value::genBinaryOp(
             FunctionDef* fn,
             const Value* self,
-            const Value& rhs,
+            const Value& _rhs,
             ir_instruction _i,
             ir_instruction _u,
             ir_instruction _f,
             ir_instruction _d,
             const char* overrideName,
-            bool assignmentOp = false
-        ) {
+            bool assignmentOp
+        ) const {
             ffi::DataType* selfTp = self->getType();
             const auto& i = selfTp->getInfo();
+
+            // If rhs is a primitive in module data then it actually refers to a pointer to that primitive
+            Value rhs = _rhs.m_flags.is_module_data && _rhs.m_type->getInfo().is_primitive ? *_rhs : _rhs;
+
             if (i.is_primitive) {
                 Value out = fn->val(selfTp);
 
@@ -157,13 +211,22 @@ namespace gs {
                     else inst = _f;
                 }
 
-                fn->add(inst).op(out).op(*self).op(rhs.convertedTo(selfTp));
+                if (m_flags.is_module_data) {
+                    fn->add(inst).op(out).op(**self).op(rhs.convertedTo(selfTp));
+
+                    if (assignmentOp) {
+                        fn->add(ir_store).op(out).op(*self);
+                    }
+                } else {
+                    fn->add(inst).op(out).op(*self).op(rhs.convertedTo(selfTp));
+                }
+
                 return out;
             } else {
                 const ffi::DataType* rtp = rhs.getType();
                 utils::Array<ffi::Function*> matches = selfTp->findMethods(overrideName, nullptr, &rtp, 1, fm_skip_implicit_args);
                 if (matches.size() == 1) {
-                    return generateCall(fn->getCompiler(), matches[0], { rhs }, self);
+                    return fn->getCompiler()->generateCall(matches[0], { rhs }, self);
                 } else if (matches.size() > 1) {
                     u8 strictC = 0;
                     ffi::Function* func = nullptr;
@@ -184,7 +247,7 @@ namespace gs {
                     }
                     
                     if (strictC == 1) {
-                        return generateCall(fn->getCompiler(), func, { rhs }, self);
+                        return fn->getCompiler()->generateCall(func, { rhs }, self);
                     }
 
                     // todo: Error, ambiguous call
@@ -196,7 +259,7 @@ namespace gs {
             return fn->getPoison();
         }
 
-        Value genUnaryOp(
+        Value Value::genUnaryOp(
             FunctionDef* fn,
             const Value* self,
             ir_instruction _i,
@@ -204,8 +267,9 @@ namespace gs {
             ir_instruction _f,
             ir_instruction _d,
             const char* overrideName,
-            bool resultIsPreOp = false
-        ) {
+            bool resultIsPreOp,
+            bool assignmentOp
+        ) const {
             ffi::DataType* selfTp = self->getType();
             const auto& i = selfTp->getInfo();
             if (i.is_primitive) {
@@ -220,20 +284,23 @@ namespace gs {
                     else inst = _f;
                 }
 
-                if (resultIsPreOp) {
-                    fn->add(ir_set).op(out).op(*self);
+                Value v = self->m_flags.is_module_data ? **self : *self;
+
+                if (resultIsPreOp) fn->add(ir_assign).op(out).op(v);
+
+                fn->add(inst).op(out).op(v);
+
+                if (!resultIsPreOp) fn->add(ir_assign).op(out).op(v);
+
+                if (self->m_flags.is_module_data && assignmentOp) {
+                    fn->add(ir_store).op(v).op(*self);
                 }
 
-                fn->add(inst).op(out).op(*self);
-
-                if (!resultIsPreOp) {
-                    fn->add(ir_set).op(out).op(*self);
-                }
                 return out;
             } else {
                 utils::Array<ffi::Function*> matches = selfTp->findMethods(overrideName, nullptr, nullptr, 0, fm_skip_implicit_args);
                 if (matches.size() == 1) {
-                    return generateCall(fn->getCompiler(), matches[0], { }, self);
+                    return fn->getCompiler()->generateCall(matches[0], { }, self);
                 } else if (matches.size() > 1) {
                     // todo: Error, ambiguous call
                 } else {
@@ -249,7 +316,7 @@ namespace gs {
         }
 
         Value Value::operator += (const Value& rhs) {
-            return genBinaryOp(m_func, this, rhs, ir_iadd, ir_uadd, ir_fadd, ir_dadd, "operator +", true);
+            return genBinaryOp(m_func, this, rhs, ir_iadd, ir_uadd, ir_fadd, ir_dadd, "operator +=", true);
         }
 
         Value Value::operator -  (const Value& rhs) const {
@@ -257,7 +324,7 @@ namespace gs {
         }
 
         Value Value::operator -= (const Value& rhs) {
-            return genBinaryOp(m_func, this, rhs, ir_isub, ir_usub, ir_fsub, ir_dsub, "operator -", true);
+            return genBinaryOp(m_func, this, rhs, ir_isub, ir_usub, ir_fsub, ir_dsub, "operator -=", true);
         }
 
         Value Value::operator *  (const Value& rhs) const {
@@ -265,7 +332,7 @@ namespace gs {
         }
 
         Value Value::operator *= (const Value& rhs) {
-            return genBinaryOp(m_func, this, rhs, ir_imul, ir_umul, ir_fmul, ir_dmul, "operator *", true);
+            return genBinaryOp(m_func, this, rhs, ir_imul, ir_umul, ir_fmul, ir_dmul, "operator *=", true);
         }
 
         Value Value::operator /  (const Value& rhs) const {
@@ -273,7 +340,7 @@ namespace gs {
         }
 
         Value Value::operator /= (const Value& rhs) {
-            return genBinaryOp(m_func, this, rhs, ir_idiv, ir_udiv, ir_fdiv, ir_ddiv, "operator /", true);
+            return genBinaryOp(m_func, this, rhs, ir_idiv, ir_udiv, ir_fdiv, ir_ddiv, "operator /=", true);
         }
 
         Value Value::operator %  (const Value& rhs) const {
@@ -281,7 +348,7 @@ namespace gs {
         }
 
         Value Value::operator %= (const Value& rhs) {
-            return genBinaryOp(m_func, this, rhs, ir_imod, ir_umod, ir_fmod, ir_dmod, "operator %", true);
+            return genBinaryOp(m_func, this, rhs, ir_imod, ir_umod, ir_fmod, ir_dmod, "operator %=", true);
         }
 
         Value Value::operator ^  (const Value& rhs) const {
@@ -289,7 +356,7 @@ namespace gs {
         }
 
         Value Value::operator ^= (const Value& rhs) {
-            return genBinaryOp(m_func, this, rhs, ir_xor, ir_xor, ir_noop, ir_noop, "operator ^", true);
+            return genBinaryOp(m_func, this, rhs, ir_xor, ir_xor, ir_noop, ir_noop, "operator ^=", true);
         }
 
         Value Value::operator &  (const Value& rhs) const {
@@ -297,7 +364,7 @@ namespace gs {
         }
 
         Value Value::operator &= (const Value& rhs) {
-            return genBinaryOp(m_func, this, rhs, ir_band, ir_band, ir_noop, ir_noop, "operator &", true);
+            return genBinaryOp(m_func, this, rhs, ir_band, ir_band, ir_noop, ir_noop, "operator &=", true);
         }
 
         Value Value::operator |  (const Value& rhs) const {
@@ -305,7 +372,7 @@ namespace gs {
         }
 
         Value Value::operator |= (const Value& rhs) {
-            return genBinaryOp(m_func, this, rhs, ir_bor, ir_bor, ir_noop, ir_noop, "operator |", true);
+            return genBinaryOp(m_func, this, rhs, ir_bor, ir_bor, ir_noop, ir_noop, "operator |=", true);
         }
 
         Value Value::operator << (const Value& rhs) const {
@@ -313,7 +380,7 @@ namespace gs {
         }
 
         Value Value::operator <<=(const Value& rhs) {
-            return genBinaryOp(m_func, this, rhs, ir_shl, ir_shl, ir_noop, ir_noop, "operator <<", true);
+            return genBinaryOp(m_func, this, rhs, ir_shl, ir_shl, ir_noop, ir_noop, "operator <<=", true);
         }
 
         Value Value::operator >> (const Value& rhs) const {
@@ -321,7 +388,7 @@ namespace gs {
         }
 
         Value Value::operator >>=(const Value& rhs) {
-            return genBinaryOp(m_func, this, rhs, ir_shr, ir_shr, ir_noop, ir_noop, "operator >>", true);
+            return genBinaryOp(m_func, this, rhs, ir_shr, ir_shr, ir_noop, ir_noop, "operator >>=", true);
         }
 
         Value Value::operator != (const Value& rhs) const {
@@ -337,7 +404,7 @@ namespace gs {
         }
 
         Value Value::operator =  (const Value& rhs) {
-            return genBinaryOp(m_func, this, rhs, ir_set, ir_set, ir_set, ir_set, "operator =");
+            return genBinaryOp(m_func, this, rhs, ir_assign, ir_assign, ir_assign, ir_assign, "operator =", true);
         }
 
         Value Value::operator == (const Value& rhs) const {
@@ -360,15 +427,18 @@ namespace gs {
             return genBinaryOp(m_func, this, rhs, ir_igte, ir_ugte, ir_fgte, ir_dgte, "operator >=");
         }
 
-        Value Value::operator [] (const Value& rhs) const {
+        Value Value::operator [] (const Value& _rhs) const {
             // todo: If script is trusted then allow offsetting from
             //       pointers. Otherwise error if that behavior is
             //       attempted.
 
+            // If rhs is a primitive in module data then it actually refers to a pointer to that primitive
+            Value rhs = _rhs.m_flags.is_module_data && _rhs.m_type->getInfo().is_primitive ? *_rhs : _rhs;
+
             const ffi::DataType* rtp = rhs.getType();
             utils::Array<ffi::Function*> matches = m_type->findMethods("operator []", nullptr, &rtp, 1, fm_skip_implicit_args);
             if (matches.size() == 1) {
-                return generateCall(m_func->getCompiler(), matches[0], { rhs }, this);
+                return m_func->getCompiler()->generateCall(matches[0], { rhs }, this);
             } else if (matches.size() > 1) {
                 u8 strictC = 0;
                 ffi::Function* func = nullptr;
@@ -389,7 +459,7 @@ namespace gs {
                 }
                 
                 if (strictC == 1) {
-                    return generateCall(m_func->getCompiler(), func, { rhs }, this);
+                    return m_func->getCompiler()->generateCall(func, { rhs }, this);
                 }
 
                 // todo: Error, ambiguous call
@@ -400,11 +470,19 @@ namespace gs {
             return m_func->getPoison();
         }
 
-        Value Value::operator () (const utils::Array<Value>& args) const {
-            utils::Array<ffi::DataType*> argTps = args.map([](const Value& v) { return v.m_type; });
+        Value Value::operator () (const utils::Array<Value>& _args) const {
+            utils::Array<Value> args;
+            utils::Array<ffi::DataType*> argTps;
+
+            _args.each([&args, &argTps](const Value& v) {
+                // If arg is a primitive in module data then it actually refers to a pointer to that primitive
+                args.push(v.m_flags.is_module_data && v.m_type->getInfo().is_primitive ? *v : v);
+                argTps.push(v.m_type);
+            });
+
             utils::Array<ffi::Function*> matches = m_type->findMethods("operator ()", nullptr, const_cast<const ffi::DataType**>(argTps.data()), argTps.size(), fm_skip_implicit_args);
             if (matches.size() == 1) {
-                return generateCall(m_func->getCompiler(), matches[0], args, this);
+                return m_func->getCompiler()->generateCall(matches[0], args, this);
             } else if (matches.size() > 1) {
                 u8 strictC = 0;
                 ffi::Function* func = nullptr;
@@ -422,7 +500,7 @@ namespace gs {
                 }
                 
                 if (strictC == 1) {
-                    return generateCall(m_func->getCompiler(), func, args, this);
+                    return m_func->getCompiler()->generateCall(func, args, this);
                 }
 
                 // todo: Error, ambiguous call
@@ -438,19 +516,19 @@ namespace gs {
         }
 
         Value Value::operator -- () {
-            return genUnaryOp(m_func, this, ir_idec, ir_udec, ir_fdec, ir_ddec, "operator --");
+            return genUnaryOp(m_func, this, ir_idec, ir_udec, ir_fdec, ir_ddec, "operator --", false, true);
         }
 
         Value Value::operator -- (int) {
-            return genUnaryOp(m_func, this, ir_idec, ir_udec, ir_fdec, ir_ddec, "operator --", true);
+            return genUnaryOp(m_func, this, ir_idec, ir_udec, ir_fdec, ir_ddec, "operator --", true, true);
         }
 
         Value Value::operator ++ () {
-            return genUnaryOp(m_func, this, ir_iinc, ir_uinc, ir_finc, ir_dinc, "operator ++");
+            return genUnaryOp(m_func, this, ir_iinc, ir_uinc, ir_finc, ir_dinc, "operator ++", false, true);
         }
 
         Value Value::operator ++ (int) {
-            return genUnaryOp(m_func, this, ir_iinc, ir_uinc, ir_finc, ir_dinc, "operator ++", true);
+            return genUnaryOp(m_func, this, ir_iinc, ir_uinc, ir_finc, ir_dinc, "operator ++", true, true);
         }
 
         Value Value::operator !  () const {
@@ -461,12 +539,29 @@ namespace gs {
             return genUnaryOp(m_func, this, ir_inv, ir_inv, ir_noop, ir_noop, "operator ~");
         }
 
+        Value Value::operator *  () const {
+            if (!m_flags.is_pointer) {
+                // todo: errors
+                return m_func->getPoison();
+            }
+
+            if (!m_type->getInfo().is_primitive) {
+                // Can't dereference pointer to object because objects can't be stored in registers
+                // todo: errors
+                return m_func->getPoison();
+            }
+
+            Value v = m_func->val(m_type);
+            m_func->add(ir_load).op(v).op(*this);
+            return v;
+        }
+
         Value Value::operator_logicalAndAssign(const Value& rhs) {
-            return genBinaryOp(m_func, this, rhs, ir_land, ir_land, ir_land, ir_land, "operator &&", true);
+            return genBinaryOp(m_func, this, rhs, ir_land, ir_land, ir_land, ir_land, "operator &&=", true);
         }
 
         Value Value::operator_logicalOrAssign(const Value& rhs) {
-            return genBinaryOp(m_func, this, rhs, ir_lor, ir_lor, ir_lor, ir_lor, "operator ||", true);
+            return genBinaryOp(m_func, this, rhs, ir_lor, ir_lor, ir_lor, ir_lor, "operator ||=", true);
         }
     };
 };

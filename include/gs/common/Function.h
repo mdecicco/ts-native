@@ -24,6 +24,7 @@ namespace gs {
                 const utils::String& getFullyQualifiedName() const;
                 FunctionType* getSignature() const;
                 access_modifier getAccessModifier() const;
+                void setAccessModifier(access_modifier access);
                 bool isMethod() const;
                 bool isTemplate() const;
                 bool isThisCall() const;

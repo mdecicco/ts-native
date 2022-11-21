@@ -17,6 +17,7 @@ namespace gs {
 
     namespace compiler {
         class FunctionDef;
+        enum ir_instruction;
 
         class Value : public ITypedObject {
             public:
@@ -28,6 +29,10 @@ namespace gs {
 
                     // If it's an argument, the argument index will be stored in m_imm.u
                     unsigned is_argument : 1;
+
+                    // If it's stored in a module data slot, the slot index will be stored
+                    // in m_imm.u
+                    unsigned is_module_data : 1;
                 };
                 Value();
                 Value(const Value& o);
@@ -35,6 +40,7 @@ namespace gs {
                 // Discards any info about the current value and adopts the info from another
                 void reset(const Value& o);
                 Value convertedTo(ffi::DataType* tp) const;
+                Value getProp(const utils::String& name, bool excludeInherited = false, bool excludePrivate = false, bool doError = true);
 
                 template <typename T>
                 std::enable_if_t<is_imm_v<T>, T> getImm() const;
@@ -89,6 +95,7 @@ namespace gs {
                 Value operator ++ (int);
                 Value operator !  () const;
                 Value operator ~  () const;
+                Value operator *  () const;
 
                 // a &&= b
                 Value operator_logicalAndAssign(const Value& rhs);
@@ -105,6 +112,29 @@ namespace gs {
                 Value(FunctionDef* o, i64 imm);
                 Value(FunctionDef* o, f64 imm);
                 Value(FunctionDef* o, ffi::Function* imm);
+
+                Value genBinaryOp(
+                    FunctionDef* fn,
+                    const Value* self,
+                    const Value& rhs,
+                    ir_instruction _i,
+                    ir_instruction _u,
+                    ir_instruction _f,
+                    ir_instruction _d,
+                    const char* overrideName,
+                    bool assignmentOp = false
+                ) const;
+                Value genUnaryOp(
+                    FunctionDef* fn,
+                    const Value* self,
+                    ir_instruction _i,
+                    ir_instruction _u,
+                    ir_instruction _f,
+                    ir_instruction _d,
+                    const char* overrideName,
+                    bool resultIsPreOp = false,
+                    bool assignmentOp = false
+                ) const;
 
                 FunctionDef* m_func;
                 utils::String m_name;

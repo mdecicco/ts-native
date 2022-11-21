@@ -20,6 +20,7 @@ namespace gs {
             m_fullyQualifiedName = fullyQualifiedName;
             m_info = info;
             m_destructor = nullptr;
+            m_access = public_access;
         }
 
         DataType::DataType(
@@ -39,11 +40,13 @@ namespace gs {
             m_bases = bases;
             m_destructor = dtor;
             m_methods = methods;
+            m_access = public_access;
         }
 
         DataType::DataType() {
             m_id = -1;
             m_destructor = nullptr;
+            m_access = public_access;
             memset(&m_info, 0, sizeof(type_meta));
         }
 
@@ -59,6 +62,24 @@ namespace gs {
             function_match_flags flags
         ) const {
             return function_match(name, retTp, argTps, argCount, m_methods, flags);
+        }
+
+        const type_property* DataType::getProp(const utils::String& name, bool excludeInherited, bool excludePrivate) const {
+            const type_property* p = m_properties.find([name, excludePrivate](type_property p) {
+                if (excludePrivate && p.access == private_access) return false;
+                return p.name == name;
+            });
+
+            if (p) return p;
+            
+            if (!excludeInherited) {
+                m_bases.some([&name, &p, excludePrivate](type_base b) {
+                    p = b.type->getProp(name, false, excludePrivate);
+                    return p != nullptr;
+                });
+            }
+
+            return p;
         }
 
         type_id DataType::getId() const {
@@ -91,6 +112,14 @@ namespace gs {
 
         Function* DataType::getDestructor() const {
             return m_destructor;
+        }
+        
+        access_modifier DataType::getAccessModifier() const {
+            return m_access;
+        }
+
+        void DataType::setAccessModifier(access_modifier access) {
+            m_access = access;
         }
 
         bool DataType::isConvertibleTo(const DataType* to) const {

@@ -51,7 +51,7 @@ namespace gs {
             Instruction& i = m_owner->m_instructions[m_index];
             ffi::Function* f = fn->getOutput();
 
-            if (f) i.operands[i.oCnt++] = fn->imm(f->getId());
+            if (f) i.operands[i.oCnt++].reset(fn->imm(f->getId()));
             else i.fn_operands[i.oCnt++] = fn;
 
             return *this;
@@ -61,6 +61,16 @@ namespace gs {
             Instruction& i = m_owner->m_instructions[m_index];
             i.labels[i.lCnt++] = l;
             return *this;
+        }
+
+        Value* InstructionRef::assigns() const {
+            Instruction& i = m_owner->m_instructions[m_index];
+            return i.assigns();
+        }
+
+        bool InstructionRef::involves(vreg_id reg, bool excludeAssignment) const {
+            Instruction& i = m_owner->m_instructions[m_index];
+            return i.involves(reg, excludeAssignment);
         }
 
         void InstructionRef::remove() {

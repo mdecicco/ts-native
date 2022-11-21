@@ -57,7 +57,7 @@ link_directories(${gs_library_dirs})
 add_library(gs ${all_sources})
 target_link_libraries(gs
     utils
-    ffi_static
+    ffi_shared
 )
 
 add_subdirectory("./_deps")

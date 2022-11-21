@@ -1,6 +1,8 @@
 #include <gs/compiler/Scope.h>
 #include <gs/compiler/Parser.h>
 #include <gs/compiler/Compiler.h>
+#include <gs/compiler/FunctionDef.h>
+#include <gs/common/DataType.h>
 
 #include <utils/Array.hpp>
 
@@ -80,13 +82,17 @@ namespace gs {
             if (it == m_symbols.end()) return nullptr;
             return &it->second;
         }
+        
+        void Scope::addToStack(const Value& v) {
+            m_stackObjs.push(v);
+        }
 
 
 
         //
         // ScopeManager
         //
-        ScopeManager::ScopeManager() {
+        ScopeManager::ScopeManager(Compiler* comp) : m_comp(comp) {
         }
 
         Scope& ScopeManager::enter() {
@@ -95,11 +101,32 @@ namespace gs {
         }
 
         void ScopeManager::exit() {
+            FunctionDef* cf = m_comp->currentFunction();
+            Scope& s = m_scopes[m_scopes.size() - 1];
+
+            for (Value& v : s.m_stackObjs) {
+                ffi::Function* dtor = v.getType()->getDestructor();
+                if (dtor) m_comp->generateCall(dtor, {}, &v);
+                m_comp->add(ir_stack_free).op(cf->imm(v.m_allocId));
+            }
+
             m_scopes.pop();
         }
 
-        void ScopeManager::exit(const Value& v) {
+        void ScopeManager::exit(const Value& save) {
+            FunctionDef* cf = m_comp->currentFunction();
+            Scope& s = m_scopes[m_scopes.size() - 1];
+            for (Value& v : s.m_stackObjs) {
+                if (v.isReg() && v.getRegId() == save.getRegId()) continue;
+
+                ffi::Function* dtor = v.getType()->getDestructor();
+                if (dtor) m_comp->generateCall(dtor, {}, &v);
+                m_comp->add(ir_stack_free).op(cf->imm(v.m_allocId));
+            }
+
             m_scopes.pop();
+            
+            m_scopes[m_scopes.size() - 1].addToStack(save);
         }
         
         Scope& ScopeManager::getBase() {

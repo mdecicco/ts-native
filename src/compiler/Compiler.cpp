@@ -1,5 +1,5 @@
 #include <gs/compiler/Compiler.h>
-#include <gs/compiler/FunctionDef.h>
+#include <gs/compiler/FunctionDef.hpp>
 #include <gs/compiler/Parser.h>
 #include <gs/common/Context.h>
 #include <gs/common/Module.h>
@@ -7,6 +7,7 @@
 #include <gs/common/DataType.h>
 #include <gs/common/TypeRegistry.h>
 #include <gs/common/FunctionRegistry.h>
+#include <gs/compiler/Value.hpp>
 #include <gs/interfaces/IDataTypeHolder.hpp>
 #include <gs/interfaces/ICodeHolder.h>
 
@@ -66,9 +67,11 @@ namespace gs {
         // Compiler
         //
 
-        Compiler::Compiler(Context* ctx, ast_node* programTree) : IContextual(ctx) {
+        Compiler::Compiler(Context* ctx, ast_node* programTree) : IContextual(ctx), m_scopeMgr(this) {
             m_program = programTree;
             m_output = nullptr;
+            m_curFunc = nullptr;
+            m_curClass = nullptr;
             enterNode(programTree);
             m_scopeMgr.enter();
         }
@@ -88,17 +91,26 @@ namespace gs {
         void Compiler::enterFunction(FunctionDef* fn) {
             m_scopeMgr.enter();
             m_funcStack.push(fn);
+            m_curFunc = fn;
             fn->onEnter();
         }
 
-        void Compiler::exitFunction() {
+        Function* Compiler::exitFunction() {
+            if (m_funcStack.size() == 0) return nullptr;
+            Function* fn = m_funcStack[m_funcStack.size() - 1]->onExit();
             m_funcStack.pop();
             m_scopeMgr.exit();
+            if (m_funcStack.size() == 0) m_curFunc = nullptr;
+            else m_curFunc = m_funcStack[m_funcStack.size() - 1];
+            return fn;
         }
 
         FunctionDef* Compiler::currentFunction() const {
-            if (m_funcStack.size() == 0) return nullptr;
-            return m_funcStack[m_funcStack.size() - 1];
+            return m_curFunc;
+        }
+
+        DataType* Compiler::currentClass() const {
+            return m_curClass;
         }
 
         bool Compiler::inInitFunction() const {
@@ -143,7 +155,7 @@ namespace gs {
             ast_node* n = m_program->body;
             while (n) {
                 if (n->tp == nt_import) {
-                    compileImport(n, this);
+                    compileImport(n);
                 } else if (n->tp == nt_function) {
                     m_output->newFunc(n->str());
                 }
@@ -156,7 +168,7 @@ namespace gs {
 
             n = m_program->body;
             while (n) {
-                compileAny(n, this);
+                compileAny(n);
                 n = n->next;
             }
 
@@ -176,16 +188,100 @@ namespace gs {
             m->setThisType(classTp);
         }
 
+        InstructionRef Compiler::add(ir_instruction inst) {
+            return m_curFunc->add(inst);
+        }
 
+        void Compiler::constructObject(const Value& dest, const utils::Array<Value>& args) {
+            Array<DataType*> argTps = args.map([](const Value& v) { return v.getType(); });
+
+            Array<Function *> ctors = dest.getType()->findMethods("constructor", nullptr, (const DataType**)argTps.data(), argTps.size(), fm_skip_implicit_args);
+            if (ctors.size() == 1) {
+                generateCall(ctors[0], args, &dest);
+            } else if (ctors.size() > 1) {
+                u8 strictC = 0;
+                ffi::Function* func = nullptr;
+                for (u32 i = 0;i < ctors.size();i++) {
+                    const auto& args = ctors[i]->getSignature()->getArguments();
+                    for (u32 a = 0;a < args.size();a++) {
+                        if (args[a].isImplicit()) continue;
+                        if (args[a].dataType == argTps[a]) {
+                            if (args.size() > a + 1) {
+                                // Function has more arguments which are not explicitly required
+                                break;
+                            }
+
+                            strictC++;
+                            func = ctors[i];
+                        }
+                    }
+                }
+                
+                if (strictC == 1) {
+                    generateCall(func, args, &dest);
+                }
+
+                // todo: Error, ambiguous call
+            } else {
+                // todo: Error, no matches
+            }
+        }
+
+        void Compiler::constructObject(const Value& dest, ffi::DataType* tp, const utils::Array<Value>& args) {
+            Array<DataType*> argTps = args.map([](const Value& v) { return v.getType(); });
+
+            Array<Function *> ctors = tp->findMethods("constructor", nullptr, (const DataType**)argTps.data(), argTps.size(), fm_skip_implicit_args);
+            if (ctors.size() == 1) {
+                generateCall(ctors[0], args, &dest);
+            } else if (ctors.size() > 1) {
+                u8 strictC = 0;
+                ffi::Function* func = nullptr;
+                for (u32 i = 0;i < ctors.size();i++) {
+                    const auto& args = ctors[i]->getSignature()->getArguments();
+                    for (u32 a = 0;a < args.size();a++) {
+                        if (args[a].isImplicit()) continue;
+                        if (args[a].dataType == argTps[a]) {
+                            if (args.size() > a + 1) {
+                                // Function has more arguments which are not explicitly required
+                                break;
+                            }
+
+                            strictC++;
+                            func = ctors[i];
+                        }
+                    }
+                }
+                
+                if (strictC == 1) {
+                    generateCall(func, args, &dest);
+                }
+
+                // todo: Error, ambiguous call
+            } else {
+                // todo: Error, no matches
+            }
+        }
+
+        Value Compiler::constructObject(ffi::DataType* tp, const utils::Array<Value>& args) {
+            FunctionDef* cf = currentFunction();
+            alloc_id stackId = cf->reserveStackId();
+
+            Value out = currentFunction()->val(tp);
+            cf->setStackId(out, stackId);
+            cf->add(ir_stack_allocate).op(out).op(cf->imm(tp->getInfo().size)).op(cf->imm(stackId));
+
+            constructObject(out, args);
+            return out;
+        }
 
         //
         // Data type resolution
         //
-
-        DataType* getArrayType(DataType* elemTp, Compiler* c) {
+        
+        DataType* Compiler::getArrayType(DataType* elemTp) {
             DataType* outTp = nullptr;
             String name = "Array<" + elemTp->getName() + ">";
-            symbol* s = c->scope().getBase().get(name);
+            symbol* s = scope().getBase().get(name);
 
             if (s) {
                 if (s->tp == st_type) outTp = s->type;
@@ -194,31 +290,31 @@ namespace gs {
                 }
             } else {
                 String fullName = "Array<" + elemTp->getFullyQualifiedName() + ">";
-                TemplateType* at = (TemplateType*)c->scope().getBase().get("Array");
+                TemplateType* at = (TemplateType*)scope().getBase().get("Array");
                 ast_node* arrayAst = at->getAST();
-                Scope& tscope = c->scope().enter();
+                Scope& tscope = scope().enter();
 
                 // Add the array element type to the symbol table as the template argument name
                 tscope.add(arrayAst->template_parameters->str(), elemTp);
 
                 if (arrayAst->tp == nt_type) {
-                    outTp = resolveTypeSpecifier(arrayAst->data_type, c);
+                    outTp = resolveTypeSpecifier(arrayAst->data_type);
                 } else if (arrayAst->tp == nt_class) {
                     // todo
-                    outTp = compileClass(arrayAst, c, true);
+                    outTp = compileClass(arrayAst, true);
                 }
                 
-                c->getOutput()->getModule()->addForeignType(outTp);
+                getOutput()->getModule()->addForeignType(outTp);
 
-                c->scope().exit();
+                scope().exit();
             }
 
             return outTp;
         }
-        DataType* getPointerType(DataType* destTp, Compiler* c) {
+        DataType* Compiler::getPointerType(DataType* destTp) {
             DataType* outTp = nullptr;
             String name = "Pointer<" + destTp->getName() + ">";
-            symbol* s = c->scope().getBase().get(name);
+            symbol* s = scope().getBase().get(name);
             
             if (s) {
                 if (s->tp == st_type) outTp = s->type;
@@ -227,39 +323,39 @@ namespace gs {
                 }
             } else {
                 String fullName = "Pointer<" + destTp->getFullyQualifiedName() + ">";
-                TemplateType* pt = (TemplateType*)c->scope().getBase().get("Array");
+                TemplateType* pt = (TemplateType*)scope().getBase().get("Pointer");
                 ast_node* pointerAst = pt->getAST();
-                Scope& tscope = c->scope().enter();
+                Scope& tscope = scope().enter();
 
                 // Add the pointer destination type to the symbol table as the template argument name
                 tscope.add(pointerAst->template_parameters->str(), destTp);
 
                 if (pointerAst->tp == nt_type) {
-                    outTp = resolveTypeSpecifier(pointerAst->data_type, c);
+                    outTp = resolveTypeSpecifier(pointerAst->data_type);
                 } else if (pointerAst->tp == nt_class) {
                     // todo
-                    outTp = compileClass(pointerAst, c, true);
+                    outTp = compileClass(pointerAst, true);
                 }
 
-                c->getOutput()->getModule()->addForeignType(outTp);
+                getOutput()->getModule()->addForeignType(outTp);
 
-                c->scope().exit();
+                scope().exit();
             }
 
             return outTp;
         }
-        DataType* resolveTemplateTypeSubstitution(ast_node* templateArgs, DataType* _type, Compiler* c) {
-            c->enterNode(templateArgs);
+        DataType* Compiler::resolveTemplateTypeSubstitution(ast_node* templateArgs, DataType* _type) {
+            enterNode(templateArgs);
             if (!_type->getInfo().is_template) {
                 // todo: errors
 
-                c->exitNode();
+                exitNode();
                 return nullptr;
             }
 
             TemplateType* type = (TemplateType*)_type;
 
-            Scope& s = c->scope().enter();
+            Scope& s = scope().enter();
 
             ast_node* tpAst = type->getAST();
 
@@ -272,8 +368,8 @@ namespace gs {
 
             ast_node* n = tpAst->template_parameters;
             while (n) {
-                c->enterNode(n);
-                DataType* pt = resolveTypeSpecifier(templateArgs, c);
+                enterNode(n);
+                DataType* pt = resolveTypeSpecifier(templateArgs);
                 s.add(n->str(), pt);
                 name += pt->getName();
                 fullName += pt->getFullyQualifiedName();
@@ -287,11 +383,11 @@ namespace gs {
 
                 if (n && !templateArgs) {
                     // todo: errors (too few template args)
-                    c->scope().exit();
-                    c->exitNode();
+                    scope().exit();
+                    exitNode();
                     return nullptr;
                 }
-                c->exitNode();
+                exitNode();
             }
 
             name += '>';
@@ -299,42 +395,42 @@ namespace gs {
 
             if (!n && templateArgs) {
                 // todo: errors (too many template args)
-                c->scope().exit();
-                c->exitNode();
+                scope().exit();
+                exitNode();
                 return nullptr;
             }
 
-            symbol* existing = c->scope().getBase().get(name);
+            symbol* existing = scope().getBase().get(name);
             if (existing) {
                 if (existing->tp != st_type) {
                     // todo: errors
-                    c->scope().exit();
-                    c->exitNode();
+                    scope().exit();
+                    exitNode();
                     return nullptr;
                 }
 
-                c->scope().exit();
-                c->exitNode();
+                scope().exit();
+                exitNode();
                 return existing->type;
             }
 
             DataType* tp = nullptr;
             if (tpAst->tp == nt_type) {
-                tp = resolveTypeSpecifier(tpAst->data_type, c);
+                tp = resolveTypeSpecifier(tpAst->data_type);
 
                 tp = new AliasType(name, fullName, tp);
-                c->scope().getBase().add(name, tp);
-                c->addDataType(tp);
+                scope().getBase().add(name, tp);
+                addDataType(tp);
             } else if (tpAst->tp == nt_class) {
-                tp = compileClass(tpAst, c, true);
+                tp = compileClass(tpAst, true);
             }
             
-            c->scope().exit();
-            c->exitNode();
+            scope().exit();
+            exitNode();
             return tp;
         }
-        DataType* resolveObjectTypeSpecifier(ast_node* n, Compiler* c) {
-            c->enterNode(n);
+        DataType* Compiler::resolveObjectTypeSpecifier(ast_node* n) {
+            enterNode(n);
             Array<type_property> props;
             Function* dtor = nullptr;
             type_meta info = { 0 };
@@ -349,7 +445,7 @@ namespace gs {
             while (b) {
                 switch (b->tp) {
                     case nt_type_property: {
-                        DataType* pt = resolveTypeSpecifier(b->data_type, c);
+                        DataType* pt = resolveTypeSpecifier(b->data_type);
                         props.push({
                             b->str(),
                             public_access,
@@ -382,7 +478,7 @@ namespace gs {
                 b = b->next;
             }
 
-            String name = String::Format("$anon_%d", c->getContext()->getTypes()->getNextAnonTypeIndex());
+            String name = String::Format("$anon_%d", getContext()->getTypes()->getNextAnonTypeIndex());
             DataType* tp = new DataType(
                 name,
                 name,
@@ -393,7 +489,7 @@ namespace gs {
                 {}
             );
 
-            const Array<DataType*>& types = c->getContext()->getTypes()->allTypes();
+            const Array<DataType*>& types = getContext()->getTypes()->allTypes();
             bool alreadyExisted = false;
             for (u32 i = 0;i < types.size();i++) {
                 if (types[i]->isEquivalentTo(tp)) {
@@ -404,16 +500,16 @@ namespace gs {
             }
 
             if (!alreadyExisted) {
-                c->addDataType(tp);
+                addDataType(tp);
             }
 
-            c->exitNode();
+            exitNode();
             return tp;
         }
-        DataType* resolveFunctionTypeSpecifier(ast_node* n, Compiler* c) {
-            c->enterNode(n);
-            DataType* retTp = resolveTypeSpecifier(n->data_type, c);
-            DataType* ptrTp = c->getContext()->getTypes()->getType<void*>();
+        DataType* Compiler::resolveFunctionTypeSpecifier(ast_node* n) {
+            enterNode(n);
+            DataType* retTp = resolveTypeSpecifier(n->data_type);
+            DataType* ptrTp = getContext()->getTypes()->getType<void*>();
             Array<function_argument> args;
             args.push({ arg_type::func_ptr, ptrTp });
             args.push({ arg_type::ret_ptr, retTp });
@@ -421,7 +517,7 @@ namespace gs {
 
             ast_node* a = n->parameters;
             while (a) {
-                DataType* atp = resolveTypeSpecifier(a->data_type, c);
+                DataType* atp = resolveTypeSpecifier(a->data_type);
                 args.push({
                     atp->getInfo().is_primitive ? arg_type::value : arg_type::pointer,
                     atp
@@ -430,18 +526,18 @@ namespace gs {
             }
 
             DataType* tp = new FunctionType(retTp, args);
-            c->addDataType(tp);
-            c->exitNode();
+            addDataType(tp);
+            exitNode();
             return tp;
         }
-        DataType* resolveTypeNameSpecifier(ast_node* n, Compiler* c) {
+        DataType* Compiler::resolveTypeNameSpecifier(ast_node* n) {
             String name = n->body->str();
-            symbol* s = c->scope().get(name);
+            symbol* s = scope().get(name);
 
             if (n->body->template_parameters) {
-                c->enterNode(n);
-                DataType* tp = resolveTemplateTypeSubstitution(n->body->template_parameters, s->type, c);
-                c->exitNode();
+                enterNode(n);
+                DataType* tp = resolveTemplateTypeSubstitution(n->body->template_parameters, s->type);
+                exitNode();
                 return tp;
             }
 
@@ -452,83 +548,83 @@ namespace gs {
 
             return s->type;
         }
-        DataType* applyTypeModifiers(DataType* tp, ast_node* mod, Compiler* c) {
+        DataType* Compiler::applyTypeModifiers(DataType* tp, ast_node* mod) {
             if (!mod) return tp;
-            c->enterNode(mod);
+            enterNode(mod);
             DataType* outTp = nullptr;
 
-            if (mod->flags.is_array) outTp = getArrayType(tp, c);
-            else if (mod->flags.is_pointer) outTp = getPointerType(tp, c);
+            if (mod->flags.is_array) outTp = getArrayType(tp);
+            else if (mod->flags.is_pointer) outTp = getPointerType(tp);
 
-            outTp = applyTypeModifiers(outTp, mod->modifier, c);
-            c->exitNode();
+            outTp = applyTypeModifiers(outTp, mod->modifier);
+            exitNode();
             return outTp;
         }
-        DataType* resolveTypeSpecifier(ast_node* n, Compiler* c) {
+        DataType* Compiler::resolveTypeSpecifier(ast_node* n) {
             DataType* tp = nullptr;
-            if (n->body && n->body->tp == nt_type_property) tp = resolveObjectTypeSpecifier(n, c);
-            else if (n->parameters) tp = resolveFunctionTypeSpecifier(n, c);
-            else tp = resolveTypeNameSpecifier(n, c);
+            if (n->body && n->body->tp == nt_type_property) tp = resolveObjectTypeSpecifier(n);
+            else if (n->parameters) tp = resolveFunctionTypeSpecifier(n);
+            else tp = resolveTypeNameSpecifier(n);
 
-            return applyTypeModifiers(tp, n->modifier, c);
+            return applyTypeModifiers(tp, n->modifier);
         }
 
 
-        Value generateCall(Compiler* c, ffi::Function* fn, const utils::Array<Value>& args, const Value* self) {
-            return c->currentFunction()->getPoison();
+        Value Compiler::generateCall(ffi::Function* fn, const utils::Array<Value>& args, const Value* self) {
+            return currentFunction()->getPoison();
         }
 
-        Value generateCall(Compiler* c, FunctionDef* fn, const utils::Array<Value>& args, const Value* self) {
-            return c->currentFunction()->getPoison();
+        Value Compiler::generateCall(FunctionDef* fn, const utils::Array<Value>& args, const Value* self) {
+            return currentFunction()->getPoison();
         }
 
-        DataType* compileType(ast_node* n, Compiler* c) {
+        DataType* Compiler::compileType(ast_node* n) {
             DataType* tp = nullptr;
             String name = n->str();
 
             if (n->template_parameters) {
-                tp = new TemplateType(name, c->getOutput()->getModule()->getName() + "::" + name, n->clone());
-                c->addDataType(tp);
-                c->scope().getBase().add(name, tp);
+                tp = new TemplateType(name, getOutput()->getModule()->getName() + "::" + name, n->clone());
+                addDataType(tp);
+                scope().getBase().add(name, tp);
             } else {
-                tp = resolveTypeSpecifier(n->data_type, c);
+                tp = resolveTypeSpecifier(n->data_type);
 
                 if (tp) {
-                    tp = new AliasType(name, c->getOutput()->getModule()->getName() + "::" + name, tp);
-                    c->addDataType(tp);
-                    c->scope().getBase().add(name, tp);
+                    tp = new AliasType(name, getOutput()->getModule()->getName() + "::" + name, tp);
+                    addDataType(tp);
+                    scope().getBase().add(name, tp);
                 }
             }
 
             return tp;
         }
-        void compileMethodDef(ast_node* n, Compiler* c, DataType* methodOf, Method* m) {
-            c->updateMethod(methodOf, m);
+        void Compiler::compileMethodDef(ast_node* n, DataType* methodOf, Method* m) {
+            updateMethod(methodOf, m);
             
             FunctionType* sig = m->getSignature();
             const auto& args = sig->getArguments();
             ast_node* p = n->parameters;
 
-            c->enterNode(n->body);
+            enterNode(n->body);
 
-            FunctionDef* fd = c->getOutput()->newFunc(m);
-            c->enterFunction(fd);
+            FunctionDef* fd = getOutput()->newFunc(m);
+            enterFunction(fd);
 
             while (p) {
-                fd->addArg(p->str(), resolveTypeSpecifier(p->data_type, c));
+                fd->addArg(p->str(), resolveTypeSpecifier(p->data_type));
                 p = p->next;
             }
 
-            compileBlock(n->body, c);
+            compileBlock(n->body);
 
-            c->exitFunction();
-            c->exitNode();
+            exitFunction();
+            exitNode();
         }
-        Method* compileMethodDecl(ast_node* n, Compiler* c, u64 thisOffset, bool* wasDtor, bool templatesDefined, bool dtorExists) {
-            c->enterNode(n);
+        Method* Compiler::compileMethodDecl(ast_node* n, u64 thisOffset, bool* wasDtor, bool templatesDefined, bool dtorExists) {
+            enterNode(n);
             utils::String name = n->str();
-            DataType* voidTp = c->getContext()->getTypes()->getType<void>();
-            DataType* ptrTp = c->getContext()->getTypes()->getType<void*>();
+            DataType* voidTp = getContext()->getTypes()->getType<void>();
+            DataType* ptrTp = getContext()->getTypes()->getType<void*>();
 
             bool isOperator = false;
             if (name == "operator") {
@@ -574,8 +670,8 @@ namespace gs {
                         thisOffset,
                         n->clone()
                     );
-                    c->addFunction(m);
-                    c->exitNode();
+                    addFunction(m);
+                    exitNode();
                     return m;
                 }
 
@@ -583,7 +679,7 @@ namespace gs {
 
                 ast_node* arg = n->template_parameters;
                 while (arg) {
-                    symbol* s = c->scope().get(arg->str());
+                    symbol* s = scope().get(arg->str());
                     // symbol for template parameter should always be defined here
 
                     DataType* pt = s->type;
@@ -598,7 +694,7 @@ namespace gs {
 
             if (isOperator) {
                 if (n->op == op_undefined) {
-                    DataType* castTarget = resolveTypeSpecifier(n->data_type, c);
+                    DataType* castTarget = resolveTypeSpecifier(n->data_type);
                     name += " " + castTarget->getFullyQualifiedName();
                 }
             }
@@ -615,7 +711,7 @@ namespace gs {
 
             DataType* ret = *wasDtor ? voidTp : (isCtor ? ptrTp : voidTp);
             if (n->data_type) {
-                ret = resolveTypeSpecifier(n->data_type, c);
+                ret = resolveTypeSpecifier(n->data_type);
             }
 
             bool sigExisted = false;
@@ -635,14 +731,14 @@ namespace gs {
                 }
 
                 arg_type tp = arg_type::value;
-                args.push({ tp, resolveTypeSpecifier(p->data_type, c) });
+                args.push({ tp, resolveTypeSpecifier(p->data_type) });
 
                 p = p->next;
                 a++;
             }
 
             FunctionType* sig = new FunctionType(ret, args);
-            const auto& types = c->getContext()->getTypes()->allTypes();
+            const auto& types = getContext()->getTypes()->allTypes();
             for (auto* t : types) {
                 const auto& info = t->getInfo();
                 if (info.is_function || info.is_template) continue;
@@ -655,7 +751,7 @@ namespace gs {
             }
 
             if (!sigExisted) {
-                c->addDataType(sig);
+                addDataType(sig);
             }
 
             Method* m = new Method(
@@ -667,21 +763,21 @@ namespace gs {
                 thisOffset
             );
 
-            c->addFunction(m);
-            c->exitNode();
+            addFunction(m);
+            exitNode();
             return m;
         }
-        DataType* compileClass(ast_node* n, Compiler* c, bool templatesDefined) {
-            c->enterNode(n);
+        DataType* Compiler::compileClass(ast_node* n, bool templatesDefined) {
+            enterNode(n);
             utils::String name = n->str();
-            String fullName = c->getOutput()->getModule()->getName() + "::" + name;
+            String fullName = getOutput()->getModule()->getName() + "::" + name;
             
             if (n->template_parameters) {
                 if (!templatesDefined) {
                     DataType* tp = new TemplateType(name, fullName, n->clone());
-                    c->addDataType(tp);
-                    c->scope().add(name, tp);
-                    c->exitNode();
+                    addDataType(tp);
+                    scope().add(name, tp);
+                    exitNode();
                     return tp;
                 }
 
@@ -690,7 +786,7 @@ namespace gs {
 
                 ast_node* arg = n->template_parameters;
                 while (arg) {
-                    symbol* s = c->scope().get(arg->str());
+                    symbol* s = scope().get(arg->str());
                     // symbol for template parameter should always be defined here
 
                     DataType* pt = s->type;
@@ -709,15 +805,16 @@ namespace gs {
             }
 
             ClassType* tp = new ClassType(name, fullName);
-            c->addDataType(tp);
-            c->scope().getBase().add(name, tp);
+            m_curClass = tp;
+            addDataType(tp);
+            scope().getBase().add(name, tp);
             
             ast_node* inherits = n->inheritance;
             while (inherits) {
                 // todo: Check added properties don't have name collisions with
                 //       existing properties
 
-                DataType* t = resolveTypeSpecifier(inherits, c);
+                DataType* t = resolveTypeSpecifier(inherits);
                 tp->addBase(t, public_access);
                 inherits = inherits->next;
             }
@@ -736,7 +833,7 @@ namespace gs {
                 f.is_pointer = prop->flags.is_pointer;
                 f.is_static = prop->flags.is_static;
 
-                DataType* t = resolveTypeSpecifier(prop->data_type, c);
+                DataType* t = resolveTypeSpecifier(prop->data_type);
                 tp->addProperty(
                     prop->str(),
                     t,
@@ -757,7 +854,7 @@ namespace gs {
                 }
 
                 bool isDtor = false;
-                Method* m = compileMethodDecl(meth, c, thisOffset, &isDtor, false, tp->getDestructor() != nullptr);
+                Method* m = compileMethodDecl(meth, thisOffset, &isDtor, false, tp->getDestructor() != nullptr);
 
                 if (isDtor) tp->setDestructor(m);
                 else tp->addMethod(m);
@@ -775,19 +872,20 @@ namespace gs {
                 }
 
                 if (!methods[midx]->isTemplate()) {
-                    compileMethodDef(meth, c, tp, (Method*)methods[midx++]);
+                    compileMethodDef(meth, tp, (Method*)methods[midx++]);
                 }
                 
                 meth = meth->next;
             }
-            c->exitNode();
+            m_curClass = nullptr;
+            exitNode();
 
             return tp;
         }
-        void compileFunction(ast_node* n, Compiler* c, bool templatesDefined) {
-            c->enterNode(n);
+        Function* Compiler::compileFunction(ast_node* n, bool templatesDefined) {
+            enterNode(n);
             utils::String name = n->str();
-            String fullName = c->getOutput()->getModule()->getName() + "::" + name;
+            String fullName = getOutput()->getModule()->getName() + "::" + name;
             
             if (n->template_parameters) {
                 if (!templatesDefined) {
@@ -796,17 +894,17 @@ namespace gs {
                         n->flags.is_private ? private_access : public_access,
                         n->clone()
                     );
-                    c->addFunction(f);
-                    c->scope().add(name, f);
-                    c->exitNode();
-                    return;
+                    addFunction(f);
+                    scope().add(name, f);
+                    exitNode();
+                    return f;
                 }
 
                 name += '<';
 
                 ast_node* arg = n->template_parameters;
                 while (arg) {
-                    symbol* s = c->scope().get(arg->str());
+                    symbol* s = scope().get(arg->str());
                     // symbol for template parameter should always be defined here
 
                     DataType* pt = s->type;
@@ -819,120 +917,755 @@ namespace gs {
                 name += '>';
             }
 
-            FunctionDef* fd = c->getOutput()->newFunc(name);
+            FunctionDef* fd = getOutput()->newFunc(name);
 
-            c->enterFunction(fd);
+            enterFunction(fd);
 
             if (n->data_type) {
-                fd->setReturnType(resolveTypeSpecifier(n->data_type, c));
+                fd->setReturnType(resolveTypeSpecifier(n->data_type));
             }
 
             ast_node* p = n->parameters;
             while (p) {
-                fd->addArg(p->str(), resolveTypeSpecifier(p->data_type, c));
+                fd->addArg(p->str(), resolveTypeSpecifier(p->data_type));
                 p = p->next;
             }
 
-            compileBlock(n->body, c);
+            compileBlock(n->body);
             
-            c->exitFunction();
-            c->exitNode();
+            Function* out = exitFunction();
+            exitNode();
+
+            return out;
         }
-        void compileExport(ast_node* n, Compiler* c) {
-            // todo: actually export the things
+        void Compiler::compileExport(ast_node* n) {
+            if (!inInitFunction()) {
+                // todo: error
+            }
 
             if (n->body->tp == nt_type) {
-                DataType* tp = compileType(n->body, c);
+                compileType(n->body)->setAccessModifier(public_access);
                 return;
             } else if (n->body->tp == nt_function) {
-                compileFunction(n->body, c);
+                compileFunction(n->body)->setAccessModifier(public_access);
                 return;
             } else if (n->body->tp == nt_variable) {
-                compileVarDecl(n->body, c);
+                Value& var = compileVarDecl(n->body);
+                m_output->getModule()->setDataAccess(var.getImm<u32>(), public_access);
                 return;
             } else if (n->body->tp == nt_class) {
-                DataType* tp = compileClass(n->body, c);
+                compileClass(n->body)->setAccessModifier(public_access);
                 return;
             }
 
             // todo: error
         }
-        void compileImport(ast_node* n, Compiler* c) {
+        void Compiler::compileImport(ast_node* n) {
 
         }
-        void compileExpression(ast_node* n, Compiler* c) {
+        Value Compiler::compileConditionalExpr(ast_node* n) {
+            FunctionDef* cf = currentFunction();
+            Value cond = compileExpressionInner(n->cond);
+            auto reserve = add(ir_reserve);
+            auto branch = add(ir_branch).op(cond.convertedTo(m_ctx->getTypes()->getType<bool>()));
 
-        }
-        void compileIfStatement(ast_node* n, Compiler* c) {
+            // Truth body
+            scope().enter();
+            branch.label(cf->label());
+            Value lvalue = compileExpressionInner(n->lvalue);
 
-        }
-        void compileReturnStatement(ast_node* n, Compiler* c) {
-            
-        }
-        void compileSwitchStatement(ast_node* n, Compiler* c) {
+            // jumps to just after the false body
+            auto jump = add(ir_jump);
 
-        }
-        void compileTryBlock(ast_node* n, Compiler* c) {
+            // Output must be created now since only now do we have the
+            // output type. No instructions are emitted as a result of
+            // this so this is not contingent upon the condition being
+            // evaluated to true
+            DataType* tp = lvalue.getType();
+            Value out = cf->val(tp);
 
-        }
-        void compileVarDecl(ast_node* n, Compiler* c) {
+            if (!tp->getInfo().is_primitive) {
+                // If the result is not a primitive type then the output
+                // of the conditional must be allocated on the stack and
+                // constructed from the resulting value
+                // 
+                // That being the case, the resolve instruction should
+                // be replaced with a stack_allocate instruction and no
+                // resolve instruction should be added
+                // 
+                // The stack id must be set now (prior to any uses of
+                // result), but it must be added to the parent block's
+                // stack
+                alloc_id stackId = cf->reserveStackId();
+                cf->setStackId(out, stackId);
+                reserve.instr(ir_stack_allocate).op(out).op(cf->imm(tp->getInfo().size)).op(cf->imm(stackId));
 
-        }
-        void compileLoop(ast_node* n, Compiler* c) {
-
-        }
-        void compileBlock(ast_node* n, Compiler* c) {
-            n = n->body;
-            while (n) {
-                compileAny(n, c);
-                n = n->next;
+                constructObject(out, { lvalue });
+                scope().exit(out);
+            } else {
+                reserve.op(out);
+                add(ir_resolve).op(out).op(lvalue);
+                scope().exit();
             }
+            // End truth body
+
+            // False body
+            branch.label(cf->label());
+            scope().enter();
+            
+            Value rvalue = compileExpressionInner(n->rvalue);
+
+            if (!tp->getInfo().is_primitive) constructObject(out, { rvalue });
+            else add(ir_resolve).op(out).op(rvalue);
+
+            scope().exit();
+            // End false body
+
+            // join address
+            jump.label(cf->label());
+
+            return out;
         }
-        void compileAny(ast_node* n, Compiler* c) {
-            switch (n->tp) {
-                case nt_class: {
-                    if (c->inInitFunction()) {
-                        compileClass(n, c);
-                        return;
+        Value Compiler::compileMemberExpr(ast_node* n) {
+            FunctionDef* cf = currentFunction();
+            // Possibilities:
+            // [type].[static var]
+            // [type].[method] (not a call)
+            // [module].[type].[static var]
+            // [module].[global var]
+            // [expression].[property]
+            // [var].[property]
+
+            if (n->lvalue->tp == nt_identifier) {
+                // Possibilities:
+                // [type].[static var]
+                // [type].[method] (not a call)
+                // [module].[global var]
+                // [var].[property]
+
+                symbol *s = scope().get(n->lvalue->str());
+                if (!s) {
+                    // todo: errors
+                    return cf->getPoison();
+                }
+
+                if (s->tp == st_type) {
+                    // Possibilities:
+                    // [type].[static var]
+                    // [type].[method] (not a call)
+                    DataType* tp = s->type;
+                    String propName = n->rvalue->str();
+                    const type_property* prop = tp->getProp(propName);
+
+                    // [type].[static var]
+                    if (prop) {
+                        if (prop->access == private_access && m_curClass != tp) {
+                            // todo: errors
+                            return cf->getPoison();
+                        }
+
+                        if (!prop->flags.is_static) {
+                            // todo: errors
+                            return cf->getPoison();
+                        }
+
+                        if (!prop->flags.can_read) {
+                            // todo: errors
+                            return cf->getPoison();
+                        }
+
+                        if (prop->getter) {
+                            return generateCall(prop->getter, {});
+                        }
+
+                        Value out = cf->val(prop->type);
+
+                        if (prop->type->getInfo().is_primitive) {
+                            add(ir_load).op(out).op(cf->imm<u64>(prop->offset));
+                            if (prop->flags.is_pointer) add(ir_load).op(out).op(out);
+                        } else {
+                            if (prop->flags.is_pointer) {
+                                add(ir_load).op(out).op(cf->imm<u64>(prop->offset));
+                            } else {
+                                add(ir_assign).op(out).op(cf->imm<u64>(prop->offset));
+                            }
+                        }
+
+                        return out;
+                    }
+
+                    // [type].[method] (not a call)
+                    Array<Function*> methods = tp->findMethods(propName, nullptr, nullptr, 0, fm_ignore_args);
+                    if (methods.size() == 0) {
+                        // todo: errors
+                        return cf->getPoison();
+                    } else if (methods.size() > 1) {
+                        // todo: errors
+                        return cf->getPoison();
+                    } else {
+                        return cf->imm(methods[0]);
+                    }
+                }
+
+                if (s->tp == st_module) {
+                    // Possibilities:
+                    // [module].[global var]
+
+                    Module* mod = s->mod;
+                    String propName = n->rvalue->str();
+                    i64 slotId = mod->getData().findIndex([&propName](const module_data& d) { return d.name == propName; });
+                    if (slotId >= 0) {
+                        const module_data& data = mod->getDataInfo((u32)slotId);
+                    
+                        Value out = cf->val(data.type);
+                        add(ir_module_data).op(out).op(cf->imm(mod->getId())).op(cf->imm((u32)slotId));
+                        if (data.type->getInfo().is_primitive) {
+                            add(ir_load).op(out).op(out);
+                        }
+                        return out;
                     }
 
                     // todo: errors
-                    return;
+                    return cf->getPoison();
                 }
-                case nt_export: {
-                    if (!c->inInitFunction()) {
+
+                if (s->tp == st_variable) {
+                    // Possibilities:
+                    // [var].[property]
+                    
+                    Value lv = *s->var;
+                    String propName = n->rvalue->str();
+                    const type_property* prop = lv.getType()->getProp(propName);
+
+                    if (!prop) {
+                        // todo: errors
+                        return cf->getPoison();
+                    }
+
+                    if (prop->access == private_access && m_curClass != lv.getType()) {
+                        // todo: errors
+                        return cf->getPoison();
+                    }
+
+                    if (prop->flags.is_static) {
+                        // todo: errors
+                        return cf->getPoison();
+                    }
+
+                    if (!prop->flags.can_read) {
+                        // todo: errors
+                        return cf->getPoison();
+                    }
+
+                    if (prop->getter) {
+                        return generateCall(prop->getter, {}, &lv);
+                    }
+
+                    Value out = cf->val(prop->type);
+                    add(ir_uadd).op(out).op(lv).op(cf->imm(prop->offset));
+
+                    if (prop->type->getInfo().is_primitive || prop->flags.is_pointer) {
+                        add(ir_load).op(out).op(out);
+                    }
+                    
+                    if (prop->type->getInfo().is_primitive && prop->flags.is_pointer) {
+                        // load primitive from pointer to primitive
+                        add(ir_load).op(out).op(out);
+                    }
+
+                    return out;
+                }
+                
+                // todo: errors
+                return cf->getPoison();
+            } else if (n->lvalue->tp == nt_expression && n->lvalue->op == op_member && n->lvalue->lvalue->tp == nt_identifier) {
+                // Possibilities:
+                // [module].[type].[static var]
+                // [expression].[property]
+
+                symbol *s = scope().get(n->lvalue->str());
+                if (s) {
+                    // Possibilities:
+                    // [module].[type].[static var]
+
+                    if (s->tp == st_module) {
+                        Module* mod = s->mod;
+                        String propName = n->rvalue->str();
+                        DataType* tp = mod->allTypes().find([&propName](DataType* tp) { return tp->getName() == propName; });
+                        if (tp) {
+                            String propName = n->rvalue->str();
+                            const type_property* prop = tp->getProp(propName);
+
+                            // [module].[type].[static var]
+                            if (prop) {
+                                if (prop->access == private_access && m_curClass != tp) {
+                                    // todo: errors
+                                    return cf->getPoison();
+                                }
+
+                                if (!prop->flags.is_static) {
+                                    // todo: errors
+                                    return cf->getPoison();
+                                }
+
+                                if (!prop->flags.can_read) {
+                                    // todo: errors
+                                    return cf->getPoison();
+                                }
+
+                                if (prop->getter) {
+                                    return generateCall(prop->getter, {});
+                                }
+
+                                Value out = cf->val(prop->type);
+
+                                if (prop->type->getInfo().is_primitive) {
+                                    add(ir_load).op(out).op(cf->imm<u64>(prop->offset));
+                                    if (prop->flags.is_pointer) add(ir_load).op(out).op(out);
+                                } else {
+                                    if (prop->flags.is_pointer) {
+                                        add(ir_load).op(out).op(cf->imm<u64>(prop->offset));
+                                    } else {
+                                        add(ir_assign).op(out).op(cf->imm<u64>(prop->offset));
+                                    }
+                                }
+
+                                return out;
+                            }
+
+                            // todo: errors
+                            return cf->getPoison();
+                        } else {
+                            // todo: errors
+                            return cf->getPoison();
+                        }
+                    }
+
+                    // todo: errors
+                    return cf->getPoison();
+                }
+            }
+
+            // Possibilities:
+            // [expression].[property]
+
+            Value lv = compileExpressionInner(n->lvalue);
+            return lv.getProp(n->rvalue->str());
+        }
+        Value Compiler::compileArrowFunction(ast_node* n) {
+            // todo
+            return currentFunction()->getPoison();
+        }
+        Value Compiler::compileExpressionInner(ast_node* n) {
+            if (n->tp == nt_identifier) {
+                symbol* s = scope().get(n->str());
+                if (s && s->tp == st_variable) {
+                    return *s->var;
+                }
+
+                // todo: error
+                return currentFunction()->getPoison();
+            } else if (n->tp == nt_literal) {
+                switch (n->value_tp) {
+                    case lt_u8: return currentFunction()->imm<u8>(n->value.u);
+                    case lt_u16: return currentFunction()->imm<u16>(n->value.u);
+                    case lt_u32: return currentFunction()->imm<u32>(n->value.u);
+                    case lt_u64: return currentFunction()->imm<u64>(n->value.u);
+                    case lt_i8: return currentFunction()->imm<i8>(n->value.i);
+                    case lt_i16: return currentFunction()->imm<i16>(n->value.i);
+                    case lt_i32: return currentFunction()->imm<i32>(n->value.i);
+                    case lt_i64: return currentFunction()->imm<i64>(n->value.i);
+                    case lt_f32: return currentFunction()->imm<f32>(n->value.f);
+                    case lt_f64: return currentFunction()->imm<f64>(n->value.f);
+                    case lt_string: {
+                        return currentFunction()->getPoison(); // todo
+                    }
+                    case lt_template_string: {
+                        return currentFunction()->getPoison(); // todo
+                    }
+                    case lt_object: {
+                        return currentFunction()->getPoison(); // todo
+                    }
+                    case lt_array: {
+                        return currentFunction()->getPoison(); // todo
+                    }
+                    case lt_null: {
+                        return currentFunction()->getPoison(); // todo
+                    }
+                    case lt_true: return currentFunction()->imm(true);
+                    case lt_false: return currentFunction()->imm(false);
+                }
+
+                return currentFunction()->getPoison();
+            } else if (n->tp == nt_sizeof) {
+                DataType* tp = resolveTypeSpecifier(n->data_type);
+                if (tp) return currentFunction()->imm(tp->getInfo().size);
+
+                return currentFunction()->getPoison();
+            } else if (n->tp == nt_this) {
+                if (!m_curClass) {
+                    // todo: error
+                    return currentFunction()->getPoison();
+                }
+
+                return currentFunction()->getThis();
+            } else if (n->tp == nt_function) return compileArrowFunction(n);
+
+            // todo: expression sequence
+
+            switch (n->op) {
+                case op_undefined: break;
+                case op_add: return compileExpressionInner(n->lvalue) + compileExpressionInner(n->rvalue);
+                case op_addEq: return compileExpressionInner(n->lvalue) += compileExpressionInner(n->rvalue);
+                case op_sub: return compileExpressionInner(n->lvalue) - compileExpressionInner(n->rvalue);
+                case op_subEq: return compileExpressionInner(n->lvalue) -= compileExpressionInner(n->rvalue);
+                case op_mul: return compileExpressionInner(n->lvalue) * compileExpressionInner(n->rvalue);
+                case op_mulEq: return compileExpressionInner(n->lvalue) *= compileExpressionInner(n->rvalue);
+                case op_div: return compileExpressionInner(n->lvalue) / compileExpressionInner(n->rvalue);
+                case op_divEq: return compileExpressionInner(n->lvalue) /= compileExpressionInner(n->rvalue);
+                case op_mod: return compileExpressionInner(n->lvalue) % compileExpressionInner(n->rvalue);
+                case op_modEq: return compileExpressionInner(n->lvalue) %= compileExpressionInner(n->rvalue);
+                case op_xor: return compileExpressionInner(n->lvalue) ^ compileExpressionInner(n->rvalue);
+                case op_xorEq: return compileExpressionInner(n->lvalue) ^= compileExpressionInner(n->rvalue);
+                case op_bitAnd: return compileExpressionInner(n->lvalue) & compileExpressionInner(n->rvalue);
+                case op_bitAndEq: return compileExpressionInner(n->lvalue) &= compileExpressionInner(n->rvalue);
+                case op_bitOr: return compileExpressionInner(n->lvalue) | compileExpressionInner(n->rvalue);
+                case op_bitOrEq: return compileExpressionInner(n->lvalue) |= compileExpressionInner(n->rvalue);
+                case op_bitInv: return ~compileExpressionInner(n->lvalue);
+                case op_shLeft: return compileExpressionInner(n->lvalue) << compileExpressionInner(n->rvalue);
+                case op_shLeftEq: return compileExpressionInner(n->lvalue) <<= compileExpressionInner(n->rvalue);
+                case op_shRight: return compileExpressionInner(n->lvalue) >> compileExpressionInner(n->rvalue);
+                case op_shRightEq: return compileExpressionInner(n->lvalue) >>= compileExpressionInner(n->rvalue);
+                case op_not: return !compileExpressionInner(n->lvalue);
+                case op_notEq: return compileExpressionInner(n->lvalue) != compileExpressionInner(n->rvalue);
+                case op_logAnd: return compileExpressionInner(n->lvalue) && compileExpressionInner(n->rvalue);
+                case op_logAndEq: return compileExpressionInner(n->lvalue).operator_logicalAndAssign(compileExpressionInner(n->rvalue));
+                case op_logOr: return compileExpressionInner(n->lvalue) || compileExpressionInner(n->rvalue);
+                case op_logOrEq: return compileExpressionInner(n->lvalue).operator_logicalOrAssign(compileExpressionInner(n->rvalue));
+                case op_assign: return compileExpressionInner(n->lvalue) = compileExpressionInner(n->rvalue);
+                case op_compare: return compileExpressionInner(n->lvalue) == compileExpressionInner(n->rvalue);
+                case op_lessThan: return compileExpressionInner(n->lvalue) < compileExpressionInner(n->rvalue);
+                case op_lessThanEq: return compileExpressionInner(n->lvalue) <= compileExpressionInner(n->rvalue);
+                case op_greaterThan: return compileExpressionInner(n->lvalue) > compileExpressionInner(n->rvalue);
+                case op_greaterThanEq: return compileExpressionInner(n->lvalue) >= compileExpressionInner(n->rvalue);
+                case op_preInc: return ++compileExpressionInner(n->lvalue);
+                case op_postInc: return compileExpressionInner(n->lvalue)++;
+                case op_preDec: return --compileExpressionInner(n->lvalue);
+                case op_postDec: return compileExpressionInner(n->lvalue)--;
+                case op_negate: return -compileExpressionInner(n->lvalue);
+                case op_index: return compileExpressionInner(n->lvalue)[compileExpressionInner(n->rvalue)];
+                case op_conditional: return compileConditionalExpr(n);
+                case op_member: return compileMemberExpr(n);
+                case op_new: {
+                    DataType* type = resolveTypeSpecifier(n->data_type);
+
+                    Array<Value> args;
+                    ast_node* p = n->parameters;
+                    while (p) {
+                        args.push(compileExpression(p));
+                        p = p->next;
+                    }
+
+                    return constructObject(type, args);
+                }
+                case op_placementNew: {
+                    DataType* type = resolveTypeSpecifier(n->data_type);
+
+                    Array<Value> args;
+                    ast_node* p = n->parameters;
+                    while (p) {
+                        args.push(compileExpression(p));
+                        p = p->next;
+                    }
+
+                    Value dest = compileExpressionInner(n->lvalue);
+                    constructObject(dest, type, args);
+                    return dest;
+                }
+                case op_call: {
+                    Array<Value> args;
+                    ast_node* p = n->parameters;
+                    while (p) {
+                        args.push(compileExpression(p));
+                        p = p->next;
+                    }
+
+                    return compileExpressionInner(n->lvalue)(args);
+                }
+            }
+
+            return currentFunction()->getPoison();
+        }
+        Value Compiler::compileExpression(ast_node* n) {
+            enterNode(n);
+            scope().enter();
+
+            Value out = compileExpressionInner(n);
+            
+            scope().exit(out);
+            exitNode();
+
+            return out;
+        }
+        void Compiler::compileIfStatement(ast_node* n) {
+
+        }
+        void Compiler::compileReturnStatement(ast_node* n) {
+            enterNode(n);
+            DataType* retTp = currentFunction()->getReturnType();
+
+            if (n->body) {
+                Value ret = compileExpression(n->body);
+
+                if (retTp) {
+                    add(ir_ret).op(ret.convertedTo(retTp));
+                } else {
+                    currentFunction()->setReturnType(ret.getType());
+                    add(ir_ret).op(ret);
+                }
+
+                exitNode();
+                return;
+            }
+
+            if (retTp) {
+                // todo: errors
+                add(ir_ret).op(currentFunction()->getPoison());
+                exitNode();
+                return;
+            }
+
+            currentFunction()->setReturnType(m_ctx->getTypes()->getType<void>());
+            add(ir_ret);
+            exitNode();
+        }
+        void Compiler::compileSwitchStatement(ast_node* n) {
+
+        }
+        void Compiler::compileThrow(ast_node* n) {
+            // todo
+        }
+        void Compiler::compileTryBlock(ast_node* n) {
+
+        }
+        Value& Compiler::compileVarDecl(ast_node* n) {
+            enterNode(n);
+            Value* v = nullptr;
+            Value init = n->initializer ? compileExpression(n->initializer) : currentFunction()->getPoison();
+            DataType* dt = nullptr;
+
+            if (n->body->data_type) dt = resolveTypeSpecifier(n->body->data_type);
+            else {
+                if (!n->initializer) {
+                    // todo: error (unable to determine type)
+                    return currentFunction()->getPoison();
+                }
+
+                dt = init.getType();
+            }
+
+            if (inInitFunction()) {
+                u32 slot = m_output->getModule()->addData(n->body->str(), dt, private_access);
+                v = &currentFunction()->val(n->body->str(), slot);
+            } else {
+                v = &currentFunction()->val(n->body->str(), dt);
+            }
+
+            if (n->initializer) {
+                if (dt->getInfo().is_primitive) *v = init.convertedTo(dt);
+                else {
+                    Value initWith = init;
+                    const DataType* initWithTp = initWith.getType();
+
+                    constructObject(*v, { initWith });
+
+                    // call constructor
+                    Array<Function *> ctors = dt->findMethods("constructor", nullptr, &initWithTp, 1, fm_skip_implicit_args);
+                    if (ctors.size() == 1) {
+                        generateCall(ctors[0], { initWith }, v);
+                    } else if (ctors.size() > 1) {
+                        u8 strictC = 0;
+                        ffi::Function* func = nullptr;
+                        for (u32 i = 0;i < ctors.size();i++) {
+                            const auto& args = ctors[i]->getSignature()->getArguments();
+                            for (u32 a = 0;a < args.size();a++) {
+                                if (args[a].isImplicit()) continue;
+                                if (args[a].dataType == initWithTp) {
+                                    if (args.size() > a + 1) {
+                                        // Function has more arguments which are not explicitly required
+                                        break;
+                                    }
+
+                                    strictC++;
+                                    func = ctors[i];
+                                }
+                            }
+                        }
+                        
+                        if (strictC == 1) {
+                            generateCall(func, { initWith }, v);
+                        }
+
+                        // todo: Error, ambiguous call
+                    } else {
+                        // todo: Error, no matches
+                    }
+                }
+            } else if (!dt->getInfo().is_primitive) {
+                Array<Function *> ctors = dt->findMethods("constructor", nullptr, nullptr, 0, fm_skip_implicit_args);
+                if (ctors.size() == 1) {
+                    generateCall(ctors[0], {}, v);
+                } else if (ctors.size() > 1) {
+                    // todo: Error, ambiguous call
+                } else {
+                    // todo: Error, no default constructor
+                }
+            }
+
+            exitNode();
+            return *v;
+        }
+        void Compiler::compileObjectDecompositor(ast_node* n) {
+            enterNode(n);
+            FunctionDef* cf = currentFunction();
+
+            Value source = compileExpression(n->initializer);
+            
+            ast_node* p = n->body;
+            while (p) {
+                enterNode(p);
+                Value init = source.getProp(p->str());
+
+                DataType* dt = p->data_type ? resolveTypeSpecifier(p->data_type) : init.getType();
+                Value* v = nullptr;
+
+                if (inInitFunction()) {
+                    u32 slot = m_output->getModule()->addData(n->body->str(), dt, private_access);
+                    v = &currentFunction()->val(p->str(), slot);
+                } else {
+                    v = &currentFunction()->val(p->str(), dt);
+                }
+
+                if (dt->getInfo().is_primitive) *v = init.convertedTo(dt);
+                else {
+                    Value initWith = init;
+                    const DataType* initWithTp = initWith.getType();
+
+                    constructObject(*v, { initWith });
+
+                    // call constructor
+                    Array<Function *> ctors = dt->findMethods("constructor", nullptr, &initWithTp, 1, fm_skip_implicit_args);
+                    if (ctors.size() == 1) {
+                        generateCall(ctors[0], { initWith }, v);
+                    } else if (ctors.size() > 1) {
+                        u8 strictC = 0;
+                        ffi::Function* func = nullptr;
+                        for (u32 i = 0;i < ctors.size();i++) {
+                            const auto& args = ctors[i]->getSignature()->getArguments();
+                            for (u32 a = 0;a < args.size();a++) {
+                                if (args[a].isImplicit()) continue;
+                                if (args[a].dataType == initWithTp) {
+                                    if (args.size() > a + 1) {
+                                        // Function has more arguments which are not explicitly required
+                                        break;
+                                    }
+
+                                    strictC++;
+                                    func = ctors[i];
+                                }
+                            }
+                        }
+                        
+                        if (strictC == 1) {
+                            generateCall(func, { initWith }, v);
+                        }
+
+                        // todo: Error, ambiguous call
+                    } else {
+                        // todo: Error, no matches
+                    }
+                }
+
+                exitNode();
+                p = p->next;
+            }
+
+            exitNode();
+        }
+        void Compiler::compileLoop(ast_node* n) {
+
+        }
+        void Compiler::compileContinue(ast_node* n) {
+            // todo
+            return;
+        }
+        void Compiler::compileBreak(ast_node* n) {
+            // todo
+            return;
+        }
+        void Compiler::compileBlock(ast_node* n) {
+            n = n->body;
+            while (n) {
+                compileAny(n);
+                n = n->next;
+            }
+        }
+        void Compiler::compileAny(ast_node* n) {
+            switch (n->tp) {
+                case nt_break: return compileBreak(n);
+                case nt_class: {
+                    if (!inInitFunction()) {
                         // todo: errors
                         return;
                     }
 
-                    return compileExport(n, c);
+                    compileClass(n);
+                    return;
                 }
-                case nt_expression: return compileExpression(n, c);
+                case nt_continue: return compileContinue(n);
+                case nt_export: {
+                    if (!inInitFunction()) {
+                        // todo: errors
+                        return;
+                    }
+
+                    return compileExport(n);
+                }
+                case nt_expression: return (void)compileExpression(n);
                 case nt_function: {
-                    if (c->inInitFunction()) {
-                        compileFunction(n, c);
+                    if (!inInitFunction()) {
+                        // todo: errors
                         return;
                     }
 
-                    // todo: errors
+                    compileFunction(n);
                     return;
                 }
-                case nt_if: return compileIfStatement(n, c);
-                case nt_loop: return compileLoop(n, c);
-                case nt_return: return compileReturnStatement(n, c);
-                case nt_scoped_block: return compileBlock(n, c);
-                case nt_switch: return compileSwitchStatement(n, c);
-                case nt_try: return compileTryBlock(n, c);
+                case nt_if: return compileIfStatement(n);
+                case nt_loop: return compileLoop(n);
+                case nt_return: return compileReturnStatement(n);
+                case nt_scoped_block: return compileBlock(n);
+                case nt_switch: return compileSwitchStatement(n);
+                case nt_throw: return compileThrow(n);
+                case nt_try: return compileTryBlock(n);
                 case nt_type: {
-                    if (c->inInitFunction()) {
-                        compileType(n, c);
+                    if (!inInitFunction()) {
+                        // todo: errors
                         return;
                     }
 
-                    // todo: errors
+                    compileType(n);
                     return;
                 }
-                case nt_variable: return compileVarDecl(n, c);
+                case nt_variable: {
+                    if (n->body->tp == nt_object_decompositor) {
+                        compileObjectDecompositor(n);
+                        return;
+                    }
+
+                    compileVarDecl(n);
+                    return;
+                }
                 default: break;
             }
         }

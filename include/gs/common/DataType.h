@@ -77,6 +77,8 @@ namespace gs {
                 const utils::Array<Function*>& getMethods() const;
                 const utils::Array<type_base>& getBases() const;
                 Function* getDestructor() const;
+                access_modifier getAccessModifier() const;
+                void setAccessModifier(access_modifier access);
 
                 virtual bool isConvertibleTo(const DataType* to) const;
                 virtual bool isImplicitlyAssignableTo(const DataType* to) const;
@@ -96,6 +98,7 @@ namespace gs {
                 utils::String m_name;
                 utils::String m_fullyQualifiedName;
                 type_meta m_info;
+                access_modifier m_access;
                 utils::Array<type_property> m_properties;
                 utils::Array<type_base> m_bases;
 

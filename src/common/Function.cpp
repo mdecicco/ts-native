@@ -48,6 +48,10 @@ namespace gs {
             return m_access;
         }
 
+        void Function::setAccessModifier(access_modifier access) {
+            m_access = access;
+        }
+
         bool Function::isThisCall() const {
             return m_signature->getArguments().some([](const function_argument& a) { 
                 return a.argType == arg_type::this_ptr;
