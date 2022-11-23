@@ -57,6 +57,7 @@ namespace gs {
             protected:
                 friend class ScopeManager;
                 utils::Array<Value> m_stackObjs;
+                Scope* m_parent;
         };
 
         class FunctionDef;
@@ -78,6 +79,8 @@ namespace gs {
                 void add(const utils::String& name, FunctionDef* f);
                 void add(const utils::String& name, Module* m);
                 symbol* get(const utils::String& name);
+
+                void emitScopeExitInstructions(const Scope& s, const Value* save = nullptr);
             
             private:
                 utils::Array<Scope> m_scopes;

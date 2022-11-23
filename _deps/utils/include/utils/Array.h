@@ -60,6 +60,8 @@ namespace utils {
             const_iterator begin() const;
             iterator end();
             const_iterator end() const;
+            T& last();
+            const T& last() const;
 
             u32 size() const;
             u32 viewOffset() const;
@@ -187,6 +189,8 @@ namespace utils {
             const_iterator end() const;
             T* data();
             const T* data() const;
+            T& last();
+            const T& last() const;
 
             template <typename ...Args> void emplace(Args... args);
             template <typename ...Args> void emplaceAt(u32 at, Args... args);

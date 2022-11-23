@@ -123,14 +123,29 @@ namespace gs {
         }
 
         bool DataType::isConvertibleTo(const DataType* to) const {
-            return false;
-        }
+            if (!to) return false;
+            if (m_info.is_primitive && to->m_info.is_primitive) return true;
 
+            const DataType* toEffective = to->getEffectiveType();
+            auto castMethods = findMethods("operator " + toEffective->getFullyQualifiedName(), toEffective, nullptr, 0, fm_skip_implicit_args);
+            if (castMethods.size() == 1) return true;
+
+            const DataType* self = this->getEffectiveType();
+            auto copyCtors = to->findMethods("constructor", nullptr, &self, 1, fm_skip_implicit_args);
+            return copyCtors.size() == 1;
+        }
+        
         bool DataType::isImplicitlyAssignableTo(const DataType* to) const {
-            return false;
+            if (!to) return false;
+            if (m_info.is_primitive && to->m_info.is_primitive) return true;
+
+            return isEquivalentTo(to) && m_info.is_trivially_copyable && to->m_info.is_trivially_copyable;
         }
 
-        bool DataType::isEquivalentTo(const DataType* to) const {
+        bool DataType::isEquivalentTo(const DataType* _to) const {
+            if (!_to) return false;
+            const DataType* to = _to->getEffectiveType();
+            if (isEqualTo(to)) return true;
             if (
                 m_info.size                         != to->m_info.size                          ||
                 m_info.is_pod                       != to->m_info.is_pod                        ||
@@ -143,25 +158,25 @@ namespace gs {
                 m_info.is_unsigned                  != to->m_info.is_unsigned                   ||
                 m_info.is_function                  != to->m_info.is_function                   ||
                 m_info.is_template                  != to->m_info.is_template                   ||
-                m_info.is_alias                     != to->m_info.is_alias                      ||
                 m_methods.size()                    != to->m_methods.size()                     ||
                 m_properties.size()                 != to->m_properties.size()                  ||
                 m_bases.size()                      != to->m_bases.size()                       ||
                 (m_destructor == nullptr)           != (to->m_destructor == nullptr)
             ) return false;
 
+            const DataType* effectiveSelf = getEffectiveType();
             // check method signatures
-            for (u32 i = 0;i < m_methods.size();i++) {
-                Function* m1 = m_methods[i];
+            for (u32 i = 0;i < effectiveSelf->m_methods.size();i++) {
+                Function* m1 = effectiveSelf->m_methods[i];
                 Function* m2 = to->m_methods[i];
                 if (m1->isMethod() != m2->isMethod()) return false;
                 if (m1->getAccessModifier() != m2->getAccessModifier()) return false;
-                if (!m1->getSignature()->isEquivalentTo(m2->getSignature())) return false;
+                if (!m1->getSignature()->isEqualTo(m2->getSignature())) return false;
             }
 
             // check properties
-            for (u32 i = 0;i < m_properties.size();i++) {
-                const type_property& p1 = m_properties[i];
+            for (u32 i = 0;i < effectiveSelf->m_properties.size();i++) {
+                const type_property& p1 = effectiveSelf->m_properties[i];
                 const type_property& p2 = to->m_properties[i];
 
                 if (p1.offset != p2.offset) return false;
@@ -171,26 +186,29 @@ namespace gs {
                 if (p1.flags.is_pointer != p2.flags.is_pointer) return false;
                 if (p1.flags.is_static != p2.flags.is_static) return false;
                 if (p1.name != p2.name) return false;
-                if (p1.setter) {
-                    if (!p2.setter) return false;
-                    if (p1.setter->isMethod() != p2.setter->isMethod()) return false;
-                    if (p1.setter->getAccessModifier() != p2.setter->getAccessModifier()) return false;
-                    if (!p1.setter->getSignature()->isEquivalentTo(p2.setter->getSignature())) return false;
-                }
-                if (p1.getter) {
-                    if (!p2.getter) return false;
-                    if (p1.getter->isMethod() != p2.getter->isMethod()) return false;
-                    if (p1.getter->getAccessModifier() != p2.getter->getAccessModifier()) return false;
-                    if (!p1.getter->getSignature()->isEquivalentTo(p2.getter->getSignature())) return false;
-                }
-                if (!p1.type->isEquivalentTo(p2.type)) return false;
+                if (!p1.type->isEqualTo(p2.type)) return false;
             }
 
             return true;
         }
+        
+        bool DataType::isEqualTo(const DataType* to) const {
+            if (!to) return false;
+            return getEffectiveType()->m_id == to->getEffectiveType()->m_id;
+        }
 
         DataType* DataType::clone(const utils::String& name, const utils::String& fullyQualifiedName) const {
             return new DataType(name, fullyQualifiedName, m_info, m_properties, m_bases, m_destructor, m_methods);
+        }
+        
+        const DataType* DataType::getEffectiveType() const {
+            if (m_info.is_alias) return ((AliasType*)this)->getEffectiveType();
+            return this;
+        }
+        
+        DataType* DataType::getEffectiveType() {
+            if (m_info.is_alias) return ((AliasType*)this)->getEffectiveType();
+            return this;
         }
 
 

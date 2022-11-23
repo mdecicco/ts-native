@@ -20,7 +20,7 @@ namespace gs {
         ffi::FunctionType* sig = fn->getSignature();
 
         // strict return check
-        if (retTp && (flags & fm_strict_return) && sig->getReturnType()->getId() != retTp->getId()) return false;
+        if (retTp && (flags & fm_strict_return) && !retTp->isEqualTo(sig->getReturnType())) return false;
 
         const auto& args = sig->getArguments();
 
@@ -47,7 +47,7 @@ namespace gs {
             u8 argIdx = 0;
             bool argsMatch = !args.some([argTps, argCount, flags, &argIdx](const ffi::function_argument& a) {
                 if ((flags & fm_skip_implicit_args) && a.isImplicit()) return false;
-                if (a.dataType->getId() != argTps[argIdx++]->getId()) return true;
+                if (!a.dataType->isEqualTo(argTps[argIdx++])) return true;
                 return false;
             });
 
@@ -55,7 +55,10 @@ namespace gs {
         }
 
         // flexible return type check
-        if (retTp && !(flags & fm_strict_return) && !sig->getReturnType()->isConvertibleTo(retTp)) return false;
+        if (retTp && !(flags & fm_strict_return)) {
+            if (sig->getReturnType() && !sig->getReturnType()->isConvertibleTo(retTp)) return false;
+            else if (!sig->getReturnType()) return false;
+        }
         
         // flexible arg type check
         if (!(flags & fm_ignore_args) && !(flags & fm_strict_args)) {

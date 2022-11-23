@@ -40,6 +40,13 @@ namespace gs {
                 utils::Array<FunctionDef*> m_funcs;
         };
 
+        struct loop_or_switch_context {
+            bool is_loop;
+            label_id loop_begin;
+            utils::Array<InstructionRef> pending_end_label;
+            Scope* outer_scope;
+        };
+
         class Compiler : public IContextual {
             public:
                 Compiler(Context* ctx, ast_node* programTree);
@@ -123,6 +130,8 @@ namespace gs {
                 FunctionDef* m_curFunc;
                 CompilerOutput* m_output;
                 ScopeManager m_scopeMgr;
+
+                utils::Array<loop_or_switch_context> m_lsStack;
         };
     };
 };

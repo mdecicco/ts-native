@@ -205,7 +205,7 @@ namespace gs {
                     const auto& args = ctors[i]->getSignature()->getArguments();
                     for (u32 a = 0;a < args.size();a++) {
                         if (args[a].isImplicit()) continue;
-                        if (args[a].dataType == argTps[a]) {
+                        if (args[a].dataType->isEqualTo(argTps[a])) {
                             if (args.size() > a + 1) {
                                 // Function has more arguments which are not explicitly required
                                 break;
@@ -240,7 +240,7 @@ namespace gs {
                     const auto& args = ctors[i]->getSignature()->getArguments();
                     for (u32 a = 0;a < args.size();a++) {
                         if (args[a].isImplicit()) continue;
-                        if (args[a].dataType == argTps[a]) {
+                        if (args[a].dataType->isEqualTo(argTps[a])) {
                             if (args.size() > a + 1) {
                                 // Function has more arguments which are not explicitly required
                                 break;
@@ -965,9 +965,14 @@ namespace gs {
         }
         Value Compiler::compileConditionalExpr(ast_node* n) {
             FunctionDef* cf = currentFunction();
-            Value cond = compileExpressionInner(n->cond);
+
+            scope().enter();
+            Value cond = compileExpression(n->cond);
+            Value condBool = cond.convertedTo(m_ctx->getTypes()->getType<bool>());
+            scope().exit(condBool);
+
             auto reserve = add(ir_reserve);
-            auto branch = add(ir_branch).op(cond.convertedTo(m_ctx->getTypes()->getType<bool>()));
+            auto branch = add(ir_branch).op(condBool);
 
             // Truth body
             scope().enter();
@@ -1059,7 +1064,7 @@ namespace gs {
 
                     // [type].[static var]
                     if (prop) {
-                        if (prop->access == private_access && m_curClass != tp) {
+                        if (prop->access == private_access && (!m_curClass || !m_curClass->isEqualTo(tp))) {
                             // todo: errors
                             return cf->getPoison();
                         }
@@ -1142,7 +1147,7 @@ namespace gs {
                         return cf->getPoison();
                     }
 
-                    if (prop->access == private_access && m_curClass != lv.getType()) {
+                    if (prop->access == private_access && (!m_curClass || !m_curClass->isEqualTo(lv.getType()))) {
                         // todo: errors
                         return cf->getPoison();
                     }
@@ -1198,7 +1203,7 @@ namespace gs {
 
                             // [module].[type].[static var]
                             if (prop) {
-                                if (prop->access == private_access && m_curClass != tp) {
+                                if (prop->access == private_access && (!m_curClass || !m_curClass->isEqualTo(tp))) {
                                     // todo: errors
                                     return cf->getPoison();
                                 }
@@ -1408,7 +1413,34 @@ namespace gs {
             return out;
         }
         void Compiler::compileIfStatement(ast_node* n) {
+            FunctionDef* cf = currentFunction();
+            enterNode(n);
 
+            scope().enter();
+            Value cond = compileExpression(n->cond);
+            Value condBool = cond.convertedTo(m_ctx->getTypes()->getType<bool>());
+            scope().exit(condBool);
+
+            auto branch = add(ir_branch).op(condBool).label(cf->label());
+            
+            scope().enter();
+            compileAny(n->body);
+            scope().exit();
+
+            if (n->else_body) {
+                auto jump = add(ir_jump);
+
+                branch.label(cf->label());
+
+                
+                scope().enter();
+                compileAny(n->else_body);
+                scope().exit();
+
+                jump.label(cf->label());
+            } else branch.label(cf->label());
+
+            exitNode();
         }
         void Compiler::compileReturnStatement(ast_node* n) {
             enterNode(n);
@@ -1440,13 +1472,13 @@ namespace gs {
             exitNode();
         }
         void Compiler::compileSwitchStatement(ast_node* n) {
-
+            // todo
         }
         void Compiler::compileThrow(ast_node* n) {
             // todo
         }
         void Compiler::compileTryBlock(ast_node* n) {
-
+            // todo
         }
         Value& Compiler::compileVarDecl(ast_node* n) {
             enterNode(n);
@@ -1490,7 +1522,7 @@ namespace gs {
                             const auto& args = ctors[i]->getSignature()->getArguments();
                             for (u32 a = 0;a < args.size();a++) {
                                 if (args[a].isImplicit()) continue;
-                                if (args[a].dataType == initWithTp) {
+                                if (args[a].dataType->isEqualTo(initWithTp)) {
                                     if (args.size() > a + 1) {
                                         // Function has more arguments which are not explicitly required
                                         break;
@@ -1564,7 +1596,7 @@ namespace gs {
                             const auto& args = ctors[i]->getSignature()->getArguments();
                             for (u32 a = 0;a < args.size();a++) {
                                 if (args[a].isImplicit()) continue;
-                                if (args[a].dataType == initWithTp) {
+                                if (args[a].dataType->isEqualTo(initWithTp)) {
                                     if (args.size() > a + 1) {
                                         // Function has more arguments which are not explicitly required
                                         break;
@@ -1593,22 +1625,103 @@ namespace gs {
             exitNode();
         }
         void Compiler::compileLoop(ast_node* n) {
+            FunctionDef* cf = currentFunction();
+            enterNode(n);
+            Scope& s = scope().enter();
 
+            // initializer will either be expression or variable decl
+            if (n->initializer) compileAny(n->initializer);
+
+            label_id loop_begin = cf->label();
+            m_lsStack.push({
+                true,       // is_loop
+                loop_begin, // loop_begin
+                {},         // pending_end_label
+                &s          // outer_scope
+            });
+
+            if (n->flags.defer_cond == 0) {
+                scope().enter();
+                Value cond = compileExpression(n->cond);
+                Value condBool = cond.convertedTo(m_ctx->getTypes()->getType<bool>());
+                scope().exit(condBool);
+
+                m_lsStack.last().pending_end_label.push(add(ir_branch).op(condBool).label(cf->label()));
+
+                if (n->modifier) {
+                    scope().enter();
+                    compileExpression(n->modifier);
+                    scope().exit();
+                }
+
+                scope().enter();
+                compileAny(n->body);
+                scope().exit();
+
+                add(ir_jump).label(loop_begin);
+            } else {
+                if (n->modifier) {
+                    scope().enter();
+                    compileExpression(n->modifier);
+                    scope().exit();
+                }
+
+                scope().enter();
+                compileAny(n->body);
+                scope().exit();
+
+                scope().enter();
+                Value cond = compileExpression(n->cond);
+                Value condBool = cond.convertedTo(m_ctx->getTypes()->getType<bool>());
+                scope().exit(condBool);
+
+                m_lsStack.last().pending_end_label.push(add(ir_branch).op(condBool).label(loop_begin));
+            }
+
+            label_id loop_end = cf->label();
+            m_lsStack.last().pending_end_label.each([loop_end](InstructionRef& i) {
+                i.label(loop_end);
+            });
+            m_lsStack.pop();
+
+            scope().exit();
+            exitNode();
         }
         void Compiler::compileContinue(ast_node* n) {
-            // todo
-            return;
+            if (m_lsStack.size() == 0) {
+                // todo: error
+                return;
+            }
+
+            auto& ls = m_lsStack.last();
+            if (!ls.is_loop) {
+                // todo: error
+                return;
+            }
+
+            scope().emitScopeExitInstructions(*ls.outer_scope);
+            add(ir_jump).label(ls.loop_begin);
         }
         void Compiler::compileBreak(ast_node* n) {
-            // todo
-            return;
+            if (m_lsStack.size() == 0) {
+                // todo: error
+                return;
+            }
+            auto& ls = m_lsStack.last();
+
+            scope().emitScopeExitInstructions(*ls.outer_scope);
+            ls.pending_end_label.push(add(ir_jump));
         }
         void Compiler::compileBlock(ast_node* n) {
+            scope().enter();
+
             n = n->body;
             while (n) {
                 compileAny(n);
                 n = n->next;
             }
+
+            scope().exit();
         }
         void Compiler::compileAny(ast_node* n) {
             switch (n->tp) {

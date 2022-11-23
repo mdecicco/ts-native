@@ -12,7 +12,7 @@ namespace gs {
         // Scope
         //
 
-        Scope::Scope() {
+        Scope::Scope() : m_parent(nullptr) {
         }
 
         Scope::~Scope() {
@@ -97,33 +97,18 @@ namespace gs {
 
         Scope& ScopeManager::enter() {
             m_scopes.push(Scope());
-            return m_scopes[m_scopes.size() - 1];
+            Scope& s = m_scopes[m_scopes.size() - 1];
+            if (m_scopes.size() > 1) s.m_parent = &m_scopes[m_scopes.size() - 2];
+            return s;
         }
 
         void ScopeManager::exit() {
-            FunctionDef* cf = m_comp->currentFunction();
-            Scope& s = m_scopes[m_scopes.size() - 1];
-
-            for (Value& v : s.m_stackObjs) {
-                ffi::Function* dtor = v.getType()->getDestructor();
-                if (dtor) m_comp->generateCall(dtor, {}, &v);
-                m_comp->add(ir_stack_free).op(cf->imm(v.m_allocId));
-            }
-
+            emitScopeExitInstructions(m_scopes[m_scopes.size() - 1]);
             m_scopes.pop();
         }
 
         void ScopeManager::exit(const Value& save) {
-            FunctionDef* cf = m_comp->currentFunction();
-            Scope& s = m_scopes[m_scopes.size() - 1];
-            for (Value& v : s.m_stackObjs) {
-                if (v.isReg() && v.getRegId() == save.getRegId()) continue;
-
-                ffi::Function* dtor = v.getType()->getDestructor();
-                if (dtor) m_comp->generateCall(dtor, {}, &v);
-                m_comp->add(ir_stack_free).op(cf->imm(v.m_allocId));
-            }
-
+            emitScopeExitInstructions(m_scopes[m_scopes.size() - 1], &save);
             m_scopes.pop();
             
             m_scopes[m_scopes.size() - 1].addToStack(save);
@@ -164,6 +149,27 @@ namespace gs {
             }
 
             return nullptr;
+        }
+        
+        void ScopeManager::emitScopeExitInstructions(const Scope& s, const Value* save) {
+            FunctionDef* cf = m_comp->currentFunction();
+            // Scope `s` may not be the deepest scope. For example, a break statement in an if
+            // statement in a loop. The break exits the loop scope, but the current scope is
+            // the if statement body. All scopes inside of scope `s` must also be handled.
+
+            for (i64 i = m_scopes.size() - 1;i >= 0;i--) {
+                Scope& cur = m_scopes[(u32)i];
+
+                for (const Value& v : cur.m_stackObjs) {
+                    if (save && v.isReg() && v.getRegId() == save->getRegId()) continue;
+
+                    ffi::Function* dtor = v.getType()->getDestructor();
+                    if (dtor) m_comp->generateCall(dtor, {}, &v);
+                    m_comp->add(ir_stack_free).op(cf->imm(v.m_allocId));
+                }
+                
+                if (cur.m_parent == s.m_parent) break;
+            }
         }
     };
 };

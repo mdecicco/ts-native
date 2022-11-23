@@ -80,11 +80,92 @@ namespace gs {
                 access_modifier getAccessModifier() const;
                 void setAccessModifier(access_modifier access);
 
+                /**
+                 * @brief Checks if this type is convertible to some data type. A data type
+                 * is convertible to another data type if one of the following is true:
+                 * 
+                 * - Both this type and the other type are primitives
+                 * - This type has a cast operator override that returns the other type
+                 * - The other type has a constructor which takes exactly one parameter,
+                 *   and that parameter's type is this type
+                 * 
+                 * @return Returns true if this type is convertible to the other type
+                 */
                 virtual bool isConvertibleTo(const DataType* to) const;
+
+                /**
+                 * @brief Checks if this type can be implicitly assigned to objects of another
+                 * type. A data type is implicitly assignable to another data type if one of
+                 * the following is true:
+                 * 
+                 * - Both this type and the other type are primitives
+                 * - Both this type and the other type are the same trivially copyable type
+                 * - Both this type and the other type are equivalent and trivially copyable
+                 * 
+                 * @return Returns true if this type is implicitly assignable to the other type
+                 */
                 virtual bool isImplicitlyAssignableTo(const DataType* to) const;
+
+                /**
+                 * @brief Checks if this type is equivalent to some data type. A data type is
+                 * equivalent to another data type if all of the following are true:
+                 * 
+                 * - All of the following attributes for both types must be the same
+                 *     - is_pod
+                 *     - is_trivially_constructible 
+                 *     - is_trivially_copyable
+                 *     - is_trivially_destructible
+                 *     - is_primitive
+                 *     - is_floating_point
+                 *     - is_integral
+                 *     - is_unsigned
+                 *     - is_function
+                 *     - is_template
+                 * - Both types must have the same number of methods
+                 * - Every method on one type must have a counterpart on the other type which has
+                 *     - The same name
+                 *     - The same signature
+                 *     - The same access modifier
+                 *     - The same result from ffi::Function::isMethod
+                 * - Both types must have the same number of properties
+                 * - Every property on one type must have a counterpart on the other type which has
+                 *     - The same name
+                 *     - The same offset
+                 *     - The same access modifier
+                 *     - The same flags
+                 *     - The same type
+                 * - Both types must inherit from the same types in the same order, or both must not
+                 *   inherit from any base types
+                 *   
+                 * @return Returns true if this type is equivalent to the other type
+                 */
                 virtual bool isEquivalentTo(const DataType* to) const;
 
+                /**
+                 * @brief Checks if this type is equal to some data type. A data type is equal to
+                 * another data type if both of their effective types have the same ID.
+                 * 
+                 * @return Returns true if both data types are the same
+                 */
+                bool isEqualTo(const DataType* to) const;
+
                 DataType* clone(const utils::String& name, const utils::String& fullyQualifiedName) const;
+
+                /**
+                 * @brief Follows the chain of aliases to get the data type being referred to.
+                 * 
+                 * @return The effective data type that this data type refers to, if this data
+                 *         type is an alias. Otherwise this function returns this data type.
+                 */
+                const DataType* getEffectiveType() const;
+
+                /**
+                 * @brief Follows the chain of aliases to get the data type being referred to.
+                 * 
+                 * @return The effective data type that this data type refers to, if this data
+                 *         type is an alias. Otherwise this function returns this data type.
+                 */
+                DataType* getEffectiveType();
             
             protected:
                 DataType();

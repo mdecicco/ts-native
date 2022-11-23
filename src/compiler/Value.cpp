@@ -105,7 +105,8 @@ namespace gs {
                 return m_func->getPoison();
             }
 
-            if (prop->access == private_access && m_func->getCompiler()->currentClass() != m_type) {
+            ffi::DataType* curClass = m_func->getCompiler()->currentClass();
+            if (prop->access == private_access && (!curClass || !curClass->isEqualTo(m_type))) {
                 if (doError) {
                     // todo: errors
                 }
@@ -234,7 +235,7 @@ namespace gs {
                         const auto& args = matches[i]->getSignature()->getArguments();
                         for (u32 a = 0;a < args.size();a++) {
                             if (args[a].isImplicit()) continue;
-                            if (args[a].dataType == rtp) {
+                            if (args[a].dataType->isEqualTo(rtp)) {
                                 if (args.size() > a + 1) {
                                     // Function has more arguments which are not explicitly required
                                     break;
@@ -490,7 +491,7 @@ namespace gs {
                     const auto& margs = matches[i]->getSignature()->getArguments();
                     u32 nonImplicitCount = 0;
                     for (u32 a = 0;a < margs.size();a++) {
-                        if (margs[a].isImplicit() || margs[a].dataType != argTps[nonImplicitCount]) continue;
+                        if (margs[a].isImplicit() || !margs[a].dataType->isEqualTo(argTps[nonImplicitCount])) continue;
                         nonImplicitCount++;
                         if (nonImplicitCount == args.size() && margs.size() == a + 1) {
                             strictC++;

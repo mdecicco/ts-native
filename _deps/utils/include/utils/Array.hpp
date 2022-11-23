@@ -123,6 +123,16 @@ namespace utils {
     }
 
     template <typename T>
+    T& ArrayView<T>::last() {
+        return *(end() - 1);
+    }
+
+    template <typename T>
+    const T& ArrayView<T>::last() const {
+        return *(end() - 1);
+    }
+
+    template <typename T>
     typename ArrayView<T>::const_iterator ArrayView<T>::end() const {
         size_t end = m_offset + m_size;
         if (end > m_target->m_size) end = m_target->m_size;
@@ -482,6 +492,16 @@ namespace utils {
     template <typename T>
     const T* Array<T>::data() const {
         return m_data;
+    }
+
+    template <typename T>
+    T& Array<T>::last() {
+        return *(end() - 1);
+    }
+
+    template <typename T>
+    const T& Array<T>::last() const {
+        return *(end() - 1);
     }
 
     template <typename T>
