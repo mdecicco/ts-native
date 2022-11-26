@@ -302,7 +302,7 @@ void handleAST(Context* ctx, ast_node* n) {
         const auto& funcs = c.getOutput()->getFuncs();
         if (funcs.size() > 0) {
             printf("    \"functions\": [\n");
-            for (u32 i = 1;i < funcs.size();i++) {
+            for (u32 i = 0;i < funcs.size();i++) {
                 ffi::Function* f = funcs[i]->getOutput();
                 if (!f) continue;
                 
