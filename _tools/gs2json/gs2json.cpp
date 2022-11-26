@@ -112,6 +112,7 @@ i32 main (i32 argc, const char** argv) {
             printf("    ],\n");
             printf("    \"types\": [],\n");
             printf("    \"functions\": [],\n");
+            printf("    \"globals\": [],\n");
             printf("    \"ast\": null\n");
             printf("}");
         } else {
@@ -132,6 +133,7 @@ i32 main (i32 argc, const char** argv) {
                 printf("    ],\n");
                 printf("    \"types\": [],\n");
                 printf("    \"functions\": [],\n");
+                printf("    \"globals\": [],\n");
                 printf("    \"ast\": null\n");
                 printf("}");
                 success = false;
@@ -201,6 +203,7 @@ void handleAST(Context* ctx, ast_node* n) {
                 printf("            \"size\": %u,\n", info.size);
                 printf("            \"host_hash\": %zu,\n", info.host_hash);
                 printf("            \"name\": \"%s\",\n", t->getName().c_str());
+                printf("            \"access\": \"%s\",\n", t->getAccessModifier() == public_access ? "public" : "private");
                 printf("            \"fully_qualified_name\": \"%s\",\n", t->getFullyQualifiedName().c_str());
                 printf("            \"destructor\": ");
                 if (t->getDestructor()) {
@@ -366,6 +369,20 @@ void handleAST(Context* ctx, ast_node* n) {
             }
             printf("    ],\n");
         } else printf("    \"functions\": [],\n");
+
+        const auto& globals = c.getOutput()->getModule()->getData();
+        if (globals.size() > 0) {
+            printf("    \"globals\": [\n");
+            for (u32 i = 0;i < globals.size();i++) {
+                const auto& var = globals[i];
+                printf("        {\n");
+                printf("            \"name\": \"%s\",\n", var.name.c_str());
+                printf("            \"access\": \"%s\",\n", var.access == public_access ? "public" : "private");
+                printf("            \"type\": \"%s\"\n", var.type->getFullyQualifiedName().c_str());
+                printf("        }%s\n", (i == globals.size() - 1) ? "" : ",");
+            }
+            printf("    ],\n");
+        } else printf("    \"globals\": [],\n");
 
         printf("    \"ast\": ");
         n->json(1);
