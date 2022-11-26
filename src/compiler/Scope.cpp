@@ -12,7 +12,7 @@ namespace gs {
         // Scope
         //
 
-        Scope::Scope() : m_parent(nullptr) {
+        Scope::Scope(Compiler* comp, Scope* parent) : m_parent(parent), m_comp(comp) {
         }
 
         Scope::~Scope() {
@@ -22,59 +22,26 @@ namespace gs {
         }
 
         void Scope::add(const utils::String& name, Value* v) {
-            m_symbols[name] = {
-                st_variable,
-                v,
-                nullptr,
-                nullptr,
-                nullptr,
-                nullptr
-            };
+            auto it = m_symbols.find(name);
+            if (it != m_symbols.end()) {
+                it->second.values.push(v);
+                return;
+            }
+
+            m_symbols[name] = { { v } };
             m_namedVars.push(v);
         }
 
         void Scope::add(const utils::String& name, ffi::DataType* t) {
-            m_symbols[name] = {
-                st_type,
-                nullptr,
-                t,
-                nullptr,
-                nullptr,
-                nullptr
-            };
-        }
-
-        void Scope::add(const utils::String& name, ffi::Function* f) {
-            m_symbols[name] = {
-                st_func,
-                nullptr,
-                nullptr,
-                f,
-                nullptr,
-                nullptr
-            };
+            add(name, new Value(m_comp->getOutput()->getFuncs()[0], t, true));
         }
 
         void Scope::add(const utils::String& name, FunctionDef* f) {
-            m_symbols[name] = {
-                st_func,
-                nullptr,
-                nullptr,
-                nullptr,
-                f,
-                nullptr
-            };
+            add(name, new Value(m_comp->getOutput()->getFuncs()[0], f));
         }
 
         void Scope::add(const utils::String& name, Module* m) {
-            m_symbols[name] = {
-                st_module,
-                nullptr,
-                nullptr,
-                nullptr,
-                nullptr,
-                m
-            };
+            add(name, new Value(m_comp->getOutput()->getFuncs()[0], m));
         }
 
         symbol* Scope::get(const utils::String& name) {
@@ -96,10 +63,8 @@ namespace gs {
         }
 
         Scope& ScopeManager::enter() {
-            m_scopes.push(Scope());
-            Scope& s = m_scopes[m_scopes.size() - 1];
-            if (m_scopes.size() > 1) s.m_parent = &m_scopes[m_scopes.size() - 2];
-            return s;
+            m_scopes.push(Scope(m_comp, m_scopes.size() > 1 ?& m_scopes.last() : nullptr));
+            return m_scopes.last();
         }
 
         void ScopeManager::exit() {
@@ -111,7 +76,7 @@ namespace gs {
             emitScopeExitInstructions(m_scopes[m_scopes.size() - 1], &save);
             m_scopes.pop();
             
-            m_scopes[m_scopes.size() - 1].addToStack(save);
+            if (save.isStack()) m_scopes[m_scopes.size() - 1].addToStack(save);
         }
         
         Scope& ScopeManager::getBase() {
@@ -128,10 +93,6 @@ namespace gs {
 
         void ScopeManager::add(const utils::String& name, ffi::DataType* t) {
             m_scopes[m_scopes.size() - 1].add(name, t);
-        }
-
-        void ScopeManager::add(const utils::String& name, ffi::Function* f) {
-            m_scopes[m_scopes.size() - 1].add(name, f);
         }
 
         void ScopeManager::add(const utils::String& name, FunctionDef* f) {

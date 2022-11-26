@@ -106,7 +106,8 @@ namespace gs {
             //
             // Operand 0 will either be u32 imm ID of the function being called
             // or a vreg which holds a pointer to the function closure being called
-            // Operand 1 will be u32 imm ID of the type of the function signature
+            // Operand 1 will be a vreg which will receive the function return value,
+            // if the function returns non-void. Otherwise it will be empty
             ir_call,
 
             // Returns from the current function
@@ -222,6 +223,8 @@ namespace gs {
                  * @return Whether or not the specified vreg ID is involved 
                  */
                 bool involves(vreg_id reg, bool excludeAssignment = false) const;
+
+                utils::String toString() const;
         };
 
         class InstructionRef {

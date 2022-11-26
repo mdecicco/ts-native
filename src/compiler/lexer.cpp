@@ -351,7 +351,7 @@ namespace gs {
                             break;
                         }
                         case 't': {
-                            // type, try, true, this
+                            // type, try, true, this, throw
                             n = *tmp++;
                             if (n == 'y') {
                                 if (
@@ -370,11 +370,18 @@ namespace gs {
                                     }
                                 } else tp = tt_identifier;
                             } else if (n == 'h') {
-                                if (
-                                    *tmp++ != 'i' ||
-                                    *tmp++ != 's'
-                                ) {
-                                    tp = tt_identifier;
+                                n = *tmp++;
+                                if (n == 'r') {
+                                    if (
+                                        *tmp++ != 'o' ||
+                                        *tmp++ != 'w'
+                                    ) {
+                                        tp = tt_identifier;
+                                    }
+                                } else if (n == 'i') {
+                                    if (*tmp++ != 's') {
+                                        tp = tt_identifier;
+                                    }
                                 }
                             } else tp = tt_identifier;
                             break;

@@ -32,6 +32,8 @@ namespace gs {
 
                 // Takes care of updating label and vreg IDs
                 void inlineCall(FunctionDef* f, const utils::Array<Value>& params);
+
+                const utils::Array<Instruction>& getCode() const;
             
             protected:
                 friend class InstructionRef;

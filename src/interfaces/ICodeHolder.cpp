@@ -42,5 +42,8 @@ namespace gs {
 
         }
 
+        const utils::Array<Instruction>& ICodeHolder::getCode() const {
+            return m_instructions;
+        }
     };
 };

@@ -94,6 +94,8 @@ namespace gs {
                 if (mod) mod->addFunction(m_type->m_methods[i]);
             }
 
+            m_type->m_id = std::hash<utils::String>()(m_type->getName());
+
             return m_type;
         }
     };

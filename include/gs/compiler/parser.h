@@ -17,7 +17,6 @@ namespace gs {
             nt_empty = 0,
             nt_root,
             nt_eos,
-
             nt_break,
             nt_cast,
             nt_catch,
@@ -25,13 +24,13 @@ namespace gs {
             nt_continue,
             nt_export,
             nt_expression,
-            nt_function,
             nt_function_type,
+            nt_function,
             nt_identifier,
             nt_if,
-            nt_import,
             nt_import_module,
             nt_import_symbol,
+            nt_import,
             nt_literal,
             nt_loop,
             nt_object_decompositor,
@@ -41,15 +40,15 @@ namespace gs {
             nt_return,
             nt_scoped_block,
             nt_sizeof,
-            nt_switch,
             nt_switch_case,
+            nt_switch,
             nt_this,
             nt_throw,
             nt_try,
-            nt_type,
             nt_type_modifier,
             nt_type_property,
             nt_type_specifier,
+            nt_type,
             nt_variable
         };
         
@@ -275,6 +274,7 @@ namespace gs {
             private:
                 utils::Array<token> m_tokens;
                 utils::Array<u32> m_currentIdx;
+                utils::Array<u32> m_currentErrorCount;
                 utils::Array<parse_error> m_errors;
                 utils::PagedAllocator<ast_node, utils::FixedAllocator<ast_node>> m_nodeAlloc;
         };
@@ -321,6 +321,7 @@ namespace gs {
         ast_node* typeModifier                  (Parser* ps);
         ast_node* typeProperty                  (Parser* ps);
         ast_node* parenthesizedTypeSpecifier    (Parser* ps);
+        ast_node* identifierTypeSpecifier       (Parser* ps, ast_node* id);
         ast_node* typeSpecifier                 (Parser* ps);
         ast_node* assignable                    (Parser* ps);
         ast_node* typedAssignable               (Parser* ps);

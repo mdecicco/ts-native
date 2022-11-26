@@ -6,6 +6,10 @@
 #include <gs/interfaces/IDataTypeHolder.hpp>
 #include <gs/common/Function.h>
 #include <gs/common/DataType.h>
+#include <gs/common/Module.h>
+
+using namespace gs::ffi;
+using namespace utils;
 
 namespace gs {
     namespace compiler {
@@ -13,9 +17,15 @@ namespace gs {
             m_func = nullptr;
             m_regId = 0;
             m_allocId = 0;
+            m_srcPtr = nullptr;
+            m_srcSetter = nullptr;
+            m_srcSelf = nullptr;
             m_flags.is_argument = 0;
-            m_flags.is_const = 0;
+            m_flags.is_read_only = 0;
             m_flags.is_pointer = 0;
+            m_flags.is_type = 0;
+            m_flags.is_module = 0;
+            m_flags.is_function = 0;
             m_imm.u = 0;
         }
 
@@ -23,14 +33,20 @@ namespace gs {
             reset(o);
         }
 
-        Value::Value(FunctionDef* o, ffi::DataType* tp) : ITypedObject(tp) {
+        Value::Value(FunctionDef* o, DataType* tp) : ITypedObject(tp) {
             m_func = o;
             m_src = o->getCompiler()->getCurrentSrc();
             m_regId = 0;
             m_allocId = 0;
+            m_srcPtr = nullptr;
+            m_srcSetter = nullptr;
+            m_srcSelf = nullptr;
             m_flags.is_argument = 0;
-            m_flags.is_const = 0;
+            m_flags.is_read_only = 0;
             m_flags.is_pointer = 0;
+            m_flags.is_type = 0;
+            m_flags.is_module = 0;
+            m_flags.is_function = 0;
             m_imm.u = 0;
         }
 
@@ -39,9 +55,15 @@ namespace gs {
             m_src = o->getCompiler()->getCurrentSrc();
             m_regId = 0;
             m_allocId = 0;
+            m_srcPtr = nullptr;
+            m_srcSetter = nullptr;
+            m_srcSelf = nullptr;
             m_flags.is_argument = 0;
-            m_flags.is_const = 0;
+            m_flags.is_read_only = 0;
             m_flags.is_pointer = 0;
+            m_flags.is_type = 0;
+            m_flags.is_module = 0;
+            m_flags.is_function = 0;
             m_imm.u = imm;
         }
 
@@ -50,9 +72,15 @@ namespace gs {
             m_src = o->getCompiler()->getCurrentSrc();
             m_regId = 0;
             m_allocId = 0;
+            m_srcPtr = nullptr;
+            m_srcSetter = nullptr;
+            m_srcSelf = nullptr;
             m_flags.is_argument = 0;
-            m_flags.is_const = 0;
+            m_flags.is_read_only = 0;
             m_flags.is_pointer = 0;
+            m_flags.is_type = 0;
+            m_flags.is_module = 0;
+            m_flags.is_function = 0;
             m_imm.i = imm;
         }
 
@@ -61,23 +89,76 @@ namespace gs {
             m_src = o->getCompiler()->getCurrentSrc();
             m_regId = 0;
             m_allocId = 0;
+            m_srcPtr = nullptr;
+            m_srcSetter = nullptr;
+            m_srcSelf = nullptr;
             m_flags.is_argument = 0;
-            m_flags.is_const = 0;
+            m_flags.is_read_only = 0;
             m_flags.is_pointer = 0;
+            m_flags.is_type = 0;
+            m_flags.is_module = 0;
+            m_flags.is_function = 0;
             m_imm.f = imm;
         }
 
-        Value::Value(FunctionDef* o, ffi::Function* imm) : ITypedObject(imm->getSignature()) {
+        Value::Value(FunctionDef* o, FunctionDef* imm) : ITypedObject(imm->getOutput() ? imm->getOutput()->getSignature() : nullptr) {
             m_func = o;
             m_src = o->getCompiler()->getCurrentSrc();
             m_regId = 0;
             m_allocId = 0;
+            m_srcPtr = nullptr;
+            m_srcSetter = nullptr;
+            m_srcSelf = nullptr;
             m_flags.is_argument = 0;
-            m_flags.is_const = 0;
+            m_flags.is_read_only = 0;
             m_flags.is_pointer = 0;
+            m_flags.is_type = 0;
+            m_flags.is_module = 0;
+            m_flags.is_function = 1;
             m_imm.fn = imm;
         }
 
+        Value::Value(FunctionDef* o, DataType* imm, bool unused) : ITypedObject(imm) {
+            m_func = o;
+            m_src = o->getCompiler()->getCurrentSrc();
+            m_regId = 0;
+            m_allocId = 0;
+            m_srcPtr = nullptr;
+            m_srcSetter = nullptr;
+            m_srcSelf = nullptr;
+            m_flags.is_argument = 0;
+            m_flags.is_read_only = 0;
+            m_flags.is_pointer = 0;
+            m_flags.is_type = 1;
+            m_flags.is_module = 0;
+            m_flags.is_function = 0;
+        }
+        
+        Value::Value(FunctionDef* o, Module* imm) : ITypedObject(nullptr) {
+            m_func = o;
+            m_src = o->getCompiler()->getCurrentSrc();
+            m_regId = 0;
+            m_allocId = 0;
+            m_srcPtr = nullptr;
+            m_srcSetter = nullptr;
+            m_srcSelf = nullptr;
+            m_flags.is_argument = 0;
+            m_flags.is_read_only = 0;
+            m_flags.is_pointer = 0;
+            m_flags.is_type = 0;
+            m_flags.is_module = 1;
+            m_flags.is_function = 0;
+            m_imm.mod = imm;
+        }
+
+        Value::~Value() {
+            if (m_srcPtr) delete m_srcPtr;
+            m_srcPtr = nullptr;
+
+            if (m_srcSelf) delete m_srcSelf;
+            m_srcSelf = nullptr;
+        }
+        
         // Discards any info about the current value and adopts the info from another
         void Value::reset(const Value& o) {
             m_func = o.m_func;
@@ -86,61 +167,233 @@ namespace gs {
             m_type = o.m_type;
             m_regId = o.m_regId;
             m_allocId = o.m_allocId;
+            m_srcPtr = o.m_srcPtr ? new Value(*o.m_srcPtr) : nullptr;
+            m_srcSetter = o.m_srcSetter;
+            m_srcSelf = o.m_srcSelf ? new Value(*o.m_srcSelf) : nullptr;
             m_flags = o.m_flags;
             m_imm = o.m_imm;
         }
 
-        Value Value::convertedTo(ffi::DataType* tp) const {
+        Value Value::convertedTo(DataType* tp) const {
             // todo
             return *this;
         }
 
-        Value Value::getProp(const utils::String& name, bool excludeInherited, bool excludePrivate, bool doError) {
-            const ffi::type_property* prop = m_type->getProp(name, excludeInherited, excludePrivate);
+        Value Value::getProp(
+            const String& name,
+            bool excludeInherited,
+            bool excludePrivate,
+            bool excludeMethods,
+            bool doError,
+            member_expr_hints* hints
+        ) {
+            if (!excludeMethods) {
+                function_match_flags flags = 0;
+                Array<DataType*> argTps;
 
+                if (excludePrivate) flags |= fm_exclude_private;
+                if (hints && hints->for_func_call) {
+                    flags |= fm_skip_implicit_args;
+                    argTps = hints->args.map([](const Value& v) { return v.getType(); });
+                } else flags |= fm_ignore_args;
+
+                if (m_flags.is_module) {
+                    auto funcs = m_imm.mod->findFunctions(
+                        name,
+                        nullptr,
+                        const_cast<const DataType **>(argTps.data()),
+                        argTps.size(),
+                        flags
+                    );
+
+                    if (funcs.size() == 1) {
+                        return m_func->getCompiler()->functionValue(funcs[0]);
+                    } else if (funcs.size() > 1) {
+                        if (doError) {
+                            m_func->getCompiler()->valueError(
+                                *this,
+                                cm_err_export_ambiguous,
+                                "Reference to export '%s' of module '%s' is ambiguous",
+                                name.c_str(),
+                                m_name.c_str()
+                            );
+
+                            for (u32 i = 0;i < funcs.size();i++) {
+                                m_func->getCompiler()->info(
+                                    cm_info_could_be,
+                                    "^ Could be '%s'",
+                                    funcs[i]->getFullyQualifiedName().c_str()
+                                );
+                            }
+                        }
+
+                        return m_func->getPoison();
+                    }
+                } else {
+                    auto methods = m_type->findMethods(
+                        name,
+                        nullptr,
+                        const_cast<const DataType**>(argTps.data()),
+                        argTps.size(),
+                        flags
+                    );
+
+                    if (methods.size() == 1) {
+                        if (m_flags.is_type && methods[0]->isThisCall()) {
+                            m_func->getCompiler()->valueError(
+                                *this,
+                                cm_err_method_not_static,
+                                "Method '%s' of type '%s' is not static",
+                                methods[0]->getFullyQualifiedName().c_str(),
+                                m_type->getFullyQualifiedName().c_str()
+                            );
+                            return m_func->getPoison();
+                        } else if (!m_flags.is_type && !methods[0]->isThisCall()) {
+                            m_func->getCompiler()->valueError(
+                                *this,
+                                cm_err_method_is_static,
+                                "Method '%s' of type '%s' is static",
+                                methods[0]->getFullyQualifiedName().c_str(),
+                                m_type->getFullyQualifiedName().c_str()
+                            );
+                            return m_func->getPoison();
+                        }
+
+                        return m_func->getCompiler()->functionValue(methods[0]);
+                    } else if (methods.size() > 1) {
+                        if (doError) {
+                            m_func->getCompiler()->valueError(
+                                *this,
+                                cm_err_property_or_method_ambiguous,
+                                "Reference to property or method '%s' of type '%s' is ambiguous",
+                                name.c_str(),
+                                m_type->getFullyQualifiedName().c_str()
+                            );
+
+                            for (u32 i = 0;i < methods.size();i++) {
+                                m_func->getCompiler()->info(cm_info_could_be, "^ Could be '%s'", methods[i]->getFullyQualifiedName().c_str());
+                            }
+                        }
+
+                        return m_func->getPoison();
+                    }
+                }
+            }
+
+            if (m_flags.is_module) {
+                i64 slotId = m_imm.mod->getData().findIndex([&name](const module_data& d) { return d.name == name; });
+                if (slotId >= 0) {
+                    return m_func->getCompiler()->moduleData(m_imm.mod, (u32)slotId);
+                }
+
+                m_func->getCompiler()->error(
+                    cm_err_export_not_found,
+                    "Module '%s' has no export named '%s'",
+                    m_name.c_str(),
+                    name.c_str()
+                );
+                
+                return m_func->getPoison();
+            }
+
+            const type_property* prop = m_type->getProp(name, excludeInherited, excludePrivate);
             if (!prop) {
                 if (doError) {
-                    // todo: errors
+                    if (excludeMethods) {
+                        m_func->getCompiler()->valueError(
+                            *this,
+                            cm_err_property_not_found,
+                            "Type '%s' has no property or method named '%s'",
+                            m_type->getFullyQualifiedName().c_str(),
+                            name.c_str()
+                        );
+                    } else {
+                        m_func->getCompiler()->valueError(
+                            *this,
+                            cm_err_property_not_found,
+                            "Type '%s' has no property or method named '%s'",
+                            m_type->getFullyQualifiedName().c_str(),
+                            name.c_str()
+                        );
+                    }
                 }
+
                 return m_func->getPoison();
             }
 
-            ffi::DataType* curClass = m_func->getCompiler()->currentClass();
+            DataType* curClass = m_func->getCompiler()->currentClass();
             if (prop->access == private_access && (!curClass || !curClass->isEqualTo(m_type))) {
                 if (doError) {
-                    // todo: errors
+                    m_func->getCompiler()->valueError(
+                        *this,
+                        cm_err_property_is_private,
+                        "Property '%s' of type '%s' is private",
+                        name.c_str(),
+                        m_type->getFullyQualifiedName().c_str()
+                    );
                 }
                 return m_func->getPoison();
             }
 
-            if (prop->flags.is_static) {
-                if (doError) {
-                    // todo: errors
-                }
+            if (m_flags.is_type && !prop->flags.is_static) {
+                m_func->getCompiler()->valueError(
+                    *this,
+                    cm_err_property_not_static,
+                    "Property '%s' of type '%s' is not static",
+                    name.c_str(),
+                    m_type->getFullyQualifiedName().c_str()
+                );
+                return m_func->getPoison();
+            } else if (!m_flags.is_type && prop->flags.is_static) {
+                m_func->getCompiler()->valueError(
+                    *this,
+                    cm_err_property_is_static,
+                    "Property '%s' of type '%s' is static",
+                    name.c_str(),
+                    m_type->getFullyQualifiedName().c_str()
+                );
                 return m_func->getPoison();
             }
 
             if (!prop->flags.can_read) {
                 if (doError) {
-                    // todo: errors
+                    m_func->getCompiler()->valueError(
+                        *this,
+                        cm_err_property_no_read_access,
+                        "Property '%s' of '%s' does not give read access",
+                        name.c_str(),
+                        m_type->getFullyQualifiedName().c_str()
+                    );
                 }
                 return m_func->getPoison();
             }
 
             if (prop->getter) {
-                return m_func->getCompiler()->generateCall(prop->getter, {}, this);
+                Value out = m_func->getCompiler()->generateCall(prop->getter, {}, this);
+                out.m_flags.is_read_only = (prop->flags.can_write && prop->setter) ? 0 : 1;
+                if (prop->setter) {
+                    out.m_srcSetter = m_func->getCompiler()->getOutput()->getFunctionDef(prop->setter);
+                }
+                out.m_srcSelf = new Value(*this);
+                return out;
+            }
+
+            Value ptr = m_func->val(prop->type);
+            ptr.m_flags.is_pointer = 1;
+            m_func->add(ir_uadd).op(ptr).op(*this).op(m_func->imm(prop->offset));
+
+            if (prop->flags.is_pointer) {
+                // Load pointer to object or primitive
+                m_func->add(ir_load).op(ptr).op(ptr);
             }
 
             Value out = m_func->val(prop->type);
-            m_func->add(ir_uadd).op(out).op(*this).op(m_func->imm(prop->offset));
-
-            if (prop->type->getInfo().is_primitive || prop->flags.is_pointer) {
-                m_func->add(ir_load).op(out).op(out);
-            }
-            
-            if (prop->type->getInfo().is_primitive && prop->flags.is_pointer) {
-                // load primitive from pointer to primitive
-                m_func->add(ir_load).op(out).op(out);
+            out.m_srcPtr = new Value(ptr);
+            out.m_srcSelf = new Value(*this);
+            out.m_flags.is_read_only = prop->flags.can_write ? 0 : 1;
+            if (prop->type->getInfo().is_primitive) {
+                // load primitive from pointer
+                m_func->add(ir_load).op(out).op(ptr);
             }
 
             return out;
@@ -154,7 +407,7 @@ namespace gs {
             return m_allocId;
         }
 
-        const utils::String& Value::getName() const {
+        const String& Value::getName() const {
             return m_name;
         }
 
@@ -168,6 +421,10 @@ namespace gs {
 
         Value::flags& Value::getFlags() {
             return m_flags;
+        }
+
+        Value* Value::getSrcPtr() const {
+            return m_srcPtr;
         }
 
         // Only one of these can be true
@@ -186,7 +443,7 @@ namespace gs {
         Value Value::genBinaryOp(
             FunctionDef* fn,
             const Value* self,
-            const Value& _rhs,
+            const Value& rhs,
             ir_instruction _i,
             ir_instruction _u,
             ir_instruction _f,
@@ -194,11 +451,13 @@ namespace gs {
             const char* overrideName,
             bool assignmentOp
         ) const {
-            ffi::DataType* selfTp = self->getType();
-            const auto& i = selfTp->getInfo();
+            if (self->m_flags.is_read_only && assignmentOp) {
+                m_func->getCompiler()->valueError(*self, cm_err_value_not_writable, "Cannot write to read-only value");
+                return m_func->getPoison();
+            }
 
-            // If rhs is a primitive in module data then it actually refers to a pointer to that primitive
-            Value rhs = _rhs.m_flags.is_module_data && _rhs.m_type->getInfo().is_primitive ? *_rhs : _rhs;
+            DataType* selfTp = self->getType();
+            const auto& i = selfTp->getInfo();
 
             if (i.is_primitive) {
                 Value out = fn->val(selfTp);
@@ -212,25 +471,27 @@ namespace gs {
                     else inst = _f;
                 }
 
-                if (m_flags.is_module_data) {
+                if (self->m_flags.is_pointer) {
                     fn->add(inst).op(out).op(**self).op(rhs.convertedTo(selfTp));
-
-                    if (assignmentOp) {
-                        fn->add(ir_store).op(out).op(*self);
-                    }
                 } else {
                     fn->add(inst).op(out).op(*self).op(rhs.convertedTo(selfTp));
                 }
 
+                if (assignmentOp) {
+                    if (self->m_flags.is_pointer) fn->add(ir_store).op(out).op(*self);
+                    else if (self->m_srcPtr) fn->add(ir_store).op(out).op(*self->m_srcPtr);
+                    else if (self->m_srcSetter) m_func->getCompiler()->generateCall(self->m_srcSetter, { out }, self->m_srcSelf);
+                }
+
                 return out;
             } else {
-                const ffi::DataType* rtp = rhs.getType();
-                utils::Array<ffi::Function*> matches = selfTp->findMethods(overrideName, nullptr, &rtp, 1, fm_skip_implicit_args);
+                const DataType* rtp = rhs.getType();
+                Array<Function*> matches = selfTp->findMethods(overrideName, nullptr, &rtp, 1, fm_skip_implicit_args);
                 if (matches.size() == 1) {
                     return fn->getCompiler()->generateCall(matches[0], { rhs }, self);
                 } else if (matches.size() > 1) {
                     u8 strictC = 0;
-                    ffi::Function* func = nullptr;
+                    Function* func = nullptr;
                     for (u32 i = 0;i < matches.size();i++) {
                         const auto& args = matches[i]->getSignature()->getArguments();
                         for (u32 a = 0;a < args.size();a++) {
@@ -251,9 +512,35 @@ namespace gs {
                         return fn->getCompiler()->generateCall(func, { rhs }, self);
                     }
 
-                    // todo: Error, ambiguous call
+                    fn->getCompiler()->functionError(
+                        selfTp,
+                        (DataType*)nullptr,
+                        { rtp },
+                        cm_err_method_ambiguous,
+                        "Reference to method '%s' of type '%s' with arguments '%s' is ambiguous",
+                        overrideName,
+                        selfTp->getFullyQualifiedName().c_str(),
+                        argListStr({ rtp }).c_str()
+                    );
+
+                    for (u32 i = 0;i < matches.size();i++) {
+                        fn->getCompiler()->info(
+                            cm_info_could_be,
+                            "^ Could be: '%s'",
+                            matches[i]->getFullyQualifiedName().c_str()
+                        );
+                    }
                 } else {
-                    // todo: Error, no matches
+                    fn->getCompiler()->functionError(
+                        selfTp,
+                        (DataType*)nullptr,
+                        { rtp },
+                        cm_err_method_not_found,
+                        "Type '%s' has no method named '%s' with arguments matching '%s'",
+                        selfTp->getFullyQualifiedName().c_str(),
+                        overrideName,
+                        argListStr({ rtp }).c_str()
+                    );
                 }
             }
 
@@ -271,7 +558,12 @@ namespace gs {
             bool resultIsPreOp,
             bool assignmentOp
         ) const {
-            ffi::DataType* selfTp = self->getType();
+            if (self->m_flags.is_read_only && assignmentOp) {
+                m_func->getCompiler()->valueError(*self, cm_err_value_not_writable, "Cannot write to read-only value");
+                return m_func->getPoison();
+            }
+
+            DataType* selfTp = self->getType();
             const auto& i = selfTp->getInfo();
             if (i.is_primitive) {
                 Value out = fn->val(selfTp);
@@ -285,27 +577,54 @@ namespace gs {
                     else inst = _f;
                 }
 
-                Value v = self->m_flags.is_module_data ? **self : *self;
+                Value v = self->m_flags.is_pointer ? **self : *self;
 
+                // todo: Revise this... Something isn't right. out is assigned 2 times
                 if (resultIsPreOp) fn->add(ir_assign).op(out).op(v);
 
                 fn->add(inst).op(out).op(v);
 
                 if (!resultIsPreOp) fn->add(ir_assign).op(out).op(v);
 
-                if (self->m_flags.is_module_data && assignmentOp) {
-                    fn->add(ir_store).op(v).op(*self);
+                if (assignmentOp) {
+                    if (self->m_flags.is_pointer) fn->add(ir_store).op(v).op(*self);
+                    else if (self->m_srcPtr) fn->add(ir_store).op(v).op(*self->m_srcPtr);
+                    else if (self->m_srcSetter) m_func->getCompiler()->generateCall(self->m_srcSetter, { v }, self->m_srcSelf);
                 }
 
                 return out;
             } else {
-                utils::Array<ffi::Function*> matches = selfTp->findMethods(overrideName, nullptr, nullptr, 0, fm_skip_implicit_args);
+                Array<Function*> matches = selfTp->findMethods(overrideName, nullptr, nullptr, 0, fm_skip_implicit_args);
                 if (matches.size() == 1) {
                     return fn->getCompiler()->generateCall(matches[0], { }, self);
-                } else if (matches.size() > 1) {
-                    // todo: Error, ambiguous call
+                } else if (matches.size() > 1) {u8 strictC = 0;
+                    fn->getCompiler()->functionError(
+                        selfTp,
+                        (DataType*)nullptr,
+                        Array<Value>(),
+                        cm_err_method_ambiguous,
+                        "Reference to method '%s' of type '%s' with no arguments is ambiguous",
+                        overrideName,
+                        selfTp->getFullyQualifiedName().c_str()
+                    );
+
+                    for (u32 i = 0;i < matches.size();i++) {
+                        fn->getCompiler()->info(
+                            cm_info_could_be,
+                            "^ Could be: '%s'",
+                            matches[i]->getFullyQualifiedName().c_str()
+                        );
+                    }
                 } else {
-                    // todo: Error, no matches
+                    fn->getCompiler()->functionError(
+                        selfTp,
+                        (DataType*)nullptr,
+                        Array<Value>(),
+                        cm_err_method_not_found,
+                        "Type '%s' has no method named '%s' with no arguments",
+                        selfTp->getFullyQualifiedName().c_str(),
+                        overrideName
+                    );
                 }
             }
 
@@ -433,16 +752,15 @@ namespace gs {
             //       pointers. Otherwise error if that behavior is
             //       attempted.
 
-            // If rhs is a primitive in module data then it actually refers to a pointer to that primitive
-            Value rhs = _rhs.m_flags.is_module_data && _rhs.m_type->getInfo().is_primitive ? *_rhs : _rhs;
+            Value rhs = _rhs.m_flags.is_pointer && _rhs.m_type->getInfo().is_primitive ? *_rhs : _rhs;
 
-            const ffi::DataType* rtp = rhs.getType();
-            utils::Array<ffi::Function*> matches = m_type->findMethods("operator []", nullptr, &rtp, 1, fm_skip_implicit_args);
+            const DataType* rtp = rhs.getType();
+            Array<Function*> matches = m_type->findMethods("operator []", nullptr, &rtp, 1, fm_skip_implicit_args);
             if (matches.size() == 1) {
                 return m_func->getCompiler()->generateCall(matches[0], { rhs }, this);
             } else if (matches.size() > 1) {
                 u8 strictC = 0;
-                ffi::Function* func = nullptr;
+                Function* func = nullptr;
                 for (u32 i = 0;i < matches.size();i++) {
                     const auto& args = matches[i]->getSignature()->getArguments();
                     for (u32 a = 0;a < args.size();a++) {
@@ -463,30 +781,57 @@ namespace gs {
                     return m_func->getCompiler()->generateCall(func, { rhs }, this);
                 }
 
-                // todo: Error, ambiguous call
+                m_func->getCompiler()->functionError(
+                    m_type,
+                    nullptr,
+                    { _rhs },
+                    cm_err_method_ambiguous,
+                    "Reference to method 'operator []' of type '%s' with arguments '%s' is ambiguous",
+                    m_type->getFullyQualifiedName().c_str(),
+                    argListStr({ _rhs }).c_str()
+                );
+
+                for (u32 i = 0;i < matches.size();i++) {
+                    m_func->getCompiler()->info(
+                        cm_info_could_be,
+                        "^ Could be: '%s'",
+                        matches[i]->getFullyQualifiedName().c_str()
+                    );
+                }
             } else {
-                // todo: Error, no matches
+                m_func->getCompiler()->functionError(
+                    m_type,
+                    nullptr,
+                    { _rhs },
+                    cm_err_method_not_found,
+                    "Type '%s' has no method named 'operator []' with arguments matching '%s'",
+                    m_type->getFullyQualifiedName().c_str(),
+                    argListStr({ _rhs }).c_str()
+                );
             }
 
             return m_func->getPoison();
         }
 
-        Value Value::operator () (const utils::Array<Value>& _args) const {
-            utils::Array<Value> args;
-            utils::Array<ffi::DataType*> argTps;
+        Value Value::operator () (const Array<Value>& _args, Value* self) const {
+            Array<Value> args;
+            Array<DataType*> argTps;
 
             _args.each([&args, &argTps](const Value& v) {
-                // If arg is a primitive in module data then it actually refers to a pointer to that primitive
-                args.push(v.m_flags.is_module_data && v.m_type->getInfo().is_primitive ? *v : v);
+                args.push(v.m_flags.is_pointer && v.m_type->getInfo().is_primitive ? *v : v);
                 argTps.push(v.m_type);
             });
 
-            utils::Array<ffi::Function*> matches = m_type->findMethods("operator ()", nullptr, const_cast<const ffi::DataType**>(argTps.data()), argTps.size(), fm_skip_implicit_args);
+            if (m_flags.is_function) {
+                return m_func->getCompiler()->generateCall(m_imm.fn, _args, self);
+            }
+
+            Array<Function*> matches = m_type->findMethods("operator ()", nullptr, const_cast<const DataType**>(argTps.data()), argTps.size(), fm_skip_implicit_args);
             if (matches.size() == 1) {
                 return m_func->getCompiler()->generateCall(matches[0], args, this);
             } else if (matches.size() > 1) {
                 u8 strictC = 0;
-                ffi::Function* func = nullptr;
+                Function* func = nullptr;
                 for (u32 i = 0;i < matches.size();i++) {
                     const auto& margs = matches[i]->getSignature()->getArguments();
                     u32 nonImplicitCount = 0;
@@ -504,9 +849,33 @@ namespace gs {
                     return m_func->getCompiler()->generateCall(func, args, this);
                 }
 
-                // todo: Error, ambiguous call
+                m_func->getCompiler()->functionError(
+                    m_type,
+                    nullptr,
+                    _args,
+                    cm_err_method_ambiguous,
+                    "Reference to method 'operator ()' of type '%s' with arguments '%s' is ambiguous",
+                    m_type->getFullyQualifiedName().c_str(),
+                    argListStr(_args).c_str()
+                );
+
+                for (u32 i = 0;i < matches.size();i++) {
+                    m_func->getCompiler()->info(
+                        cm_info_could_be,
+                        "^ Could be: '%s'",
+                        matches[i]->getFullyQualifiedName().c_str()
+                    );
+                }
             } else {
-                // todo: Error, no matches
+                m_func->getCompiler()->functionError(
+                    m_type,
+                    nullptr,
+                    _args,
+                    cm_err_method_not_found,
+                    "Type '%s' has no method named 'operator ()' with arguments matching '%s'",
+                    m_type->getFullyQualifiedName().c_str(),
+                    argListStr(_args).c_str()
+                );
             }
 
             return m_func->getPoison();
@@ -542,13 +911,21 @@ namespace gs {
 
         Value Value::operator *  () const {
             if (!m_flags.is_pointer) {
-                // todo: errors
+                m_func->getCompiler()->valueError(
+                    *this,
+                    cm_err_internal,
+                    "Attempt to dereference value of non-pointer type"
+                );
                 return m_func->getPoison();
             }
 
             if (!m_type->getInfo().is_primitive) {
                 // Can't dereference pointer to object because objects can't be stored in registers
-                // todo: errors
+                m_func->getCompiler()->valueError(
+                    *this,
+                    cm_err_internal,
+                    "Attempt to dereference value of non-primitive type"
+                );
                 return m_func->getPoison();
             }
 
@@ -563,6 +940,48 @@ namespace gs {
 
         Value Value::operator_logicalOrAssign(const Value& rhs) {
             return genBinaryOp(m_func, this, rhs, ir_lor, ir_lor, ir_lor, ir_lor, "operator ||=", true);
+        }
+
+        String Value::toString() const {
+            String s;
+            if (m_flags.is_argument) {
+                if (m_type->getInfo().is_floating_point) s = String::Format("$FPA%d", m_regId);
+                else s = String::Format("$GPA%d", m_regId);
+            } else if (m_flags.is_function) {
+                ffi::Function* fn = m_imm.fn->getOutput();
+                if (fn) s = String::Format("<Function %s>", fn->getFullyQualifiedName().c_str());
+                else s = String::Format("<Function %s>", m_imm.fn->getName().c_str());
+            } else if (m_flags.is_module) {
+                s = String::Format("<Module %s>", m_imm.mod->getName().c_str());
+            } else if (m_flags.is_type) {
+                s = String::Format("<Type %s>", m_type->getFullyQualifiedName().c_str());
+            } else if (m_type->getInfo().is_primitive) {
+                if (isReg()) {
+                    if (m_type->getInfo().is_floating_point) s = String::Format("$FP%d", m_regId);
+                    else s = String::Format("$GP%d", m_regId);
+                } else if (isStack()) {
+                    s = String::Format("$ST%d", m_allocId);
+                } else if (isImm()) {
+                    const auto& i = m_type->getInfo();
+                    if (i.is_floating_point) s = String::Format("%f", m_imm.f);
+                    else {
+                        if (i.is_unsigned) s = String::Format("%llu", m_imm.u);
+                        else s = String::Format("%lli", m_imm.i);
+                    }
+                }
+            } else {
+                if (isReg()) {
+                    s = String::Format("$GP%d", m_regId);
+                } else if (isStack()) {
+                    s = String::Format("$ST%d", m_allocId);
+                } else {
+                    s = "<Invalid Value>";
+                }
+            }
+
+            if (m_name.size() > 0) s += "(" + m_name + ")";
+
+            return s;
         }
     };
 };

@@ -19,7 +19,9 @@ namespace gs {
         template <typename T>
         std::enable_if_t<is_imm_v<T>, Value>
         FunctionDef::imm(T value) {
-            if constexpr (std::is_same_v<T, ffi::Function*>) {
+            if constexpr (std::is_same_v<T, FunctionDef*>) {
+                return Value(this, value);
+            } else if constexpr (std::is_same_v<T, Module*>) {
                 return Value(this, value);
             } else if constexpr (std::is_unsigned_v<T>) {
                 return Value(this, (u64)value);

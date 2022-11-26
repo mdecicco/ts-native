@@ -202,12 +202,12 @@ namespace gs {
         }
         
         const DataType* DataType::getEffectiveType() const {
-            if (m_info.is_alias) return ((AliasType*)this)->getEffectiveType();
+            if (m_info.is_alias) return ((AliasType*)this)->getRefType()->getEffectiveType();
             return this;
         }
         
         DataType* DataType::getEffectiveType() {
-            if (m_info.is_alias) return ((AliasType*)this)->getEffectiveType();
+            if (m_info.is_alias) return ((AliasType*)this)->getRefType()->getEffectiveType();
             return this;
         }
 
@@ -416,6 +416,7 @@ namespace gs {
         type_meta aliasTypeMeta (DataType* refTp) {
             type_meta i = refTp->getInfo();
             i.is_alias = 1;
+            i.is_anonymous = 0;
             return i;
         }
 

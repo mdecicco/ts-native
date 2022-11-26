@@ -4,19 +4,21 @@
 #include <xtr1common>
 
 namespace gs {
+    class Module;
+
     namespace ffi {
         class DataType;
-        class Function;
     };
 
     namespace compiler {
+        class FunctionDef;
         typedef u32 vreg_id;
         typedef u32 label_id;
         typedef u32 alloc_id;
 
         template <typename T>
         struct is_imm {
-            static constexpr bool value = std::is_integral_v<T> || std::is_floating_point_v<T> || std::is_same_v<T, ffi::Function*>;
+            static constexpr bool value = std::is_integral_v<T> || std::is_floating_point_v<T> || std::is_same_v<T, FunctionDef*> || std::is_same_v<T, Module*>;
         };
 
         template <typename T>

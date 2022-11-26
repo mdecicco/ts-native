@@ -9,6 +9,7 @@
 
 namespace gs {
     class Module;
+
     namespace ffi {
         class DataType;
         class Function;
@@ -18,32 +19,17 @@ namespace gs {
         class FunctionDef;
         class Compiler;
 
-        enum symbol_type {
-            st_variable,
-            st_type,
-            st_func,
-            st_module
-        };
-
         struct symbol {
-            symbol_type tp;
-
-            Value* var;
-            ffi::DataType* type;
-            ffi::Function* func;
-            FunctionDef* funcDef;
-
-            Module* mod;
+            utils::Array<Value*> values;
         };
 
         class Scope {
             public:
-                Scope();
+                Scope(Compiler* comp, Scope* parent);
                 ~Scope();
 
                 void add(const utils::String& name, Value* v);
                 void add(const utils::String& name, ffi::DataType* t);
-                void add(const utils::String& name, ffi::Function* f);
                 void add(const utils::String& name, FunctionDef* f);
                 void add(const utils::String& name, Module* m);
                 symbol* get(const utils::String& name);
@@ -58,9 +44,9 @@ namespace gs {
                 friend class ScopeManager;
                 utils::Array<Value> m_stackObjs;
                 Scope* m_parent;
+                Compiler* m_comp;
         };
 
-        class FunctionDef;
         class ScopeManager {
             public:
                 ScopeManager(Compiler* comp);
@@ -75,7 +61,6 @@ namespace gs {
                 // Proxy functions for current scope
                 void add(const utils::String& name, Value* v);
                 void add(const utils::String& name, ffi::DataType* t);
-                void add(const utils::String& name, ffi::Function* f);
                 void add(const utils::String& name, FunctionDef* f);
                 void add(const utils::String& name, Module* m);
                 symbol* get(const utils::String& name);

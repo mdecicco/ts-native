@@ -37,13 +37,13 @@ namespace gs {
                 "continue",
                 "export",
                 "expression",
-                "function",
                 "function_type",
+                "function",
                 "identifier",
                 "if",
-                "import",
                 "import_module",
                 "import_symbol",
+                "import",
                 "literal",
                 "loop",
                 "object_decompositor",
@@ -52,16 +52,16 @@ namespace gs {
                 "property",
                 "return",
                 "scoped_block",
-                "sizeof"
-                "switch",
+                "sizeof",
                 "switch_case",
+                "switch",
                 "this",
                 "throw",
                 "try",
-                "type",
                 "type_modifier",
                 "type_property",
                 "type_specifier",
+                "type",
                 "variable"
             };
             static const char* ops[] = {
@@ -142,16 +142,23 @@ namespace gs {
 
             indent++;
             iprintf(indent, "\"type\": \"%s\",\n", nts[tp]);
+
             if (tok && tok->src.isValid()) {
                 utils::String ln = tok->src.getSource()->getLine(tok->src.getLine()).clone();
                 ln.replaceAll("\n", "");
                 ln.replaceAll("\r", "");
+                u32 wsc = 0;
+                for (;wsc < ln.size();wsc++) {
+                    if (isspace(ln[wsc])) continue;
+                    break;
+                }
+
                 iprintf(indent, "\"source\": {\n");
                 iprintf(indent + 1, "\"line\": %d,\n", tok->src.getLine());
                 iprintf(indent + 1, "\"col\": %d,\n", tok->src.getCol());
-                iprintf(indent + 1, "\"line_text\": \"%s\",\n", ln.c_str());
+                iprintf(indent + 1, "\"line_text\": \"%s\",\n", ln.c_str() + wsc);
                 utils::String indxStr = "";
-                for (u32 i = 0;i < tok->src.getCol();i++) indxStr += ' ';
+                for (u32 i = 0;i < (tok->src.getCol() - wsc);i++) indxStr += ' ';
                 indxStr += '^';
                 iprintf(indent + 1, "\"indx_text\": \"%s\"\n", indxStr.c_str());
                 iprintf(indent, "}");
@@ -407,14 +414,22 @@ namespace gs {
         
         void Parser::push() {
             m_currentIdx.push(m_currentIdx[m_currentIdx.size() - 1]);
+            m_currentErrorCount.push(m_errors.size());
         }
         
         void Parser::revert() {
             m_currentIdx.pop();
+            m_currentErrorCount.pop();
+
+            if (m_currentErrorCount.size() > 0 && m_currentErrorCount.last() > m_errors.size()) {
+                m_errors.remove(m_currentErrorCount.last(), m_errors.size() - m_currentErrorCount.last());
+            }
         }
         
         void Parser::commit() {
             u32 idx = m_currentIdx.pop();
+            m_currentErrorCount.pop();
+            m_currentErrorCount.last() = m_errors.size();
             m_currentIdx[m_currentIdx.size() - 1] = idx;
         }
         
@@ -979,7 +994,7 @@ namespace gs {
                 if (!ps->typeIs(tt_comma)) break;
                 ps->consume();
 
-                n->next = parameter(ps);
+                n->next = typedParameter(ps);
                 n = n->next;
                 if (!n) {
                     ps->error(pec_expected_parameter, "Expected parameter after ','");
@@ -1092,18 +1107,19 @@ namespace gs {
 
             return n;
         }
+        ast_node* identifierTypeSpecifier(Parser* ps, ast_node* id) {
+            id->template_parameters = templateArgs(ps);
+            id->modifier = typeModifier(ps);
+
+            ast_node* n = ps->newNode(nt_type_specifier, id->tok);
+            n->body = id;
+
+            return n;
+        }
         ast_node* typeSpecifier(Parser* ps) {
             const token* tok = &ps->get();
             ast_node* id = identifier(ps);
-            if (id) {
-                id->modifier = typeModifier(ps);
-                id->template_parameters = templateArgs(ps);
-
-                ast_node* n = ps->newNode(nt_type_specifier, tok);
-                n->body = id;
-
-                return n;
-            }
+            if (id) return identifierTypeSpecifier(ps, id);
 
             if (ps->typeIs(tt_open_brace)) {
                 ps->push();
@@ -1465,7 +1481,21 @@ namespace gs {
             if (n) return n;
 
             n = identifier(ps);
-            if (n) return n;
+            if (n) {
+                if (ps->isSymbol("<")) {
+                    ps->push();
+                    ast_node* args = templateArgs(ps);
+                    
+                    if (args) {
+                        // it's either a type specifier or a function specialization
+                        ps->commit();
+                        n->template_parameters = args;
+                        return n;
+                    } else ps->revert();
+                }
+                
+                return n;
+            }
 
             n = expressionSequenceGroup(ps);
             if (n) return n;
@@ -1509,6 +1539,7 @@ namespace gs {
             ast_node* l = n;
             while (true) {
                 if (ps->typeIs(tt_dot)) {
+                    const token& tok = ps->get();
                     ps->consume();
 
                     ast_node* r = identifier(ps);
@@ -1518,13 +1549,14 @@ namespace gs {
                         return nullptr;
                     }
 
-                    ast_node* e = ps->newNode(nt_expression, &ps->getPrev());
+                    ast_node* e = ps->newNode(nt_expression, &tok);
                     e->op = op_member;
                     e->lvalue = l;
                     e->rvalue = r;
                     l = e;
                     continue;
                 } else if (ps->typeIs(tt_open_bracket)) {
+                    const token& tok = ps->get();
                     ps->consume();
                     
                     ast_node* r = expression(ps);
@@ -1542,7 +1574,7 @@ namespace gs {
                         return nullptr;
                     }
 
-                    ast_node* e = ps->newNode(nt_expression, &ps->getPrev());
+                    ast_node* e = ps->newNode(nt_expression, &tok);
                     e->op = op_index;
                     e->lvalue = l;
                     e->rvalue = r;
@@ -1563,6 +1595,8 @@ namespace gs {
                 return nullptr;
             }
 
+            const token& argTok = ps->get();
+
             ast_node* args = arguments(ps);
             if (!args) {
                 ps->revert();
@@ -1570,14 +1604,14 @@ namespace gs {
                 return nullptr;
             }
 
-            ast_node* n = ps->newNode(nt_expression, callee->tok);
+            ast_node* n = ps->newNode(nt_expression, &argTok);
             n->op = op_call;
             n->lvalue = callee;
             n->parameters = args;
 
             while (true) {
                 if (ps->typeIs(tt_open_parenth)) {
-                    ast_node* e = ps->newNode(nt_expression, callee->tok);
+                    ast_node* e = ps->newNode(nt_expression, &ps->get());
                     e->op = op_call;
                     e->lvalue = n;
                     e->parameters = arguments(ps);

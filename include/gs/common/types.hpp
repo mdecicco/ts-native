@@ -12,21 +12,21 @@ namespace gs {
         u16 sz = 0;
         if constexpr (!std::is_same_v<void, T>) sz = (u16)sizeof(T);
         return {
-            std::is_trivial_v<T> && std::is_standard_layout_v<T>,
-            std::is_trivially_constructible_v<T>,
-            std::is_trivially_copyable_v<T>,
-            std::is_trivially_destructible_v<T>,
-            std::is_fundamental_v<T>,
-            std::is_floating_point_v<T>,
-            std::is_integral_v<T>,
-            std::is_unsigned_v<T>,
-            std::is_function_v<T>,
-            false,
-            false,
-            false,
-            true,
-            sz,
-            std::type_index(typeid(T)).hash_code()
+            std::is_trivial_v<T> && std::is_standard_layout_v<T>, // is_pod
+            std::is_trivially_constructible_v<T>,                 // is_trivially_constructible
+            std::is_trivially_copyable_v<T>,                      // is_trivially_copyable
+            std::is_trivially_destructible_v<T>,                  // is_trivially_destructible
+            std::is_fundamental_v<T>,                             // is_primitive
+            std::is_floating_point_v<T>,                          // is_floating_point
+            std::is_integral_v<T>,                                // is_integral
+            std::is_unsigned_v<T>,                                // is_unsigned
+            std::is_function_v<T>,                                // is_function
+            0,                                                    // is_template
+            0,                                                    // is_alias
+            0,                                                    // is_host
+            0,                                                    // is_anonymous
+            sz,                                                   // size
+            std::type_index(typeid(T)).hash_code()                // host_hash
         };
     }
 

@@ -261,13 +261,13 @@ TEST_CASE("Lexer", "[lexer]") {
             "import export from as operator static "
             "const get set null return switch case "
             "default true false this function let "
-            "new"
+            "new try throw catch"
         ;
         ProgramSource src = ProgramSource("Keywords.gs", testSource);
         Lexer l(&src);
         const Array<token>& out = l.tokenize();
 
-        REQUIRE(out.size() == 44);
+        REQUIRE(out.size() == 47);
         u32 i = 0;
         REQUIRE(out[i  ].tp == tt_keyword);
         REQUIRE(out[i++].text == "import");
@@ -357,6 +357,12 @@ TEST_CASE("Lexer", "[lexer]") {
         REQUIRE(out[i++].text == "let");
         REQUIRE(out[i  ].tp == tt_keyword);
         REQUIRE(out[i++].text == "new");
+        REQUIRE(out[i  ].tp == tt_keyword);
+        REQUIRE(out[i++].text == "try");
+        REQUIRE(out[i  ].tp == tt_keyword);
+        REQUIRE(out[i++].text == "throw");
+        REQUIRE(out[i  ].tp == tt_keyword);
+        REQUIRE(out[i++].text == "catch");
         
         REQUIRE(out[i  ].tp == tt_eof);
     }

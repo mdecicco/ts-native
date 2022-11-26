@@ -37,6 +37,8 @@ namespace gs {
         auto v  = bind<void>(ctx, "void").finalize(ctx->getGlobal());
         auto vp = bind<void*>(ctx, "data").finalize(ctx->getGlobal());
         auto b = bind<bool>(ctx, "boolean").finalize(ctx->getGlobal());
+        auto p = bind<poison_t>(ctx, "$poison").finalize(ctx->getGlobal());
+        auto ectx = bind<ExecutionContext>(ctx, "$exec").dtor(gs::private_access).finalize(ctx->getGlobal());
 
         BindString(ctx);
     }

@@ -10,37 +10,52 @@
 #include <xtr1common>
 
 namespace gs {
+    class Module;
     namespace ffi {
         class DataType;
-        class Function;
     };
 
     namespace compiler {
         class FunctionDef;
         enum ir_instruction;
+        struct member_expr_hints;
 
         class Value : public ITypedObject {
             public:
                 struct flags {
                     // Whether or not the value is a pointer to the data type
                     // ...A real pointer, not a PointerType
-                    unsigned is_pointer  : 1;
-                    unsigned is_const    : 1;
+                    unsigned is_pointer     : 1;
+                    unsigned is_read_only   : 1;
 
                     // If it's an argument, the argument index will be stored in m_imm.u
-                    unsigned is_argument : 1;
+                    unsigned is_argument    : 1;
 
-                    // If it's stored in a module data slot, the slot index will be stored
-                    // in m_imm.u
-                    unsigned is_module_data : 1;
+                    // If this value refers to a data type
+                    unsigned is_type        : 1;
+
+                    // If this value refers to a module
+                    unsigned is_module      : 1;
+
+                    // If this value refers to a function
+                    unsigned is_function    : 1;
                 };
                 Value();
                 Value(const Value& o);
+                ~Value();
 
                 // Discards any info about the current value and adopts the info from another
                 void reset(const Value& o);
                 Value convertedTo(ffi::DataType* tp) const;
-                Value getProp(const utils::String& name, bool excludeInherited = false, bool excludePrivate = false, bool doError = true);
+                Value getProp(
+                    const utils::String& name,
+                    bool excludeInherited = false,
+                    bool excludePrivate = false,
+                    bool excludeMethods = false,
+                    bool doError = true,
+                    member_expr_hints* hints = nullptr
+                );
+
 
                 template <typename T>
                 std::enable_if_t<is_imm_v<T>, T> getImm() const;
@@ -51,6 +66,7 @@ namespace gs {
                 const SourceLocation& getSource() const;
                 const flags& getFlags() const;
                 flags& getFlags();
+                Value* getSrcPtr() const;
 
                 // Only one of these can be true
                 bool isReg() const;
@@ -87,7 +103,7 @@ namespace gs {
                 Value operator >  (const Value& rhs) const;
                 Value operator >= (const Value& rhs) const;
                 Value operator [] (const Value& rhs) const;
-                Value operator () (const utils::Array<Value>& args) const;
+                Value operator () (const utils::Array<Value>& args, Value* self) const;
                 Value operator -  ();
                 Value operator -- ();
                 Value operator -- (int);
@@ -102,8 +118,11 @@ namespace gs {
                 // a ||= b
                 Value operator_logicalOrAssign(const Value& rhs);
 
+                utils::String toString() const;
+
 
             protected:
+                friend class Scope;
                 friend class ScopeManager;
                 friend class FunctionDef;
 
@@ -111,7 +130,9 @@ namespace gs {
                 Value(FunctionDef* o, u64 imm);
                 Value(FunctionDef* o, i64 imm);
                 Value(FunctionDef* o, f64 imm);
-                Value(FunctionDef* o, ffi::Function* imm);
+                Value(FunctionDef* o, FunctionDef* imm);
+                Value(FunctionDef* o, ffi::DataType* imm, bool unused);
+                Value(FunctionDef* o, Module* imm);
 
                 Value genBinaryOp(
                     FunctionDef* fn,
@@ -142,11 +163,15 @@ namespace gs {
                 vreg_id m_regId;
                 alloc_id m_allocId;
                 flags m_flags;
+                Value* m_srcPtr;
+                FunctionDef* m_srcSetter;
+                Value* m_srcSelf;
                 union {
                     u64 u;
                     i64 i;
                     f64 f;
-                    ffi::Function* fn;
+                    FunctionDef* fn;
+                    Module* mod;
                 } m_imm;
         };
     };

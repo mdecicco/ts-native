@@ -10,14 +10,37 @@
 #include <gs/compiler/Value.hpp>
 #include <gs/interfaces/IDataTypeHolder.hpp>
 #include <gs/interfaces/ICodeHolder.h>
+#include <gs/utils/function_match.h>
 
 #include <utils/Array.hpp>
+
+#include <stdarg.h>
 
 using namespace utils;
 using namespace gs::ffi;
 
 namespace gs {
     namespace compiler {
+        utils::String argListStr(const utils::Array<Value>& args) {
+            utils::String out;
+            for (u32 i = 0;i < args.size();i++) {
+                if (i > 0) out += ", ";
+                out += args[i].getType()->getFullyQualifiedName();
+            }
+            return out;
+        }
+
+        utils::String argListStr(const utils::Array<const DataType*>& argTps) {
+            utils::String out;
+            for (u32 i = 0;i < argTps.size();i++) {
+                if (i > 0) out += ", ";
+                out += argTps[i]->getFullyQualifiedName();
+            }
+            return out;
+        }
+
+
+
         //
         // CompilerOutput
         //
@@ -28,15 +51,22 @@ namespace gs {
         }
 
         CompilerOutput::~CompilerOutput() {
-            m_funcs.each([](FunctionDef* f) {
+            m_allFuncDefs.each([](FunctionDef* f) {
                 delete f;
             });
+
+            // Types are someone else's responsibility now
         }
 
         FunctionDef* CompilerOutput::newFunc(const utils::String& name, ffi::DataType* methodOf) {
             FunctionDef* fn = new FunctionDef(m_comp, name, methodOf);
-            m_comp->scope().add(name, fn);
+            // Don't add __init__ function to scope
+            if (m_funcs.size() > 0) m_comp->scope().add(name, fn);
             m_funcs.push(fn);
+            m_allFuncDefs.push(fn);
+            
+            // def index will be added to m_funcDefs later when output Function* is created
+
             return fn;
         }
         
@@ -44,17 +74,49 @@ namespace gs {
             FunctionDef* fn = new FunctionDef(m_comp, preCreated);
             m_comp->scope().add(preCreated->getName(), fn);
             m_funcs.push(fn);
+            m_funcDefs[preCreated] = m_allFuncDefs.size();
+            m_allFuncDefs.push(fn);
             return fn;
         }
-
-        FunctionDef* CompilerOutput::getFunc(const utils::String& name, ffi::DataType* methodOf) {
-            return m_funcs.find([&name, methodOf](FunctionDef* fn) {
-                return fn->getThisType() == methodOf && fn->getName() == name;
-            });
+        
+        void CompilerOutput::resolveFunctionDef(FunctionDef* def, ffi::Function* fn) {
+            i64 idx = m_allFuncDefs.findIndex([def](FunctionDef* d) { return d == def; });
+            m_funcDefs[fn] = (u32)idx;
         }
         
+        FunctionDef* CompilerOutput::getFunctionDef(ffi::Function* fn) {
+            auto it = m_funcDefs.find(fn);
+            if (it != m_funcDefs.end()) return m_allFuncDefs[it->second];
+
+            FunctionDef* def = new FunctionDef(m_comp, fn);
+            m_funcDefs[fn] = m_allFuncDefs.size();
+            m_allFuncDefs.push(def);
+            return def;
+        }
+
+        void CompilerOutput::add(ffi::DataType* tp) {
+            m_comp->scope().add(tp->getName(), tp);
+            m_types.push(tp);
+        }
+        
+        FunctionDef* CompilerOutput::import(Function* fn, const utils::String& as) {
+            FunctionDef* f = new FunctionDef(m_comp, fn);
+            m_comp->scope().add(as, f);
+            m_funcDefs[fn] = m_allFuncDefs.size();
+            m_allFuncDefs.push(f);
+            return f;
+        }
+
+        void CompilerOutput::import(DataType* tp, const utils::String& as) {
+            m_comp->scope().add(as, tp);
+        }
+
         const utils::Array<FunctionDef*>& CompilerOutput::getFuncs() const {
             return m_funcs;
+        }
+
+        const utils::Array<DataType*>& CompilerOutput::getTypes() const {
+            return m_types;
         }
 
         Module* CompilerOutput::getModule() {
@@ -124,15 +186,7 @@ namespace gs {
         ScopeManager& Compiler::scope() {
             return m_scopeMgr;
         }
-
-        void Compiler::addDataType(DataType* tp) {
-            m_addedTypes.push(tp);
-        }
         
-        void Compiler::addFunction(Function* fn) {
-            m_addedFuncs.push(fn);
-        }
-
         CompilerOutput* Compiler::getOutput() {
             return m_output;
         }
@@ -141,15 +195,19 @@ namespace gs {
             Module* m = new Module(m_ctx, "test");
             m_output = new CompilerOutput(this, m);
 
+            // init function
+            FunctionDef* fd = m_output->newFunc("__init__");
+            enterFunction(fd);
+
             const utils::Array<gs::ffi::DataType*>& importTypes = m_ctx->getGlobal()->allTypes();
             for (auto* t : importTypes) {
-                m_scopeMgr.add(t->getName(), t);
+                m_output->import(t, t->getName());
             }
 
             const utils::Array<gs::ffi::Function*>& importFuncs = m_ctx->getGlobal()->allFunctions();
             for (auto* f : importFuncs) {
                 if (!f) continue;
-                m_scopeMgr.add(f->getName(), f);
+                m_output->import(f, f->getName());
             }
 
             ast_node* n = m_program->body;
@@ -162,10 +220,6 @@ namespace gs {
                 n = n->next;
             }
 
-            // init function
-            FunctionDef* fd = m_output->newFunc("__init__");
-            enterFunction(fd);
-
             n = m_program->body;
             while (n) {
                 compileAny(n);
@@ -175,56 +229,301 @@ namespace gs {
             exitFunction();
             return m_output;
         }
-
-        const utils::Array<DataType*>& Compiler::getAddedDataTypes() const {
-            return m_addedTypes;
-        }
-
-        const utils::Array<Function*>& Compiler::getAddedFunctions() const {
-            return m_addedFuncs;
-        }
         
         void Compiler::updateMethod(DataType* classTp, Method* m) {
             m->setThisType(classTp);
         }
 
-        InstructionRef Compiler::add(ir_instruction inst) {
-            return m_curFunc->add(inst);
+        void Compiler::typeError(ffi::DataType* tp, compilation_message_code code, const char* msg, ...) {
+            if (tp->isEqualTo(currentFunction()->getPoison().getType())) {
+                // If the type is poisoned, an error was already emitted. All (or most) subsequent
+                // errors would not actually be errors if the original error had not occurred. This
+                // should prevent a cascade of irrelevant errors.
+                return;
+            }
+
+            char out[1024] = { 0 };
+            va_list l;
+            va_start(l, msg);
+            i32 len = vsnprintf(out, 1024, msg, l);
+            va_end(l);
+
+            m_messages.push({
+                cmt_error,
+                code,
+                utils::String(out, len),
+                m_nodeStack.last()->clone()
+            });
         }
 
-        void Compiler::constructObject(const Value& dest, const utils::Array<Value>& args) {
-            Array<DataType*> argTps = args.map([](const Value& v) { return v.getType(); });
-
-            Array<Function *> ctors = dest.getType()->findMethods("constructor", nullptr, (const DataType**)argTps.data(), argTps.size(), fm_skip_implicit_args);
-            if (ctors.size() == 1) {
-                generateCall(ctors[0], args, &dest);
-            } else if (ctors.size() > 1) {
-                u8 strictC = 0;
-                ffi::Function* func = nullptr;
-                for (u32 i = 0;i < ctors.size();i++) {
-                    const auto& args = ctors[i]->getSignature()->getArguments();
-                    for (u32 a = 0;a < args.size();a++) {
-                        if (args[a].isImplicit()) continue;
-                        if (args[a].dataType->isEqualTo(argTps[a])) {
-                            if (args.size() > a + 1) {
-                                // Function has more arguments which are not explicitly required
-                                break;
-                            }
-
-                            strictC++;
-                            func = ctors[i];
-                        }
-                    }
-                }
-                
-                if (strictC == 1) {
-                    generateCall(func, args, &dest);
-                }
-
-                // todo: Error, ambiguous call
-            } else {
-                // todo: Error, no matches
+        void Compiler::typeError(ast_node* node, ffi::DataType* tp, compilation_message_code code, const char* msg, ...) {
+            if (tp->isEqualTo(currentFunction()->getPoison().getType())) {
+                // If the type is poisoned, an error was already emitted. All (or most) subsequent
+                // errors would not actually be errors if the original error had not occurred. This
+                // should prevent a cascade of irrelevant errors.
+                return;
             }
+
+            char out[1024] = { 0 };
+            va_list l;
+            va_start(l, msg);
+            i32 len = vsnprintf(out, 1024, msg, l);
+            va_end(l);
+            
+            m_messages.push({
+                cmt_error,
+                code,
+                utils::String(out, len),
+                node->clone()
+            });
+        }
+
+        void Compiler::valueError(const Value& val, compilation_message_code code, const char* msg, ...) {
+            if (val.getType()->isEqualTo(currentFunction()->getPoison().getType())) {
+                // If the type is poisoned, an error was already emitted. All (or most) subsequent
+                // errors would not actually be errors if the original error had not occurred. This
+                // should prevent a cascade of irrelevant errors.
+                return;
+            }
+
+            char out[1024] = { 0 };
+            va_list l;
+            va_start(l, msg);
+            i32 len = vsnprintf(out, 1024, msg, l);
+            va_end(l);
+            
+            m_messages.push({
+                cmt_error,
+                code,
+                utils::String(out, len),
+                m_nodeStack.last()->clone()
+            });
+        }
+
+        void Compiler::valueError(ast_node* node, const Value& val, compilation_message_code code, const char* msg, ...) {
+            if (val.getType()->isEqualTo(currentFunction()->getPoison().getType())) {
+                // If the type is poisoned, an error was already emitted. All (or most) subsequent
+                // errors would not actually be errors if the original error had not occurred. This
+                // should prevent a cascade of irrelevant errors.
+                return;
+            }
+
+            char out[1024] = { 0 };
+            va_list l;
+            va_start(l, msg);
+            i32 len = vsnprintf(out, 1024, msg, l);
+            va_end(l);
+            
+            m_messages.push({
+                cmt_error,
+                code,
+                utils::String(out, len),
+                node->clone()
+            });
+        }
+
+        void Compiler::functionError(ffi::DataType* selfTp, ffi::DataType* retTp, const utils::Array<Value>& args, compilation_message_code code, const char* msg, ...) {
+            // If any of the involved types are poisoned, an error was already emitted. All
+            // (or most) subsequent errors would not actually be errors if the original error
+            // had not occurred. This should prevent a cascade of irrelevant errors.
+            ffi::DataType* poisonTp = currentFunction()->getPoison().getType();
+
+            if (retTp && retTp->isEqualTo(poisonTp)) return;
+            if (selfTp && selfTp->isEqualTo(poisonTp)) return;
+            for (u32 i = 0;i < args.size();i++) {
+                if (args[i].getType()->isEqualTo(poisonTp)) return;
+            }
+            
+            char out[1024] = { 0 };
+            va_list l;
+            va_start(l, msg);
+            i32 len = vsnprintf(out, 1024, msg, l);
+            va_end(l);
+            
+            m_messages.push({
+                cmt_error,
+                code,
+                utils::String(out, len),
+                m_nodeStack.last()->clone()
+            });
+        }
+
+        void Compiler::functionError(ast_node* node, ffi::DataType* selfTp, ffi::DataType* retTp, const utils::Array<Value>& args, compilation_message_code code, const char* msg, ...) {
+            // If any of the involved types are poisoned, an error was already emitted. All
+            // (or most) subsequent errors would not actually be errors if the original error
+            // had not occurred. This should prevent a cascade of irrelevant errors.
+            ffi::DataType* poisonTp = currentFunction()->getPoison().getType();
+
+            if (retTp && retTp->isEqualTo(poisonTp)) return;
+            if (selfTp && selfTp->isEqualTo(poisonTp)) return;
+            for (u32 i = 0;i < args.size();i++) {
+                if (args[i].getType()->isEqualTo(poisonTp)) return;
+            }
+
+            char out[1024] = { 0 };
+            va_list l;
+            va_start(l, msg);
+            i32 len = vsnprintf(out, 1024, msg, l);
+            va_end(l);
+            
+            m_messages.push({
+                cmt_error,
+                code,
+                utils::String(out, len),
+                node->clone()
+            });
+        }
+
+        void Compiler::functionError(ffi::DataType* selfTp, ffi::DataType* retTp, const utils::Array<const ffi::DataType*>& argTps, compilation_message_code code, const char* msg, ...) {
+            // If any of the involved types are poisoned, an error was already emitted. All
+            // (or most) subsequent errors would not actually be errors if the original error
+            // had not occurred. This should prevent a cascade of irrelevant errors.
+            ffi::DataType* poisonTp = currentFunction()->getPoison().getType();
+
+            if (retTp && retTp->isEqualTo(poisonTp)) return;
+            if (selfTp && selfTp->isEqualTo(poisonTp)) return;
+            for (u32 i = 0;i < argTps.size();i++) {
+                if (argTps[i]->isEqualTo(poisonTp)) return;
+            }
+
+            char out[1024] = { 0 };
+            va_list l;
+            va_start(l, msg);
+            i32 len = vsnprintf(out, 1024, msg, l);
+            va_end(l);
+            
+            m_messages.push({
+                cmt_error,
+                code,
+                utils::String(out, len),
+                m_nodeStack.last()->clone()
+            });
+        }
+
+        void Compiler::functionError(ast_node* node, ffi::DataType* selfTp, ffi::DataType* retTp, const utils::Array<const ffi::DataType*>& argTps, compilation_message_code code, const char* msg, ...) {
+            // If any of the involved types are poisoned, an error was already emitted. All
+            // (or most) subsequent errors would not actually be errors if the original error
+            // had not occurred. This should prevent a cascade of irrelevant errors.
+            ffi::DataType* poisonTp = currentFunction()->getPoison().getType();
+
+            if (retTp && retTp->isEqualTo(poisonTp)) return;
+            if (selfTp && selfTp->isEqualTo(poisonTp)) return;
+            for (u32 i = 0;i < argTps.size();i++) {
+                if (argTps[i]->isEqualTo(poisonTp)) return;
+            }
+
+            char out[1024] = { 0 };
+            va_list l;
+            va_start(l, msg);
+            i32 len = vsnprintf(out, 1024, msg, l);
+            va_end(l);
+            
+            m_messages.push({
+                cmt_error,
+                code,
+                utils::String(out, len),
+                node->clone()
+            });
+        }
+
+        void Compiler::error(compilation_message_code code, const char* msg, ...) {
+            char out[1024] = { 0 };
+            va_list l;
+            va_start(l, msg);
+            i32 len = vsnprintf(out, 1024, msg, l);
+            va_end(l);
+            
+            m_messages.push({
+                cmt_error,
+                code,
+                utils::String(out, len),
+                m_nodeStack.last()->clone()
+            });
+        }
+        
+        void Compiler::error(ast_node* node, compilation_message_code code, const char* msg, ...) {
+            char out[1024] = { 0 };
+            va_list l;
+            va_start(l, msg);
+            i32 len = vsnprintf(out, 1024, msg, l);
+            va_end(l);
+            
+            m_messages.push({
+                cmt_error,
+                code,
+                utils::String(out, len),
+                node->clone()
+            });
+        }
+
+        void Compiler::warn(compilation_message_code code, const char* msg, ...) {
+            char out[1024] = { 0 };
+            va_list l;
+            va_start(l, msg);
+            i32 len = vsnprintf(out, 1024, msg, l);
+            va_end(l);
+            
+            m_messages.push({
+                cmt_warn,
+                code,
+                utils::String(out, len),
+                m_nodeStack.last()->clone()
+            });
+        }
+
+        void Compiler::warn(ast_node* node, compilation_message_code code, const char* msg, ...) {
+            char out[1024] = { 0 };
+            va_list l;
+            va_start(l, msg);
+            i32 len = vsnprintf(out, 1024, msg, l);
+            va_end(l);
+            
+            m_messages.push({
+                cmt_warn,
+                code,
+                utils::String(out, len),
+                node->clone()
+            });
+        }
+
+        void Compiler::info(compilation_message_code code, const char* msg, ...) {
+            char out[1024] = { 0 };
+            va_list l;
+            va_start(l, msg);
+            i32 len = vsnprintf(out, 1024, msg, l);
+            va_end(l);
+            
+            m_messages.push({
+                cmt_info,
+                code,
+                utils::String(out, len),
+                m_nodeStack.last()->clone()
+            });
+        }
+
+        void Compiler::info(ast_node* node, compilation_message_code code, const char* msg, ...) {
+            char out[1024] = { 0 };
+            va_list l;
+            va_start(l, msg);
+            i32 len = vsnprintf(out, 1024, msg, l);
+            va_end(l);
+            
+            m_messages.push({
+                cmt_info,
+                code,
+                utils::String(out, len),
+                node->clone()
+            });
+        }
+
+        const utils::Array<compilation_message>& Compiler::getLogs() const {
+            return m_messages;
+        }
+
+
+
+        InstructionRef Compiler::add(ir_instruction inst) {
+            return m_curFunc->add(inst);
         }
 
         void Compiler::constructObject(const Value& dest, ffi::DataType* tp, const utils::Array<Value>& args) {
@@ -232,34 +531,97 @@ namespace gs {
 
             Array<Function *> ctors = tp->findMethods("constructor", nullptr, (const DataType**)argTps.data(), argTps.size(), fm_skip_implicit_args);
             if (ctors.size() == 1) {
-                generateCall(ctors[0], args, &dest);
+                if (ctors[0]->getAccessModifier() == private_access && (!m_curClass || !m_curClass->isEqualTo(tp))) {
+                    error(cm_err_private_constructor, "Constructor '%s' is private", ctors[0]->getFullyQualifiedName().c_str());
+                    return;
+                } else generateCall(ctors[0], args, &dest);
             } else if (ctors.size() > 1) {
-                u8 strictC = 0;
                 ffi::Function* func = nullptr;
+                u8 looseC = 0;
                 for (u32 i = 0;i < ctors.size();i++) {
+                    if (ctors[i]->getAccessModifier() == private_access && (!m_curClass || !m_curClass->isEqualTo(tp))) continue;
+                    looseC++;
+                    func = ctors[i];
+                }
+
+                if (looseC == 1) {
+                    generateCall(func, args, &dest);
+                    return;
+                } else if (looseC == 0) {
+                    functionError(
+                        tp,
+                        nullptr,
+                        args,
+                        cm_err_no_matching_constructor,
+                        "Type '%s' has no accessible constructor with arguments matching '%s'",
+                        tp->getFullyQualifiedName().c_str(),
+                        argListStr(args).c_str()
+                    );
+                    return;
+                }
+                
+                u8 strictC = 0;
+                for (u32 i = 0;i < ctors.size();i++) {
+                    if (ctors[i]->getAccessModifier() == private_access && (!m_curClass || !m_curClass->isEqualTo(tp))) continue;
                     const auto& args = ctors[i]->getSignature()->getArguments();
+                    bool isCompatible = true;
                     for (u32 a = 0;a < args.size();a++) {
                         if (args[a].isImplicit()) continue;
-                        if (args[a].dataType->isEqualTo(argTps[a])) {
-                            if (args.size() > a + 1) {
-                                // Function has more arguments which are not explicitly required
-                                break;
-                            }
-
-                            strictC++;
-                            func = ctors[i];
+                        if (!args[a].dataType->isEqualTo(argTps[a])) {
+                            isCompatible = false;
+                            break;
+                        
                         }
+                        if (args.size() > a + 1) {
+                            // Function has more arguments which are not explicitly required
+                            break;
+                        }
+                    }
+
+                    if (isCompatible) {
+                        strictC++;
+                        func = ctors[i];
                     }
                 }
                 
                 if (strictC == 1) {
                     generateCall(func, args, &dest);
+                    return;
                 }
 
-                // todo: Error, ambiguous call
+                functionError(
+                    tp,
+                    nullptr,
+                    args,
+                    cm_err_ambiguous_constructor,
+                    "Call to construct object of type '%s' with arguments '%s' is ambiguous",
+                    tp->getFullyQualifiedName().c_str(),
+                    argListStr(args).c_str()
+                );
+
+                for (u32 i = 0;i < ctors.size();i++) {
+                    if (ctors[i]->getAccessModifier() == private_access && (!m_curClass || !m_curClass->isEqualTo(tp))) continue;
+                    info(
+                        cm_info_could_be,
+                        "^ Could be: '%s'",
+                        ((ffi::FunctionType*)ctors[i]->getSignature())->generateFullyQualifiedFunctionName(ctors[i]->getName()).c_str()
+                    );
+                }
             } else {
-                // todo: Error, no matches
+                functionError(
+                    tp,
+                    nullptr,
+                    args,
+                    cm_err_no_matching_constructor,
+                    "Type '%s' has no constructor with arguments matching '%s'",
+                    tp->getFullyQualifiedName().c_str(),
+                    argListStr(args).c_str()
+                );
             }
+        }
+
+        void Compiler::constructObject(const Value& dest, const utils::Array<Value>& args) {
+            constructObject(dest, dest.getType(), args);
         }
 
         Value Compiler::constructObject(ffi::DataType* tp, const utils::Array<Value>& args) {
@@ -274,25 +636,63 @@ namespace gs {
             return out;
         }
 
+        Value Compiler::functionValue(FunctionDef* fn) {
+            return currentFunction()->imm(fn);
+        }
+
+        Value Compiler::functionValue(ffi::Function* fn) {
+            return currentFunction()->imm(m_output->getFunctionDef(fn));
+        }
+        
+        Value Compiler::typeValue(ffi::DataType* tp) {
+            return currentFunction()->imm(tp);
+        }
+        
+        Value Compiler::moduleValue(Module* mod) {
+            return currentFunction()->imm(mod);
+        }
+
+        Value Compiler::moduleData(Module* m, u32 slot) {
+            return currentFunction()->val(m, slot);
+        }
+
+
         //
         // Data type resolution
         //
+
+        DataType* getTypeFromSymbol(symbol* s) {
+            if (!s) return nullptr;
+            for (u32 i = 0;i < s->values.size();i++) {
+                Value& v = *s->values[i];
+                if (v.getFlags().is_type) return v.getType();
+            }
+
+            return nullptr;
+        }
         
         DataType* Compiler::getArrayType(DataType* elemTp) {
-            DataType* outTp = nullptr;
             String name = "Array<" + elemTp->getName() + ">";
             symbol* s = scope().getBase().get(name);
 
             if (s) {
-                if (s->tp == st_type) outTp = s->type;
+                DataType* tp = getTypeFromSymbol(s);
+                if (tp) return tp;
                 else {
-                    // todo: error
+                    error(
+                        cm_err_internal,
+                        "'Array<%s>' does not name a data type",
+                        elemTp->getName().c_str()
+                    );
+
+                    return currentFunction()->getPoison().getType();
                 }
             } else {
                 String fullName = "Array<" + elemTp->getFullyQualifiedName() + ">";
                 TemplateType* at = (TemplateType*)scope().getBase().get("Array");
                 ast_node* arrayAst = at->getAST();
                 Scope& tscope = scope().enter();
+                DataType* outTp = nullptr;
 
                 // Add the array element type to the symbol table as the template argument name
                 tscope.add(arrayAst->template_parameters->str(), elemTp);
@@ -307,20 +707,26 @@ namespace gs {
                 getOutput()->getModule()->addForeignType(outTp);
 
                 scope().exit();
+                return outTp;
             }
 
-            return outTp;
+            return nullptr;
         }
         DataType* Compiler::getPointerType(DataType* destTp) {
-            DataType* outTp = nullptr;
             String name = "Pointer<" + destTp->getName() + ">";
             symbol* s = scope().getBase().get(name);
             
             if (s) {
-                if (s->tp == st_type) outTp = s->type;
-                else {
-                    // todo: error
-                }
+                DataType* tp = getTypeFromSymbol(s);
+                if (tp) return tp;
+                
+                error(
+                    cm_err_internal,
+                    "'Pointer<%s>' does not name a data type",
+                    destTp->getName().c_str()
+                );
+
+                return currentFunction()->getPoison().getType();
             } else {
                 String fullName = "Pointer<" + destTp->getFullyQualifiedName() + ">";
                 TemplateType* pt = (TemplateType*)scope().getBase().get("Pointer");
@@ -330,6 +736,7 @@ namespace gs {
                 // Add the pointer destination type to the symbol table as the template argument name
                 tscope.add(pointerAst->template_parameters->str(), destTp);
 
+                DataType* outTp = nullptr;
                 if (pointerAst->tp == nt_type) {
                     outTp = resolveTypeSpecifier(pointerAst->data_type);
                 } else if (pointerAst->tp == nt_class) {
@@ -340,17 +747,24 @@ namespace gs {
                 getOutput()->getModule()->addForeignType(outTp);
 
                 scope().exit();
+
+                return outTp;
             }
 
-            return outTp;
+            return nullptr;
         }
         DataType* Compiler::resolveTemplateTypeSubstitution(ast_node* templateArgs, DataType* _type) {
             enterNode(templateArgs);
             if (!_type->getInfo().is_template) {
-                // todo: errors
+                typeError(
+                    _type,
+                    cm_err_template_type_expected,
+                    "Type '%s' is not a template type but template arguments were provided",
+                    _type->getName().c_str()
+                );
 
                 exitNode();
-                return nullptr;
+                return currentFunction()->getPoison().getType();
             }
 
             TemplateType* type = (TemplateType*)_type;
@@ -367,6 +781,7 @@ namespace gs {
             fullName += '<';
 
             ast_node* n = tpAst->template_parameters;
+            u32 pc = 0;
             while (n) {
                 enterNode(n);
                 DataType* pt = resolveTypeSpecifier(templateArgs);
@@ -378,14 +793,30 @@ namespace gs {
                     fullName += ", ";
                 }
 
+                pc++;
                 n = n->next;
                 templateArgs = templateArgs->next;
 
                 if (n && !templateArgs) {
-                    // todo: errors (too few template args)
+                    u32 ec = pc;
+                    ast_node* en = n;
+                    while (en) {
+                        ec++;
+                        en = en->next;
+                    }
+
+                    typeError(
+                        type,
+                        cm_err_too_few_template_args,
+                        "Type '%s' expects %d template arguments but only %d were provided",
+                        type->getName().c_str(),
+                        ec,
+                        pc
+                    );
+
                     scope().exit();
                     exitNode();
-                    return nullptr;
+                    return currentFunction()->getPoison().getType();
                 }
                 exitNode();
             }
@@ -394,33 +825,59 @@ namespace gs {
             fullName += '>';
 
             if (!n && templateArgs) {
-                // todo: errors (too many template args)
+                u32 ec = pc;
+                ast_node* pn = templateArgs;
+                while (pn) {
+                    pc++;
+                    pn = pn->next;
+                }
+
+                typeError(
+                    type,
+                    cm_err_too_few_template_args,
+                    "Type '%s' only expects %d template arguments but %d were provided",
+                    type->getName().c_str(),
+                    ec,
+                    pc
+                );
                 scope().exit();
                 exitNode();
-                return nullptr;
+                return currentFunction()->getPoison().getType();
             }
 
             symbol* existing = scope().getBase().get(name);
             if (existing) {
-                if (existing->tp != st_type) {
-                    // todo: errors
+                DataType* etp = nullptr;
+                for (u32 i = 0;i < existing->values.size();i++) {
+                    Value& v = *existing->values[i];
+                    if (v.getFlags().is_type) {
+                        etp = v.getType();
+                        break;
+                    }
+                }
+
+                if (!etp) {
+                    typeError(
+                        type,
+                        cm_err_symbol_already_exists,
+                        "Symbol '%s' already exists and it is not a data type",
+                        name.c_str()
+                    );
                     scope().exit();
                     exitNode();
-                    return nullptr;
+                    return currentFunction()->getPoison().getType();
                 }
 
                 scope().exit();
                 exitNode();
-                return existing->type;
+                return etp;
             }
 
             DataType* tp = nullptr;
             if (tpAst->tp == nt_type) {
                 tp = resolveTypeSpecifier(tpAst->data_type);
-
                 tp = new AliasType(name, fullName, tp);
-                scope().getBase().add(name, tp);
-                addDataType(tp);
+                m_output->add(tp);
             } else if (tpAst->tp == nt_class) {
                 tp = compileClass(tpAst, true);
             }
@@ -440,7 +897,6 @@ namespace gs {
             info.is_trivially_destructible = 1;
             info.is_anonymous = 1;
 
-            // todo
             ast_node* b = n->body;
             while (b) {
                 switch (b->tp) {
@@ -492,7 +948,7 @@ namespace gs {
             const Array<DataType*>& types = getContext()->getTypes()->allTypes();
             bool alreadyExisted = false;
             for (u32 i = 0;i < types.size();i++) {
-                if (types[i]->isEquivalentTo(tp)) {
+                if (types[i]->getInfo().is_anonymous && types[i]->isEquivalentTo(tp)) {
                     delete tp;
                     tp = types[i];
                     alreadyExisted = true;
@@ -500,7 +956,7 @@ namespace gs {
             }
 
             if (!alreadyExisted) {
-                addDataType(tp);
+                m_output->add(tp);
             }
 
             exitNode();
@@ -526,27 +982,53 @@ namespace gs {
             }
 
             DataType* tp = new FunctionType(retTp, args);
-            addDataType(tp);
+            m_output->add(tp);
             exitNode();
             return tp;
         }
         DataType* Compiler::resolveTypeNameSpecifier(ast_node* n) {
             String name = n->body->str();
             symbol* s = scope().get(name);
+            if (!s) {
+                error(
+                    n,
+                    cm_err_identifier_not_found,
+                    "Undefined identifier '%s'",
+                    name.c_str()
+                );
+
+                return currentFunction()->getPoison().getType();
+            }
+
+            DataType* srcTp = nullptr;
+
+            for (u32 i = 0;i < s->values.size();i++) {
+                Value& v = *s->values[i];
+                if (v.getFlags().is_type) {
+                    srcTp = v.getType();
+                    break;
+                }
+            }
+
+            if (!srcTp) {
+                error(
+                    n,
+                    cm_err_identifier_does_not_refer_to_type,
+                    "Identifier '%s' does not name a type",
+                    name.c_str()
+                );
+
+                return currentFunction()->getPoison().getType();
+            }
 
             if (n->body->template_parameters) {
                 enterNode(n);
-                DataType* tp = resolveTemplateTypeSubstitution(n->body->template_parameters, s->type);
+                DataType* tp = resolveTemplateTypeSubstitution(n->body->template_parameters, srcTp);
                 exitNode();
                 return tp;
             }
 
-            if (!s || s->tp != st_type) {
-                // todo: errors
-                return nullptr;
-            }
-
-            return s->type;
+            return srcTp;
         }
         DataType* Compiler::applyTypeModifiers(DataType* tp, ast_node* mod) {
             if (!mod) return tp;
@@ -569,13 +1051,79 @@ namespace gs {
             return applyTypeModifiers(tp, n->modifier);
         }
 
-
-        Value Compiler::generateCall(ffi::Function* fn, const utils::Array<Value>& args, const Value* self) {
-            return currentFunction()->getPoison();
+        Value Compiler::generateCall(Function* fn, const utils::Array<Value>& args, const Value* self) {
+            return generateCall(m_output->getFunctionDef(fn), args, self);
         }
-
         Value Compiler::generateCall(FunctionDef* fn, const utils::Array<Value>& args, const Value* self) {
-            return currentFunction()->getPoison();
+            FunctionDef* cf = currentFunction();
+
+            if (args.size() != fn->getArgCount()) {
+                functionError(
+                    self ? self->getType() : nullptr,
+                    fn->getReturnType(),
+                    args,
+                    cm_err_function_argument_count_mismatch,
+                    "Function '%s' expects %d arguments, but %d %s provided",
+                    fn->getName().c_str(),
+                    fn->getArgCount(),
+                    args.size(),
+                    args.size() == 1 ? "was" : "were"
+                );
+
+                return cf->getPoison();
+            }
+
+            u8 aidx = 0;
+            for (u8 a = 0;a < fn->getArgCount();a++) {
+                const auto& ainfo = fn->getArgInfo(a);
+                if (ainfo.isImplicit()) continue;
+
+                if (!args[aidx].getType()->isConvertibleTo(ainfo.dataType)) {
+                    functionError(
+                        self ? self->getType() : nullptr,
+                        fn->getReturnType(),
+                        args,
+                        cm_err_type_not_convertible,
+                        "Function '%s' is not callable with args '%s'",
+                        fn->getName().c_str(),
+                        argListStr(args).c_str()
+                    );
+                    info(
+                        cm_info_arg_conversion,
+                        "^ No conversion found from type '%s' to type '%s' for argument %d",
+                        args[aidx].getType()->getFullyQualifiedName().c_str(),
+                        ainfo.dataType->getFullyQualifiedName().c_str(),
+                        aidx + 1
+                    );
+
+                    return currentFunction()->getPoison();
+                }
+                aidx++;
+            }
+
+            const auto& fargs = fn->getArgs();
+            aidx = 0;
+            for (u8 a = 0;a < fargs.size();a++) {
+                const auto& arg = fargs[a];
+                if (arg.isImplicit()) {
+                    if (arg.argType == arg_type::context_ptr) cf->add(ir_param).op(cf->getECtx());
+                    else if (arg.argType == arg_type::func_ptr) cf->add(ir_param).op(cf->getFPtr());
+                    else if (arg.argType == arg_type::ret_ptr) cf->add(ir_param).op(cf->getRetPtr());
+                    else if (arg.argType == arg_type::this_ptr) cf->add(ir_param).op(cf->getThis());
+                    continue;
+                }
+                cf->add(ir_param).op(cf->getArg(aidx));
+                aidx++;
+            }
+
+            auto call = cf->add(ir_call).op(functionValue(fn));
+            if (fn->getReturnType() && fn->getReturnType()->getInfo().size != 0) {
+                Value result = cf->val(fn->getReturnType());
+                call.op(result);
+                return result;
+            }
+
+            return cf->getPoison();
         }
 
         DataType* Compiler::compileType(ast_node* n) {
@@ -584,15 +1132,13 @@ namespace gs {
 
             if (n->template_parameters) {
                 tp = new TemplateType(name, getOutput()->getModule()->getName() + "::" + name, n->clone());
-                addDataType(tp);
-                scope().getBase().add(name, tp);
+                m_output->add(tp);
             } else {
                 tp = resolveTypeSpecifier(n->data_type);
 
                 if (tp) {
                     tp = new AliasType(name, getOutput()->getModule()->getName() + "::" + name, tp);
-                    addDataType(tp);
-                    scope().getBase().add(name, tp);
+                    m_output->add(tp);
                 }
             }
 
@@ -607,11 +1153,12 @@ namespace gs {
 
             enterNode(n->body);
 
-            FunctionDef* fd = getOutput()->newFunc(m);
-            enterFunction(fd);
+            FunctionDef* def = m_output->getFunctionDef(m);
+            def->setThisType(methodOf);
+            enterFunction(def);
 
             while (p) {
-                fd->addArg(p->str(), resolveTypeSpecifier(p->data_type));
+                def->addDeferredArg(p->str(), resolveTypeSpecifier(p->data_type));
                 p = p->next;
             }
 
@@ -649,12 +1196,12 @@ namespace gs {
                         "=", "==",
                         "<", "<=",
                         ">", ">=",
-                        "?",
-                        "++", "++", "++",
-                        "--", "--", "--",
+                        "++", "++",
+                        "--", "--",
                         "-",
-                        ".",
                         "[]",
+                        "?",
+                        ".",
                         "new", "new",
                         "()"
                     };
@@ -670,7 +1217,7 @@ namespace gs {
                         thisOffset,
                         n->clone()
                     );
-                    addFunction(m);
+                    m_output->newFunc(m);
                     exitNode();
                     return m;
                 }
@@ -682,7 +1229,7 @@ namespace gs {
                     symbol* s = scope().get(arg->str());
                     // symbol for template parameter should always be defined here
 
-                    DataType* pt = s->type;
+                    DataType* pt = getTypeFromSymbol(s);
                     name += pt->getFullyQualifiedName();
                     if (arg != n->template_parameters) name += ", ";
 
@@ -703,7 +1250,11 @@ namespace gs {
             if (name == "destructor") {
                 *wasDtor = true;
                 if (dtorExists) {
-                    // todo: errors
+                    error(
+                        cm_err_dtor_already_exists,
+                        "Destructor already exists for type '%s'",
+                        currentClass()->getFullyQualifiedName().c_str()
+                    );
                 }
             } else if (name == "constructor") {
                 isCtor = true;
@@ -725,23 +1276,34 @@ namespace gs {
 
             ast_node* p = n->parameters;
             u8 a = u8(args.size());
+            DataType* poisonTp = currentFunction()->getPoison().getType();
+            Array<DataType*> argTps;
+            Array<String> argNames;
             while (p) {
+                DataType* argTp = poisonTp;
                 if (!p->data_type) {
-                    // todo: errors
-                }
+                    error(
+                        cm_err_expected_method_argument_type,
+                        "No type specified for argument '%s' of method '%s' of class '%s'",
+                        p->str().c_str(),
+                        name.c_str(),
+                        currentClass()->getFullyQualifiedName().c_str()
+                    );
+                } else argTp = resolveTypeSpecifier(p->data_type);
 
-                arg_type tp = arg_type::value;
-                args.push({ tp, resolveTypeSpecifier(p->data_type) });
+                args.push({ argTp->getInfo().is_primitive ? arg_type::value : arg_type::pointer, argTp });
+                argTps.push(argTp);
+                argNames.push(p->str());
 
                 p = p->next;
                 a++;
             }
 
             FunctionType* sig = new FunctionType(ret, args);
-            const auto& types = getContext()->getTypes()->allTypes();
+            const auto& types = m_output->getTypes();
             for (auto* t : types) {
                 const auto& info = t->getInfo();
-                if (info.is_function || info.is_template) continue;
+                if (!info.is_function) continue;
                 if (sig->isEquivalentTo(t)) {
                     delete sig;
                     sig = (FunctionType*)t;
@@ -751,7 +1313,21 @@ namespace gs {
             }
 
             if (!sigExisted) {
-                addDataType(sig);
+                const auto& types = getContext()->getTypes()->allTypes();
+                for (auto* t : types) {
+                    const auto& info = t->getInfo();
+                    if (!info.is_function) continue;
+                    if (sig->isEquivalentTo(t)) {
+                        delete sig;
+                        sig = (FunctionType*)t;
+                        sigExisted = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!sigExisted) {
+                m_output->add(sig);
             }
 
             Method* m = new Method(
@@ -763,7 +1339,7 @@ namespace gs {
                 thisOffset
             );
 
-            addFunction(m);
+            m_output->newFunc(m);
             exitNode();
             return m;
         }
@@ -775,8 +1351,7 @@ namespace gs {
             if (n->template_parameters) {
                 if (!templatesDefined) {
                     DataType* tp = new TemplateType(name, fullName, n->clone());
-                    addDataType(tp);
-                    scope().add(name, tp);
+                    m_output->add(tp);
                     exitNode();
                     return tp;
                 }
@@ -787,9 +1362,9 @@ namespace gs {
                 ast_node* arg = n->template_parameters;
                 while (arg) {
                     symbol* s = scope().get(arg->str());
+                    DataType* pt = getTypeFromSymbol(s);
                     // symbol for template parameter should always be defined here
 
-                    DataType* pt = s->type;
                     name += pt->getName();
                     fullName += pt->getFullyQualifiedName();
                     if (arg != n->template_parameters) {
@@ -806,8 +1381,7 @@ namespace gs {
 
             ClassType* tp = new ClassType(name, fullName);
             m_curClass = tp;
-            addDataType(tp);
-            scope().getBase().add(name, tp);
+            m_output->add(tp);
             
             ast_node* inherits = n->inheritance;
             while (inherits) {
@@ -894,8 +1468,7 @@ namespace gs {
                         n->flags.is_private ? private_access : public_access,
                         n->clone()
                     );
-                    addFunction(f);
-                    scope().add(name, f);
+                    m_output->newFunc(f);
                     exitNode();
                     return f;
                 }
@@ -907,7 +1480,7 @@ namespace gs {
                     symbol* s = scope().get(arg->str());
                     // symbol for template parameter should always be defined here
 
-                    DataType* pt = s->type;
+                    DataType* pt = getTypeFromSymbol(s);
                     name += pt->getFullyQualifiedName();
                     if (arg != n->template_parameters) name += ", ";
 
@@ -926,8 +1499,19 @@ namespace gs {
             }
 
             ast_node* p = n->parameters;
+            DataType* poisonTp = currentFunction()->getPoison().getType();
             while (p) {
-                fd->addArg(p->str(), resolveTypeSpecifier(p->data_type));
+                DataType* tp = poisonTp;
+                if (!p->data_type) {
+                    error(
+                        cm_err_expected_function_argument_type,
+                        "No type specified for argument '%s' of function '%s'",
+                        p->str().c_str(),
+                        name.c_str()
+                    );
+                } else tp = resolveTypeSpecifier(p->data_type);
+
+                fd->addArg(p->str(), tp);
                 p = p->next;
             }
 
@@ -940,7 +1524,8 @@ namespace gs {
         }
         void Compiler::compileExport(ast_node* n) {
             if (!inInitFunction()) {
-                // todo: error
+                error(cm_err_export_not_in_root_scope, "'export' keyword encountered outside of root scope");
+                return;
             }
 
             if (n->body->tp == nt_type) {
@@ -958,10 +1543,15 @@ namespace gs {
                 return;
             }
 
-            // todo: error
+            error(cm_err_export_invalid, "Expected type, function, class, or variable");
         }
         void Compiler::compileImport(ast_node* n) {
+            if (!inInitFunction()) {
+                error(cm_err_import_not_in_root_scope, "'import' keyword encountered outside of root scope");
+                return;
+            }
 
+            // todo
         }
         Value Compiler::compileConditionalExpr(ast_node* n) {
             FunctionDef* cf = currentFunction();
@@ -1031,231 +1621,31 @@ namespace gs {
 
             return out;
         }
-        Value Compiler::compileMemberExpr(ast_node* n) {
+        Value Compiler::compileMemberExpr(ast_node* n, bool topLevel, member_expr_hints* hints) {
             FunctionDef* cf = currentFunction();
-            // Possibilities:
-            // [type].[static var]
-            // [type].[method] (not a call)
-            // [module].[type].[static var]
-            // [module].[global var]
-            // [expression].[property]
-            // [var].[property]
 
-            if (n->lvalue->tp == nt_identifier) {
-                // Possibilities:
-                // [type].[static var]
-                // [type].[method] (not a call)
-                // [module].[global var]
-                // [var].[property]
+            enterNode(n->lvalue);
+            Value lv;
+            if (n->lvalue->tp == nt_expression) {
+                if (n->lvalue->op == op_member) lv.reset(compileMemberExpr(n->lvalue, false, hints));
+                else lv.reset(compileExpression(n->lvalue));
+            } else lv.reset(compileExpressionInner(n->lvalue));
+            exitNode();
+            
+            enterNode(n->rvalue);
+            Value out = lv.getProp(
+                n->rvalue->str(),
+                false,                                                                          // exclude inherited
+                !m_curClass || lv.getFlags().is_module || !lv.getType()->isEqualTo(m_curClass), // exclude private
+                false,                                                                          // exclude methods
+                true,                                                                           // emit errors
+                hints                                                                           // hints
+            );
+            exitNode();
 
-                symbol *s = scope().get(n->lvalue->str());
-                if (!s) {
-                    // todo: errors
-                    return cf->getPoison();
-                }
+            if (hints) hints->self = new Value(lv);
 
-                if (s->tp == st_type) {
-                    // Possibilities:
-                    // [type].[static var]
-                    // [type].[method] (not a call)
-                    DataType* tp = s->type;
-                    String propName = n->rvalue->str();
-                    const type_property* prop = tp->getProp(propName);
-
-                    // [type].[static var]
-                    if (prop) {
-                        if (prop->access == private_access && (!m_curClass || !m_curClass->isEqualTo(tp))) {
-                            // todo: errors
-                            return cf->getPoison();
-                        }
-
-                        if (!prop->flags.is_static) {
-                            // todo: errors
-                            return cf->getPoison();
-                        }
-
-                        if (!prop->flags.can_read) {
-                            // todo: errors
-                            return cf->getPoison();
-                        }
-
-                        if (prop->getter) {
-                            return generateCall(prop->getter, {});
-                        }
-
-                        Value out = cf->val(prop->type);
-
-                        if (prop->type->getInfo().is_primitive) {
-                            add(ir_load).op(out).op(cf->imm<u64>(prop->offset));
-                            if (prop->flags.is_pointer) add(ir_load).op(out).op(out);
-                        } else {
-                            if (prop->flags.is_pointer) {
-                                add(ir_load).op(out).op(cf->imm<u64>(prop->offset));
-                            } else {
-                                add(ir_assign).op(out).op(cf->imm<u64>(prop->offset));
-                            }
-                        }
-
-                        return out;
-                    }
-
-                    // [type].[method] (not a call)
-                    Array<Function*> methods = tp->findMethods(propName, nullptr, nullptr, 0, fm_ignore_args);
-                    if (methods.size() == 0) {
-                        // todo: errors
-                        return cf->getPoison();
-                    } else if (methods.size() > 1) {
-                        // todo: errors
-                        return cf->getPoison();
-                    } else {
-                        return cf->imm(methods[0]);
-                    }
-                }
-
-                if (s->tp == st_module) {
-                    // Possibilities:
-                    // [module].[global var]
-
-                    Module* mod = s->mod;
-                    String propName = n->rvalue->str();
-                    i64 slotId = mod->getData().findIndex([&propName](const module_data& d) { return d.name == propName; });
-                    if (slotId >= 0) {
-                        const module_data& data = mod->getDataInfo((u32)slotId);
-                    
-                        Value out = cf->val(data.type);
-                        add(ir_module_data).op(out).op(cf->imm(mod->getId())).op(cf->imm((u32)slotId));
-                        if (data.type->getInfo().is_primitive) {
-                            add(ir_load).op(out).op(out);
-                        }
-                        return out;
-                    }
-
-                    // todo: errors
-                    return cf->getPoison();
-                }
-
-                if (s->tp == st_variable) {
-                    // Possibilities:
-                    // [var].[property]
-                    
-                    Value lv = *s->var;
-                    String propName = n->rvalue->str();
-                    const type_property* prop = lv.getType()->getProp(propName);
-
-                    if (!prop) {
-                        // todo: errors
-                        return cf->getPoison();
-                    }
-
-                    if (prop->access == private_access && (!m_curClass || !m_curClass->isEqualTo(lv.getType()))) {
-                        // todo: errors
-                        return cf->getPoison();
-                    }
-
-                    if (prop->flags.is_static) {
-                        // todo: errors
-                        return cf->getPoison();
-                    }
-
-                    if (!prop->flags.can_read) {
-                        // todo: errors
-                        return cf->getPoison();
-                    }
-
-                    if (prop->getter) {
-                        return generateCall(prop->getter, {}, &lv);
-                    }
-
-                    Value out = cf->val(prop->type);
-                    add(ir_uadd).op(out).op(lv).op(cf->imm(prop->offset));
-
-                    if (prop->type->getInfo().is_primitive || prop->flags.is_pointer) {
-                        add(ir_load).op(out).op(out);
-                    }
-                    
-                    if (prop->type->getInfo().is_primitive && prop->flags.is_pointer) {
-                        // load primitive from pointer to primitive
-                        add(ir_load).op(out).op(out);
-                    }
-
-                    return out;
-                }
-                
-                // todo: errors
-                return cf->getPoison();
-            } else if (n->lvalue->tp == nt_expression && n->lvalue->op == op_member && n->lvalue->lvalue->tp == nt_identifier) {
-                // Possibilities:
-                // [module].[type].[static var]
-                // [expression].[property]
-
-                symbol *s = scope().get(n->lvalue->str());
-                if (s) {
-                    // Possibilities:
-                    // [module].[type].[static var]
-
-                    if (s->tp == st_module) {
-                        Module* mod = s->mod;
-                        String propName = n->rvalue->str();
-                        DataType* tp = mod->allTypes().find([&propName](DataType* tp) { return tp->getName() == propName; });
-                        if (tp) {
-                            String propName = n->rvalue->str();
-                            const type_property* prop = tp->getProp(propName);
-
-                            // [module].[type].[static var]
-                            if (prop) {
-                                if (prop->access == private_access && (!m_curClass || !m_curClass->isEqualTo(tp))) {
-                                    // todo: errors
-                                    return cf->getPoison();
-                                }
-
-                                if (!prop->flags.is_static) {
-                                    // todo: errors
-                                    return cf->getPoison();
-                                }
-
-                                if (!prop->flags.can_read) {
-                                    // todo: errors
-                                    return cf->getPoison();
-                                }
-
-                                if (prop->getter) {
-                                    return generateCall(prop->getter, {});
-                                }
-
-                                Value out = cf->val(prop->type);
-
-                                if (prop->type->getInfo().is_primitive) {
-                                    add(ir_load).op(out).op(cf->imm<u64>(prop->offset));
-                                    if (prop->flags.is_pointer) add(ir_load).op(out).op(out);
-                                } else {
-                                    if (prop->flags.is_pointer) {
-                                        add(ir_load).op(out).op(cf->imm<u64>(prop->offset));
-                                    } else {
-                                        add(ir_assign).op(out).op(cf->imm<u64>(prop->offset));
-                                    }
-                                }
-
-                                return out;
-                            }
-
-                            // todo: errors
-                            return cf->getPoison();
-                        } else {
-                            // todo: errors
-                            return cf->getPoison();
-                        }
-                    }
-
-                    // todo: errors
-                    return cf->getPoison();
-                }
-            }
-
-            // Possibilities:
-            // [expression].[property]
-
-            Value lv = compileExpressionInner(n->lvalue);
-            return lv.getProp(n->rvalue->str());
+            return out;
         }
         Value Compiler::compileArrowFunction(ast_node* n) {
             // todo
@@ -1264,23 +1654,21 @@ namespace gs {
         Value Compiler::compileExpressionInner(ast_node* n) {
             if (n->tp == nt_identifier) {
                 symbol* s = scope().get(n->str());
-                if (s && s->tp == st_variable) {
-                    return *s->var;
-                }
+                if (s) return *s->values.last();
 
-                // todo: error
+                error(n, cm_err_identifier_not_found, "Undefined identifier '%s'", n->str().c_str());
                 return currentFunction()->getPoison();
             } else if (n->tp == nt_literal) {
                 switch (n->value_tp) {
-                    case lt_u8: return currentFunction()->imm<u8>(n->value.u);
-                    case lt_u16: return currentFunction()->imm<u16>(n->value.u);
-                    case lt_u32: return currentFunction()->imm<u32>(n->value.u);
-                    case lt_u64: return currentFunction()->imm<u64>(n->value.u);
-                    case lt_i8: return currentFunction()->imm<i8>(n->value.i);
-                    case lt_i16: return currentFunction()->imm<i16>(n->value.i);
-                    case lt_i32: return currentFunction()->imm<i32>(n->value.i);
+                    case lt_u8: return currentFunction()->imm<u8>((u8)n->value.u);
+                    case lt_u16: return currentFunction()->imm<u16>((u16)n->value.u);
+                    case lt_u32: return currentFunction()->imm<u32>((u32)n->value.u);
+                    case lt_u64: return currentFunction()->imm<u64>((u64)n->value.u);
+                    case lt_i8: return currentFunction()->imm<i8>((i8)n->value.i);
+                    case lt_i16: return currentFunction()->imm<i16>((i16)n->value.i);
+                    case lt_i32: return currentFunction()->imm<i32>((i32)n->value.i);
                     case lt_i64: return currentFunction()->imm<i64>(n->value.i);
-                    case lt_f32: return currentFunction()->imm<f32>(n->value.f);
+                    case lt_f32: return currentFunction()->imm<f32>((f32)n->value.f);
                     case lt_f64: return currentFunction()->imm<f64>(n->value.f);
                     case lt_string: {
                         return currentFunction()->getPoison(); // todo
@@ -1309,11 +1697,13 @@ namespace gs {
                 return currentFunction()->getPoison();
             } else if (n->tp == nt_this) {
                 if (!m_curClass) {
-                    // todo: error
+                    error(n, cm_err_this_outside_class, "Use of 'this' keyword outside of class scope");
                     return currentFunction()->getPoison();
                 }
 
                 return currentFunction()->getThis();
+            } else if (n->tp == nt_cast) {
+                return compileExpressionInner(n->body).convertedTo(resolveTypeSpecifier(n->data_type));
             } else if (n->tp == nt_function) return compileArrowFunction(n);
 
             // todo: expression sequence
@@ -1388,14 +1778,25 @@ namespace gs {
                     return dest;
                 }
                 case op_call: {
-                    Array<Value> args;
+                    member_expr_hints h;
+                    h.for_func_call = true;
+                    h.self = nullptr;
                     ast_node* p = n->parameters;
+
                     while (p) {
-                        args.push(compileExpression(p));
+                        h.args.push(compileExpression(p));
                         p = p->next;
                     }
 
-                    return compileExpressionInner(n->lvalue)(args);
+                    Value callee;
+                    
+                    if (n->lvalue->tp == nt_expression && n->lvalue->op == op_member) {
+                        callee.reset(compileMemberExpr(n->lvalue, true, &h));
+                    } else callee.reset(compileExpressionInner(n->lvalue));
+
+                    Value ret = callee(h.args, h.self);
+                    if (h.self) delete h.self;
+                    return ret;
                 }
             }
 
@@ -1461,7 +1862,12 @@ namespace gs {
             }
 
             if (retTp) {
-                // todo: errors
+                error(
+                    cm_err_function_must_return_a_value,
+                    "Function '%s' must return a value of type '%s'",
+                    currentFunction()->getName().c_str(),
+                    retTp->getFullyQualifiedName().c_str()
+                );
                 add(ir_ret).op(currentFunction()->getPoison());
                 exitNode();
                 return;
@@ -1489,7 +1895,10 @@ namespace gs {
             if (n->body->data_type) dt = resolveTypeSpecifier(n->body->data_type);
             else {
                 if (!n->initializer) {
-                    // todo: error (unable to determine type)
+                    error(
+                        cm_err_could_not_deduce_type,
+                        "Uninitilized variable declarations must have an explicit type specifier"
+                    );
                     return currentFunction()->getPoison();
                 }
 
@@ -1505,53 +1914,9 @@ namespace gs {
 
             if (n->initializer) {
                 if (dt->getInfo().is_primitive) *v = init.convertedTo(dt);
-                else {
-                    Value initWith = init;
-                    const DataType* initWithTp = initWith.getType();
-
-                    constructObject(*v, { initWith });
-
-                    // call constructor
-                    Array<Function *> ctors = dt->findMethods("constructor", nullptr, &initWithTp, 1, fm_skip_implicit_args);
-                    if (ctors.size() == 1) {
-                        generateCall(ctors[0], { initWith }, v);
-                    } else if (ctors.size() > 1) {
-                        u8 strictC = 0;
-                        ffi::Function* func = nullptr;
-                        for (u32 i = 0;i < ctors.size();i++) {
-                            const auto& args = ctors[i]->getSignature()->getArguments();
-                            for (u32 a = 0;a < args.size();a++) {
-                                if (args[a].isImplicit()) continue;
-                                if (args[a].dataType->isEqualTo(initWithTp)) {
-                                    if (args.size() > a + 1) {
-                                        // Function has more arguments which are not explicitly required
-                                        break;
-                                    }
-
-                                    strictC++;
-                                    func = ctors[i];
-                                }
-                            }
-                        }
-                        
-                        if (strictC == 1) {
-                            generateCall(func, { initWith }, v);
-                        }
-
-                        // todo: Error, ambiguous call
-                    } else {
-                        // todo: Error, no matches
-                    }
-                }
+                else constructObject(*v, { init });
             } else if (!dt->getInfo().is_primitive) {
-                Array<Function *> ctors = dt->findMethods("constructor", nullptr, nullptr, 0, fm_skip_implicit_args);
-                if (ctors.size() == 1) {
-                    generateCall(ctors[0], {}, v);
-                } else if (ctors.size() > 1) {
-                    // todo: Error, ambiguous call
-                } else {
-                    // todo: Error, no default constructor
-                }
+                constructObject(*v, {});
             }
 
             exitNode();
@@ -1579,44 +1944,7 @@ namespace gs {
                 }
 
                 if (dt->getInfo().is_primitive) *v = init.convertedTo(dt);
-                else {
-                    Value initWith = init;
-                    const DataType* initWithTp = initWith.getType();
-
-                    constructObject(*v, { initWith });
-
-                    // call constructor
-                    Array<Function *> ctors = dt->findMethods("constructor", nullptr, &initWithTp, 1, fm_skip_implicit_args);
-                    if (ctors.size() == 1) {
-                        generateCall(ctors[0], { initWith }, v);
-                    } else if (ctors.size() > 1) {
-                        u8 strictC = 0;
-                        ffi::Function* func = nullptr;
-                        for (u32 i = 0;i < ctors.size();i++) {
-                            const auto& args = ctors[i]->getSignature()->getArguments();
-                            for (u32 a = 0;a < args.size();a++) {
-                                if (args[a].isImplicit()) continue;
-                                if (args[a].dataType->isEqualTo(initWithTp)) {
-                                    if (args.size() > a + 1) {
-                                        // Function has more arguments which are not explicitly required
-                                        break;
-                                    }
-
-                                    strictC++;
-                                    func = ctors[i];
-                                }
-                            }
-                        }
-                        
-                        if (strictC == 1) {
-                            generateCall(func, { initWith }, v);
-                        }
-
-                        // todo: Error, ambiguous call
-                    } else {
-                        // todo: Error, no matches
-                    }
-                }
+                else constructObject(*v, { init });
 
                 exitNode();
                 p = p->next;
@@ -1689,13 +2017,13 @@ namespace gs {
         }
         void Compiler::compileContinue(ast_node* n) {
             if (m_lsStack.size() == 0) {
-                // todo: error
+                error(n, cm_err_continue_scope, "'continue' used outside of loop scope");
                 return;
             }
 
             auto& ls = m_lsStack.last();
             if (!ls.is_loop) {
-                // todo: error
+                error(n, cm_err_continue_scope, "'continue' used outside of loop scope");
                 return;
             }
 
@@ -1704,7 +2032,7 @@ namespace gs {
         }
         void Compiler::compileBreak(ast_node* n) {
             if (m_lsStack.size() == 0) {
-                // todo: error
+                error(n, cm_err_continue_scope, "'break' used outside of loop or switch scope");
                 return;
             }
             auto& ls = m_lsStack.last();
@@ -1728,7 +2056,7 @@ namespace gs {
                 case nt_break: return compileBreak(n);
                 case nt_class: {
                     if (!inInitFunction()) {
-                        // todo: errors
+                        error(n, cm_err_class_scope, "'class' used outside of root scope");
                         return;
                     }
 
@@ -1736,18 +2064,11 @@ namespace gs {
                     return;
                 }
                 case nt_continue: return compileContinue(n);
-                case nt_export: {
-                    if (!inInitFunction()) {
-                        // todo: errors
-                        return;
-                    }
-
-                    return compileExport(n);
-                }
+                case nt_export: return compileExport(n);
                 case nt_expression: return (void)compileExpression(n);
                 case nt_function: {
                     if (!inInitFunction()) {
-                        // todo: errors
+                        error(n, cm_err_function_scope, "'function' used outside of root scope");
                         return;
                     }
 
@@ -1763,7 +2084,7 @@ namespace gs {
                 case nt_try: return compileTryBlock(n);
                 case nt_type: {
                     if (!inInitFunction()) {
-                        // todo: errors
+                        error(n, cm_err_type_scope, "'type' used outside of root scope");
                         return;
                     }
 
