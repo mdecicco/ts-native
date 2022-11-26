@@ -656,6 +656,82 @@ namespace gs {
             return currentFunction()->val(m, slot);
         }
 
+        Value Compiler::generateCall(Function* fn, const utils::Array<Value>& args, const Value* self) {
+            return generateCall(m_output->getFunctionDef(fn), args, self);
+        }
+
+        Value Compiler::generateCall(FunctionDef* fn, const utils::Array<Value>& args, const Value* self) {
+            FunctionDef* cf = currentFunction();
+
+            if (args.size() != fn->getArgCount()) {
+                functionError(
+                    self ? self->getType() : nullptr,
+                    fn->getReturnType(),
+                    args,
+                    cm_err_function_argument_count_mismatch,
+                    "Function '%s' expects %d arguments, but %d %s provided",
+                    fn->getName().c_str(),
+                    fn->getArgCount(),
+                    args.size(),
+                    args.size() == 1 ? "was" : "were"
+                );
+
+                return cf->getPoison();
+            }
+
+            u8 aidx = 0;
+            for (u8 a = 0;a < fn->getArgCount();a++) {
+                const auto& ainfo = fn->getArgInfo(a);
+                if (ainfo.isImplicit()) continue;
+
+                if (!args[aidx].getType()->isConvertibleTo(ainfo.dataType)) {
+                    functionError(
+                        self ? self->getType() : nullptr,
+                        fn->getReturnType(),
+                        args,
+                        cm_err_type_not_convertible,
+                        "Function '%s' is not callable with args '%s'",
+                        fn->getName().c_str(),
+                        argListStr(args).c_str()
+                    );
+                    info(
+                        cm_info_arg_conversion,
+                        "^ No conversion found from type '%s' to type '%s' for argument %d",
+                        args[aidx].getType()->getFullyQualifiedName().c_str(),
+                        ainfo.dataType->getFullyQualifiedName().c_str(),
+                        aidx + 1
+                    );
+
+                    return currentFunction()->getPoison();
+                }
+                aidx++;
+            }
+
+            const auto& fargs = fn->getArgs();
+            aidx = 0;
+            for (u8 a = 0;a < fargs.size();a++) {
+                const auto& arg = fargs[a];
+                if (arg.isImplicit()) {
+                    if (arg.argType == arg_type::context_ptr) cf->add(ir_param).op(cf->getECtx());
+                    else if (arg.argType == arg_type::func_ptr) cf->add(ir_param).op(cf->getFPtr());
+                    else if (arg.argType == arg_type::ret_ptr) cf->add(ir_param).op(cf->getRetPtr());
+                    else if (arg.argType == arg_type::this_ptr) cf->add(ir_param).op(cf->getThis());
+                    continue;
+                }
+                cf->add(ir_param).op(cf->getArg(aidx));
+                aidx++;
+            }
+
+            auto call = cf->add(ir_call).op(functionValue(fn));
+            if (fn->getReturnType() && fn->getReturnType()->getInfo().size != 0) {
+                Value result = cf->val(fn->getReturnType());
+                call.op(result);
+                return result;
+            }
+
+            return cf->getPoison();
+        }
+
 
         //
         // Data type resolution
@@ -877,6 +953,7 @@ namespace gs {
             if (tpAst->tp == nt_type) {
                 tp = resolveTypeSpecifier(tpAst->data_type);
                 tp = new AliasType(name, fullName, tp);
+                tp->setAccessModifier(private_access);
                 m_output->add(tp);
             } else if (tpAst->tp == nt_class) {
                 tp = compileClass(tpAst, true);
@@ -945,6 +1022,9 @@ namespace gs {
                 {}
             );
 
+            // anon types are always public
+            tp->setAccessModifier(public_access);
+
             const Array<DataType*>& types = getContext()->getTypes()->allTypes();
             bool alreadyExisted = false;
             for (u32 i = 0;i < types.size();i++) {
@@ -982,6 +1062,10 @@ namespace gs {
             }
 
             DataType* tp = new FunctionType(retTp, args);
+            
+            // function types are always public
+            tp->setAccessModifier(public_access);
+
             m_output->add(tp);
             exitNode();
             return tp;
@@ -1051,93 +1135,20 @@ namespace gs {
             return applyTypeModifiers(tp, n->modifier);
         }
 
-        Value Compiler::generateCall(Function* fn, const utils::Array<Value>& args, const Value* self) {
-            return generateCall(m_output->getFunctionDef(fn), args, self);
-        }
-        Value Compiler::generateCall(FunctionDef* fn, const utils::Array<Value>& args, const Value* self) {
-            FunctionDef* cf = currentFunction();
-
-            if (args.size() != fn->getArgCount()) {
-                functionError(
-                    self ? self->getType() : nullptr,
-                    fn->getReturnType(),
-                    args,
-                    cm_err_function_argument_count_mismatch,
-                    "Function '%s' expects %d arguments, but %d %s provided",
-                    fn->getName().c_str(),
-                    fn->getArgCount(),
-                    args.size(),
-                    args.size() == 1 ? "was" : "were"
-                );
-
-                return cf->getPoison();
-            }
-
-            u8 aidx = 0;
-            for (u8 a = 0;a < fn->getArgCount();a++) {
-                const auto& ainfo = fn->getArgInfo(a);
-                if (ainfo.isImplicit()) continue;
-
-                if (!args[aidx].getType()->isConvertibleTo(ainfo.dataType)) {
-                    functionError(
-                        self ? self->getType() : nullptr,
-                        fn->getReturnType(),
-                        args,
-                        cm_err_type_not_convertible,
-                        "Function '%s' is not callable with args '%s'",
-                        fn->getName().c_str(),
-                        argListStr(args).c_str()
-                    );
-                    info(
-                        cm_info_arg_conversion,
-                        "^ No conversion found from type '%s' to type '%s' for argument %d",
-                        args[aidx].getType()->getFullyQualifiedName().c_str(),
-                        ainfo.dataType->getFullyQualifiedName().c_str(),
-                        aidx + 1
-                    );
-
-                    return currentFunction()->getPoison();
-                }
-                aidx++;
-            }
-
-            const auto& fargs = fn->getArgs();
-            aidx = 0;
-            for (u8 a = 0;a < fargs.size();a++) {
-                const auto& arg = fargs[a];
-                if (arg.isImplicit()) {
-                    if (arg.argType == arg_type::context_ptr) cf->add(ir_param).op(cf->getECtx());
-                    else if (arg.argType == arg_type::func_ptr) cf->add(ir_param).op(cf->getFPtr());
-                    else if (arg.argType == arg_type::ret_ptr) cf->add(ir_param).op(cf->getRetPtr());
-                    else if (arg.argType == arg_type::this_ptr) cf->add(ir_param).op(cf->getThis());
-                    continue;
-                }
-                cf->add(ir_param).op(cf->getArg(aidx));
-                aidx++;
-            }
-
-            auto call = cf->add(ir_call).op(functionValue(fn));
-            if (fn->getReturnType() && fn->getReturnType()->getInfo().size != 0) {
-                Value result = cf->val(fn->getReturnType());
-                call.op(result);
-                return result;
-            }
-
-            return cf->getPoison();
-        }
-
         DataType* Compiler::compileType(ast_node* n) {
             DataType* tp = nullptr;
             String name = n->str();
 
             if (n->template_parameters) {
                 tp = new TemplateType(name, getOutput()->getModule()->getName() + "::" + name, n->clone());
+                tp->setAccessModifier(private_access);
                 m_output->add(tp);
             } else {
                 tp = resolveTypeSpecifier(n->data_type);
 
                 if (tp) {
                     tp = new AliasType(name, getOutput()->getModule()->getName() + "::" + name, tp);
+                    tp->setAccessModifier(private_access);
                     m_output->add(tp);
                 }
             }
@@ -1300,6 +1311,10 @@ namespace gs {
             }
 
             FunctionType* sig = new FunctionType(ret, args);
+            
+            // function types are always public
+            sig->setAccessModifier(public_access);
+
             const auto& types = m_output->getTypes();
             for (auto* t : types) {
                 const auto& info = t->getInfo();
@@ -1351,6 +1366,7 @@ namespace gs {
             if (n->template_parameters) {
                 if (!templatesDefined) {
                     DataType* tp = new TemplateType(name, fullName, n->clone());
+                    tp->setAccessModifier(private_access);
                     m_output->add(tp);
                     exitNode();
                     return tp;
@@ -1380,6 +1396,7 @@ namespace gs {
             }
 
             ClassType* tp = new ClassType(name, fullName);
+            tp->setAccessModifier(private_access);
             m_curClass = tp;
             m_output->add(tp);
             
@@ -1535,8 +1552,9 @@ namespace gs {
                 compileFunction(n->body)->setAccessModifier(public_access);
                 return;
             } else if (n->body->tp == nt_variable) {
-                Value& var = compileVarDecl(n->body);
-                m_output->getModule()->setDataAccess(var.getImm<u32>(), public_access);
+                u32 slot = 0;
+                Value& var = compileVarDecl(n->body, &slot);
+                m_output->getModule()->setDataAccess(slot, public_access);
                 return;
             } else if (n->body->tp == nt_class) {
                 compileClass(n->body)->setAccessModifier(public_access);
@@ -1886,7 +1904,7 @@ namespace gs {
         void Compiler::compileTryBlock(ast_node* n) {
             // todo
         }
-        Value& Compiler::compileVarDecl(ast_node* n) {
+        Value& Compiler::compileVarDecl(ast_node* n, u32* moduleSlot) {
             enterNode(n);
             Value* v = nullptr;
             Value init = n->initializer ? compileExpression(n->initializer) : currentFunction()->getPoison();
@@ -1907,6 +1925,7 @@ namespace gs {
 
             if (inInitFunction()) {
                 u32 slot = m_output->getModule()->addData(n->body->str(), dt, private_access);
+                if (moduleSlot) *moduleSlot = slot;
                 v = &currentFunction()->val(n->body->str(), slot);
             } else {
                 v = &currentFunction()->val(n->body->str(), dt);

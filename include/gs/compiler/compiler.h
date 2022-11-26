@@ -177,6 +177,9 @@ namespace gs {
                 Value typeValue(ffi::DataType* tp);
                 Value moduleValue(Module* mod);
                 Value moduleData(Module* m, u32 slot);
+                Value generateCall(ffi::Function* fn, const utils::Array<Value>& args, const Value* self = nullptr);
+                Value generateCall(FunctionDef* fn, const utils::Array<Value>& args, const Value* self = nullptr);
+
 
                 ffi::DataType* getArrayType(ffi::DataType* elemTp);
                 ffi::DataType* getPointerType(ffi::DataType* destTp);
@@ -186,10 +189,6 @@ namespace gs {
                 ffi::DataType* resolveTypeNameSpecifier(ast_node* n);
                 ffi::DataType* applyTypeModifiers(ffi::DataType* tp, ast_node* mod);
                 ffi::DataType* resolveTypeSpecifier(ast_node* n);
-
-                Value generateCall(ffi::Function* fn, const utils::Array<Value>& args, const Value* self = nullptr);
-                Value generateCall(FunctionDef* fn, const utils::Array<Value>& args, const Value* self = nullptr);
-
                 ffi::Method* compileMethodDecl(ast_node* n, u64 thisOffset, bool* wasDtor, bool templatesDefined = false, bool dtorExists = false);
                 void compileMethodDef(ast_node* n, ffi::DataType* methodOf, ffi::Method* m);
                 ffi::DataType* compileType(ast_node* n);
@@ -207,7 +206,7 @@ namespace gs {
                 void compileSwitchStatement(ast_node* n);
                 void compileTryBlock(ast_node* n);
                 void compileThrow(ast_node* n);
-                Value& compileVarDecl(ast_node* n);
+                Value& compileVarDecl(ast_node* n, u32* moduleSlot = nullptr);
                 void compileObjectDecompositor(ast_node* n);
                 void compileLoop(ast_node* n);
                 void compileContinue(ast_node* n);
