@@ -117,7 +117,7 @@ namespace gs {
 
         u32 CompilerOutput::addSymbolLifetime(const utils::String& name, ast_node* scopeRoot, const Value& v) {
             ast_node* n = m_comp->currentNode();
-            scopeRoot->computeSourceLocationLength();
+            scopeRoot->computeSourceLocationRange();
 
             m_symbolLifetimes.push({
                 name,
@@ -125,10 +125,10 @@ namespace gs {
                 n->tok.src.getLine() > scopeRoot->tok.src.getLine() ? scopeRoot->tok.src : n->tok.src,
                 scopeRoot->tok.src.getEndLocation()
             });
-            
+
             return m_symbolLifetimes.size() - 1;
         }
-
+        
         const utils::Array<symbol_lifetime>& CompilerOutput::getSymbolLifetimeData() const {
             return m_symbolLifetimes;
         }
@@ -165,7 +165,7 @@ namespace gs {
         }
 
         void Compiler::enterNode(ast_node* n) {
-            n->computeSourceLocationLength();
+            n->computeSourceLocationRange();
             m_nodeStack.push(n);
         }
 

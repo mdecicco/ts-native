@@ -15,6 +15,7 @@ namespace gs {
     namespace compiler {
         enum node_type {
             nt_empty = 0,
+            nt_error,
             nt_root,
             nt_eos,
             nt_break,
@@ -180,7 +181,8 @@ namespace gs {
             } value;
 
             utils::String str() const;
-            void computeSourceLocationLength();
+            void computeSourceLocationRange();
+            void manuallySpecifyRange(const token& end);
             void json(u32 indent = 0, u32 index = 0, bool noIndentOpenBrace = true);
             ast_node* clone(bool copyNext = false);
 

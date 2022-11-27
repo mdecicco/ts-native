@@ -59,7 +59,7 @@ namespace gs {
             if (!ignoreNext) getNodeEndLoc(n->next, out, false);
         }
 
-        void ast_node::computeSourceLocationLength() {
+        void ast_node::computeSourceLocationRange() {
             if (tok.src.m_length > 0) return;
 
             SourceLocation end = tok.src;
@@ -69,10 +69,17 @@ namespace gs {
             tok.src.m_endLine = end.m_line;
             tok.src.m_endCol = end.m_col;
         }
+        
+        void ast_node::manuallySpecifyRange(const token& end) {
+            tok.src.m_length = end.src.getOffset() - tok.src.getOffset();
+            tok.src.m_endLine = end.src.m_line;
+            tok.src.m_endCol = end.src.m_col;
+        }
 
         void ast_node::json(u32 indent, u32 index, bool noIndentOpenBrace) {
             static const char* nts[] = {
                 "empty",
+                "error",
                 "root",
                 "eos",
                 "break",
@@ -189,7 +196,7 @@ namespace gs {
             iprintf(indent, "\"type\": \"%s\",\n", nts[tp]);
 
             if (tok.src.isValid()) {
-                computeSourceLocationLength();
+                computeSourceLocationRange();
 
                 utils::String ln = tok.src.getSource()->getLine(tok.src.getLine()).clone();
                 ln.replaceAll("\n", "");
@@ -1391,6 +1398,7 @@ namespace gs {
                 ps->freeNode(n);
                 return nullptr;
             }
+            n->manuallySpecifyRange(ps->get());
             ps->consume();
             ps->commit();
 
@@ -1459,6 +1467,7 @@ namespace gs {
                 ps->freeNode(n);
                 return nullptr;
             }
+            n->manuallySpecifyRange(ps->get());
             ps->consume();
             ps->commit();
 
@@ -2489,6 +2498,7 @@ namespace gs {
                 ps->freeNode(n);
                 return nullptr;
             }
+            n->manuallySpecifyRange(ps->get());
             ps->consume();
 
             if (!ps->typeIs(tt_semicolon)) {
@@ -2611,6 +2621,16 @@ namespace gs {
                 ps->freeNode(n);
                 return nullptr;
             }
+
+            if (n->body->tp != nt_scoped_block) {
+                if (!ps->typeIs(tt_semicolon)) {
+                    ps->error(pec_expected_eos, "Expected ';' after 'if (<expression>) statement'");
+                    // attempt to continue
+                } else {
+                    n->manuallySpecifyRange(ps->get());
+                    ps->consume();
+                }
+            }
             
             if (ps->isKeyword("else")) {
                 ps->consume();
@@ -2619,6 +2639,16 @@ namespace gs {
                     ps->error(pec_expected_statement, "Expected block or statement after 'else'");
                     ps->freeNode(n);
                     return nullptr;
+                }
+
+                if (n->else_body->tp != nt_scoped_block) {
+                    if (!ps->typeIs(tt_semicolon)) {
+                        ps->error(pec_expected_eos, "Expected ';' after 'else statement'");
+                        // attempt to continue
+                    } else {
+                        n->manuallySpecifyRange(ps->get());
+                        ps->consume();
+                    }
                 }
             }
 
@@ -2674,7 +2704,10 @@ namespace gs {
                 if (!ps->typeIs(tt_semicolon)) {
                     ps->error(pec_expected_eos, "Expected ';' after 'do ... while (<expression>)'");
                     // attempt to continue
-                } else ps->consume();
+                } else {
+                    if (n->body->tp != nt_scoped_block) n->manuallySpecifyRange(ps->get());
+                    ps->consume();
+                }
                 
                 n->flags.defer_cond = 1;
                 return n;
@@ -2693,6 +2726,16 @@ namespace gs {
                     ps->error(pec_expected_statement, "Expected block or statement after 'while (<expression>)'");
                     ps->freeNode(n);
                     return nullptr;
+                }
+
+                if (n->body->tp != nt_scoped_block) {
+                    if (!ps->typeIs(tt_semicolon)) {
+                        ps->error(pec_expected_eos, "Expected ';' after 'while (<expression>) statement'");
+                        // attempt to continue
+                    } else {
+                        n->manuallySpecifyRange(ps->get());
+                        ps->consume();
+                    }
                 }
 
                 return n;
@@ -2739,6 +2782,16 @@ namespace gs {
                     ps->error(pec_expected_statement, "Expected block or statement after 'for (...;...;...)'");
                     ps->freeNode(n);
                     return nullptr;
+                }
+
+                if (n->body->tp != nt_scoped_block) {
+                    if (!ps->typeIs(tt_semicolon)) {
+                        ps->error(pec_expected_eos, "Expected ';' after 'for (...;...;...) statement'");
+                        // attempt to continue
+                    } else {
+                        n->manuallySpecifyRange(ps->get());
+                        ps->consume();
+                    }
                 }
 
                 return n;
@@ -3108,6 +3161,7 @@ namespace gs {
                 ps->freeNode(b);
                 return nullptr;
             }
+            b->manuallySpecifyRange(ps->get());
             ps->consume();
 
             return b;
