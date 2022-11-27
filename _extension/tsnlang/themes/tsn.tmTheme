@@ -3,7 +3,7 @@
 <plist version="1.0">
   <dict>
     <key>name</key>
-    <string>GameScript</string>
+    <string>TS++</string>
     <key>uuid</key>
     <string>d46a7b33-3db7-4271-9854-82a2363bf8b8</string>
     <key>settings</key>
@@ -46,7 +46,7 @@
       </dict>
       <dict>
         <key>scope</key>
-        <string>constant.numeric, meta.delimiter.decimal.period.gs, constant.language.nan.gs, constant.language.infinity.gs</string>
+        <string>constant.numeric, meta.delimiter.decimal.period.tsn, constant.language.nan.tsn, constant.language.infinity.tsn</string>
         <key>settings</key>
         <dict>
           <key>vsclassificationtype</key>
@@ -55,7 +55,7 @@
       </dict>
       <dict>
         <key>scope</key>
-        <string>keyword.operator, storage.type.function.arrow.gs</string>
+        <string>keyword.operator, storage.type.function.arrow.tsn</string>
         <key>settings</key>
         <dict>
           <key>vsclassificationtype</key>
@@ -64,7 +64,7 @@
       </dict>
       <dict>
         <key>scope</key>
-        <string>meta.brace.angle.gs, meta.brace.round.gs, meta.brace.square.gs, punctuation, constant.language.import-export-all.gs, meta.delimiter.object.comma.gs</string>
+        <string>meta.brace.angle.tsn, meta.brace.round.tsn, meta.brace.square.tsn, punctuation, constant.language.import-export-all.tsn, meta.delimiter.object.comma.tsn</string>
         <key>settings</key>
         <dict>
           <key>vsclassificationtype</key>
@@ -73,7 +73,7 @@
       </dict>
       <dict>
         <key>scope</key>
-        <string>comment, comment.block.gs, comment.line.double-slash.gs, punctuation.definition.comment.gs</string>
+        <string>comment, comment.block.tsn, comment.line.double-slash.tsn, punctuation.definition.comment.tsn</string>
         <key>settings</key>
         <dict>
           <key>vsclassificationtype</key>
@@ -82,7 +82,7 @@
       </dict>
       <dict>
         <key>scope</key>
-        <string>comment.block.documentation.gs, other.meta.jsdoc, other.description.jsdoc</string>
+        <string>comment.block.documentation.tsn, other.meta.jsdoc, other.description.jsdoc</string>
         <key>settings</key>
         <dict>
           <key>vsclassificationtype</key>
@@ -109,7 +109,7 @@
       </dict>
       <dict>
         <key>scope</key>
-        <string>entity.name.type.class.gs</string>
+        <string>entity.name.type.class.tsn</string>
         <key>settings</key>
         <dict>
           <key>vsclassificationtype</key>
@@ -118,7 +118,7 @@
       </dict>
       <dict>
         <key>scope</key>
-        <string>entity.name.type.module.gs</string>
+        <string>entity.name.type.module.tsn</string>
         <key>settings</key>
         <dict>
           <key>vsclassificationtype</key>
@@ -127,7 +127,7 @@
       </dict>
       <dict>
         <key>scope</key>
-        <string>entity.name.type.enum.gs</string>
+        <string>entity.name.type.enum.tsn</string>
         <key>settings</key>
         <dict>
           <key>vsclassificationtype</key>
@@ -136,7 +136,7 @@
       </dict>
       <dict>
         <key>scope</key>
-        <string>entity.name.function, entity.name.type, meta.template.expression.gs, variable, entity.other.inherited-class.gs</string>
+        <string>entity.name.function, entity.name.type, meta.template.expression.tsn, variable, entity.other.inherited-class.tsn</string>
         <key>settings</key>
         <dict>
           <key>vsclassificationtype</key>
@@ -145,7 +145,7 @@
       </dict>
       <dict>
         <key>scope</key>
-        <string>constant.language.undefined.gs, variable.language.arguments.gs, support.type.object</string>
+        <string>constant.language.undefined.tsn, variable.language.arguments.tsn, support.type.object</string>
         <key>settings</key>
         <dict>
           <key>vsclassificationtype</key>

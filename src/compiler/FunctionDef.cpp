@@ -18,6 +18,7 @@ namespace gs {
     namespace compiler {
         FunctionDef::FunctionDef(Compiler* c, const utils::String& name, DataType* methodOf) {
             m_comp = c;
+            m_src = c->getCurrentSrc();
             m_name = name;
             m_retTp = nullptr;
             m_thisTp = methodOf;
@@ -43,6 +44,7 @@ namespace gs {
         
         FunctionDef::FunctionDef(Compiler* c, Function* func) {
             m_comp = c;
+            m_src = c->getCurrentSrc();
             m_name = func->getName();
             FunctionType* sig = func->getSignature();
             m_retTp = sig->getReturnType();
@@ -126,6 +128,10 @@ namespace gs {
 
         DataType* FunctionDef::getThisType() const {
             return m_thisTp;
+        }
+
+        const SourceLocation& FunctionDef::getSource() const {
+            return m_src;
         }
 
         u32 FunctionDef::getArgCount() const {

@@ -6,6 +6,7 @@
 namespace gs {
     namespace compiler {
         class Lexer;
+        struct ast_node;
     };
 
     class ProgramSource;
@@ -20,10 +21,19 @@ namespace gs {
             const char* getPointer() const;
             u32 getLine() const;
             u32 getCol() const;
+            u32 getOffset() const;
+            u32 getLength() const;
+            SourceLocation getEndLocation() const;
             bool isValid() const;
 
             bool operator++(int);
             char operator*() const;
+        
+        protected:
+            friend struct compiler::ast_node;
+            u32 m_length;
+            u32 m_endLine;
+            u32 m_endCol;
 
         private:
             ProgramSource* m_ref;
@@ -32,7 +42,6 @@ namespace gs {
             u32 m_lineLen;
             u32 m_col;
     };
-
     
     class SourceException : public std::exception {
         public:

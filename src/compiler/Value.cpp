@@ -175,8 +175,116 @@ namespace gs {
         }
 
         Value Value::convertedTo(DataType* tp) const {
-            // todo
-            return *this;
+            if (m_flags.is_module) {
+                m_func->getCompiler()->valueError(*this, cm_err_module_used_as_value, "Modules cannot be used as a value");
+                return m_func->getPoison();
+            } else if (m_flags.is_type) {
+                m_func->getCompiler()->valueError(*this, cm_err_type_used_as_value, "Types cannot be used as a value");
+                return m_func->getPoison();
+            }
+
+            if (m_type->getInfo().is_primitive && tp->getInfo().is_primitive) {
+                Value ret = m_func->val(tp);
+                
+                if (m_flags.is_pointer) {
+                    m_func->add(ir_cvt).op(ret).op(**this).op(m_func->imm(tp->getId()));
+                } else {
+                    m_func->add(ir_cvt).op(ret).op(*this).op(m_func->imm(tp->getId()));
+                }
+
+                return ret;
+            } else {
+                // search for cast operators
+                {
+                    String name = String::Format("operator %s", tp->getFullyQualifiedName().c_str());
+                    DataType* curClass = m_func->getCompiler()->currentClass();
+                    const auto& methods = m_type->findMethods(
+                        name,
+                        tp,
+                        nullptr,
+                        0,
+                        fm_ignore_args | ((!curClass || !curClass->isEqualTo(m_type)) ? fm_exclude_private : 0)
+                    );
+
+                    if (methods.size() == 1) {
+                        if (!m_flags.is_type && !methods[0]->isThisCall()) {
+                            m_func->getCompiler()->valueError(
+                                *this,
+                                cm_err_method_is_static,
+                                "Method '%s' of type '%s' is static",
+                                methods[0]->getDisplayName().c_str(),
+                                m_type->getName().c_str()
+                            );
+                            return m_func->getPoison();
+                        }
+
+                        return m_func->getCompiler()->generateCall(methods[0], {}, this);
+                    } else if (methods.size() > 1) {
+                        m_func->getCompiler()->valueError(
+                            *this,
+                            cm_err_property_or_method_ambiguous,
+                            "Cast operator '%s' of type '%s' is ambiguous",
+                            name.c_str(),
+                            m_type->getName().c_str()
+                        );
+
+                        for (u32 i = 0;i < methods.size();i++) {
+                            m_func->getCompiler()->info(
+                                cm_info_could_be,
+                                "^ Could be '%s'",
+                                methods[i]->getDisplayName().c_str()
+                            ).src = methods[i]->getSource();
+                        }
+
+                        return m_func->getPoison();
+                    }
+                }
+            
+                // search for copy constructor
+                {
+                    String name = String::Format("constructor", tp->getFullyQualifiedName().c_str());
+                    DataType* curClass = m_func->getCompiler()->currentClass();
+                    const auto& methods = tp->findMethods(
+                        name,
+                        nullptr,
+                        const_cast<const DataType**>(&m_type),
+                        1,
+                        fm_ignore_args | ((!curClass || !curClass->isEqualTo(m_type)) ? fm_exclude_private : 0)
+                    );
+
+                    if (methods.size() == 1) {
+                        return m_func->getCompiler()->constructObject(tp, { *this });
+                    } else if (methods.size() > 1) {
+                        m_func->getCompiler()->valueError(
+                            *this,
+                            cm_err_ambiguous_constructor,
+                            "Constructor '%s' of type '%s' is ambiguous",
+                            name.c_str(),
+                            m_type->getName().c_str()
+                        );
+
+                        for (u32 i = 0;i < methods.size();i++) {
+                            m_func->getCompiler()->info(
+                                cm_info_could_be,
+                                "^ Could be '%s'",
+                                methods[i]->getDisplayName().c_str()
+                            ).src = methods[i]->getSource();
+                        }
+
+                        return m_func->getPoison();
+                    }
+                }
+            }
+
+            m_func->getCompiler()->valueError(
+                *this,
+                cm_err_type_not_convertible,
+                "No conversion from type '%s' to '%s' is available",
+                m_type->getName().c_str(),
+                tp->getName().c_str()
+            );
+
+            return m_func->getPoison();
         }
 
         Value Value::getProp(
@@ -222,8 +330,8 @@ namespace gs {
                                 m_func->getCompiler()->info(
                                     cm_info_could_be,
                                     "^ Could be '%s'",
-                                    funcs[i]->getFullyQualifiedName().c_str()
-                                );
+                                    funcs[i]->getDisplayName().c_str()
+                                ).src = funcs[i]->getSource();
                             }
                         }
 
@@ -244,8 +352,8 @@ namespace gs {
                                 *this,
                                 cm_err_method_not_static,
                                 "Method '%s' of type '%s' is not static",
-                                methods[0]->getFullyQualifiedName().c_str(),
-                                m_type->getFullyQualifiedName().c_str()
+                                methods[0]->getDisplayName().c_str(),
+                                m_type->getName().c_str()
                             );
                             return m_func->getPoison();
                         } else if (!m_flags.is_type && !methods[0]->isThisCall()) {
@@ -253,8 +361,8 @@ namespace gs {
                                 *this,
                                 cm_err_method_is_static,
                                 "Method '%s' of type '%s' is static",
-                                methods[0]->getFullyQualifiedName().c_str(),
-                                m_type->getFullyQualifiedName().c_str()
+                                methods[0]->getDisplayName().c_str(),
+                                m_type->getName().c_str()
                             );
                             return m_func->getPoison();
                         }
@@ -267,11 +375,15 @@ namespace gs {
                                 cm_err_property_or_method_ambiguous,
                                 "Reference to property or method '%s' of type '%s' is ambiguous",
                                 name.c_str(),
-                                m_type->getFullyQualifiedName().c_str()
+                                m_type->getName().c_str()
                             );
 
                             for (u32 i = 0;i < methods.size();i++) {
-                                m_func->getCompiler()->info(cm_info_could_be, "^ Could be '%s'", methods[i]->getFullyQualifiedName().c_str());
+                                m_func->getCompiler()->info(
+                                    cm_info_could_be,
+                                    "^ Could be '%s'",
+                                    methods[i]->getDisplayName().c_str()
+                                ).src = methods[i]->getSource();
                             }
                         }
 
@@ -304,7 +416,7 @@ namespace gs {
                             *this,
                             cm_err_property_not_found,
                             "Type '%s' has no property or method named '%s'",
-                            m_type->getFullyQualifiedName().c_str(),
+                            m_type->getName().c_str(),
                             name.c_str()
                         );
                     } else {
@@ -312,7 +424,7 @@ namespace gs {
                             *this,
                             cm_err_property_not_found,
                             "Type '%s' has no property or method named '%s'",
-                            m_type->getFullyQualifiedName().c_str(),
+                            m_type->getName().c_str(),
                             name.c_str()
                         );
                     }
@@ -329,7 +441,7 @@ namespace gs {
                         cm_err_property_is_private,
                         "Property '%s' of type '%s' is private",
                         name.c_str(),
-                        m_type->getFullyQualifiedName().c_str()
+                        m_type->getName().c_str()
                     );
                 }
                 return m_func->getPoison();
@@ -341,7 +453,7 @@ namespace gs {
                     cm_err_property_not_static,
                     "Property '%s' of type '%s' is not static",
                     name.c_str(),
-                    m_type->getFullyQualifiedName().c_str()
+                    m_type->getName().c_str()
                 );
                 return m_func->getPoison();
             } else if (!m_flags.is_type && prop->flags.is_static) {
@@ -350,7 +462,7 @@ namespace gs {
                     cm_err_property_is_static,
                     "Property '%s' of type '%s' is static",
                     name.c_str(),
-                    m_type->getFullyQualifiedName().c_str()
+                    m_type->getName().c_str()
                 );
                 return m_func->getPoison();
             }
@@ -362,7 +474,7 @@ namespace gs {
                         cm_err_property_no_read_access,
                         "Property '%s' of '%s' does not give read access",
                         name.c_str(),
-                        m_type->getFullyQualifiedName().c_str()
+                        m_type->getName().c_str()
                     );
                 }
                 return m_func->getPoison();
@@ -451,6 +563,14 @@ namespace gs {
             const char* overrideName,
             bool assignmentOp
         ) const {
+            if (self->m_flags.is_module) {
+                m_func->getCompiler()->valueError(*self, cm_err_module_used_as_value, "Modules cannot be used as a value");
+                return m_func->getPoison();
+            } else if (self->m_flags.is_type) {
+                m_func->getCompiler()->valueError(*self, cm_err_type_used_as_value, "Types cannot be used as a value");
+                return m_func->getPoison();
+            }
+
             if (self->m_flags.is_read_only && assignmentOp) {
                 m_func->getCompiler()->valueError(*self, cm_err_value_not_writable, "Cannot write to read-only value");
                 return m_func->getPoison();
@@ -519,7 +639,7 @@ namespace gs {
                         cm_err_method_ambiguous,
                         "Reference to method '%s' of type '%s' with arguments '%s' is ambiguous",
                         overrideName,
-                        selfTp->getFullyQualifiedName().c_str(),
+                        selfTp->getName().c_str(),
                         argListStr({ rtp }).c_str()
                     );
 
@@ -527,8 +647,8 @@ namespace gs {
                         fn->getCompiler()->info(
                             cm_info_could_be,
                             "^ Could be: '%s'",
-                            matches[i]->getFullyQualifiedName().c_str()
-                        );
+                            matches[i]->getDisplayName().c_str()
+                        ).src = matches[i]->getSource();
                     }
                 } else {
                     fn->getCompiler()->functionError(
@@ -537,7 +657,7 @@ namespace gs {
                         { rtp },
                         cm_err_method_not_found,
                         "Type '%s' has no method named '%s' with arguments matching '%s'",
-                        selfTp->getFullyQualifiedName().c_str(),
+                        selfTp->getName().c_str(),
                         overrideName,
                         argListStr({ rtp }).c_str()
                     );
@@ -556,8 +676,17 @@ namespace gs {
             ir_instruction _d,
             const char* overrideName,
             bool resultIsPreOp,
-            bool assignmentOp
+            bool assignmentOp,
+            bool noResultReg
         ) const {
+            if (self->m_flags.is_module) {
+                m_func->getCompiler()->valueError(*self, cm_err_module_used_as_value, "Modules cannot be used as a value");
+                return m_func->getPoison();
+            } else if (self->m_flags.is_type) {
+                m_func->getCompiler()->valueError(*self, cm_err_type_used_as_value, "Types cannot be used as a value");
+                return m_func->getPoison();
+            }
+
             if (self->m_flags.is_read_only && assignmentOp) {
                 m_func->getCompiler()->valueError(*self, cm_err_value_not_writable, "Cannot write to read-only value");
                 return m_func->getPoison();
@@ -582,7 +711,8 @@ namespace gs {
                 // todo: Revise this... Something isn't right. out is assigned 2 times
                 if (resultIsPreOp) fn->add(ir_assign).op(out).op(v);
 
-                fn->add(inst).op(out).op(v);
+                if (noResultReg) fn->add(inst).op(v);
+                else fn->add(inst).op(out).op(v);
 
                 if (!resultIsPreOp) fn->add(ir_assign).op(out).op(v);
 
@@ -605,15 +735,15 @@ namespace gs {
                         cm_err_method_ambiguous,
                         "Reference to method '%s' of type '%s' with no arguments is ambiguous",
                         overrideName,
-                        selfTp->getFullyQualifiedName().c_str()
+                        selfTp->getName().c_str()
                     );
 
                     for (u32 i = 0;i < matches.size();i++) {
                         fn->getCompiler()->info(
                             cm_info_could_be,
                             "^ Could be: '%s'",
-                            matches[i]->getFullyQualifiedName().c_str()
-                        );
+                            matches[i]->getDisplayName().c_str()
+                        ).src = matches[i]->getSource();
                     }
                 } else {
                     fn->getCompiler()->functionError(
@@ -622,7 +752,7 @@ namespace gs {
                         Array<Value>(),
                         cm_err_method_not_found,
                         "Type '%s' has no method named '%s' with no arguments",
-                        selfTp->getFullyQualifiedName().c_str(),
+                        selfTp->getName().c_str(),
                         overrideName
                     );
                 }
@@ -748,6 +878,14 @@ namespace gs {
         }
 
         Value Value::operator [] (const Value& _rhs) const {
+            if (m_flags.is_module) {
+                m_func->getCompiler()->valueError(*this, cm_err_module_used_as_value, "Modules cannot be used as a value");
+                return m_func->getPoison();
+            } else if (m_flags.is_type) {
+                m_func->getCompiler()->valueError(*this, cm_err_type_used_as_value, "Types cannot be used as a value");
+                return m_func->getPoison();
+            }
+
             // todo: If script is trusted then allow offsetting from
             //       pointers. Otherwise error if that behavior is
             //       attempted.
@@ -787,7 +925,7 @@ namespace gs {
                     { _rhs },
                     cm_err_method_ambiguous,
                     "Reference to method 'operator []' of type '%s' with arguments '%s' is ambiguous",
-                    m_type->getFullyQualifiedName().c_str(),
+                    m_type->getName().c_str(),
                     argListStr({ _rhs }).c_str()
                 );
 
@@ -795,8 +933,8 @@ namespace gs {
                     m_func->getCompiler()->info(
                         cm_info_could_be,
                         "^ Could be: '%s'",
-                        matches[i]->getFullyQualifiedName().c_str()
-                    );
+                        matches[i]->getDisplayName().c_str()
+                    ).src = matches[i]->getSource();
                 }
             } else {
                 m_func->getCompiler()->functionError(
@@ -805,7 +943,7 @@ namespace gs {
                     { _rhs },
                     cm_err_method_not_found,
                     "Type '%s' has no method named 'operator []' with arguments matching '%s'",
-                    m_type->getFullyQualifiedName().c_str(),
+                    m_type->getName().c_str(),
                     argListStr({ _rhs }).c_str()
                 );
             }
@@ -814,6 +952,14 @@ namespace gs {
         }
 
         Value Value::operator () (const Array<Value>& _args, Value* self) const {
+            if (m_flags.is_module) {
+                m_func->getCompiler()->valueError(*this, cm_err_module_used_as_value, "Modules cannot be used as a value");
+                return m_func->getPoison();
+            } else if (m_flags.is_type) {
+                m_func->getCompiler()->valueError(*this, cm_err_type_used_as_value, "Types cannot be used as a value");
+                return m_func->getPoison();
+            }
+
             Array<Value> args;
             Array<DataType*> argTps;
 
@@ -855,7 +1001,7 @@ namespace gs {
                     _args,
                     cm_err_method_ambiguous,
                     "Reference to method 'operator ()' of type '%s' with arguments '%s' is ambiguous",
-                    m_type->getFullyQualifiedName().c_str(),
+                    m_type->getName().c_str(),
                     argListStr(_args).c_str()
                 );
 
@@ -863,8 +1009,8 @@ namespace gs {
                     m_func->getCompiler()->info(
                         cm_info_could_be,
                         "^ Could be: '%s'",
-                        matches[i]->getFullyQualifiedName().c_str()
-                    );
+                        matches[i]->getDisplayName().c_str()
+                    ).src = matches[i]->getSource();
                 }
             } else {
                 m_func->getCompiler()->functionError(
@@ -873,7 +1019,7 @@ namespace gs {
                     _args,
                     cm_err_method_not_found,
                     "Type '%s' has no method named 'operator ()' with arguments matching '%s'",
-                    m_type->getFullyQualifiedName().c_str(),
+                    m_type->getName().c_str(),
                     argListStr(_args).c_str()
                 );
             }
@@ -886,19 +1032,19 @@ namespace gs {
         }
 
         Value Value::operator -- () {
-            return genUnaryOp(m_func, this, ir_idec, ir_udec, ir_fdec, ir_ddec, "operator --", false, true);
+            return genUnaryOp(m_func, this, ir_idec, ir_udec, ir_fdec, ir_ddec, "operator --", false, true, true);
         }
 
         Value Value::operator -- (int) {
-            return genUnaryOp(m_func, this, ir_idec, ir_udec, ir_fdec, ir_ddec, "operator --", true, true);
+            return genUnaryOp(m_func, this, ir_idec, ir_udec, ir_fdec, ir_ddec, "operator --", true, true, true);
         }
 
         Value Value::operator ++ () {
-            return genUnaryOp(m_func, this, ir_iinc, ir_uinc, ir_finc, ir_dinc, "operator ++", false, true);
+            return genUnaryOp(m_func, this, ir_iinc, ir_uinc, ir_finc, ir_dinc, "operator ++", false, true, true);
         }
 
         Value Value::operator ++ (int) {
-            return genUnaryOp(m_func, this, ir_iinc, ir_uinc, ir_finc, ir_dinc, "operator ++", true, true);
+            return genUnaryOp(m_func, this, ir_iinc, ir_uinc, ir_finc, ir_dinc, "operator ++", true, true, true);
         }
 
         Value Value::operator !  () const {
@@ -910,6 +1056,14 @@ namespace gs {
         }
 
         Value Value::operator *  () const {
+            if (m_flags.is_module) {
+                m_func->getCompiler()->valueError(*this, cm_err_module_used_as_value, "Modules cannot be used as a value");
+                return m_func->getPoison();
+            } else if (m_flags.is_type) {
+                m_func->getCompiler()->valueError(*this, cm_err_type_used_as_value, "Types cannot be used as a value");
+                return m_func->getPoison();
+            }
+            
             if (!m_flags.is_pointer) {
                 m_func->getCompiler()->valueError(
                     *this,
@@ -949,12 +1103,12 @@ namespace gs {
                 else s = String::Format("$GPA%d", m_regId);
             } else if (m_flags.is_function) {
                 ffi::Function* fn = m_imm.fn->getOutput();
-                if (fn) s = String::Format("<Function %s>", fn->getFullyQualifiedName().c_str());
+                if (fn) s = String::Format("<Function %s>", fn->getDisplayName().c_str());
                 else s = String::Format("<Function %s>", m_imm.fn->getName().c_str());
             } else if (m_flags.is_module) {
                 s = String::Format("<Module %s>", m_imm.mod->getName().c_str());
             } else if (m_flags.is_type) {
-                s = String::Format("<Type %s>", m_type->getFullyQualifiedName().c_str());
+                s = String::Format("<Type %s>", m_type->getName().c_str());
             } else if (m_type->getInfo().is_primitive) {
                 if (isReg()) {
                     if (m_type->getInfo().is_floating_point) s = String::Format("$FP%d", m_regId);

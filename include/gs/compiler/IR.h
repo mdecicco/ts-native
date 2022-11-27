@@ -91,8 +91,9 @@ namespace gs {
 
             // Converts the value of a vreg from one data type to another
             //
-            // Operand 0 will be the vreg to convert
-            // Operand 1 will be u32 imm ID of the data type to convert to
+            // Operand 0 will be the vreg which receives the converted value
+            // Operand 1 will be the val to convert
+            // Operand 2 will be u32 imm ID of the data type to convert to
             ir_cvt,
 
             // Specifies a parameter to a function call

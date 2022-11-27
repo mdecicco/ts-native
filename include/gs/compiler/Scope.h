@@ -43,6 +43,8 @@ namespace gs {
             protected:
                 friend class ScopeManager;
                 utils::Array<Value> m_stackObjs;
+                utils::Array<u32> m_symLifetimes;
+                ast_node* m_scopeOriginNode;
                 Scope* m_parent;
                 Compiler* m_comp;
         };

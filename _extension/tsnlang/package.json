@@ -1,0 +1,30 @@
+{
+    "name": "tsnlang",
+    "displayName": "TS Native",
+    "description": "Language support for TS Native",
+    "version": "0.0.1",
+    "engines": {
+        "vscode": "^1.67.0"
+    },
+    "categories": [
+        "Programming Languages"
+    ],
+    "contributes": {
+        "languages": [{
+            "id": "tsn",
+            "aliases": ["TypeScript Native", "tsn"],
+            "extensions": [".tsn"],
+            "configuration": "./language-configuration.json"
+        }],
+        "grammars": [{
+            "language": "tsn",
+            "scopeName": "source.tsn",
+            "path": "./syntaxes/tsn.json"
+        }],
+        "themes": [{
+            "label": "TS Native Theme",
+            "uiTheme": "vs-dark",
+            "path": "./themes/tsn.tmTheme"
+        }]
+    }
+}

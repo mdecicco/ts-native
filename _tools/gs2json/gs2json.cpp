@@ -9,6 +9,7 @@
 #include <gs/compiler/Lexer.h>
 #include <gs/compiler/Parser.h>
 #include <gs/compiler/Compiler.h>
+#include <gs/compiler/Value.hpp>
 #include <gs/compiler/FunctionDef.h>
 
 #include <utils/Array.hpp>
@@ -19,10 +20,34 @@ using namespace utils;
 
 void handleAST(Context* ctx, ast_node* n);
 
+void initError(const char* err) {
+    printf("{\n");
+    printf("    \"logs\": [\n");
+    printf("        {\n");
+    printf("            \"code\": null,\n");
+    printf("            \"type\": \"error\",\n");
+    printf("            \"range\": null,\n");
+    printf("            \"line_txt\": null,\n");
+    printf("            \"line_idx\": null,");
+    printf("            \"message\": \"%s\",\n", err);
+    printf("            \"ast\": null\n");
+    printf("        }\n");
+    printf("    ],\n");
+    printf("    \"symbols\": [],\n");
+    printf("    \"types\": [],\n");
+    printf("    \"functions\": [],\n");
+    printf("    \"globals\": [],\n");
+    printf("    \"ast\": null\n");
+    printf("}");
+}
+
 i32 main (i32 argc, const char** argv) {
-    argc = 2;
-    const char* a[] = { "", "./test.gs" };
-    argv = a;
+    if (argc == 1) {
+        // DEBUG CODE ALERT
+        argc = 2;
+        const char* a[] = { "", "./test.tsn" };
+        argv = a;
+    }
 
     if (argc != 2) {
         printf("Invalid usage. Correct usage is 'gs2json <path to gs file>'\n");
@@ -32,7 +57,7 @@ i32 main (i32 argc, const char** argv) {
     FILE* fp = nullptr;
     fopen_s(&fp, argv[1], "r");
     if (!fp) {
-        printf("Unable to open input file\n");
+        initError("Unable to open input file");
         return -3;
     }
 
@@ -41,14 +66,14 @@ i32 main (i32 argc, const char** argv) {
     fseek(fp, 0, SEEK_SET);
 
     if (sz == 0) {
-        printf("Input file is empty\n");
+        initError("Input file is empty");
         fclose(fp);
         return -4;
     }
 
     char* code = new char[sz + 1];
     if (!code) {
-        printf("Failed to allocate input buffer\n");
+        initError("Failed to allocate input buffer");
         fclose(fp);
         return -5;
     }
@@ -56,7 +81,7 @@ i32 main (i32 argc, const char** argv) {
     size_t readSz = fread(code, 1, sz, fp);
     if (readSz != sz && !feof(fp)) {
         delete [] code;
-        printf("Failed to read input file\n");
+        initError("Failed to read input file");
         fclose(fp);
         return -6;
     }
@@ -78,13 +103,12 @@ i32 main (i32 argc, const char** argv) {
 
         const auto& errors = ps.errors();
         if (errors.size() > 0) {
-            success = false;
-
             printf("{\n");
-            printf("    logs: [\n");
+            printf("    \"logs\": [\n");
             for (u32 i = 0;i < errors.size();i++) {
                 const auto& e = errors[i];
                 const SourceLocation& src = e.src.src;
+                const SourceLocation& end = e.src.src.getEndLocation();
                 String ln = src.getSource()->getLine(src.getLine()).clone();
                 ln.replaceAll("\n", "");
                 ln.replaceAll("\r", "");
@@ -94,22 +118,38 @@ i32 main (i32 argc, const char** argv) {
                     break;
                 }
 
+                u32 baseOffset = src.getOffset();
+                u32 endOffset = end.getOffset();
+
+                utils::String indxStr = "";
+                for (u32 i = 0;i < (src.getCol() - wsc);i++) indxStr += ' ';
+                for (u32 i = 0;i < (endOffset - baseOffset) && indxStr.size() < (ln.size() - wsc);i++) {
+                    indxStr += '^';
+                }
+
                 printf("        {\n");
                 printf("            \"code\": \"P%d\",\n", e.code);
                 printf("            \"type\": \"error\",\n");
-                printf("            \"line\": %d,\n", src.getLine());
-                printf("            \"col\": %d,\n", src.getCol());
+                printf("            \"range\": {\n");
+                printf("                \"start\": {\n");
+                printf("                    \"line\": %d,\n", src.getLine());
+                printf("                    \"col\": %d,\n", src.getCol());
+                printf("                    \"offset\": %d\n", baseOffset);
+                printf("                },\n");
+                printf("                \"end\": {\n");
+                printf("                    \"line\": %d,\n", end.getLine());
+                printf("                    \"col\": %d,\n", end.getCol());
+                printf("                    \"offset\": %d\n", endOffset);
+                printf("                }\n");
+                printf("            },\n");
                 printf("            \"line_txt\": \"%s\",\n", ln.c_str() + wsc);
-
-                printf("            \"line_idx\": \"");
-                for (u32 i = 0;i < (src.getCol() - wsc);i++) printf(" ");
-                printf("^\",\n");
-
+                printf("            \"line_idx\": \"%s\",\n", indxStr.c_str());
                 printf("            \"message\": \"%s\",\n", e.text.c_str());
                 printf("            \"ast\": null\n");
                 printf("        }%s\n", (i == errors.size() - 1) ? "" : ",");
             }
             printf("    ],\n");
+            printf("    \"symbols\": [],\n");
             printf("    \"types\": [],\n");
             printf("    \"functions\": [],\n");
             printf("    \"globals\": [],\n");
@@ -118,24 +158,7 @@ i32 main (i32 argc, const char** argv) {
         } else {
             if (n) handleAST(&ctx, n);
             else {
-                printf("{\n");
-                printf("    logs: [\n");
-                printf("        {\n");
-                printf("            \"code\": null,\n");
-                printf("            \"type\": \"error\",\n");
-                printf("            \"line\": null,\n");
-                printf("            \"col\": null,\n");
-                printf("            \"line_txt\": null,\n");
-                printf("            \"line_idx\": null,");
-                printf("            \"message\": \"An unknown error occurred\",\n");
-                printf("            \"ast\": null\n");
-                printf("        }\n");
-                printf("    ],\n");
-                printf("    \"types\": [],\n");
-                printf("    \"functions\": [],\n");
-                printf("    \"globals\": [],\n");
-                printf("    \"ast\": null\n");
-                printf("}");
+                initError("An unknown error occurred");
                 success = false;
             }
         }
@@ -146,7 +169,7 @@ i32 main (i32 argc, const char** argv) {
 
     delete [] code;
 
-    return success ? 1 : -1;
+    return success ? 0 : -1;
 }
 
 void handleAST(Context* ctx, ast_node* n) {
@@ -162,7 +185,8 @@ void handleAST(Context* ctx, ast_node* n) {
             printf("    \"logs\": [\n");
             for (u32 i = 0;i < logs.size();i++) {
                 const auto& log = logs[i];
-                const SourceLocation& src = log.node->tok->src;
+                const SourceLocation& src = log.src;
+                const SourceLocation& end = log.src.getEndLocation();
                 String ln = src.getSource()->getLine(src.getLine()).clone();
                 ln.replaceAll("\n", "");
                 ln.replaceAll("\r", "");
@@ -172,17 +196,32 @@ void handleAST(Context* ctx, ast_node* n) {
                     break;
                 }
 
+                u32 baseOffset = src.getOffset();
+                u32 endOffset = end.getOffset();
+
+                utils::String indxStr = "";
+                for (u32 i = 0;i < (src.getCol() - wsc);i++) indxStr += ' ';
+                for (u32 i = 0;i < (endOffset - baseOffset) && indxStr.size() < (ln.size() - wsc);i++) {
+                    indxStr += '^';
+                }
+
                 printf("        {\n");
                 printf("            \"code\": \"C%d\",\n", log.code);
                 printf("            \"type\": \"%s\",\n", logTps[log.type]);
-                printf("            \"line\": %d,\n", src.getLine());
-                printf("            \"col\": %d,\n", src.getCol());
+                printf("            \"range\": {\n");
+                printf("                \"start\": {\n");
+                printf("                    \"line\": %d,\n", src.getLine());
+                printf("                    \"col\": %d,\n", src.getCol());
+                printf("                    \"offset\": %d\n", baseOffset);
+                printf("                },\n");
+                printf("                \"end\": {\n");
+                printf("                    \"line\": %d,\n", end.getLine());
+                printf("                    \"col\": %d,\n", end.getCol());
+                printf("                    \"offset\": %d\n", endOffset);
+                printf("                }\n");
+                printf("            },\n");
                 printf("            \"line_txt\": \"%s\",\n", ln.c_str() + wsc);
-
-                printf("            \"line_idx\": \"");
-                for (u32 i = 0;i < (src.getCol() - wsc);i++) printf(" ");
-                printf("^\",\n");
-
+                printf("            \"line_idx\": \"%s\",\n", indxStr.c_str());
                 printf("            \"message\": \"%s\",\n", log.msg.c_str());
                 printf("            \"ast\": ");
                 log.node->json(3);
@@ -191,6 +230,49 @@ void handleAST(Context* ctx, ast_node* n) {
             }
             printf("    ],\n");
         } else printf("    \"logs\": [],\n");
+
+        const auto& syms = c.getOutput()->getSymbolLifetimeData();
+        if (syms.size() > 0) {
+            printf("    \"symbols\": [\n");
+            for (u32 i = 0;i < syms.size();i++) {
+                const auto& s = syms[i];
+                const char* type = "value";
+
+                String detail = "";
+                if (s.sym->getFlags().is_function) {
+                    type = "function";
+                    FunctionDef* fn = s.sym->getImm<FunctionDef*>();
+                    if (fn->getOutput()) detail = fn->getOutput()->getFullyQualifiedName();
+                    else detail = fn->getName();
+                } else if (s.sym->getFlags().is_module) {
+                    type = "module";
+                } else if (s.sym->getFlags().is_type) {
+                    type = "type";
+                    detail = s.sym->getType()->getFullyQualifiedName();
+                } else {
+                    detail = s.sym->getType()->getFullyQualifiedName();
+                }
+
+                printf("        {\n");
+                printf("            \"name\": \"%s\",\n", s.name.c_str());
+                printf("            \"type\": \"%s\",\n", type);
+                printf("            \"detail\": \"%s\",\n", detail.c_str());
+                printf("            \"range\": {\n");
+                printf("                \"start\": {\n");
+                printf("                    \"line\": %d,\n", s.begin.getLine());
+                printf("                    \"col\": %d,\n", s.begin.getCol());
+                printf("                    \"offset\": %d\n", s.begin.getOffset());
+                printf("                },\n");
+                printf("                \"end\": {\n");
+                printf("                    \"line\": %d,\n", s.end.getLine());
+                printf("                    \"col\": %d,\n", s.end.getCol());
+                printf("                    \"offset\": %d\n", s.end.getOffset());
+                printf("                }\n");
+                printf("            }\n");
+                printf("        }%s\n", (i == syms.size() - 1) ? "" : ",");
+            }
+            printf("    ],\n");
+        } else printf("    \"symbols\": [],\n");
 
         const auto& types = c.getOutput()->getTypes();
         if (types.size() > 0) {
@@ -208,7 +290,8 @@ void handleAST(Context* ctx, ast_node* n) {
                 printf("            \"destructor\": ");
                 if (t->getDestructor()) {
                     printf("{\n");
-                    printf("                \"name\": \"%s\",\n", t->getDestructor()->getFullyQualifiedName().c_str());
+                    printf("                \"name\": \"%s\",\n", t->getDestructor()->getDisplayName().c_str());
+                    printf("                \"fully_qualified_name\": \"%s\",\n", t->getDestructor()->getFullyQualifiedName().c_str());
                     printf("                \"access\": \"%s\",\n", (t->getDestructor()->getAccessModifier() == private_access) ? "private" : "public");
                     printf("            },\n");
                 } else printf("null,\n");
@@ -232,6 +315,8 @@ void handleAST(Context* ctx, ast_node* n) {
                 if (info.is_alias) {
                     ffi::AliasType* a = (ffi::AliasType*)t;
                     printf("            \"alias_of\": \"%s\",\n", a->getRefType()->getFullyQualifiedName().c_str());
+                } else {
+                    printf("            \"alias_of\": null,\n");
                 }
 
                 const auto& bases = t->getBases();
@@ -283,16 +368,15 @@ void handleAST(Context* ctx, ast_node* n) {
                         printf("                    \"access\": \"%s\"\n", (method->getAccessModifier() == private_access) ? "private" : "public");
                         printf("                }%s\n", (m == methods.size() - 1) ? "" : ",");
                     }
-                    printf("             ]\n");
-                } else printf("            \"methods\": []");
+                    printf("             ],\n");
+                } else printf("            \"methods\": [],");
 
                 if (info.is_template) {
-                    printf(",\n");
                     printf("            \"ast\": ");
                     ffi::TemplateType* tt = (ffi::TemplateType*)t;
                     tt->getAST()->json(3);
                     printf("\n");
-                } else printf("\n");
+                } else printf("            \"ast\": null\n");
                 
                 printf("        }%s\n", (i == types.size() - 1) ? "" : ",");
             }
@@ -326,7 +410,7 @@ void handleAST(Context* ctx, ast_node* n) {
                         "ectx_ptr",
                         "this_ptr",
                         "value",
-                        "ptr"
+                        "pointer"
                     };
                     
                     for (u8 a = 0;a < args.size();a++) {

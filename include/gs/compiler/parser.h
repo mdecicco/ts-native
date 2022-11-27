@@ -164,7 +164,7 @@ namespace gs {
         };
 
         struct ast_node {
-            const token* tok;
+            token tok;
             node_type tp;
             literal_type value_tp;
             expr_operator op;
@@ -180,7 +180,8 @@ namespace gs {
             } value;
 
             utils::String str() const;
-            void json(u32 indent = 0, u32 index = 0, bool noIndentOpenBrace = true) const;
+            void computeSourceLocationLength();
+            void json(u32 indent = 0, u32 index = 0, bool noIndentOpenBrace = true);
             ast_node* clone(bool copyNext = false);
 
             struct {

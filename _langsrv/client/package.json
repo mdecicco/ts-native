@@ -1,0 +1,22 @@
+{
+	"name": "gs-lang-client",
+	"description": "Language client for TS++",
+	"author": "Michael DeCicco",
+	"license": "MIT",
+	"version": "0.0.1",
+	"publisher": "",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/mdecicco/gjs.git"
+	},
+	"engines": {
+		"vscode": "^1.63.0"
+	},
+	"dependencies": {
+		"vscode-languageclient": "^7.0.0"
+	},
+	"devDependencies": {
+		"@types/vscode": "^1.63.0",
+		"@vscode/test-electron": "^2.1.2"
+	}
+}

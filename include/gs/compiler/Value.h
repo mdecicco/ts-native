@@ -154,7 +154,8 @@ namespace gs {
                     ir_instruction _d,
                     const char* overrideName,
                     bool resultIsPreOp = false,
-                    bool assignmentOp = false
+                    bool assignmentOp = false,
+                    bool noResultReg = false
                 ) const;
 
                 FunctionDef* m_func;

@@ -7,6 +7,7 @@ namespace gs {
     namespace ffi {
         Function::Function(const utils::String& name, FunctionType* signature, access_modifier access, void* address, void* wrapperAddr) {
             m_fullyQualifiedName = signature ? signature->generateFullyQualifiedFunctionName(name) : "";
+            m_displayName = signature ? signature->generateFunctionDisplayName(name) : "";
             m_id = -1;
             m_name = name;
             m_signature = signature;
@@ -27,6 +28,10 @@ namespace gs {
         const utils::String& Function::getName() const {
             return m_name;
         }
+        
+        const utils::String& Function::getDisplayName() const {
+            return m_displayName;
+        }
 
         const utils::String& Function::getFullyQualifiedName() const {
             return m_fullyQualifiedName;
@@ -34,6 +39,10 @@ namespace gs {
 
         FunctionType* Function::getSignature() const {
             return m_signature;
+        }
+        
+        const SourceLocation& Function::getSource() const {
+            return m_src;
         }
 
         bool Function::isMethod() const {
@@ -70,6 +79,7 @@ namespace gs {
             FunctionType* sig = getSignature();
             sig->setThisType(tp);
             m_fullyQualifiedName = sig->generateFullyQualifiedFunctionName(tp->getFullyQualifiedName() + "::" + m_name);
+            m_displayName = sig->generateFunctionDisplayName(tp->getName() + "::" + m_name);
         }
 
 

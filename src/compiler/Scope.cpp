@@ -12,7 +12,7 @@ namespace gs {
         // Scope
         //
 
-        Scope::Scope(Compiler* comp, Scope* parent) : m_parent(parent), m_comp(comp) {
+        Scope::Scope(Compiler* comp, Scope* parent) : m_parent(parent), m_comp(comp), m_scopeOriginNode(comp->currentNode()) {
         }
 
         Scope::~Scope() {
@@ -30,6 +30,7 @@ namespace gs {
 
             m_symbols[name] = { { v } };
             m_namedVars.push(v);
+            m_comp->getOutput()->addSymbolLifetime(name, m_scopeOriginNode, *v);
         }
 
         void Scope::add(const utils::String& name, ffi::DataType* t) {

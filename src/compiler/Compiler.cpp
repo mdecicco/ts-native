@@ -25,7 +25,7 @@ namespace gs {
             utils::String out;
             for (u32 i = 0;i < args.size();i++) {
                 if (i > 0) out += ", ";
-                out += args[i].getType()->getFullyQualifiedName();
+                out += args[i].getType()->getName();
             }
             return out;
         }
@@ -34,7 +34,7 @@ namespace gs {
             utils::String out;
             for (u32 i = 0;i < argTps.size();i++) {
                 if (i > 0) out += ", ";
-                out += argTps[i]->getFullyQualifiedName();
+                out += argTps[i]->getName();
             }
             return out;
         }
@@ -53,6 +53,10 @@ namespace gs {
         CompilerOutput::~CompilerOutput() {
             m_allFuncDefs.each([](FunctionDef* f) {
                 delete f;
+            });
+
+            m_symbolLifetimes.each([](const symbol_lifetime& s) {
+                delete s.sym;
             });
 
             // Types are someone else's responsibility now
@@ -111,6 +115,24 @@ namespace gs {
             m_comp->scope().add(as, tp);
         }
 
+        u32 CompilerOutput::addSymbolLifetime(const utils::String& name, ast_node* scopeRoot, const Value& v) {
+            ast_node* n = m_comp->currentNode();
+            scopeRoot->computeSourceLocationLength();
+
+            m_symbolLifetimes.push({
+                name,
+                new Value(v),
+                n->tok.src.getLine() > scopeRoot->tok.src.getLine() ? scopeRoot->tok.src : n->tok.src,
+                scopeRoot->tok.src.getEndLocation()
+            });
+            
+            return m_symbolLifetimes.size() - 1;
+        }
+
+        const utils::Array<symbol_lifetime>& CompilerOutput::getSymbolLifetimeData() const {
+            return m_symbolLifetimes;
+        }
+
         const utils::Array<FunctionDef*>& CompilerOutput::getFuncs() const {
             return m_funcs;
         }
@@ -143,6 +165,7 @@ namespace gs {
         }
 
         void Compiler::enterNode(ast_node* n) {
+            n->computeSourceLocationLength();
             m_nodeStack.push(n);
         }
 
@@ -159,7 +182,9 @@ namespace gs {
 
         Function* Compiler::exitFunction() {
             if (m_funcStack.size() == 0) return nullptr;
-            Function* fn = m_funcStack[m_funcStack.size() - 1]->onExit();
+            FunctionDef* fd = m_funcStack.last();
+            Function* fn = fd->onExit();
+            fn->m_src = fd->getSource();
             m_funcStack.pop();
             m_scopeMgr.exit();
             if (m_funcStack.size() == 0) m_curFunc = nullptr;
@@ -175,12 +200,16 @@ namespace gs {
             return m_curClass;
         }
 
+        ast_node* Compiler::currentNode() {
+            return m_nodeStack.last();
+        }
+
         bool Compiler::inInitFunction() const {
             return m_funcStack.size() == 1;
         }
 
         const SourceLocation& Compiler::getCurrentSrc() const {
-            return m_nodeStack[m_nodeStack.size() - 1]->tok->src;
+            return m_nodeStack[m_nodeStack.size() - 1]->tok.src;
         }
 
         ScopeManager& Compiler::scope() {
@@ -233,13 +262,21 @@ namespace gs {
         void Compiler::updateMethod(DataType* classTp, Method* m) {
             m->setThisType(classTp);
         }
+        
+        static compilation_message null_msg = {
+            cmt_error,
+            (compilation_message_code)0,
+            utils::String(),
+            SourceLocation(),
+            nullptr
+        };
 
-        void Compiler::typeError(ffi::DataType* tp, compilation_message_code code, const char* msg, ...) {
+        compilation_message& Compiler::typeError(ffi::DataType* tp, compilation_message_code code, const char* msg, ...) {
             if (tp->isEqualTo(currentFunction()->getPoison().getType())) {
                 // If the type is poisoned, an error was already emitted. All (or most) subsequent
                 // errors would not actually be errors if the original error had not occurred. This
                 // should prevent a cascade of irrelevant errors.
-                return;
+                return null_msg;
             }
 
             char out[1024] = { 0 };
@@ -248,20 +285,24 @@ namespace gs {
             i32 len = vsnprintf(out, 1024, msg, l);
             va_end(l);
 
+            ast_node* n = m_nodeStack.last();
             m_messages.push({
                 cmt_error,
                 code,
                 utils::String(out, len),
-                m_nodeStack.last()->clone()
+                n->tok.src,
+                n->clone()
             });
+
+            return m_messages.last();
         }
 
-        void Compiler::typeError(ast_node* node, ffi::DataType* tp, compilation_message_code code, const char* msg, ...) {
+        compilation_message& Compiler::typeError(ast_node* node, ffi::DataType* tp, compilation_message_code code, const char* msg, ...) {
             if (tp->isEqualTo(currentFunction()->getPoison().getType())) {
                 // If the type is poisoned, an error was already emitted. All (or most) subsequent
                 // errors would not actually be errors if the original error had not occurred. This
                 // should prevent a cascade of irrelevant errors.
-                return;
+                return null_msg;
             }
 
             char out[1024] = { 0 };
@@ -274,16 +315,19 @@ namespace gs {
                 cmt_error,
                 code,
                 utils::String(out, len),
+                node->tok.src,
                 node->clone()
             });
+
+            return m_messages.last();
         }
 
-        void Compiler::valueError(const Value& val, compilation_message_code code, const char* msg, ...) {
+        compilation_message& Compiler::valueError(const Value& val, compilation_message_code code, const char* msg, ...) {
             if (val.getType()->isEqualTo(currentFunction()->getPoison().getType())) {
                 // If the type is poisoned, an error was already emitted. All (or most) subsequent
                 // errors would not actually be errors if the original error had not occurred. This
                 // should prevent a cascade of irrelevant errors.
-                return;
+                return null_msg;
             }
 
             char out[1024] = { 0 };
@@ -292,20 +336,24 @@ namespace gs {
             i32 len = vsnprintf(out, 1024, msg, l);
             va_end(l);
             
+            ast_node* n = m_nodeStack.last();
             m_messages.push({
                 cmt_error,
                 code,
                 utils::String(out, len),
-                m_nodeStack.last()->clone()
+                n->tok.src,
+                n->clone()
             });
+
+            return m_messages.last();
         }
 
-        void Compiler::valueError(ast_node* node, const Value& val, compilation_message_code code, const char* msg, ...) {
+        compilation_message& Compiler::valueError(ast_node* node, const Value& val, compilation_message_code code, const char* msg, ...) {
             if (val.getType()->isEqualTo(currentFunction()->getPoison().getType())) {
                 // If the type is poisoned, an error was already emitted. All (or most) subsequent
                 // errors would not actually be errors if the original error had not occurred. This
                 // should prevent a cascade of irrelevant errors.
-                return;
+                return null_msg;
             }
 
             char out[1024] = { 0 };
@@ -318,20 +366,23 @@ namespace gs {
                 cmt_error,
                 code,
                 utils::String(out, len),
+                node->tok.src,
                 node->clone()
             });
+
+            return m_messages.last();
         }
 
-        void Compiler::functionError(ffi::DataType* selfTp, ffi::DataType* retTp, const utils::Array<Value>& args, compilation_message_code code, const char* msg, ...) {
+        compilation_message& Compiler::functionError(ffi::DataType* selfTp, ffi::DataType* retTp, const utils::Array<Value>& args, compilation_message_code code, const char* msg, ...) {
             // If any of the involved types are poisoned, an error was already emitted. All
             // (or most) subsequent errors would not actually be errors if the original error
             // had not occurred. This should prevent a cascade of irrelevant errors.
             ffi::DataType* poisonTp = currentFunction()->getPoison().getType();
 
-            if (retTp && retTp->isEqualTo(poisonTp)) return;
-            if (selfTp && selfTp->isEqualTo(poisonTp)) return;
+            if (retTp && retTp->isEqualTo(poisonTp)) return null_msg;
+            if (selfTp && selfTp->isEqualTo(poisonTp)) return null_msg;
             for (u32 i = 0;i < args.size();i++) {
-                if (args[i].getType()->isEqualTo(poisonTp)) return;
+                if (args[i].getType()->isEqualTo(poisonTp)) return null_msg;
             }
             
             char out[1024] = { 0 };
@@ -339,25 +390,29 @@ namespace gs {
             va_start(l, msg);
             i32 len = vsnprintf(out, 1024, msg, l);
             va_end(l);
-            
+
+            ast_node* n = m_nodeStack.last();
             m_messages.push({
                 cmt_error,
                 code,
                 utils::String(out, len),
-                m_nodeStack.last()->clone()
+                n->tok.src,
+                n->clone()
             });
+
+            return m_messages.last();
         }
 
-        void Compiler::functionError(ast_node* node, ffi::DataType* selfTp, ffi::DataType* retTp, const utils::Array<Value>& args, compilation_message_code code, const char* msg, ...) {
+        compilation_message& Compiler::functionError(ast_node* node, ffi::DataType* selfTp, ffi::DataType* retTp, const utils::Array<Value>& args, compilation_message_code code, const char* msg, ...) {
             // If any of the involved types are poisoned, an error was already emitted. All
             // (or most) subsequent errors would not actually be errors if the original error
             // had not occurred. This should prevent a cascade of irrelevant errors.
             ffi::DataType* poisonTp = currentFunction()->getPoison().getType();
 
-            if (retTp && retTp->isEqualTo(poisonTp)) return;
-            if (selfTp && selfTp->isEqualTo(poisonTp)) return;
+            if (retTp && retTp->isEqualTo(poisonTp)) return null_msg;
+            if (selfTp && selfTp->isEqualTo(poisonTp)) return null_msg;
             for (u32 i = 0;i < args.size();i++) {
-                if (args[i].getType()->isEqualTo(poisonTp)) return;
+                if (args[i].getType()->isEqualTo(poisonTp)) return null_msg;
             }
 
             char out[1024] = { 0 };
@@ -370,20 +425,23 @@ namespace gs {
                 cmt_error,
                 code,
                 utils::String(out, len),
+                node->tok.src,
                 node->clone()
             });
+
+            return m_messages.last();
         }
 
-        void Compiler::functionError(ffi::DataType* selfTp, ffi::DataType* retTp, const utils::Array<const ffi::DataType*>& argTps, compilation_message_code code, const char* msg, ...) {
+        compilation_message& Compiler::functionError(ffi::DataType* selfTp, ffi::DataType* retTp, const utils::Array<const ffi::DataType*>& argTps, compilation_message_code code, const char* msg, ...) {
             // If any of the involved types are poisoned, an error was already emitted. All
             // (or most) subsequent errors would not actually be errors if the original error
             // had not occurred. This should prevent a cascade of irrelevant errors.
             ffi::DataType* poisonTp = currentFunction()->getPoison().getType();
 
-            if (retTp && retTp->isEqualTo(poisonTp)) return;
-            if (selfTp && selfTp->isEqualTo(poisonTp)) return;
+            if (retTp && retTp->isEqualTo(poisonTp)) return null_msg;
+            if (selfTp && selfTp->isEqualTo(poisonTp)) return null_msg;
             for (u32 i = 0;i < argTps.size();i++) {
-                if (argTps[i]->isEqualTo(poisonTp)) return;
+                if (argTps[i]->isEqualTo(poisonTp)) return null_msg;
             }
 
             char out[1024] = { 0 };
@@ -391,25 +449,29 @@ namespace gs {
             va_start(l, msg);
             i32 len = vsnprintf(out, 1024, msg, l);
             va_end(l);
-            
+
+            ast_node* n = m_nodeStack.last();
             m_messages.push({
                 cmt_error,
                 code,
                 utils::String(out, len),
-                m_nodeStack.last()->clone()
+                n->tok.src,
+                n->clone()
             });
+
+            return m_messages.last();
         }
 
-        void Compiler::functionError(ast_node* node, ffi::DataType* selfTp, ffi::DataType* retTp, const utils::Array<const ffi::DataType*>& argTps, compilation_message_code code, const char* msg, ...) {
+        compilation_message& Compiler::functionError(ast_node* node, ffi::DataType* selfTp, ffi::DataType* retTp, const utils::Array<const ffi::DataType*>& argTps, compilation_message_code code, const char* msg, ...) {
             // If any of the involved types are poisoned, an error was already emitted. All
             // (or most) subsequent errors would not actually be errors if the original error
             // had not occurred. This should prevent a cascade of irrelevant errors.
             ffi::DataType* poisonTp = currentFunction()->getPoison().getType();
 
-            if (retTp && retTp->isEqualTo(poisonTp)) return;
-            if (selfTp && selfTp->isEqualTo(poisonTp)) return;
+            if (retTp && retTp->isEqualTo(poisonTp)) return null_msg;
+            if (selfTp && selfTp->isEqualTo(poisonTp)) return null_msg;
             for (u32 i = 0;i < argTps.size();i++) {
-                if (argTps[i]->isEqualTo(poisonTp)) return;
+                if (argTps[i]->isEqualTo(poisonTp)) return null_msg;
             }
 
             char out[1024] = { 0 };
@@ -422,26 +484,33 @@ namespace gs {
                 cmt_error,
                 code,
                 utils::String(out, len),
+                node->tok.src,
                 node->clone()
             });
+
+            return m_messages.last();
         }
 
-        void Compiler::error(compilation_message_code code, const char* msg, ...) {
+        compilation_message& Compiler::error(compilation_message_code code, const char* msg, ...) {
             char out[1024] = { 0 };
             va_list l;
             va_start(l, msg);
             i32 len = vsnprintf(out, 1024, msg, l);
             va_end(l);
-            
+
+            ast_node* n = m_nodeStack.last();
             m_messages.push({
                 cmt_error,
                 code,
                 utils::String(out, len),
-                m_nodeStack.last()->clone()
+                n->tok.src,
+                n->clone()
             });
+
+            return m_messages.last();
         }
         
-        void Compiler::error(ast_node* node, compilation_message_code code, const char* msg, ...) {
+        compilation_message& Compiler::error(ast_node* node, compilation_message_code code, const char* msg, ...) {
             char out[1024] = { 0 };
             va_list l;
             va_start(l, msg);
@@ -452,11 +521,33 @@ namespace gs {
                 cmt_error,
                 code,
                 utils::String(out, len),
+                node->tok.src,
                 node->clone()
             });
+
+            return m_messages.last();
         }
 
-        void Compiler::warn(compilation_message_code code, const char* msg, ...) {
+        compilation_message& Compiler::warn(compilation_message_code code, const char* msg, ...) {
+            char out[1024] = { 0 };
+            va_list l;
+            va_start(l, msg);
+            i32 len = vsnprintf(out, 1024, msg, l);
+            va_end(l);
+
+            ast_node* n = m_nodeStack.last();
+            m_messages.push({
+                cmt_warn,
+                code,
+                utils::String(out, len),
+                n->tok.src,
+                n->clone()
+            });
+
+            return m_messages.last();
+        }
+
+        compilation_message& Compiler::warn(ast_node* node, compilation_message_code code, const char* msg, ...) {
             char out[1024] = { 0 };
             va_list l;
             va_start(l, msg);
@@ -467,26 +558,33 @@ namespace gs {
                 cmt_warn,
                 code,
                 utils::String(out, len),
-                m_nodeStack.last()->clone()
+                node->tok.src,
+                node->clone()
             });
+
+            return m_messages.last();
         }
 
-        void Compiler::warn(ast_node* node, compilation_message_code code, const char* msg, ...) {
+        compilation_message& Compiler::info(compilation_message_code code, const char* msg, ...) {
             char out[1024] = { 0 };
             va_list l;
             va_start(l, msg);
             i32 len = vsnprintf(out, 1024, msg, l);
             va_end(l);
-            
+
+            ast_node* n = m_nodeStack.last();
             m_messages.push({
-                cmt_warn,
+                cmt_info,
                 code,
                 utils::String(out, len),
-                node->clone()
+                n->tok.src,
+                n->clone()
             });
+
+            return m_messages.last();
         }
 
-        void Compiler::info(compilation_message_code code, const char* msg, ...) {
+        compilation_message& Compiler::info(ast_node* node, compilation_message_code code, const char* msg, ...) {
             char out[1024] = { 0 };
             va_list l;
             va_start(l, msg);
@@ -497,23 +595,11 @@ namespace gs {
                 cmt_info,
                 code,
                 utils::String(out, len),
-                m_nodeStack.last()->clone()
-            });
-        }
-
-        void Compiler::info(ast_node* node, compilation_message_code code, const char* msg, ...) {
-            char out[1024] = { 0 };
-            va_list l;
-            va_start(l, msg);
-            i32 len = vsnprintf(out, 1024, msg, l);
-            va_end(l);
-            
-            m_messages.push({
-                cmt_info,
-                code,
-                utils::String(out, len),
+                node->tok.src,
                 node->clone()
             });
+
+            return m_messages.last();
         }
 
         const utils::Array<compilation_message>& Compiler::getLogs() const {
@@ -532,7 +618,7 @@ namespace gs {
             Array<Function *> ctors = tp->findMethods("constructor", nullptr, (const DataType**)argTps.data(), argTps.size(), fm_skip_implicit_args);
             if (ctors.size() == 1) {
                 if (ctors[0]->getAccessModifier() == private_access && (!m_curClass || !m_curClass->isEqualTo(tp))) {
-                    error(cm_err_private_constructor, "Constructor '%s' is private", ctors[0]->getFullyQualifiedName().c_str());
+                    error(cm_err_private_constructor, "Constructor '%s' is private", ctors[0]->getDisplayName().c_str());
                     return;
                 } else generateCall(ctors[0], args, &dest);
             } else if (ctors.size() > 1) {
@@ -554,7 +640,7 @@ namespace gs {
                         args,
                         cm_err_no_matching_constructor,
                         "Type '%s' has no accessible constructor with arguments matching '%s'",
-                        tp->getFullyQualifiedName().c_str(),
+                        tp->getName().c_str(),
                         argListStr(args).c_str()
                     );
                     return;
@@ -595,7 +681,7 @@ namespace gs {
                     args,
                     cm_err_ambiguous_constructor,
                     "Call to construct object of type '%s' with arguments '%s' is ambiguous",
-                    tp->getFullyQualifiedName().c_str(),
+                    tp->getName().c_str(),
                     argListStr(args).c_str()
                 );
 
@@ -604,8 +690,8 @@ namespace gs {
                     info(
                         cm_info_could_be,
                         "^ Could be: '%s'",
-                        ((ffi::FunctionType*)ctors[i]->getSignature())->generateFullyQualifiedFunctionName(ctors[i]->getName()).c_str()
-                    );
+                        ctors[i]->getDisplayName().c_str()
+                    ).src = ctors[i]->getSource();
                 }
             } else {
                 functionError(
@@ -614,7 +700,7 @@ namespace gs {
                     args,
                     cm_err_no_matching_constructor,
                     "Type '%s' has no constructor with arguments matching '%s'",
-                    tp->getFullyQualifiedName().c_str(),
+                    tp->getName().c_str(),
                     argListStr(args).c_str()
                 );
             }
@@ -697,8 +783,8 @@ namespace gs {
                     info(
                         cm_info_arg_conversion,
                         "^ No conversion found from type '%s' to type '%s' for argument %d",
-                        args[aidx].getType()->getFullyQualifiedName().c_str(),
-                        ainfo.dataType->getFullyQualifiedName().c_str(),
+                        args[aidx].getType()->getName().c_str(),
+                        ainfo.dataType->getName().c_str(),
                         aidx + 1
                     );
 
@@ -830,7 +916,6 @@ namespace gs {
             return nullptr;
         }
         DataType* Compiler::resolveTemplateTypeSubstitution(ast_node* templateArgs, DataType* _type) {
-            enterNode(templateArgs);
             if (!_type->getInfo().is_template) {
                 typeError(
                     _type,
@@ -839,15 +924,14 @@ namespace gs {
                     _type->getName().c_str()
                 );
 
-                exitNode();
                 return currentFunction()->getPoison().getType();
             }
 
             TemplateType* type = (TemplateType*)_type;
 
-            Scope& s = scope().enter();
-
             ast_node* tpAst = type->getAST();
+            enterNode(tpAst);
+            Scope& s = scope().enter();
 
             // Add template parameters to symbol table, representing the provided arguments
             // ...Also construct type name
@@ -1136,6 +1220,7 @@ namespace gs {
         }
 
         DataType* Compiler::compileType(ast_node* n) {
+            enterNode(n);
             DataType* tp = nullptr;
             String name = n->str();
 
@@ -1153,6 +1238,7 @@ namespace gs {
                 }
             }
 
+            exitNode();
             return tp;
         }
         void Compiler::compileMethodDef(ast_node* n, DataType* methodOf, Method* m) {
@@ -1264,7 +1350,7 @@ namespace gs {
                     error(
                         cm_err_dtor_already_exists,
                         "Destructor already exists for type '%s'",
-                        currentClass()->getFullyQualifiedName().c_str()
+                        currentClass()->getName().c_str()
                     );
                 }
             } else if (name == "constructor") {
@@ -1298,7 +1384,7 @@ namespace gs {
                         "No type specified for argument '%s' of method '%s' of class '%s'",
                         p->str().c_str(),
                         name.c_str(),
-                        currentClass()->getFullyQualifiedName().c_str()
+                        currentClass()->getName().c_str()
                     );
                 } else argTp = resolveTypeSpecifier(p->data_type);
 
@@ -1399,6 +1485,7 @@ namespace gs {
             tp->setAccessModifier(private_access);
             m_curClass = tp;
             m_output->add(tp);
+            scope().enter();
             
             ast_node* inherits = n->inheritance;
             while (inherits) {
@@ -1446,6 +1533,7 @@ namespace gs {
 
                 bool isDtor = false;
                 Method* m = compileMethodDecl(meth, thisOffset, &isDtor, false, tp->getDestructor() != nullptr);
+                m->m_src = meth->tok.src;
 
                 if (isDtor) tp->setDestructor(m);
                 else tp->addMethod(m);
@@ -1469,6 +1557,7 @@ namespace gs {
                 meth = meth->next;
             }
             m_curClass = nullptr;
+            scope().exit();
             exitNode();
 
             return tp;
@@ -1476,7 +1565,6 @@ namespace gs {
         Function* Compiler::compileFunction(ast_node* n, bool templatesDefined) {
             enterNode(n);
             utils::String name = n->str();
-            String fullName = getOutput()->getModule()->getName() + "::" + name;
             
             if (n->template_parameters) {
                 if (!templatesDefined) {
@@ -1485,6 +1573,8 @@ namespace gs {
                         n->flags.is_private ? private_access : public_access,
                         n->clone()
                     );
+                    
+                    f->m_src = n->tok.src;
                     m_output->newFunc(f);
                     exitNode();
                     return f;
@@ -1540,36 +1630,46 @@ namespace gs {
             return out;
         }
         void Compiler::compileExport(ast_node* n) {
+            enterNode(n);
             if (!inInitFunction()) {
                 error(cm_err_export_not_in_root_scope, "'export' keyword encountered outside of root scope");
+                exitNode();
                 return;
             }
 
             if (n->body->tp == nt_type) {
                 compileType(n->body)->setAccessModifier(public_access);
+                exitNode();
                 return;
             } else if (n->body->tp == nt_function) {
                 compileFunction(n->body)->setAccessModifier(public_access);
+                exitNode();
                 return;
             } else if (n->body->tp == nt_variable) {
                 u32 slot = 0;
                 Value& var = compileVarDecl(n->body, &slot);
                 m_output->getModule()->setDataAccess(slot, public_access);
+                exitNode();
                 return;
             } else if (n->body->tp == nt_class) {
                 compileClass(n->body)->setAccessModifier(public_access);
+                exitNode();
                 return;
             }
 
             error(cm_err_export_invalid, "Expected type, function, class, or variable");
+            exitNode();
         }
         void Compiler::compileImport(ast_node* n) {
+            enterNode(n);
             if (!inInitFunction()) {
                 error(cm_err_import_not_in_root_scope, "'import' keyword encountered outside of root scope");
+                exitNode();
                 return;
             }
 
             // todo
+            exitNode();
         }
         Value Compiler::compileConditionalExpr(ast_node* n) {
             FunctionDef* cf = currentFunction();
@@ -1884,7 +1984,7 @@ namespace gs {
                     cm_err_function_must_return_a_value,
                     "Function '%s' must return a value of type '%s'",
                     currentFunction()->getName().c_str(),
-                    retTp->getFullyQualifiedName().c_str()
+                    retTp->getName().c_str()
                 );
                 add(ir_ret).op(currentFunction()->getPoison());
                 exitNode();
@@ -1995,15 +2095,15 @@ namespace gs {
 
                 m_lsStack.last().pending_end_label.push(add(ir_branch).op(condBool).label(cf->label()));
 
+                scope().enter();
+                compileAny(n->body);
+                scope().exit();
+
                 if (n->modifier) {
                     scope().enter();
                     compileExpression(n->modifier);
                     scope().exit();
                 }
-
-                scope().enter();
-                compileAny(n->body);
-                scope().exit();
 
                 add(ir_jump).label(loop_begin);
             } else {

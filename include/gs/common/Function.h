@@ -1,5 +1,6 @@
 #pragma once
 #include <gs/common/types.h>
+#include <gs/utils/SourceLocation.h>
 #include <utils/String.h>
 
 namespace gs {
@@ -21,8 +22,10 @@ namespace gs {
 
                 function_id getId() const;
                 const utils::String& getName() const;
+                const utils::String& getDisplayName() const;
                 const utils::String& getFullyQualifiedName() const;
                 FunctionType* getSignature() const;
+                const SourceLocation& getSource() const;
                 access_modifier getAccessModifier() const;
                 void setAccessModifier(access_modifier access);
                 bool isMethod() const;
@@ -57,11 +60,13 @@ namespace gs {
                 void setThisType(DataType* tp);
                 bool m_isMethod;
                 bool m_isTemplate;
+                SourceLocation m_src;
             
             private:
                 friend class FunctionRegistry;
                 function_id m_id;
                 utils::String m_name;
+                utils::String m_displayName;
                 utils::String m_fullyQualifiedName;
                 FunctionType* m_signature;
                 access_modifier m_access;

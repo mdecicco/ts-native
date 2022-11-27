@@ -25,7 +25,52 @@ namespace gs {
             va_end(l);    
         }
         
-        void ast_node::json(u32 indent, u32 index, bool noIndentOpenBrace) const {
+        void getNodeEndLoc(const ast_node* n, SourceLocation* out, bool ignoreNext = true) {
+            if (!n) return;
+
+            if (n->tok.src.getLine() > out->getLine()) {
+                *out = SourceLocation(
+                    n->tok.src.getSource(),
+                    n->tok.src.getLine(),
+                    n->tok.src.getCol() + n->tok.text.size()
+                );
+            } else if (n->tok.src.getLine() == out->getLine() && n->tok.src.getCol() + n->tok.text.size() > out->getCol()) {
+                *out = SourceLocation(
+                    n->tok.src.getSource(),
+                    n->tok.src.getLine(),
+                    n->tok.src.getCol() + n->tok.text.size()
+                );
+            }
+            
+            getNodeEndLoc(n->data_type, out, false);
+            getNodeEndLoc(n->lvalue, out, false);
+            getNodeEndLoc(n->rvalue, out, false);
+            getNodeEndLoc(n->cond, out, false);
+            getNodeEndLoc(n->body, out, false);
+            getNodeEndLoc(n->else_body, out, false);
+            getNodeEndLoc(n->initializer, out, false);
+            getNodeEndLoc(n->parameters, out, false);
+            getNodeEndLoc(n->template_parameters, out, false);
+            getNodeEndLoc(n->modifier, out, false);
+            getNodeEndLoc(n->alias, out, false);
+            getNodeEndLoc(n->inheritance, out, false);
+
+
+            if (!ignoreNext) getNodeEndLoc(n->next, out, false);
+        }
+
+        void ast_node::computeSourceLocationLength() {
+            if (tok.src.m_length > 0) return;
+
+            SourceLocation end = tok.src;
+            getNodeEndLoc(this, &end);
+            
+            tok.src.m_length = end.getOffset() - tok.src.getOffset();
+            tok.src.m_endLine = end.m_line;
+            tok.src.m_endCol = end.m_col;
+        }
+
+        void ast_node::json(u32 indent, u32 index, bool noIndentOpenBrace) {
             static const char* nts[] = {
                 "empty",
                 "root",
@@ -143,8 +188,10 @@ namespace gs {
             indent++;
             iprintf(indent, "\"type\": \"%s\",\n", nts[tp]);
 
-            if (tok && tok->src.isValid()) {
-                utils::String ln = tok->src.getSource()->getLine(tok->src.getLine()).clone();
+            if (tok.src.isValid()) {
+                computeSourceLocationLength();
+
+                utils::String ln = tok.src.getSource()->getLine(tok.src.getLine()).clone();
                 ln.replaceAll("\n", "");
                 ln.replaceAll("\r", "");
                 u32 wsc = 0;
@@ -153,13 +200,31 @@ namespace gs {
                     break;
                 }
 
-                iprintf(indent, "\"source\": {\n");
-                iprintf(indent + 1, "\"line\": %d,\n", tok->src.getLine());
-                iprintf(indent + 1, "\"col\": %d,\n", tok->src.getCol());
-                iprintf(indent + 1, "\"line_text\": \"%s\",\n", ln.c_str() + wsc);
+                SourceLocation end = tok.src.getEndLocation();
+                u32 baseOffset = tok.src.getOffset();
+                u32 endOffset = end.getOffset();
+
                 utils::String indxStr = "";
-                for (u32 i = 0;i < (tok->src.getCol() - wsc);i++) indxStr += ' ';
-                indxStr += '^';
+                for (u32 i = 0;i < (tok.src.getCol() - wsc);i++) indxStr += ' ';
+                for (u32 i = 0;i < (endOffset - baseOffset) && indxStr.size() < (ln.size() - wsc);i++) {
+                    indxStr += '^';
+                }
+
+
+                iprintf(indent, "\"source\": {\n");
+                iprintf(indent + 1, "\"range\": {\n");
+                iprintf(indent + 1, "    \"start\": {\n");
+                iprintf(indent + 1, "        \"line\": %d,\n", tok.src.getLine());
+                iprintf(indent + 1, "        \"col\": %d,\n", tok.src.getCol());
+                iprintf(indent + 1, "        \"offset\": %d\n", baseOffset);
+                iprintf(indent + 1, "    },\n");
+                iprintf(indent + 1, "    \"end\": {\n");
+                iprintf(indent + 1, "        \"line\": %d,\n", end.getLine());
+                iprintf(indent + 1, "        \"col\": %d,\n", end.getCol());
+                iprintf(indent + 1, "        \"offset\": %d\n", endOffset);
+                iprintf(indent + 1, "    }\n");
+                iprintf(indent + 1, "},\n");
+                iprintf(indent + 1, "\"line_text\": \"%s\",\n", ln.c_str() + wsc);
                 iprintf(indent + 1, "\"indx_text\": \"%s\"\n", indxStr.c_str());
                 iprintf(indent, "}");
             } else {
@@ -241,7 +306,7 @@ namespace gs {
             if (flags.is_private) printf("%s\"is_private\"", (i++) > 0 ? ", " : "");
             if (flags.is_array) printf("%s\"is_array\"", (i++) > 0 ? ", " : "");
             if (flags.is_pointer) printf("%s\"is_pointer\"", (i++) > 0 ? ", " : "");
-            if (flags.defer_cond) printf("%s\"defecond\"", (i++) > 0 ? ", " : "");
+            if (flags.defer_cond) printf("%s\"defer_cond\"", (i++) > 0 ? ", " : "");
             printf("]");
 
             if (data_type) {
@@ -421,7 +486,7 @@ namespace gs {
             m_currentIdx.pop();
             m_currentErrorCount.pop();
 
-            if (m_currentErrorCount.size() > 0 && m_currentErrorCount.last() > m_errors.size()) {
+            if (m_currentErrorCount.size() > 0 && m_currentErrorCount.last() < m_errors.size()) {
                 m_errors.remove(m_currentErrorCount.last(), m_errors.size() - m_currentErrorCount.last());
             }
         }
@@ -453,7 +518,7 @@ namespace gs {
         
         ast_node* Parser::newNode(node_type tp, const token* src) {
             ast_node* n = m_nodeAlloc.alloc();
-            n->tok = src ? src : &get();
+            n->tok = src ? *src : get();
             n->tp = tp;
             return n;
         }
@@ -1094,7 +1159,7 @@ namespace gs {
                 return nullptr;
             }
 
-            n->tok = t;
+            n->tok = *t;
 
             ps->commit();
 
@@ -1111,7 +1176,7 @@ namespace gs {
             id->template_parameters = templateArgs(ps);
             id->modifier = typeModifier(ps);
 
-            ast_node* n = ps->newNode(nt_type_specifier, id->tok);
+            ast_node* n = ps->newNode(nt_type_specifier, &id->tok);
             n->body = id;
 
             return n;
@@ -2135,7 +2200,7 @@ namespace gs {
             ast_node* _assignable = one_of(ps, { typedAssignable, assignable, objectDecompositor });
             if (!_assignable) return nullptr;
 
-            ast_node* decl = ps->newNode(nt_variable, _assignable->tok);
+            ast_node* decl = ps->newNode(nt_variable, &_assignable->tok);
             decl->body = _assignable;
             if (ps->isSymbol("=")) {
                 ps->consume();
@@ -2163,7 +2228,7 @@ namespace gs {
             }
 
             f->flags.is_const = isConst ? 1 : 0;
-            f->tok = tok;
+            f->tok = *tok;
 
             ps->commit();
 
@@ -2285,7 +2350,7 @@ namespace gs {
             n->flags.is_static = isStatic ? 1 : 0;
             n->flags.is_getter = isGetter ? 1 : 0;
             n->flags.is_setter = isSetter ? 1 : 0;
-            n->tok = &ft;
+            n->tok = ft;
 
             if (!isGetter && !isSetter && ps->typeIs(tt_colon)) {
                 if (isOperator) {
@@ -2382,7 +2447,7 @@ namespace gs {
             ps->consume();
 
             ast_node* n = identifier(ps);
-            n->tok = &ft;
+            n->tok = ft;
             n->tp = nt_class;
             n->template_parameters = templateParams(ps);
 
@@ -2455,7 +2520,7 @@ namespace gs {
             ps->consume();
 
             n->tp = nt_type;
-            n->tok = t;
+            n->tok = *t;
             n->data_type = typeSpecifier(ps);
             if (!n->data_type) {
                 ps->error(pec_expected_type_specifier, utils::String::Format("Expected type specifier after 'type %s ='", n->str().c_str()));
@@ -2483,7 +2548,7 @@ namespace gs {
 
 
             n->tp = nt_function;
-            n->tok = t;
+            n->tok = *t;
             n->template_parameters = templateParams(ps);
             n->parameters = parameterList(ps);
             if (!n->parameters) {
@@ -3065,7 +3130,7 @@ namespace gs {
 
             if (!statements) return nullptr;
             
-            ast_node* root = ps->newNode(nt_root, statements->tok);
+            ast_node* root = ps->newNode(nt_root, &statements->tok);
             root->body = statements;
             return root;
         }

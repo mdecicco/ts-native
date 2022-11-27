@@ -199,6 +199,7 @@ namespace gs {
                 virtual ~FunctionType();
 
                 utils::String generateFullyQualifiedFunctionName(const utils::String& funcName);
+                utils::String generateFunctionDisplayName(const utils::String& funcName);
                 DataType* getReturnType() const;
                 const utils::Array<function_argument>& getArguments() const;
                 virtual bool isEquivalentTo(DataType* to) const;

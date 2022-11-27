@@ -70,7 +70,7 @@ namespace utils {
         }
 
         u32 slen = (u32)strlen(rhs);
-        u32 cap = slen > 32 ? slen + 32 : 32;
+        u32 cap = slen >= 32 ? slen + 32 : 32;
         if (slen > 0 && slen < m_capacity) {
             memcpy(m_data, rhs, slen);
             m_len = slen;
@@ -91,7 +91,7 @@ namespace utils {
             throw std::exception("Attempted to modify read-only string");
         }
 
-        u32 cap = u32(rhs.length() > 32 ? rhs.length() + 32 : 32);
+        u32 cap = u32(rhs.length() >= 32 ? rhs.length() + 32 : 32);
         if (rhs.length() > 0 && rhs.length() < m_capacity) {
             memcpy(m_data, rhs.c_str(), rhs.length());
             m_len = u32(rhs.length());
@@ -112,7 +112,7 @@ namespace utils {
             throw std::exception("Attempted to modify read-only string");
         }
 
-        u32 cap = u32(rhs.size() > 32 ? rhs.size() + 32 : 32);
+        u32 cap = u32(rhs.size() >= 32 ? rhs.size() + 32 : 32);
         if (rhs.size() > 0 && rhs.size() < m_capacity) {
             memcpy(m_data, rhs.m_data, rhs.m_len);
             m_len = rhs.m_len;

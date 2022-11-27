@@ -5,13 +5,14 @@ namespace gs {
     SourceLocation::SourceLocation() {
         m_ref = nullptr;
         m_linePtr = nullptr;
-        m_line = m_col = m_lineLen = 0;
+        m_line = m_col = m_lineLen = m_length = m_endLine = m_endCol = 0;
     }
 
     SourceLocation::SourceLocation(ProgramSource* src, u32 line, u32 col) {
         m_ref = src;
         m_line = line;
         m_col = col;
+        m_length = m_endLine = m_endCol = 0;
 
         if (src->getLineCount() <= line) {
             m_lineLen = 0;
@@ -44,6 +45,19 @@ namespace gs {
 
     u32 SourceLocation::getCol() const {
         return m_col;
+    }
+
+    u32 SourceLocation::getOffset() const {
+        return u32(m_ref->getLine(m_line).c_str() - m_ref->getRawCode().c_str()) + m_col;
+    }
+
+    u32 SourceLocation::getLength() const {
+        return m_length;
+    }
+    
+    SourceLocation SourceLocation::getEndLocation() const {
+        if (m_length == 0) return SourceLocation(m_ref, m_line, m_lineLen);
+        return SourceLocation(m_ref, m_endLine, m_endCol);
     }
 
     bool SourceLocation::isValid() const {

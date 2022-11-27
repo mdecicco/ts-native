@@ -21,6 +21,13 @@ namespace gs {
         class FunctionDef;
         class Compiler;
         class Value;
+        
+        struct symbol_lifetime {
+            utils::String name;
+            Value* sym;
+            SourceLocation begin;
+            SourceLocation end;
+        };
 
         class CompilerOutput {
             public:
@@ -35,14 +42,18 @@ namespace gs {
 
                 FunctionDef* import(ffi::Function* fn, const utils::String& as);
                 void import(ffi::DataType* fn, const utils::String& as);
+                u32 addSymbolLifetime(const utils::String& name, ast_node* scopeRoot, const Value& v);
+
                 const utils::Array<FunctionDef*>& getFuncs() const;
                 const utils::Array<ffi::DataType*>& getTypes() const;
+                const utils::Array<symbol_lifetime>& getSymbolLifetimeData() const;
 
                 Module* getModule();
 
             protected:
                 Compiler* m_comp;
                 Module* m_mod;
+                utils::Array<symbol_lifetime> m_symbolLifetimes;
                 utils::Array<FunctionDef*> m_funcs;
                 utils::Array<ffi::DataType*> m_types;
                 utils::Array<FunctionDef*> m_importedFuncs;
@@ -97,6 +108,8 @@ namespace gs {
             cm_err_type_scope,
             cm_err_type_not_convertible,
             cm_err_value_not_writable,
+            cm_err_type_used_as_value,
+            cm_err_module_used_as_value,
             cm_err_internal
         };
 
@@ -110,6 +123,7 @@ namespace gs {
             compilation_message_type type;
             compilation_message_code code;
             utils::String msg;
+            SourceLocation src;
             ast_node* node;
         };
 
@@ -138,6 +152,7 @@ namespace gs {
                 ffi::Function* exitFunction();
                 FunctionDef* currentFunction() const;
                 ffi::DataType* currentClass() const;
+                ast_node* currentNode();
                 bool inInitFunction() const;
 
                 const SourceLocation& getCurrentSrc() const;
@@ -148,20 +163,20 @@ namespace gs {
 
                 void updateMethod(ffi::DataType* classTp, ffi::Method* m);
 
-                void typeError(ffi::DataType* tp, compilation_message_code code, const char* msg, ...);
-                void typeError(ast_node* node, ffi::DataType* tp, compilation_message_code code, const char* msg, ...);
-                void valueError(const Value& val, compilation_message_code code, const char* msg, ...);
-                void valueError(ast_node* node, const Value& val, compilation_message_code code, const char* msg, ...);
-                void functionError(ffi::DataType* selfTp, ffi::DataType* retTp, const utils::Array<Value>& args, compilation_message_code code, const char* msg, ...);
-                void functionError(ast_node* node, ffi::DataType* selfTp, ffi::DataType* retTp, const utils::Array<Value>& args, compilation_message_code code, const char* msg, ...);
-                void functionError(ffi::DataType* selfTp, ffi::DataType* retTp, const utils::Array<const ffi::DataType*>& argTps, compilation_message_code code, const char* msg, ...);
-                void functionError(ast_node* node, ffi::DataType* selfTp, ffi::DataType* retTp, const utils::Array<const ffi::DataType*>& argTps, compilation_message_code code, const char* msg, ...);
-                void error(compilation_message_code code, const char* msg, ...);
-                void error(ast_node* node, compilation_message_code code, const char* msg, ...);
-                void warn(compilation_message_code code, const char* msg, ...);
-                void warn(ast_node* node, compilation_message_code code, const char* msg, ...);
-                void info(compilation_message_code code, const char* msg, ...);
-                void info(ast_node* node, compilation_message_code code, const char* msg, ...);
+                compilation_message& typeError(ffi::DataType* tp, compilation_message_code code, const char* msg, ...);
+                compilation_message& typeError(ast_node* node, ffi::DataType* tp, compilation_message_code code, const char* msg, ...);
+                compilation_message& valueError(const Value& val, compilation_message_code code, const char* msg, ...);
+                compilation_message& valueError(ast_node* node, const Value& val, compilation_message_code code, const char* msg, ...);
+                compilation_message& functionError(ffi::DataType* selfTp, ffi::DataType* retTp, const utils::Array<Value>& args, compilation_message_code code, const char* msg, ...);
+                compilation_message& functionError(ast_node* node, ffi::DataType* selfTp, ffi::DataType* retTp, const utils::Array<Value>& args, compilation_message_code code, const char* msg, ...);
+                compilation_message& functionError(ffi::DataType* selfTp, ffi::DataType* retTp, const utils::Array<const ffi::DataType*>& argTps, compilation_message_code code, const char* msg, ...);
+                compilation_message& functionError(ast_node* node, ffi::DataType* selfTp, ffi::DataType* retTp, const utils::Array<const ffi::DataType*>& argTps, compilation_message_code code, const char* msg, ...);
+                compilation_message& error(compilation_message_code code, const char* msg, ...);
+                compilation_message& error(ast_node* node, compilation_message_code code, const char* msg, ...);
+                compilation_message& warn(compilation_message_code code, const char* msg, ...);
+                compilation_message& warn(ast_node* node, compilation_message_code code, const char* msg, ...);
+                compilation_message& info(compilation_message_code code, const char* msg, ...);
+                compilation_message& info(ast_node* node, compilation_message_code code, const char* msg, ...);
                 const utils::Array<compilation_message>& getLogs() const;
 
             protected:

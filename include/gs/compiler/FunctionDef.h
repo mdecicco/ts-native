@@ -33,6 +33,7 @@ namespace gs {
                 void setThisType(ffi::DataType* tp);
                 ffi::DataType* getReturnType() const;
                 ffi::DataType* getThisType() const;
+                const SourceLocation& getSource() const;
 
                 u32 getArgCount() const;
                 u32 getImplicitArgCount() const;
@@ -78,6 +79,7 @@ namespace gs {
                 FunctionDef(Compiler* c, const utils::String& name, ffi::DataType* methodOf);
                 FunctionDef(Compiler* c, ffi::Function* func);
 
+                SourceLocation m_src;
                 Compiler* m_comp;
                 utils::String m_name;
                 ffi::DataType* m_retTp;

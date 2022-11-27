@@ -289,7 +289,7 @@ namespace gs {
             m_args.each([&name](const function_argument& arg, u32 idx) {
                 if (idx > 0) name += ",";
 
-                bool is_implicit = arg.argType == arg_type::this_ptr || arg.argType == arg_type::context_ptr;
+                bool is_implicit = arg.isImplicit();
                 bool is_ptr = is_implicit || arg.argType == arg_type::pointer;
 
                 if (is_implicit) name += "$";
@@ -297,6 +297,24 @@ namespace gs {
                 name += arg.dataType->m_fullyQualifiedName;
 
                 if (is_ptr) name += "*";
+            });
+
+            name += ")";
+
+            return name;
+        }
+
+        utils::String FunctionType::generateFunctionDisplayName(const utils::String& funcName) {
+            utils::String name = m_returnType->m_name + " " + funcName + "(";
+            u32 aidx = 0;
+            m_args.each([&name, &aidx](const function_argument& arg, u32 idx) {
+                if (arg.isImplicit()) return;
+                if (aidx > 0) name += ",";
+
+                name += arg.dataType->m_name;
+
+                if (arg.argType == arg_type::pointer) name += "*";
+                aidx++;
             });
 
             name += ")";
