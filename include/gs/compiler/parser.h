@@ -214,7 +214,7 @@ namespace gs {
             // if statements, try...catch
             ast_node* else_body;
 
-            // variable decl, loops
+            // variable decl, loops, object literal properties
             ast_node* initializer;
 
             // functions, function calls
