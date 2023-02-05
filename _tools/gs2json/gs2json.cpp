@@ -28,7 +28,7 @@ void initError(const char* err) {
     printf("            \"type\": \"error\",\n");
     printf("            \"range\": null,\n");
     printf("            \"line_txt\": null,\n");
-    printf("            \"line_idx\": null,");
+    printf("            \"line_idx\": null,\n");
     printf("            \"message\": \"%s\",\n", err);
     printf("            \"ast\": null\n");
     printf("        }\n");

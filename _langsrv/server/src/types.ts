@@ -7,7 +7,7 @@ export namespace TSN {
 	'expression' | 'function_type' | 'function' | 'identifier' | 'if' | 'import_module' | 'import_symbol' |
 	'import' | 'literal' | 'loop' | 'object_decompositor' | 'object_literal_property' | 'parameter' |
 	'property' | 'return' | 'scoped_block' | 'sizeof' | 'switch_case' | 'switch' | 'this' | 'throw' | 'try' |
-	'type_modifier' | 'type_property' | 'type_specifier' | 'type' | 'variable';
+	'type_modifier' | 'type_property' | 'type_specifier' | 'type' | 'variable' | 'error';
 
 	export type Operation =
 	'undefined' | 'add' | 'addEq' | 'sub' | 'subEq' | 'mul' | 'mulEq' | 'div' | 'divEq' | 'mod' | 'modEq' |

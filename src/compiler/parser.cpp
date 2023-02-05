@@ -1132,7 +1132,7 @@ namespace gs {
             if (!ps->isSymbol("<")) return nullptr;
             ps->consume();
 
-            ast_node* args = typeSpecifier(ps);
+            ast_node* args = identifier(ps);
             if (!args) {
                 ps->error(pec_expected_type_specifier, "Expected template parameter");
                 const token& r = skipToNextType(ps, { tt_comma });
@@ -1148,7 +1148,7 @@ namespace gs {
                 if (!ps->typeIs(tt_comma)) break;
                 ps->consume();
 
-                n->next = typeSpecifier(ps);
+                n->next = identifier(ps);
                 n = n->next;
                 if (!n) {
                     ps->error(pec_expected_type_specifier, "Expected template parameter");
@@ -2222,22 +2222,23 @@ namespace gs {
             const token* first = &ps->get();
             ast_node* n = unaryExpression(ps);
 
-            const token& t = ps->get();
-            if (n && t.text.size() == 1 && (t.text[0] == '*' || t.text[0] == '/' || t.text[0] == '%')) {
+            const token* t = &ps->get();
+            while (n && t->text.size() == 1 && (t->text[0] == '*' || t->text[0] == '/' || t->text[0] == '%')) {
                 ps->consume();
 
                 ast_node* e = ps->newNode(nt_expression, first);
-                e->op = (t.text[0] == '*') ? op_mul : ((t.text[0] == '/') ? op_div : op_mod);
+                e->op = (t->text[0] == '*') ? op_mul : ((t->text[0] == '/') ? op_div : op_mod);
                 e->lvalue = n;
                 e->rvalue = unaryExpression(ps);
                 
                 if (!e->rvalue) {
-                    ps->error(pec_expected_expr, utils::String::Format("Expected expression after '%c'", t.text[0]));
+                    ps->error(pec_expected_expr, utils::String::Format("Expected expression after '%c'", t->text[0]));
                     ps->freeNode(e);
                     return errorNode(ps);
                 }
 
-                return e;
+                n = e;
+                t = &ps->get();
             }
 
             return n;
@@ -2246,22 +2247,23 @@ namespace gs {
             const token* first = &ps->get();
             ast_node* n = multiplicativeExpression(ps);
 
-            const token& t = ps->get();
-            if (n && t.text.size() == 1 && (t.text[0] == '+' || t.text[0] == '-')) {
+            const token* t = &ps->get();
+            while (n && t->text.size() == 1 && (t->text[0] == '+' || t->text[0] == '-')) {
                 ps->consume();
 
                 ast_node* e = ps->newNode(nt_expression, first);
-                e->op = (t.text[0] == '+') ? op_add : op_sub;
+                e->op = (t->text[0] == '+') ? op_add : op_sub;
                 e->lvalue = n;
                 e->rvalue = multiplicativeExpression(ps);
                 
                 if (!e->rvalue) {
-                    ps->error(pec_expected_expr, utils::String::Format("Expected expression after '%c'", t.text[0]));
+                    ps->error(pec_expected_expr, utils::String::Format("Expected expression after '%c'", t->text[0]));
                     ps->freeNode(e);
                     return errorNode(ps);
                 }
 
-                return e;
+                n = e;
+                t = &ps->get();
             }
 
             return n;
@@ -2270,22 +2272,23 @@ namespace gs {
             const token* first = &ps->get();
             ast_node* n = additiveExpression(ps);
 
-            const token& t = ps->get();
-            if (n && t.text.size() == 2 && (t.text[0] == '<' || t.text[0] == '>') && t.text[0] == t.text[1]) {
+            const token* t = &ps->get();
+            while (n && t->text.size() == 2 && (t->text[0] == '<' || t->text[0] == '>') && t->text[0] == t->text[1]) {
                 ps->consume();
 
                 ast_node* e = ps->newNode(nt_expression, first);
-                e->op = (t.text[0] == '<') ? op_shLeft : op_shRight;
+                e->op = (t->text[0] == '<') ? op_shLeft : op_shRight;
                 e->lvalue = n;
                 e->rvalue = additiveExpression(ps);
                 
                 if (!e->rvalue) {
-                    ps->error(pec_expected_expr, utils::String::Format("Expected expression after '%c%c'", t.text[0]));
+                    ps->error(pec_expected_expr, utils::String::Format("Expected expression after '%c%c'", t->text[0]));
                     ps->freeNode(e);
                     return errorNode(ps);
                 }
 
-                return e;
+                n = e;
+                t = &ps->get();
             }
 
             return n;
@@ -2294,15 +2297,15 @@ namespace gs {
             const token* first = &ps->get();
             ast_node* n = shiftExpression(ps);
 
-            const token& t = ps->get();
-            if (n && (t.text[0] == '<' || t.text[0] == '>') && (t.text.size() == 1 || t.text[1] == '=')) {
+            const token* t = &ps->get();
+            while (n && (t->text[0] == '<' || t->text[0] == '>') && (t->text.size() == 1 || t->text[1] == '=')) {
                 ps->consume();
 
                 ast_node* e = ps->newNode(nt_expression, first);
 
                 const char* sym = nullptr;
-                if (t.text[0] == '<') {
-                    if (t.text.size() == 1) {
+                if (t->text[0] == '<') {
+                    if (t->text.size() == 1) {
                         e->op = op_lessThan;
                         sym = "<";
                     } else {
@@ -2310,7 +2313,7 @@ namespace gs {
                         sym = "<=";
                     }
                 } else {
-                    if (t.text.size() == 1) {
+                    if (t->text.size() == 1) {
                         e->op = op_greaterThan;
                         sym = ">";
                     } else {
@@ -2328,7 +2331,8 @@ namespace gs {
                     return errorNode(ps);
                 }
 
-                return e;
+                n = e;
+                t = &ps->get();
             }
 
             return n;
@@ -2337,22 +2341,23 @@ namespace gs {
             const token* first = &ps->get();
             ast_node* n = relationalExpression(ps);
 
-            const token& t = ps->get();
-            if (n && t.text.size() == 2 && (t.text[0] == '!' || t.text[0] == '=')) {
+            const token* t = &ps->get();
+            while (n && t->text.size() == 2 && (t->text[0] == '!' || t->text[0] == '=')) {
                 ps->consume();
 
                 ast_node* e = ps->newNode(nt_expression, first);
-                e->op = (t.text[0] == '!') ? op_notEq : op_compare;
+                e->op = (t->text[0] == '!') ? op_notEq : op_compare;
                 e->lvalue = n;
                 e->rvalue = relationalExpression(ps);
                 
                 if (!e->rvalue) {
-                    ps->error(pec_expected_expr, utils::String::Format("Expected expression after '%c='", t.text[0]));
+                    ps->error(pec_expected_expr, utils::String::Format("Expected expression after '%c='", t->text[0]));
                     ps->freeNode(e);
                     return errorNode(ps);
                 }
 
-                return e;
+                n = e;
+                t = &ps->get();
             }
 
             return n;
@@ -2361,7 +2366,7 @@ namespace gs {
             const token* first = &ps->get();
             ast_node* n = equalityExpression(ps);
 
-            if (n && ps->textIs("&")) {
+            while (n && ps->textIs("&")) {
                 ps->consume();
 
                 ast_node* e = ps->newNode(nt_expression, first);
@@ -2375,7 +2380,7 @@ namespace gs {
                     return errorNode(ps);
                 }
 
-                return e;
+                n = e;
             }
 
             return n;
@@ -2384,7 +2389,7 @@ namespace gs {
             const token* first = &ps->get();
             ast_node* n = bitwiseAndExpression(ps);
 
-            if (n && ps->textIs("^")) {
+            while (n && ps->textIs("^")) {
                 ps->consume();
 
                 ast_node* e = ps->newNode(nt_expression, first);
@@ -2398,7 +2403,7 @@ namespace gs {
                     return errorNode(ps);
                 }
 
-                return e;
+                n = e;
             }
 
             return n;
@@ -2407,7 +2412,7 @@ namespace gs {
             const token* first = &ps->get();
             ast_node* n = XOrExpression(ps);
 
-            if (n && ps->textIs("|")) {
+            while (n && ps->textIs("|")) {
                 ps->consume();
 
                 ast_node* e = ps->newNode(nt_expression, first);
@@ -2421,7 +2426,7 @@ namespace gs {
                     return errorNode(ps);
                 }
 
-                return e;
+                n = e;
             }
 
             return n;
@@ -2430,7 +2435,7 @@ namespace gs {
             const token* first = &ps->get();
             ast_node* n = bitwiseOrExpression(ps);
 
-            if (n && ps->textIs("&&")) {
+            while (n && ps->textIs("&&")) {
                 ps->consume();
 
                 ast_node* e = ps->newNode(nt_expression, first);
@@ -2444,7 +2449,7 @@ namespace gs {
                     return errorNode(ps);
                 }
 
-                return e;
+                n = e;
             }
 
             return n;
@@ -2453,7 +2458,7 @@ namespace gs {
             const token* first = &ps->get();
             ast_node* n = logicalAndExpression(ps);
 
-            if (n && ps->textIs("||")) {
+            while (n && ps->textIs("||")) {
                 ps->consume();
 
                 ast_node* e = ps->newNode(nt_expression, first);
@@ -2467,7 +2472,7 @@ namespace gs {
                     return errorNode(ps);
                 }
 
-                return e;
+                n = e;
             }
 
             return n;
@@ -2511,25 +2516,32 @@ namespace gs {
         ast_node* assignmentExpression(Parser* ps) {
             const token* first = &ps->get();
             ps->push();
-            ast_node* lvalue = leftHandSideExpression(ps);
-            if (lvalue) {
-                if (isAssignmentOperator(ps)) {
+            ast_node* n = leftHandSideExpression(ps);
+
+            if (n) {
+                bool isAssignment = isAssignmentOperator(ps);
+
+                if (isAssignment) {
                     ps->commit();
-                    expr_operator op = getOperatorType(ps);
-                    ps->consume();
-                    ast_node* rvalue = assignmentExpression(ps);
+                    do {
+                        expr_operator op = getOperatorType(ps);
+                        ps->consume();
+                        ast_node* rvalue = assignmentExpression(ps);
 
-                    if (rvalue) {
-                        ast_node* out = ps->newNode(nt_expression, first);
-                        out->op = op;
-                        out->lvalue = lvalue;
-                        out->rvalue = rvalue;
-                        return out;
-                    }
+                        if (!rvalue) {
+                            ps->freeNode(n);
+                            ps->error(pec_expected_expr, "Expected expression for rvalue");
+                            return errorNode(ps);
+                        }
 
-                    ps->freeNode(lvalue);
-                    ps->error(pec_expected_expr, "Expected expression for rvalue");
-                    return errorNode(ps);
+                        ast_node* e = ps->newNode(nt_expression, first);
+                        e->op = op;
+                        e->lvalue = n;
+                        e->rvalue = rvalue;
+                        n = e;
+                    } while (isAssignmentOperator(ps));
+
+                    return n;
                 }
             }
 
