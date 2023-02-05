@@ -1,6 +1,6 @@
 {
-	"name": "gs-lang-client",
-	"description": "Language client for TS++",
+	"name": "tsn-lang-client",
+	"description": "Language client for TSN",
 	"author": "Michael DeCicco",
 	"license": "MIT",
 	"version": "0.0.1",

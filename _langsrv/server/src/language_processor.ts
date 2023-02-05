@@ -4,6 +4,7 @@ import {
 	Range,
 	TextDocument
 } from 'vscode-languageserver-textdocument';
+import * as fs from 'fs';
 
 import { exec } from 'child_process';
 import { TSN } from './types';
@@ -12,13 +13,11 @@ export class LanguageProcessor {
 	private file : TextDocument;
 	private mgr : ScriptManager;
 	private last : TSN.CompilerResult | null;
-	private tempFilePath : string;
 
 	constructor (file: TextDocument, mgr: ScriptManager) {
 		this.file = file;
 		this.mgr = mgr;
 		this.last = null;
-		this.tempFilePath = '';
 	}
 
 	getUri () {
@@ -57,7 +56,7 @@ export class LanguageProcessor {
 			let docPath = this.file.uri.substring(8).replace('%3A', ':');
 	
 			try {
-				exec(`C:/Users/miguel/programming/gjs/_bin/Debug/gs2json.exe "${docPath}"`, (err, stdout, stderr) => {
+				exec(`${this.mgr.getSettings().tsnCompilerPath} "${docPath}"`, (err, stdout, stderr) => {
 					if (err) {
 						this.mgr.error(err.message);
 						resolve(output);
@@ -141,7 +140,8 @@ export class ScriptManager {
 		this.files = files;
 		this.processors = new Map<string, LanguageProcessor>();
 		this.settings = {
-			maxNumberOfProblems: 100
+			maxNumberOfProblems: 100,
+			tsnCompilerPath: ''
 		};
 		this.messager = messager;
 
@@ -194,6 +194,10 @@ export class ScriptManager {
 	onSettingsChanged (s: TSN.Settings) {
 		this.settings = s;
 		this.validateAll();
+		
+		if (!fs.existsSync(s.tsnCompilerPath)) {
+			this.messager.error(`settings.tsnCompilerPath ('${s.tsnCompilerPath}') is not valid`);
+		}
 	}
 
 	validateAll () {

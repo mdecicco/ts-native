@@ -169,5 +169,6 @@ export namespace TSN {
 
 	export interface Settings {
 		maxNumberOfProblems: number;
+		tsnCompilerPath: string;
 	};
 };

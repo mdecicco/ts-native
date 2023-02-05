@@ -9,7 +9,6 @@ import {
 	InitializeParams,
 	DidChangeConfigurationNotification,
 	CompletionItem,
-	CompletionItemKind,
 	TextDocumentPositionParams,
 	TextDocumentSyncKind,
 	InitializeResult,
@@ -44,7 +43,12 @@ const Messager = {
 };
 let scriptMgr : ScriptManager | null = null;
 
+let hasConfigurationCapability: boolean = false;
 connection.onInitialize((params: InitializeParams) => {
+	hasConfigurationCapability = !!(
+		params.capabilities.workspace && !!params.capabilities.workspace.configuration
+	);
+
 	const result: InitializeResult = {
 		capabilities: {
 			textDocumentSync: TextDocumentSyncKind.Full,
@@ -57,16 +61,19 @@ connection.onInitialize((params: InitializeParams) => {
 			}
 		}
 	};
+
 	return result;
 });
 
 connection.onInitialized(() => {
 	scriptMgr = new ScriptManager(documents, Messager);
-	connection.client.register(DidChangeConfigurationNotification.type, undefined);
+	if (hasConfigurationCapability) {
+		connection.client.register(DidChangeConfigurationNotification.type, { section: 'tsnServer' });
+	}
 });
 
 connection.onDidChangeConfiguration(change => {
-	if (scriptMgr) scriptMgr.onSettingsChanged(change.settings.tsppServer as TSN.Settings);
+	if (scriptMgr) scriptMgr.onSettingsChanged(change.settings.tsnServer as TSN.Settings);
 });
 
 // This handler provides the initial list of the completion items.

@@ -1,6 +1,6 @@
 {
-	"name": "gs-lang-srv",
-	"description": "Language server for TS++",
+	"name": "tsn-lang-srv",
+	"description": "Language server for TSN",
 	"author": "Michael DeCicco",
 	"license": "MIT",
 	"version": "1.0.0",
@@ -21,15 +21,21 @@
 	"contributes": {
 		"configuration": {
 			"type": "object",
-			"title": "Example configuration",
+			"title": "TSN configuration",
 			"properties": {
-				"tsppServer.maxNumberOfProblems": {
+				"tsnServer.maxNumberOfProblems": {
 					"scope": "resource",
 					"type": "number",
 					"default": 100,
 					"description": "Controls the maximum number of problems produced by the server."
 				},
-				"tsppServer.trace.server": {
+				"tsnServer.tsnCompilerPath": {
+					"scope": "application",
+					"type": "string",
+					"default": "",
+					"description": "Path to tsn compiler (tsnc)"
+				},
+				"tsnServer.trace.server": {
 					"scope": "window",
 					"type": "string",
 					"enum": [
