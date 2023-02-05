@@ -184,7 +184,7 @@ namespace gs {
             if (m_funcStack.size() == 0) return nullptr;
             FunctionDef* fd = m_funcStack.last();
             Function* fn = fd->onExit();
-            fn->m_src = fd->getSource();
+            if (fn) fn->m_src = fd->getSource();
             m_funcStack.pop();
             m_scopeMgr.exit();
             if (m_funcStack.size() == 0) m_curFunc = nullptr;

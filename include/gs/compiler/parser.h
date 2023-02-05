@@ -244,6 +244,7 @@ namespace gs {
             token src;
         };
 
+        typedef bool (*recoverfn)(const token&);
         class Parser {
             public:
                 Parser(Lexer* l);
@@ -252,6 +253,10 @@ namespace gs {
                 void push();
                 void revert();
                 void commit();
+
+                void pushRecovery(recoverfn recoverFunc);
+                void popRecovery();
+                recoverfn getRecoveryFn() const;
 
                 void consume();
 
@@ -280,6 +285,7 @@ namespace gs {
                 utils::Array<u32> m_currentErrorCount;
                 utils::Array<parse_error> m_errors;
                 utils::PagedAllocator<ast_node, utils::FixedAllocator<ast_node>> m_nodeAlloc;
+                utils::Array<recoverfn> m_recoveryStack;
         };
     
 
@@ -287,6 +293,9 @@ namespace gs {
         // Helpers
         //
         typedef ast_node* (*parsefn)(Parser*);
+        ast_node* errorNode                     (Parser* ps);
+        bool isError                            (ast_node* n);
+        bool findRecoveryToken                  (Parser* ps, bool consumeRecoveryToken = true);
         ast_node* array_of                      (Parser* ps, parsefn fn);
         ast_node* list_of                       (
                                                      Parser* ps, parsefn fn,
