@@ -238,7 +238,7 @@ void handleAST(Context* ctx, ast_node* n, const Parser& ps) {
                         printf("{\n");
                         printf("                \"name\": \"%s\",\n", t->getDestructor()->getDisplayName().c_str());
                         printf("                \"fully_qualified_name\": \"%s\",\n", t->getDestructor()->getFullyQualifiedName().c_str());
-                        printf("                \"access\": \"%s\",\n", (t->getDestructor()->getAccessModifier() == private_access) ? "private" : "public");
+                        printf("                \"access\": \"%s\"\n", (t->getDestructor()->getAccessModifier() == private_access) ? "private" : "public");
                         printf("            },\n");
                     } else printf("null,\n");
                     printf("            \"flags\": [\n");
@@ -315,7 +315,7 @@ void handleAST(Context* ctx, ast_node* n, const Parser& ps) {
                             printf("                }%s\n", (m == methods.size() - 1) ? "" : ",");
                         }
                         printf("             ],\n");
-                    } else printf("            \"methods\": [],");
+                    } else printf("            \"methods\": [],\n");
 
                     if (info.is_template) {
                         printf("            \"ast\": ");
@@ -335,65 +335,86 @@ void handleAST(Context* ctx, ast_node* n, const Parser& ps) {
                 for (u32 i = 0;i < funcs.size();i++) {
                     ffi::Function* f = funcs[i]->getOutput();
                     if (!f) continue;
+                    ffi::FunctionType* sig = f->getSignature();
                     
                     printf("        {\n");
                     printf("            \"id\": %d,\n", f->getId());
                     printf("            \"name\": \"%s\",\n", f->getName().c_str());
                     printf("            \"fully_qualified_name\": \"%s\",\n", f->getFullyQualifiedName().c_str());
-                    printf("            \"signature\": \"%s\",\n", f->getSignature()->getFullyQualifiedName().c_str());
+                    if (f->isTemplate()) {
+                        printf("            \"signature\": null,\n");
+                    } else {
+                        printf("            \"signature\": \"%s\",\n", sig->getFullyQualifiedName().c_str());
+                    }
                     printf("            \"access\": \"%s\",\n", (f->getAccessModifier() == private_access) ? "private" : "public");
                     printf("            \"is_method\": %s,\n", f->isMethod() ? "true" : "false");
-                    printf("            \"is_thiscall\": %s,\n", f->isThisCall() ? "true" : "false");
+                    if (f->isTemplate()) {
+                        printf("            \"is_thiscall\": null,\n");
+                    } else {
+                        printf("            \"is_thiscall\": %s,\n", f->isThisCall() ? "true" : "false");
+                    }
+                    printf("            \"is_template\": %s,\n", f->isTemplate() ? "true" : "false");
                     
-                    ffi::FunctionType* sig = f->getSignature();
-                    const auto& args = sig->getArguments();
-                    if (args.size() > 0) {
-                        printf("            \"args\": [\n");
+                    if (f->isTemplate()) {
+                        printf("            \"args\": [],\n");
+                        printf("            \"code\": [],\n");
+                        printf("            \"ast\": ");
+                        ast_node* ast = nullptr;
+                        if (f->isMethod()) ast = ((ffi::TemplateMethod*)f)->getAST();
+                        else ast = ((ffi::TemplateFunction*)f)->getAST();
+                        ast->json(3);
+                        printf("\n");
+                    } else {
+                        const auto& args = sig->getArguments();
+                        if (args.size() > 0) {
+                            printf("            \"args\": [\n");
 
-                        static const char* argTpStr[] = {
-                            "func_ptr",
-                            "ret_ptr",
-                            "ectx_ptr",
-                            "this_ptr",
-                            "value",
-                            "pointer"
-                        };
-                        
-                        for (u8 a = 0;a < args.size();a++) {
-                            const auto& arg = args[a];
-                            utils::String loc;
-                            if (arg.argType == arg_type::context_ptr) {
-                                loc = utils::String::Format("\"%s\"", funcs[i]->getECtx().toString().c_str());
-                            } else if (arg.argType == arg_type::func_ptr) {
-                                loc = utils::String::Format("\"%s\"", funcs[i]->getFPtr().toString().c_str());
-                            } else if (arg.argType == arg_type::ret_ptr) {
-                                if (funcs[i]->getReturnType()->isEqualTo(c.getContext()->getTypes()->getType<void>())) loc = "null";
-                                else loc = utils::String::Format("\"%s\"", funcs[i]->getRetPtr().toString().c_str());
-                            } else if (arg.argType == arg_type::this_ptr) {
-                                if (funcs[i]->getThisType()->isEqualTo(c.getContext()->getTypes()->getType<void>())) loc = "null";
-                                else loc = utils::String::Format("\"%s\"", funcs[i]->getThis().toString().c_str());
-                            } else {
-                                loc = utils::String::Format("\"%s\"", funcs[i]->getArg(a - funcs[i]->getImplicitArgCount()).toString().c_str());
+                            static const char* argTpStr[] = {
+                                "func_ptr",
+                                "ret_ptr",
+                                "ectx_ptr",
+                                "this_ptr",
+                                "value",
+                                "pointer"
+                            };
+                            
+                            for (u8 a = 0;a < args.size();a++) {
+                                const auto& arg = args[a];
+                                utils::String loc;
+                                if (arg.argType == arg_type::context_ptr) {
+                                    loc = utils::String::Format("\"%s\"", funcs[i]->getECtx().toString().c_str());
+                                } else if (arg.argType == arg_type::func_ptr) {
+                                    loc = utils::String::Format("\"%s\"", funcs[i]->getFPtr().toString().c_str());
+                                } else if (arg.argType == arg_type::ret_ptr) {
+                                    if (funcs[i]->getReturnType()->isEqualTo(c.getContext()->getTypes()->getType<void>())) loc = "null";
+                                    else loc = utils::String::Format("\"%s\"", funcs[i]->getRetPtr().toString().c_str());
+                                } else if (arg.argType == arg_type::this_ptr) {
+                                    if (funcs[i]->getThisType()->isEqualTo(c.getContext()->getTypes()->getType<void>())) loc = "null";
+                                    else loc = utils::String::Format("\"%s\"", funcs[i]->getThis().toString().c_str());
+                                } else {
+                                    loc = utils::String::Format("\"%s\"", funcs[i]->getArg(a - funcs[i]->getImplicitArgCount()).toString().c_str());
+                                }
+
+                                printf("                {\n");
+                                printf("                    \"arg_type\": \"%s\",\n", argTpStr[u32(arg.argType)]);
+                                printf("                    \"is_implicit\": %s,\n", arg.isImplicit() ? "true" : "false");
+                                printf("                    \"data_type\": \"%s\",\n", arg.dataType->getFullyQualifiedName().c_str());
+                                printf("                    \"location\": %s\n", loc.c_str());
+                                printf("                }%s\n", (a == args.size() - 1) ? "" : ",");
                             }
+                            printf("            ],\n");
+                        } else printf("            \"args\": [],\n");
 
-                            printf("                {\n");
-                            printf("                    \"arg_type\": \"%s\",\n", argTpStr[u32(arg.argType)]);
-                            printf("                    \"is_implicit\": %s,\n", arg.isImplicit() ? "true" : "false");
-                            printf("                    \"data_type\": \"%s\",\n", arg.dataType->getFullyQualifiedName().c_str());
-                            printf("                    \"location\": %s\n", loc.c_str());
-                            printf("                }%s\n", (a == args.size() - 1) ? "" : ",");
-                        }
-                        printf("            ],\n");
-                    } else printf("            \"args\": [],\n");
-
-                    const auto& code = funcs[i]->getCode();
-                    if (code.size() > 0) {
-                        printf("            \"code\": [\n");
-                        for (u32 c = 0;c < code.size();c++) {
-                            printf("                \"%s\"%s\n", code[c].toString().c_str(), c < code.size() - 1 ? "," : "");
-                        }
-                        printf("            ]\n");
-                    } else printf("            \"code\": []\n");
+                        const auto& code = funcs[i]->getCode();
+                        if (code.size() > 0) {
+                            printf("            \"code\": [\n");
+                            for (u32 c = 0;c < code.size();c++) {
+                                printf("                \"%s\"%s\n", code[c].toString().c_str(), c < code.size() - 1 ? "," : "");
+                            }
+                            printf("            ],\n");
+                        } else printf("            \"code\": [],\n");
+                        printf("            \"ast\": null\n");
+                    }
                     
                     printf("        }%s\n", (i == funcs.size() - 1) ? "" : ",");
                 }

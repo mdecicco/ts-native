@@ -89,6 +89,8 @@ namespace gs {
             public:
                 TemplateFunction(const utils::String& name, access_modifier access, compiler::ast_node* ast);
                 ~TemplateFunction();
+
+                compiler::ast_node* getAST();
             
             private:
                 compiler::ast_node* m_ast;
@@ -98,6 +100,8 @@ namespace gs {
             public:
                 TemplateMethod(const utils::String& name, access_modifier access, u64 baseOffset, compiler::ast_node* ast);
                 ~TemplateMethod();
+
+                compiler::ast_node* getAST();
             
             private:
                 compiler::ast_node* m_ast;

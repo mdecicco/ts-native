@@ -130,12 +130,14 @@ export namespace TSN {
 		id: number;
 		name: string;
 		fully_qualified_name: string;
-		signature: string;
+		signature: string | null;
 		access: AccessModifier;
 		is_method: boolean;
-		is_thiscall: boolean;
+		is_thiscall: boolean | null;
+		is_template: boolean;
 		args: FunctionArg[];
 		code: string[];
+		ast: ASTNode | null;
 	};
 
 	export type GlobalInfo = {

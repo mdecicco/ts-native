@@ -62,6 +62,7 @@ namespace gs {
         }
 
         bool Function::isThisCall() const {
+            if (!m_signature) return false;
             return m_signature->getArguments().some([](const function_argument& a) { 
                 return a.argType == arg_type::this_ptr;
             });
@@ -112,6 +113,10 @@ namespace gs {
             compiler::ast_node::destroyDetachedAST(m_ast);
         }
 
+        compiler::ast_node* TemplateFunction::getAST() {
+            return m_ast;
+        }
+
         TemplateMethod::TemplateMethod(const utils::String& name, access_modifier access, u64 baseOffset, compiler::ast_node* ast)
         : Method(name, nullptr, access, nullptr, nullptr, baseOffset) {
             m_ast = ast;
@@ -119,6 +124,10 @@ namespace gs {
         }
         TemplateMethod::~TemplateMethod() {
             compiler::ast_node::destroyDetachedAST(m_ast);
+        }
+
+        compiler::ast_node* TemplateMethod::getAST() {
+            return m_ast;
         }
     };
 };

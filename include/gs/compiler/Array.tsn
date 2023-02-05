@@ -52,7 +52,7 @@ export class Array<T> {
             const oldE = (this._data + (idx * sizeof<T>));
             new T(oldE as T) => newE;
         }
-
+        
         this._capacity += count;
         if (this._data != null) freeMem(this._data);
         this._data = nm;

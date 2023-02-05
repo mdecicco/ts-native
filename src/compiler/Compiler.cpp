@@ -1485,6 +1485,7 @@ namespace gs {
             tp->setAccessModifier(private_access);
             m_curClass = tp;
             m_output->add(tp);
+            scope().getBase().add(name, tp);
             scope().enter();
             
             ast_node* inherits = n->inheritance;
@@ -1525,6 +1526,7 @@ namespace gs {
             }
 
             ast_node* meth = n->body;
+            ast_node* dtor = nullptr;
             while (meth) {
                 if (meth->tp != nt_function) {
                     meth = meth->next;
@@ -1535,7 +1537,10 @@ namespace gs {
                 Method* m = compileMethodDecl(meth, thisOffset, &isDtor, false, tp->getDestructor() != nullptr);
                 m->m_src = meth->tok.src;
 
-                if (isDtor) tp->setDestructor(m);
+                if (isDtor) {
+                    tp->setDestructor(m);
+                    dtor = meth;
+                }
                 else tp->addMethod(m);
 
                 meth = meth->next;
@@ -1550,9 +1555,9 @@ namespace gs {
                     continue;
                 }
 
-                if (!methods[midx]->isTemplate()) {
-                    compileMethodDef(meth, tp, (Method*)methods[midx++]);
-                }
+                Method* m = (Method*)(meth == dtor ? tp->getDestructor() : methods[midx++]);
+
+                if (!m->isTemplate()) compileMethodDef(meth, tp, m);
                 
                 meth = meth->next;
             }

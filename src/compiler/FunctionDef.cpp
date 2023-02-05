@@ -46,8 +46,6 @@ namespace gs {
             m_comp = c;
             m_src = c->getCurrentSrc();
             m_name = func->getName();
-            FunctionType* sig = func->getSignature();
-            m_retTp = sig->getReturnType();
             m_thisTp = nullptr;
             m_output = func;
             m_nextAllocId = 1;
@@ -59,10 +57,14 @@ namespace gs {
             m_poison = &val("@poison", c->getContext()->getTypes()->getType<poison_t>());
             m_implicitArgCount = 0;
 
-            const auto& args = sig->getArguments();
-            for (u8 a = 0;a < args.size();a++) {
-                if (args[a].isImplicit()) m_implicitArgCount++;
-                m_argInfo.push(args[a]);
+            FunctionType* sig = func->getSignature();
+            if (sig) {
+                m_retTp = sig->getReturnType();
+                const auto& args = sig->getArguments();
+                for (u8 a = 0;a < args.size();a++) {
+                    if (args[a].isImplicit()) m_implicitArgCount++;
+                    m_argInfo.push(args[a]);
+                }
             }
         }
 

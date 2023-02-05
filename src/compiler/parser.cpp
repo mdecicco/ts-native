@@ -1086,9 +1086,7 @@ namespace gs {
 
                 // May not actually be template args, not enough info here
                 if (r.tp != tt_comma) return nullptr;
-            }
-
-            if (isError(args)) return args;
+            } else if (isError(args)) return args;
 
             ast_node* n = args;
             while (n) {
@@ -3256,13 +3254,7 @@ namespace gs {
             }
 
             if (n->body->tp != nt_scoped_block) {
-                if (!ps->typeIs(tt_semicolon)) {
-                    ps->error(pec_expected_eos, "Expected ';' after 'if (<expression>) statement'");
-                    // attempt to continue
-                } else {
-                    n->manuallySpecifyRange(ps->get());
-                    ps->consume();
-                }
+                n->manuallySpecifyRange(ps->get());
             }
             
             if (ps->isKeyword("else")) {
@@ -3275,13 +3267,7 @@ namespace gs {
                 }
 
                 if (n->else_body->tp != nt_scoped_block) {
-                    if (!ps->typeIs(tt_semicolon)) {
-                        ps->error(pec_expected_eos, "Expected ';' after 'else statement'");
-                        // attempt to continue
-                    } else {
-                        n->manuallySpecifyRange(ps->get());
-                        ps->consume();
-                    }
+                    n->manuallySpecifyRange(ps->get());
                 }
             }
 
