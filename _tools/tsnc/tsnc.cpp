@@ -1,24 +1,258 @@
-#include <gs/utils/ProgramSource.h>
-#include <gs/common/Context.h>
-#include <gs/common/Module.h>
-#include <gs/common/DataType.h>
-#include <gs/common/TypeRegistry.h>
-#include <gs/common/Function.h>
-#include <gs/interfaces/IDataTypeHolder.h>
-#include <gs/interfaces/IFunctionHolder.h>
-#include <gs/compiler/Lexer.h>
-#include <gs/compiler/Parser.h>
-#include <gs/compiler/Compiler.h>
-#include <gs/compiler/Value.hpp>
-#include <gs/compiler/FunctionDef.h>
+#include <tsn/utils/ProgramSource.h>
+#include <tsn/common/Context.h>
+#include <tsn/common/Config.h>
+#include <tsn/common/Module.h>
+#include <tsn/common/DataType.h>
+#include <tsn/common/TypeRegistry.h>
+#include <tsn/common/Function.h>
+#include <tsn/interfaces/IDataTypeHolder.h>
+#include <tsn/interfaces/IFunctionHolder.h>
+#include <tsn/compiler/Lexer.h>
+#include <tsn/compiler/Parser.h>
+#include <tsn/compiler/Compiler.h>
+#include <tsn/compiler/Output.h>
+#include <tsn/compiler/Value.hpp>
+#include <tsn/compiler/FunctionDef.h>
 
 #include <utils/Array.hpp>
+#include <utils/Buffer.hpp>
+#include <utils/json.hpp>
 
-using namespace gs;
+#include <filesystem>
+
+using namespace tsn;
 using namespace compiler;
 using namespace utils;
+using namespace nlohmann;
 
-void handleAST(Context* ctx, ast_node* n, const Parser& ps);
+#define EXIT_EARLY                       1
+#define COMPILATION_SUCCESS              0
+#define COMPILATION_ERROR               -1
+#define UNKNOWN_ERROR                   -2
+#define FAILED_TO_OPEN_FILE             -3
+#define FILE_EMPTY                      -4
+#define FAILED_TO_READ_FILE             -5
+#define FAILED_TO_ALLOCATE_INPUT_BUFFER -6
+#define ARGUMENT_ERROR                  -7
+#define CONFIG_PARSE_ERROR              -8
+#define CONFIG_VALUE_ERROR              -9
+
+struct tsnc_config {
+    const char* script_path;
+    const char* config_path;
+};
+
+void print_help();
+const char* getStringArg(i32 argc, const char** argv, const char* code);
+bool getBoolArg(i32 argc, const char** argv, const char* code);
+i32 parse_args(i32 argc, const char** argv, tsnc_config* conf);
+char* loadText(const char* filename, bool required);
+i32 processConfig(const json& configIn, Config& configOut);
+i32 handleAST(Context* ctx, ParseNode* n, const Parser& ps);
+void initError(const char* err);
+
+i32 main (i32 argc, const char** argv) {
+    if (argc > 0) {
+        std::string progPath = argv[0];
+        size_t idx = progPath.find_last_of('/');
+        if (idx == std::string::npos) idx = progPath.find_last_of('\\');
+        std::string cwd = progPath.substr(0, idx);
+        std::filesystem::current_path(cwd);
+    }
+
+    tsnc_config conf;
+    i32 status = parse_args(argc, argv, &conf);
+    if (status != 0) {
+        return status;
+    }
+
+    char* code = nullptr;
+    try {
+        code = loadText(conf.script_path, true);
+    } catch (i32 error) {
+        return error;
+    }
+
+    Config contextCfg;
+    try {
+        char* configInput = loadText(conf.config_path, false);
+        if (configInput) {
+            json config = json::parse(configInput);
+            delete [] configInput;
+
+            status = processConfig(config, contextCfg);
+            if (status != 0) {
+                delete [] code;
+                return status;
+            }
+        }
+    } catch (i32 error) {
+        delete [] code;
+        return error;
+    } catch (std::exception exc) {
+        initError(utils::String::Format("Encountered exception while parsing config: %s", exc.what()).c_str());
+        delete [] code;
+        return CONFIG_PARSE_ERROR;
+    }
+
+    utils::String::Allocator::Create(16384, 1024);
+    utils::Mem::Create();
+
+    {
+        Context ctx = Context(1, &contextCfg);
+        ProgramSource src = ProgramSource(conf.script_path, code);
+        Lexer l(&src);
+        Parser ps(&l);
+        ParseNode* n = ps.parse();
+
+        if (n) status = handleAST(&ctx, n, ps);
+        else {
+            initError("An unknown error occurred");
+            status = UNKNOWN_ERROR;
+        }
+    }
+
+    utils::Mem::Destroy();
+    utils::String::Allocator::Destroy();
+
+    delete [] code;
+    return status;
+}
+
+void print_help() {
+    printf("TSN Compiler version 0.0.0\n");
+    printf("Info:\n");
+    printf("    This tool is used to compile and/or validate TSN scripts. It will attempt to\n");
+    printf("    compile the provided script, and subsequently output metadata about the script\n");
+    printf("    in the JSON format. This metadata includes the abstract syntax tree, symbols,\n");
+    printf("    log messages, data types, and IR code.\n");
+    printf("Usage:\n");
+    printf("    -s <script file>\tSpecifies entrypoint script to compile. Defaults to './main.tsn'.\n");
+    printf("    -c <config file>\tSpecifies compiler configuration file, must be JSON format. Defaults to './tsnc.json'.\n");
+    printf("    -h              \tPrints this information.\n");
+}
+
+const char* getStringArg(i32 argc, const char** argv, const char* code) {
+    for (i32 i = 0;i < argc;i++) {
+        if (strlen(argv[i]) <= 1 || argv[i][0] != '-') continue;
+        if (strcmp(argv[i] + 1, code) == 0) {
+            if (i + 1 >= argc) {
+                printf("Invalid arguments.\n\n");
+                print_help();
+                throw ARGUMENT_ERROR;
+            }
+
+            if (strlen(argv[i + 1]) == 0 || argv[i + 1][0] == '-') {
+                printf("Invalid arguments.\n\n");
+                print_help();
+                throw ARGUMENT_ERROR;
+            }
+
+            return argv[i + 1];
+        }
+    }
+
+    return nullptr;
+}
+
+bool getBoolArg(i32 argc, const char** argv, const char* code) {
+    for (i32 i = 0;i < argc;i++) {
+        if (strlen(argv[i]) <= 1 || argv[i][0] != '-') continue;
+        if (strcmp(argv[i] + 1, code) == 0) return true;
+    }
+
+    return false;
+}
+
+i32 parse_args(i32 argc, const char** argv, tsnc_config* conf) {
+    conf->script_path = "./main.tsn";
+    conf->config_path = "./tsnc.json";
+
+    try {
+        const char* tmp = nullptr;
+
+        tmp = getStringArg(argc, argv, "s");
+        if (tmp) conf->script_path = tmp;
+
+        tmp = getStringArg(argc, argv, "c");
+        if (tmp) conf->config_path = tmp;
+
+        if (getBoolArg(argc, argv, "h")) {
+            print_help();
+            return EXIT_EARLY;
+        }
+    } catch(i32 code) {
+        return code;
+    }
+
+    return 0;
+}
+
+char* loadText(const char* filename, bool required) {
+    FILE* fp = nullptr;
+    fopen_s(&fp, filename, "r");
+    if (!fp) {
+        if (!required) return nullptr;
+
+        initError(utils::String::Format("Unable to open file '%s'", filename).c_str());
+        throw FAILED_TO_OPEN_FILE;
+    }
+
+    fseek(fp, 0, SEEK_END);
+    size_t sz = ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+
+    if (sz == 0) {
+        initError(utils::String::Format("File '%s' is empty", filename).c_str());
+        fclose(fp);
+        throw FILE_EMPTY;
+    }
+
+    char* code = new char[sz + 1];
+    if (!code) {
+        initError(utils::String::Format("Failed to allocate input buffer for '%s'", filename).c_str());
+        fclose(fp);
+        throw FAILED_TO_ALLOCATE_INPUT_BUFFER;
+    }
+
+    size_t readSz = fread(code, 1, sz, fp);
+    if (readSz != sz && !feof(fp)) {
+        delete [] code;
+        initError(utils::String::Format("Failed to read '%s'", filename).c_str());
+        fclose(fp);
+        throw FAILED_TO_READ_FILE;
+    }
+    code[readSz] = 0;
+    
+    fclose(fp);
+
+    return code;
+}
+
+i32 processConfig(const json& configIn, Config& configOut) {
+    json dirs = configIn.at("directories");
+    if (!dirs.empty()) {
+        json wsroot = dirs.at("root");
+        if (!wsroot.empty()) {
+            if (!wsroot.is_string()) {
+                initError("config.directories.root is not a string. It should be the path to the root of the script workspace");
+                return CONFIG_VALUE_ERROR;
+            }
+            configOut.workspaceRoot = wsroot;
+        }
+
+        json supportDir = dirs.at("support");
+        if (!supportDir.empty()) {
+            if (!supportDir.is_string()) {
+                initError("config.directories.support is not a string. It should be the path to the folder where the compiler will store persistence data");
+                return CONFIG_VALUE_ERROR;
+            }
+            configOut.supportDir = supportDir;
+        }
+    }
+
+    return 0;
+}
 
 void initError(const char* err) {
     printf("{\n");
@@ -41,88 +275,21 @@ void initError(const char* err) {
     printf("}");
 }
 
-i32 main (i32 argc, const char** argv) {
-    if (argc == 1) {
-        // DEBUG CODE ALERT
-        argc = 2;
-        const char* a[] = { "", "./test.tsn" };
-        argv = a;
-    }
-
-    if (argc != 2) {
-        printf("Invalid usage. Correct usage is 'gs2json <path to gs file>'\n");
-        return -2;
-    }
-
-    FILE* fp = nullptr;
-    fopen_s(&fp, argv[1], "r");
-    if (!fp) {
-        initError("Unable to open input file");
-        return -3;
-    }
-
-    fseek(fp, 0, SEEK_END);
-    size_t sz = ftell(fp);
-    fseek(fp, 0, SEEK_SET);
-
-    if (sz == 0) {
-        initError("Input file is empty");
-        fclose(fp);
-        return -4;
-    }
-
-    char* code = new char[sz + 1];
-    if (!code) {
-        initError("Failed to allocate input buffer");
-        fclose(fp);
-        return -5;
-    }
-
-    size_t readSz = fread(code, 1, sz, fp);
-    if (readSz != sz && !feof(fp)) {
-        delete [] code;
-        initError("Failed to read input file");
-        fclose(fp);
-        return -6;
-    }
-    code[readSz] = 0;
-    
-    fclose(fp);
-
-
-    utils::String::Allocator::Create(16384, 1024);
-    utils::Mem::Create();
-
-    bool success = true;
-    {
-        Context ctx;
-        ProgramSource src = ProgramSource(argv[1], code);
-        Lexer l(&src);
-        Parser ps(&l);
-        ast_node* n = ps.parse();
-
-        if (n) handleAST(&ctx, n, ps);
-        else {
-            initError("An unknown error occurred");
-            success = false;
-        }
-    }
-
-    utils::Mem::Destroy();
-    utils::String::Allocator::Destroy();
-
-    delete [] code;
-
-    return success ? 0 : -1;
-}
-
-void handleAST(Context* ctx, ast_node* n, const Parser& ps) {
+i32 handleAST(Context* ctx, ParseNode* n, const Parser& ps) {
+    static const char* access[] = { "public", "private", "trusted" };
     const auto& errors = ps.errors();
     if (errors.size() == 0) {
         Compiler c(ctx, n);
         CompilerOutput* out = c.compile();
 
+        Buffer* test = new Buffer();
+        if (out->serialize(test, ctx)) {
+            test->save("./out.tsnc");
+            delete test;
+        }
+
         if (out) {
+            bool hadErrors = false;
             printf("{\n");
 
             const auto& logs = c.getLogs();
@@ -131,6 +298,7 @@ void handleAST(Context* ctx, ast_node* n, const Parser& ps) {
                 printf("    \"logs\": [\n");
                 for (u32 i = 0;i < logs.size();i++) {
                     const auto& log = logs[i];
+                    if (log.type == cmt_error) hadErrors = true;
                     const SourceLocation& src = log.src;
                     const SourceLocation& end = log.src.getEndLocation();
                     String ln = src.getSource()->getLine(src.getLine()).clone();
@@ -231,14 +399,14 @@ void handleAST(Context* ctx, ast_node* n, const Parser& ps) {
                     printf("            \"size\": %u,\n", info.size);
                     printf("            \"host_hash\": %zu,\n", info.host_hash);
                     printf("            \"name\": \"%s\",\n", t->getName().c_str());
-                    printf("            \"access\": \"%s\",\n", t->getAccessModifier() == public_access ? "public" : "private");
+                    printf("            \"access\": \"%s\",\n", access[t->getAccessModifier()]);
                     printf("            \"fully_qualified_name\": \"%s\",\n", t->getFullyQualifiedName().c_str());
                     printf("            \"destructor\": ");
                     if (t->getDestructor()) {
                         printf("{\n");
                         printf("                \"name\": \"%s\",\n", t->getDestructor()->getDisplayName().c_str());
                         printf("                \"fully_qualified_name\": \"%s\",\n", t->getDestructor()->getFullyQualifiedName().c_str());
-                        printf("                \"access\": \"%s\"\n", (t->getDestructor()->getAccessModifier() == private_access) ? "private" : "public");
+                        printf("                \"access\": \"%s\"\n", access[t->getDestructor()->getAccessModifier()]);
                         printf("            },\n");
                     } else printf("null,\n");
                     printf("            \"flags\": [\n");
@@ -272,7 +440,7 @@ void handleAST(Context* ctx, ast_node* n, const Parser& ps) {
                             const ffi::type_base& base = bases[b];
                             printf("                {\n");
                             printf("                    \"type\": \"%s\",\n", base.type->getFullyQualifiedName().c_str());
-                            printf("                    \"access\": \"%s\",\n", (base.access == private_access) ? "private" : "public");
+                            printf("                    \"access\": \"%s\",\n", access[base.access]);
                             printf("                    \"data_offset\": %llu\n", base.offset);
                             printf("                }%s\n", (b == bases.size() - 1) ? "" : ",");
                         }
@@ -288,7 +456,7 @@ void handleAST(Context* ctx, ast_node* n, const Parser& ps) {
                             printf("                    \"name\": \"%s\",\n", prop.name.c_str());
                             printf("                    \"type\": \"%s\",\n", prop.type->getFullyQualifiedName().c_str());
                             printf("                    \"offset\": %llu,\n", prop.offset);
-                            printf("                    \"access\": \"%s\",\n", (prop.access == private_access) ? "private" : "public");
+                            printf("                    \"access\": \"%s\",\n", access[prop.access]);
                             printf("                    \"getter\": %s,\n", prop.getter ? ("\"" + prop.getter->getName() + "\"").c_str() : "null");
                             printf("                    \"setter\": %s,\n", prop.setter ? ("\"" + prop.setter->getName() + "\"").c_str() : "null");
                             printf("                    \"flags\": [");
@@ -311,7 +479,7 @@ void handleAST(Context* ctx, ast_node* n, const Parser& ps) {
                             printf("                {\n");
                             printf("                    \"name\": \"%s\",\n", method->getName().c_str());
                             printf("                    \"fully_qualified_name\": \"%s\",\n", method->getFullyQualifiedName().c_str());
-                            printf("                    \"access\": \"%s\"\n", (method->getAccessModifier() == private_access) ? "private" : "public");
+                            printf("                    \"access\": \"%s\"\n", access[method->getAccessModifier()]);
                             printf("                }%s\n", (m == methods.size() - 1) ? "" : ",");
                         }
                         printf("             ],\n");
@@ -346,7 +514,7 @@ void handleAST(Context* ctx, ast_node* n, const Parser& ps) {
                     } else {
                         printf("            \"signature\": \"%s\",\n", sig->getFullyQualifiedName().c_str());
                     }
-                    printf("            \"access\": \"%s\",\n", (f->getAccessModifier() == private_access) ? "private" : "public");
+                    printf("            \"access\": \"%s\",\n", access[f->getAccessModifier()]);
                     printf("            \"is_method\": %s,\n", f->isMethod() ? "true" : "false");
                     if (f->isTemplate()) {
                         printf("            \"is_thiscall\": null,\n");
@@ -359,7 +527,7 @@ void handleAST(Context* ctx, ast_node* n, const Parser& ps) {
                         printf("            \"args\": [],\n");
                         printf("            \"code\": [],\n");
                         printf("            \"ast\": ");
-                        ast_node* ast = nullptr;
+                        ParseNode* ast = nullptr;
                         if (f->isMethod()) ast = ((ffi::TemplateMethod*)f)->getAST();
                         else ast = ((ffi::TemplateFunction*)f)->getAST();
                         ast->json(3);
@@ -428,7 +596,7 @@ void handleAST(Context* ctx, ast_node* n, const Parser& ps) {
                     const auto& var = globals[i];
                     printf("        {\n");
                     printf("            \"name\": \"%s\",\n", var.name.c_str());
-                    printf("            \"access\": \"%s\",\n", var.access == public_access ? "public" : "private");
+                    printf("            \"access\": \"%s\",\n", access[var.access]);
                     printf("            \"type\": \"%s\"\n", var.type->getFullyQualifiedName().c_str());
                     printf("        }%s\n", (i == globals.size() - 1) ? "" : ",");
                 }
@@ -439,6 +607,8 @@ void handleAST(Context* ctx, ast_node* n, const Parser& ps) {
             n->json(1);
             printf("\n}\n");
             delete out;
+
+            if (hadErrors) return COMPILATION_ERROR;
         }
     } else {
         printf("{\n");
@@ -494,5 +664,9 @@ void handleAST(Context* ctx, ast_node* n, const Parser& ps) {
         printf("    \"ast\": ");
         n->json(1);
         printf("\n}\n");
+
+        if (errors.size() > 0) return COMPILATION_ERROR;
     }
+
+    return COMPILATION_SUCCESS;
 }

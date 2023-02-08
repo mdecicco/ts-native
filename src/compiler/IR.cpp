@@ -1,15 +1,22 @@
-#include <gs/compiler/IR.h>
-#include <gs/compiler/FunctionDef.hpp>
-#include <gs/common/Function.h>
-#include <gs/interfaces/ICodeHolder.h>
+#include <tsn/compiler/IR.h>
+#include <tsn/compiler/FunctionDef.hpp>
+#include <tsn/common/Function.h>
+#include <tsn/interfaces/ICodeHolder.h>
 
 #include <utils/Array.hpp>
+#include <utils/Buffer.hpp>
 
-namespace gs {
+namespace tsn {
     namespace compiler {
         //
         // Instruction
         //
+        Instruction::Instruction() {
+            op = ir_noop;
+            labels[0] = labels[1] = 0;
+            oCnt = lCnt = 0;
+            fn_operands[0] = fn_operands[1] = fn_operands[2] = nullptr;
+        }
 
         Instruction::Instruction(ir_instruction i, const SourceLocation& _src) : src(_src) {
             op = i;
@@ -27,7 +34,6 @@ namespace gs {
         }
 
         utils::String Instruction::toString() const {
-            
             static const char* istr[] = {
                 "noop",
                 "label",
@@ -125,6 +131,33 @@ namespace gs {
             }
 
             return s;
+        }
+
+        bool Instruction::serialize(utils::Buffer* out, Context* ctx) const {
+            if (!out->write(op)) return false;
+            if (!out->write(oCnt)) return false;
+            if (!out->write(lCnt)) return false;
+            if (!src.serialize(out, ctx)) return false;
+
+            for (u8 i = 0;i < lCnt;i++) {
+                if (!out->write(labels[i])) return false;
+            }
+
+            for (u8 i = 0;i < oCnt;i++) {
+                if (fn_operands[i]) {
+                    if (!out->write(false)) return false;
+                    if (!out->write(fn_operands[i]->getOutput()->getId())) return false;
+                } else {
+                    if (!out->write(true)) return false;
+                    if (!out->write(operands[i])) return false;
+                }
+            }
+
+            return true;
+        }
+
+        bool Instruction::deserialize(utils::Buffer* in, Context* ctx) {
+            return false;
         }
 
         //

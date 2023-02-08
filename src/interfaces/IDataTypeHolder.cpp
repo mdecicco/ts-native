@@ -1,8 +1,8 @@
-#include <gs/interfaces/IDataTypeHolder.h>
-#include <gs/common/DataType.h>
+#include <tsn/interfaces/IDataTypeHolder.h>
+#include <tsn/common/DataType.h>
 #include <utils/Array.hpp>
 
-namespace gs {
+namespace tsn {
     IDataTypeHolder::IDataTypeHolder() {
     }
 

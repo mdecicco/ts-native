@@ -1,17 +1,20 @@
-#include <gs/compiler/Value.hpp>
-#include <gs/compiler/Compiler.h>
-#include <gs/compiler/FunctionDef.h>
-#include <gs/common/Context.h>
-#include <gs/common/TypeRegistry.h>
-#include <gs/interfaces/IDataTypeHolder.hpp>
-#include <gs/common/Function.h>
-#include <gs/common/DataType.h>
-#include <gs/common/Module.h>
+#include <tsn/compiler/Value.hpp>
+#include <tsn/compiler/Compiler.h>
+#include <tsn/compiler/Output.h>
+#include <tsn/compiler/FunctionDef.h>
+#include <tsn/common/Context.h>
+#include <tsn/common/TypeRegistry.h>
+#include <tsn/interfaces/IDataTypeHolder.hpp>
+#include <tsn/common/Function.h>
+#include <tsn/common/DataType.h>
+#include <tsn/common/Module.h>
 
-using namespace gs::ffi;
+#include <utils/Buffer.hpp>
+
+using namespace tsn::ffi;
 using namespace utils;
 
-namespace gs {
+namespace tsn {
     namespace compiler {
         Value::Value() : ITypedObject(nullptr) {
             m_func = nullptr;
@@ -26,6 +29,8 @@ namespace gs {
             m_flags.is_type = 0;
             m_flags.is_module = 0;
             m_flags.is_function = 0;
+            m_flags.is_module_data = 0;
+            m_slotId = 0;
             m_imm.u = 0;
         }
 
@@ -47,6 +52,8 @@ namespace gs {
             m_flags.is_type = 0;
             m_flags.is_module = 0;
             m_flags.is_function = 0;
+            m_flags.is_module_data = 0;
+            m_slotId = 0;
             m_imm.u = 0;
         }
 
@@ -64,6 +71,8 @@ namespace gs {
             m_flags.is_type = 0;
             m_flags.is_module = 0;
             m_flags.is_function = 0;
+            m_flags.is_module_data = 0;
+            m_slotId = 0;
             m_imm.u = imm;
         }
 
@@ -81,6 +90,8 @@ namespace gs {
             m_flags.is_type = 0;
             m_flags.is_module = 0;
             m_flags.is_function = 0;
+            m_flags.is_module_data = 0;
+            m_slotId = 0;
             m_imm.i = imm;
         }
 
@@ -98,6 +109,8 @@ namespace gs {
             m_flags.is_type = 0;
             m_flags.is_module = 0;
             m_flags.is_function = 0;
+            m_flags.is_module_data = 0;
+            m_slotId = 0;
             m_imm.f = imm;
         }
 
@@ -115,6 +128,8 @@ namespace gs {
             m_flags.is_type = 0;
             m_flags.is_module = 0;
             m_flags.is_function = 1;
+            m_flags.is_module_data = 0;
+            m_slotId = 0;
             m_imm.fn = imm;
         }
 
@@ -132,6 +147,8 @@ namespace gs {
             m_flags.is_type = 1;
             m_flags.is_module = 0;
             m_flags.is_function = 0;
+            m_flags.is_module_data = 0;
+            m_slotId = 0;
         }
         
         Value::Value(FunctionDef* o, Module* imm) : ITypedObject(nullptr) {
@@ -148,6 +165,27 @@ namespace gs {
             m_flags.is_type = 0;
             m_flags.is_module = 1;
             m_flags.is_function = 0;
+            m_flags.is_module_data = 0;
+            m_slotId = 0;
+            m_imm.mod = imm;
+        }
+        
+        Value::Value(FunctionDef* o, Module* imm, u32 slotId) : ITypedObject(imm->getData()[slotId].type) {
+            m_func = o;
+            m_src = o->getCompiler()->getCurrentSrc();
+            m_regId = 0;
+            m_allocId = 0;
+            m_srcPtr = nullptr;
+            m_srcSetter = nullptr;
+            m_srcSelf = nullptr;
+            m_flags.is_argument = 0;
+            m_flags.is_read_only = 0;
+            m_flags.is_pointer = 0;
+            m_flags.is_type = 0;
+            m_flags.is_module = 0;
+            m_flags.is_function = 0;
+            m_flags.is_module_data = 1;
+            m_slotId = slotId;
             m_imm.mod = imm;
         }
 
@@ -171,6 +209,7 @@ namespace gs {
             m_srcSetter = o.m_srcSetter;
             m_srcSelf = o.m_srcSelf ? new Value(*o.m_srcSelf) : nullptr;
             m_flags = o.m_flags;
+            m_slotId = o.m_slotId;
             m_imm = o.m_imm;
         }
 
@@ -180,6 +219,9 @@ namespace gs {
                 return m_func->getPoison();
             } else if (m_flags.is_type) {
                 m_func->getCompiler()->valueError(*this, cm_err_type_used_as_value, "Types cannot be used as a value");
+                return m_func->getPoison();
+            } else if (m_flags.is_module_data) {
+                m_func->getCompiler()->valueError(*this, cm_err_module_data_used_as_value, "Module data refs cannot be used as a value");
                 return m_func->getPoison();
             }
 
@@ -519,6 +561,10 @@ namespace gs {
             return m_allocId;
         }
 
+        u32 Value::getModuleDataSlotId() const {
+            return m_slotId;
+        }
+
         const String& Value::getName() const {
             return m_name;
         }
@@ -539,7 +585,6 @@ namespace gs {
             return m_srcPtr;
         }
 
-        // Only one of these can be true
         bool Value::isReg() const {
             return m_regId > 0;
         }
@@ -550,6 +595,10 @@ namespace gs {
 
         bool Value::isStack() const {
             return m_allocId > 0;
+        }
+
+        bool Value::isModuleData() const {
+            return m_flags.is_module_data;
         }
 
         Value Value::genBinaryOp(
@@ -568,6 +617,9 @@ namespace gs {
                 return m_func->getPoison();
             } else if (self->m_flags.is_type) {
                 m_func->getCompiler()->valueError(*self, cm_err_type_used_as_value, "Types cannot be used as a value");
+                return m_func->getPoison();
+            } else if (self->m_flags.is_module_data) {
+                m_func->getCompiler()->valueError(*self, cm_err_module_data_used_as_value, "Module data refs cannot be used as a value");
                 return m_func->getPoison();
             }
 
@@ -884,6 +936,9 @@ namespace gs {
             } else if (m_flags.is_type) {
                 m_func->getCompiler()->valueError(*this, cm_err_type_used_as_value, "Types cannot be used as a value");
                 return m_func->getPoison();
+            } else if (m_flags.is_module_data) {
+                m_func->getCompiler()->valueError(*this, cm_err_module_data_used_as_value, "Module data refs cannot be used as a value");
+                return m_func->getPoison();
             }
 
             // todo: If script is trusted then allow offsetting from
@@ -958,6 +1013,9 @@ namespace gs {
             } else if (m_flags.is_type) {
                 m_func->getCompiler()->valueError(*this, cm_err_type_used_as_value, "Types cannot be used as a value");
                 return m_func->getPoison();
+            } else if (m_flags.is_module_data) {
+                m_func->getCompiler()->valueError(*this, cm_err_module_data_used_as_value, "Module data refs cannot be used as a value");
+                return m_func->getPoison();
             }
 
             Array<Value> args;
@@ -972,7 +1030,18 @@ namespace gs {
                 return m_func->getCompiler()->generateCall(m_imm.fn, _args, self);
             }
 
-            Array<Function*> matches = m_type->findMethods("operator ()", nullptr, const_cast<const DataType**>(argTps.data()), argTps.size(), fm_skip_implicit_args);
+            if (m_type->getInfo().is_function) {
+                return m_func->getCompiler()->generateCall(*this, _args, self);
+            }
+
+            Array<Function*> matches = m_type->findMethods(
+                "operator ()",
+                nullptr,
+                const_cast<const DataType**>(argTps.data()),
+                argTps.size(),
+                fm_skip_implicit_args
+            );
+
             if (matches.size() == 1) {
                 return m_func->getCompiler()->generateCall(matches[0], args, this);
             } else if (matches.size() > 1) {
@@ -1062,6 +1131,9 @@ namespace gs {
             } else if (m_flags.is_type) {
                 m_func->getCompiler()->valueError(*this, cm_err_type_used_as_value, "Types cannot be used as a value");
                 return m_func->getPoison();
+            } else if (m_flags.is_module_data) {
+                m_func->getCompiler()->valueError(*this, cm_err_module_data_used_as_value, "Module data refs cannot be used as a value");
+                return m_func->getPoison();
             }
             
             if (!m_flags.is_pointer) {
@@ -1136,6 +1208,14 @@ namespace gs {
             if (m_name.size() > 0) s += "(" + m_name + ")";
 
             return s;
+        }
+
+        bool Value::serialize(utils::Buffer* out, Context* ctx) const {
+            return false;
+        }
+
+        bool Value::deserialize(utils::Buffer* in, Context* ctx) {
+            return false;
         }
     };
 };

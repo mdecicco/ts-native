@@ -1,9 +1,9 @@
-#include <gs/interfaces/IFunctionHolder.h>
-#include <gs/common/Function.h>
-#include <gs/utils/function_match.h>
+#include <tsn/interfaces/IFunctionHolder.h>
+#include <tsn/common/Function.h>
+#include <tsn/utils/function_match.h>
 #include <utils/Array.hpp>
 
-namespace gs {
+namespace tsn {
     IFunctionHolder::IFunctionHolder() {
         m_funcs.push(nullptr);
     }

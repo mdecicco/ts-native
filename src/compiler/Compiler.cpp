@@ -1,25 +1,26 @@
-#include <gs/compiler/Compiler.h>
-#include <gs/compiler/FunctionDef.hpp>
-#include <gs/compiler/Parser.h>
-#include <gs/common/Context.h>
-#include <gs/common/Module.h>
-#include <gs/common/Function.h>
-#include <gs/common/DataType.h>
-#include <gs/common/TypeRegistry.h>
-#include <gs/common/FunctionRegistry.h>
-#include <gs/compiler/Value.hpp>
-#include <gs/interfaces/IDataTypeHolder.hpp>
-#include <gs/interfaces/ICodeHolder.h>
-#include <gs/utils/function_match.h>
+#include <tsn/compiler/Compiler.h>
+#include <tsn/compiler/FunctionDef.hpp>
+#include <tsn/compiler/Parser.h>
+#include <tsn/common/Context.h>
+#include <tsn/common/Module.h>
+#include <tsn/common/Function.h>
+#include <tsn/common/DataType.h>
+#include <tsn/common/TypeRegistry.h>
+#include <tsn/common/FunctionRegistry.h>
+#include <tsn/compiler/Value.hpp>
+#include <tsn/compiler/Output.h>
+#include <tsn/interfaces/IDataTypeHolder.hpp>
+#include <tsn/interfaces/ICodeHolder.h>
+#include <tsn/utils/function_match.h>
 
 #include <utils/Array.hpp>
 
 #include <stdarg.h>
 
 using namespace utils;
-using namespace gs::ffi;
+using namespace tsn::ffi;
 
-namespace gs {
+namespace tsn {
     namespace compiler {
         utils::String argListStr(const utils::Array<Value>& args) {
             utils::String out;
@@ -42,116 +43,10 @@ namespace gs {
 
 
         //
-        // CompilerOutput
-        //
-
-        CompilerOutput::CompilerOutput(Compiler* c, Module* m) {
-            m_comp = c;
-            m_mod = m;
-        }
-
-        CompilerOutput::~CompilerOutput() {
-            m_allFuncDefs.each([](FunctionDef* f) {
-                delete f;
-            });
-
-            m_symbolLifetimes.each([](const symbol_lifetime& s) {
-                delete s.sym;
-            });
-
-            // Types are someone else's responsibility now
-        }
-
-        FunctionDef* CompilerOutput::newFunc(const utils::String& name, ffi::DataType* methodOf) {
-            FunctionDef* fn = new FunctionDef(m_comp, name, methodOf);
-            // Don't add __init__ function to scope
-            if (m_funcs.size() > 0) m_comp->scope().add(name, fn);
-            m_funcs.push(fn);
-            m_allFuncDefs.push(fn);
-            
-            // def index will be added to m_funcDefs later when output Function* is created
-
-            return fn;
-        }
-        
-        FunctionDef* CompilerOutput::newFunc(ffi::Function* preCreated) {
-            FunctionDef* fn = new FunctionDef(m_comp, preCreated);
-            m_comp->scope().add(preCreated->getName(), fn);
-            m_funcs.push(fn);
-            m_funcDefs[preCreated] = m_allFuncDefs.size();
-            m_allFuncDefs.push(fn);
-            return fn;
-        }
-        
-        void CompilerOutput::resolveFunctionDef(FunctionDef* def, ffi::Function* fn) {
-            i64 idx = m_allFuncDefs.findIndex([def](FunctionDef* d) { return d == def; });
-            m_funcDefs[fn] = (u32)idx;
-        }
-        
-        FunctionDef* CompilerOutput::getFunctionDef(ffi::Function* fn) {
-            auto it = m_funcDefs.find(fn);
-            if (it != m_funcDefs.end()) return m_allFuncDefs[it->second];
-
-            FunctionDef* def = new FunctionDef(m_comp, fn);
-            m_funcDefs[fn] = m_allFuncDefs.size();
-            m_allFuncDefs.push(def);
-            return def;
-        }
-
-        void CompilerOutput::add(ffi::DataType* tp) {
-            m_comp->scope().add(tp->getName(), tp);
-            m_types.push(tp);
-        }
-        
-        FunctionDef* CompilerOutput::import(Function* fn, const utils::String& as) {
-            FunctionDef* f = new FunctionDef(m_comp, fn);
-            m_comp->scope().add(as, f);
-            m_funcDefs[fn] = m_allFuncDefs.size();
-            m_allFuncDefs.push(f);
-            return f;
-        }
-
-        void CompilerOutput::import(DataType* tp, const utils::String& as) {
-            m_comp->scope().add(as, tp);
-        }
-
-        u32 CompilerOutput::addSymbolLifetime(const utils::String& name, ast_node* scopeRoot, const Value& v) {
-            ast_node* n = m_comp->currentNode();
-            scopeRoot->computeSourceLocationRange();
-
-            m_symbolLifetimes.push({
-                name,
-                new Value(v),
-                n->tok.src.getLine() > scopeRoot->tok.src.getLine() ? scopeRoot->tok.src : n->tok.src,
-                scopeRoot->tok.src.getEndLocation()
-            });
-
-            return m_symbolLifetimes.size() - 1;
-        }
-        
-        const utils::Array<symbol_lifetime>& CompilerOutput::getSymbolLifetimeData() const {
-            return m_symbolLifetimes;
-        }
-
-        const utils::Array<FunctionDef*>& CompilerOutput::getFuncs() const {
-            return m_funcs;
-        }
-
-        const utils::Array<DataType*>& CompilerOutput::getTypes() const {
-            return m_types;
-        }
-
-        Module* CompilerOutput::getModule() {
-            return m_mod;
-        }
-
-
-
-        //
         // Compiler
         //
 
-        Compiler::Compiler(Context* ctx, ast_node* programTree) : IContextual(ctx), m_scopeMgr(this) {
+        Compiler::Compiler(Context* ctx, ParseNode* programTree) : IContextual(ctx), m_scopeMgr(this) {
             m_program = programTree;
             m_output = nullptr;
             m_curFunc = nullptr;
@@ -164,7 +59,7 @@ namespace gs {
             exitNode();
         }
 
-        void Compiler::enterNode(ast_node* n) {
+        void Compiler::enterNode(ParseNode* n) {
             n->computeSourceLocationRange();
             m_nodeStack.push(n);
         }
@@ -200,7 +95,7 @@ namespace gs {
             return m_curClass;
         }
 
-        ast_node* Compiler::currentNode() {
+        ParseNode* Compiler::currentNode() {
             return m_nodeStack.last();
         }
 
@@ -228,18 +123,18 @@ namespace gs {
             FunctionDef* fd = m_output->newFunc("__init__");
             enterFunction(fd);
 
-            const utils::Array<gs::ffi::DataType*>& importTypes = m_ctx->getGlobal()->allTypes();
+            const utils::Array<tsn::ffi::DataType*>& importTypes = m_ctx->getGlobal()->allTypes();
             for (auto* t : importTypes) {
                 m_output->import(t, t->getName());
             }
 
-            const utils::Array<gs::ffi::Function*>& importFuncs = m_ctx->getGlobal()->allFunctions();
+            const utils::Array<tsn::ffi::Function*>& importFuncs = m_ctx->getGlobal()->allFunctions();
             for (auto* f : importFuncs) {
                 if (!f) continue;
                 m_output->import(f, f->getName());
             }
 
-            ast_node* n = m_program->body;
+            ParseNode* n = m_program->body;
             while (n) {
                 if (n->tp == nt_import) {
                     compileImport(n);
@@ -285,7 +180,7 @@ namespace gs {
             i32 len = vsnprintf(out, 1024, msg, l);
             va_end(l);
 
-            ast_node* n = m_nodeStack.last();
+            ParseNode* n = m_nodeStack.last();
             m_messages.push({
                 cmt_error,
                 code,
@@ -297,7 +192,7 @@ namespace gs {
             return m_messages.last();
         }
 
-        compilation_message& Compiler::typeError(ast_node* node, ffi::DataType* tp, compilation_message_code code, const char* msg, ...) {
+        compilation_message& Compiler::typeError(ParseNode* node, ffi::DataType* tp, compilation_message_code code, const char* msg, ...) {
             if (tp->isEqualTo(currentFunction()->getPoison().getType())) {
                 // If the type is poisoned, an error was already emitted. All (or most) subsequent
                 // errors would not actually be errors if the original error had not occurred. This
@@ -336,7 +231,7 @@ namespace gs {
             i32 len = vsnprintf(out, 1024, msg, l);
             va_end(l);
             
-            ast_node* n = m_nodeStack.last();
+            ParseNode* n = m_nodeStack.last();
             m_messages.push({
                 cmt_error,
                 code,
@@ -348,7 +243,7 @@ namespace gs {
             return m_messages.last();
         }
 
-        compilation_message& Compiler::valueError(ast_node* node, const Value& val, compilation_message_code code, const char* msg, ...) {
+        compilation_message& Compiler::valueError(ParseNode* node, const Value& val, compilation_message_code code, const char* msg, ...) {
             if (val.getType()->isEqualTo(currentFunction()->getPoison().getType())) {
                 // If the type is poisoned, an error was already emitted. All (or most) subsequent
                 // errors would not actually be errors if the original error had not occurred. This
@@ -391,7 +286,7 @@ namespace gs {
             i32 len = vsnprintf(out, 1024, msg, l);
             va_end(l);
 
-            ast_node* n = m_nodeStack.last();
+            ParseNode* n = m_nodeStack.last();
             m_messages.push({
                 cmt_error,
                 code,
@@ -403,7 +298,7 @@ namespace gs {
             return m_messages.last();
         }
 
-        compilation_message& Compiler::functionError(ast_node* node, ffi::DataType* selfTp, ffi::DataType* retTp, const utils::Array<Value>& args, compilation_message_code code, const char* msg, ...) {
+        compilation_message& Compiler::functionError(ParseNode* node, ffi::DataType* selfTp, ffi::DataType* retTp, const utils::Array<Value>& args, compilation_message_code code, const char* msg, ...) {
             // If any of the involved types are poisoned, an error was already emitted. All
             // (or most) subsequent errors would not actually be errors if the original error
             // had not occurred. This should prevent a cascade of irrelevant errors.
@@ -450,7 +345,7 @@ namespace gs {
             i32 len = vsnprintf(out, 1024, msg, l);
             va_end(l);
 
-            ast_node* n = m_nodeStack.last();
+            ParseNode* n = m_nodeStack.last();
             m_messages.push({
                 cmt_error,
                 code,
@@ -462,7 +357,7 @@ namespace gs {
             return m_messages.last();
         }
 
-        compilation_message& Compiler::functionError(ast_node* node, ffi::DataType* selfTp, ffi::DataType* retTp, const utils::Array<const ffi::DataType*>& argTps, compilation_message_code code, const char* msg, ...) {
+        compilation_message& Compiler::functionError(ParseNode* node, ffi::DataType* selfTp, ffi::DataType* retTp, const utils::Array<const ffi::DataType*>& argTps, compilation_message_code code, const char* msg, ...) {
             // If any of the involved types are poisoned, an error was already emitted. All
             // (or most) subsequent errors would not actually be errors if the original error
             // had not occurred. This should prevent a cascade of irrelevant errors.
@@ -498,7 +393,7 @@ namespace gs {
             i32 len = vsnprintf(out, 1024, msg, l);
             va_end(l);
 
-            ast_node* n = m_nodeStack.last();
+            ParseNode* n = m_nodeStack.last();
             m_messages.push({
                 cmt_error,
                 code,
@@ -510,7 +405,7 @@ namespace gs {
             return m_messages.last();
         }
         
-        compilation_message& Compiler::error(ast_node* node, compilation_message_code code, const char* msg, ...) {
+        compilation_message& Compiler::error(ParseNode* node, compilation_message_code code, const char* msg, ...) {
             char out[1024] = { 0 };
             va_list l;
             va_start(l, msg);
@@ -535,7 +430,7 @@ namespace gs {
             i32 len = vsnprintf(out, 1024, msg, l);
             va_end(l);
 
-            ast_node* n = m_nodeStack.last();
+            ParseNode* n = m_nodeStack.last();
             m_messages.push({
                 cmt_warn,
                 code,
@@ -547,7 +442,7 @@ namespace gs {
             return m_messages.last();
         }
 
-        compilation_message& Compiler::warn(ast_node* node, compilation_message_code code, const char* msg, ...) {
+        compilation_message& Compiler::warn(ParseNode* node, compilation_message_code code, const char* msg, ...) {
             char out[1024] = { 0 };
             va_list l;
             va_start(l, msg);
@@ -572,7 +467,7 @@ namespace gs {
             i32 len = vsnprintf(out, 1024, msg, l);
             va_end(l);
 
-            ast_node* n = m_nodeStack.last();
+            ParseNode* n = m_nodeStack.last();
             m_messages.push({
                 cmt_info,
                 code,
@@ -584,7 +479,7 @@ namespace gs {
             return m_messages.last();
         }
 
-        compilation_message& Compiler::info(ast_node* node, compilation_message_code code, const char* msg, ...) {
+        compilation_message& Compiler::info(ParseNode* node, compilation_message_code code, const char* msg, ...) {
             char out[1024] = { 0 };
             va_list l;
             va_start(l, msg);
@@ -614,6 +509,24 @@ namespace gs {
 
         void Compiler::constructObject(const Value& dest, ffi::DataType* tp, const utils::Array<Value>& args) {
             Array<DataType*> argTps = args.map([](const Value& v) { return v.getType(); });
+
+            if (tp->getInfo().is_primitive) {
+                if (args.size() > 1) {
+                    functionError(
+                        tp,
+                        nullptr,
+                        args,
+                        cm_err_no_matching_constructor,
+                        "Type '%s' has no constructor with arguments matching '%s'",
+                        tp->getName().c_str(),
+                        argListStr(args).c_str()
+                    );
+                } else if (args.size() == 1) {
+                    Value v = args[0].convertedTo(tp);
+                    currentFunction()->add(ir_store).op(v).op(dest);
+                }
+                return;
+            }
 
             Array<Function *> ctors = tp->findMethods("constructor", nullptr, (const DataType**)argTps.data(), argTps.size(), fm_skip_implicit_args);
             if (ctors.size() == 1) {
@@ -742,48 +655,73 @@ namespace gs {
             return currentFunction()->val(m, slot);
         }
 
-        Value Compiler::generateCall(Function* fn, const utils::Array<Value>& args, const Value* self) {
-            return generateCall(m_output->getFunctionDef(fn), args, self);
-        }
-
-        Value Compiler::generateCall(FunctionDef* fn, const utils::Array<Value>& args, const Value* self) {
+        Value Compiler::generateCall(const Value& fn, const utils::String& name, ffi::DataType* retTp, const utils::Array<function_argument>& fargs, const utils::Array<Value>& params, const Value* self) {
             FunctionDef* cf = currentFunction();
 
-            if (args.size() != fn->getArgCount()) {
-                functionError(
-                    self ? self->getType() : nullptr,
-                    fn->getReturnType(),
-                    args,
-                    cm_err_function_argument_count_mismatch,
-                    "Function '%s' expects %d arguments, but %d %s provided",
-                    fn->getName().c_str(),
-                    fn->getArgCount(),
-                    args.size(),
-                    args.size() == 1 ? "was" : "were"
-                );
+            u8 argc = 0;
+            for (u8 a = 0;a < fargs.size();a++) {
+                if (!fargs[a].isImplicit()) argc++;
+            }
+
+            if (params.size() != argc) {
+                if (name.size() > 0) {
+                    functionError(
+                        self ? self->getType() : nullptr,
+                        retTp,
+                        params,
+                        cm_err_function_argument_count_mismatch,
+                        "Function '%s' expects %d arguments, but %d %s provided",
+                        name.c_str(),
+                        argc,
+                        params.size(),
+                        params.size() == 1 ? "was" : "were"
+                    );
+                } else {
+                    functionError(
+                        self ? self->getType() : nullptr,
+                        retTp,
+                        params,
+                        cm_err_function_argument_count_mismatch,
+                        "Function expects %d arguments, but %d %s provided",
+                        argc,
+                        params.size(),
+                        params.size() == 1 ? "was" : "were"
+                    );
+                }
 
                 return cf->getPoison();
             }
 
             u8 aidx = 0;
-            for (u8 a = 0;a < fn->getArgCount();a++) {
-                const auto& ainfo = fn->getArgInfo(a);
+            for (u8 a = 0;a < fargs.size();a++) {
+                const auto& ainfo = fargs[a];
                 if (ainfo.isImplicit()) continue;
 
-                if (!args[aidx].getType()->isConvertibleTo(ainfo.dataType)) {
-                    functionError(
-                        self ? self->getType() : nullptr,
-                        fn->getReturnType(),
-                        args,
-                        cm_err_type_not_convertible,
-                        "Function '%s' is not callable with args '%s'",
-                        fn->getName().c_str(),
-                        argListStr(args).c_str()
-                    );
+                if (!params[aidx].getType()->isConvertibleTo(ainfo.dataType)) {
+                    if (name.size() > 0) {
+                        functionError(
+                            self ? self->getType() : nullptr,
+                            retTp,
+                            params,
+                            cm_err_type_not_convertible,
+                            "Function '%s' is not callable with args '%s'",
+                            name.c_str(),
+                            argListStr(params).c_str()
+                        );
+                    } else {
+                        functionError(
+                            self ? self->getType() : nullptr,
+                            retTp,
+                            params,
+                            cm_err_type_not_convertible,
+                            "Function is not callable with args '%s'",
+                            argListStr(params).c_str()
+                        );
+                    }
                     info(
                         cm_info_arg_conversion,
                         "^ No conversion found from type '%s' to type '%s' for argument %d",
-                        args[aidx].getType()->getName().c_str(),
+                        params[aidx].getType()->getName().c_str(),
                         ainfo.dataType->getName().c_str(),
                         aidx + 1
                     );
@@ -792,32 +730,61 @@ namespace gs {
                 }
                 aidx++;
             }
+            
+            Value result = cf->val(retTp);
+            if (!retTp->getInfo().is_primitive && retTp->getInfo().size != 0) {
+                alloc_id stackId = cf->reserveStackId();
 
-            const auto& fargs = fn->getArgs();
+                cf->setStackId(result, stackId);
+                cf->add(ir_stack_allocate).op(result).op(cf->imm(retTp->getInfo().size)).op(cf->imm(stackId));
+            }
+
             aidx = 0;
             for (u8 a = 0;a < fargs.size();a++) {
                 const auto& arg = fargs[a];
                 if (arg.isImplicit()) {
                     if (arg.argType == arg_type::context_ptr) cf->add(ir_param).op(cf->getECtx());
-                    else if (arg.argType == arg_type::func_ptr) cf->add(ir_param).op(cf->getFPtr());
-                    else if (arg.argType == arg_type::ret_ptr) cf->add(ir_param).op(cf->getRetPtr());
-                    else if (arg.argType == arg_type::this_ptr) cf->add(ir_param).op(cf->getThis());
+                    else if (arg.argType == arg_type::func_ptr) cf->add(ir_param).op(cf->imm<u64>(0));
+                    else if (arg.argType == arg_type::ret_ptr) cf->add(ir_param).op(result);
+                    else if (arg.argType == arg_type::this_ptr) {
+                        if (!self) {
+                            // TODO
+                            // this may be bound already (think obj.method.bind(obj) in JS)
+                            cf->add(ir_param).op(cf->imm<u64>(0));
+                        } else cf->add(ir_param).op(*self);
+                    }
                     continue;
                 }
-                cf->add(ir_param).op(cf->getArg(aidx));
-                aidx++;
+                cf->add(ir_param).op(params[aidx++]);
             }
 
-            auto call = cf->add(ir_call).op(functionValue(fn));
-            if (fn->getReturnType() && fn->getReturnType()->getInfo().size != 0) {
-                Value result = cf->val(fn->getReturnType());
+            auto call = cf->add(ir_call).op(fn);
+            if (retTp->getInfo().is_primitive && retTp->getInfo().size != 0) {
                 call.op(result);
                 return result;
             }
 
             return cf->getPoison();
         }
+        
+        Value Compiler::generateCall(Function* fn, const utils::Array<Value>& args, const Value* self) {
+            FunctionType* sig = fn->getSignature();
+            return generateCall(functionValue(fn), fn->getName(), sig->getReturnType(), sig->getArguments(), args, self);
+        }
 
+        Value Compiler::generateCall(FunctionDef* fn, const utils::Array<Value>& args, const Value* self) {
+            return generateCall(functionValue(fn), fn->getName(), fn->getReturnType(), fn->getArgs(), args, self);
+        }
+
+        Value Compiler::generateCall(const Value& fn, const utils::Array<Value>& args, const Value* self) {
+            if (fn.getFlags().is_function) {
+                FunctionDef* fd = fn.getImm<FunctionDef*>();
+                return generateCall(functionValue(fd), fd->getName(), fd->getReturnType(), fd->getArgs(), args, self);
+            }
+
+            FunctionType* sig = (FunctionType*)fn.getType();
+            return generateCall(fn, fn.getName(), sig->getReturnType(), sig->getArguments(), args, self);
+        }
 
         //
         // Data type resolution
@@ -852,7 +819,7 @@ namespace gs {
             } else {
                 String fullName = "Array<" + elemTp->getFullyQualifiedName() + ">";
                 TemplateType* at = (TemplateType*)scope().getBase().get("Array");
-                ast_node* arrayAst = at->getAST();
+                ParseNode* arrayAst = at->getAST();
                 Scope& tscope = scope().enter();
                 DataType* outTp = nullptr;
 
@@ -892,7 +859,7 @@ namespace gs {
             } else {
                 String fullName = "Pointer<" + destTp->getFullyQualifiedName() + ">";
                 TemplateType* pt = (TemplateType*)scope().getBase().get("Pointer");
-                ast_node* pointerAst = pt->getAST();
+                ParseNode* pointerAst = pt->getAST();
                 Scope& tscope = scope().enter();
 
                 // Add the pointer destination type to the symbol table as the template argument name
@@ -915,7 +882,7 @@ namespace gs {
 
             return nullptr;
         }
-        DataType* Compiler::resolveTemplateTypeSubstitution(ast_node* templateArgs, DataType* _type) {
+        DataType* Compiler::resolveTemplateTypeSubstitution(ParseNode* templateArgs, DataType* _type) {
             if (!_type->getInfo().is_template) {
                 typeError(
                     _type,
@@ -929,7 +896,7 @@ namespace gs {
 
             TemplateType* type = (TemplateType*)_type;
 
-            ast_node* tpAst = type->getAST();
+            ParseNode* tpAst = type->getAST();
             enterNode(tpAst);
             Scope& s = scope().enter();
 
@@ -940,7 +907,7 @@ namespace gs {
             name += '<';
             fullName += '<';
 
-            ast_node* n = tpAst->template_parameters;
+            ParseNode* n = tpAst->template_parameters;
             u32 pc = 0;
             while (n) {
                 enterNode(n);
@@ -959,7 +926,7 @@ namespace gs {
 
                 if (n && !templateArgs) {
                     u32 ec = pc;
-                    ast_node* en = n;
+                    ParseNode* en = n;
                     while (en) {
                         ec++;
                         en = en->next;
@@ -986,7 +953,7 @@ namespace gs {
 
             if (!n && templateArgs) {
                 u32 ec = pc;
-                ast_node* pn = templateArgs;
+                ParseNode* pn = templateArgs;
                 while (pn) {
                     pc++;
                     pn = pn->next;
@@ -1047,7 +1014,7 @@ namespace gs {
             exitNode();
             return tp;
         }
-        DataType* Compiler::resolveObjectTypeSpecifier(ast_node* n) {
+        DataType* Compiler::resolveObjectTypeSpecifier(ParseNode* n) {
             enterNode(n);
             Array<type_property> props;
             Function* dtor = nullptr;
@@ -1058,7 +1025,7 @@ namespace gs {
             info.is_trivially_destructible = 1;
             info.is_anonymous = 1;
 
-            ast_node* b = n->body;
+            ParseNode* b = n->body;
             while (b) {
                 switch (b->tp) {
                     case nt_type_property: {
@@ -1126,7 +1093,7 @@ namespace gs {
             exitNode();
             return tp;
         }
-        DataType* Compiler::resolveFunctionTypeSpecifier(ast_node* n) {
+        DataType* Compiler::resolveFunctionTypeSpecifier(ParseNode* n) {
             enterNode(n);
             DataType* retTp = resolveTypeSpecifier(n->data_type);
             DataType* ptrTp = getContext()->getTypes()->getType<void*>();
@@ -1135,7 +1102,7 @@ namespace gs {
             args.push({ arg_type::ret_ptr, retTp });
             args.push({ arg_type::context_ptr, ptrTp });
 
-            ast_node* a = n->parameters;
+            ParseNode* a = n->parameters;
             while (a) {
                 DataType* atp = resolveTypeSpecifier(a->data_type);
                 args.push({
@@ -1154,7 +1121,7 @@ namespace gs {
             exitNode();
             return tp;
         }
-        DataType* Compiler::resolveTypeNameSpecifier(ast_node* n) {
+        DataType* Compiler::resolveTypeNameSpecifier(ParseNode* n) {
             String name = n->body->str();
             symbol* s = scope().get(name);
             if (!s) {
@@ -1175,7 +1142,7 @@ namespace gs {
                 if (v.getFlags().is_type) {
                     srcTp = v.getType();
                     break;
-                }
+                }  
             }
 
             if (!srcTp) {
@@ -1198,7 +1165,7 @@ namespace gs {
 
             return srcTp;
         }
-        DataType* Compiler::applyTypeModifiers(DataType* tp, ast_node* mod) {
+        DataType* Compiler::applyTypeModifiers(DataType* tp, ParseNode* mod) {
             if (!mod) return tp;
             enterNode(mod);
             DataType* outTp = nullptr;
@@ -1210,7 +1177,7 @@ namespace gs {
             exitNode();
             return outTp;
         }
-        DataType* Compiler::resolveTypeSpecifier(ast_node* n) {
+        DataType* Compiler::resolveTypeSpecifier(ParseNode* n) {
             DataType* tp = nullptr;
             if (n->body && n->body->tp == nt_type_property) tp = resolveObjectTypeSpecifier(n);
             else if (n->parameters) tp = resolveFunctionTypeSpecifier(n);
@@ -1219,7 +1186,7 @@ namespace gs {
             return applyTypeModifiers(tp, n->modifier);
         }
 
-        DataType* Compiler::compileType(ast_node* n) {
+        DataType* Compiler::compileType(ParseNode* n) {
             enterNode(n);
             DataType* tp = nullptr;
             String name = n->str();
@@ -1241,12 +1208,12 @@ namespace gs {
             exitNode();
             return tp;
         }
-        void Compiler::compileMethodDef(ast_node* n, DataType* methodOf, Method* m) {
+        void Compiler::compileMethodDef(ParseNode* n, DataType* methodOf, Method* m) {
             updateMethod(methodOf, m);
             
             FunctionType* sig = m->getSignature();
             const auto& args = sig->getArguments();
-            ast_node* p = n->parameters;
+            ParseNode* p = n->parameters;
 
             enterNode(n->body);
 
@@ -1264,7 +1231,7 @@ namespace gs {
             exitFunction();
             exitNode();
         }
-        Method* Compiler::compileMethodDecl(ast_node* n, u64 thisOffset, bool* wasDtor, bool templatesDefined, bool dtorExists) {
+        Method* Compiler::compileMethodDecl(ParseNode* n, u64 thisOffset, bool* wasDtor, bool templatesDefined, bool dtorExists) {
             enterNode(n);
             utils::String name = n->str();
             DataType* voidTp = getContext()->getTypes()->getType<void>();
@@ -1321,7 +1288,7 @@ namespace gs {
 
                 name += '<';
 
-                ast_node* arg = n->template_parameters;
+                ParseNode* arg = n->template_parameters;
                 while (arg) {
                     symbol* s = scope().get(arg->str());
                     // symbol for template parameter should always be defined here
@@ -1371,7 +1338,7 @@ namespace gs {
             // This type will be assigned later
             args.push({ arg_type::this_ptr, ptrTp });
 
-            ast_node* p = n->parameters;
+            ParseNode* p = n->parameters;
             u8 a = u8(args.size());
             DataType* poisonTp = currentFunction()->getPoison().getType();
             Array<DataType*> argTps;
@@ -1440,11 +1407,11 @@ namespace gs {
                 thisOffset
             );
 
-            m_output->newFunc(m);
+            m_output->newFunc(m, n->data_type != nullptr);
             exitNode();
             return m;
         }
-        DataType* Compiler::compileClass(ast_node* n, bool templatesDefined) {
+        DataType* Compiler::compileClass(ParseNode* n, bool templatesDefined) {
             enterNode(n);
             utils::String name = n->str();
             String fullName = getOutput()->getModule()->getName() + "::" + name;
@@ -1461,7 +1428,7 @@ namespace gs {
                 name += '<';
                 fullName += '<';
 
-                ast_node* arg = n->template_parameters;
+                ParseNode* arg = n->template_parameters;
                 while (arg) {
                     symbol* s = scope().get(arg->str());
                     DataType* pt = getTypeFromSymbol(s);
@@ -1488,7 +1455,7 @@ namespace gs {
             scope().getBase().add(name, tp);
             scope().enter();
             
-            ast_node* inherits = n->inheritance;
+            ParseNode* inherits = n->inheritance;
             while (inherits) {
                 // todo: Check added properties don't have name collisions with
                 //       existing properties
@@ -1498,7 +1465,7 @@ namespace gs {
                 inherits = inherits->next;
             }
 
-            ast_node* prop = n->body;
+            ParseNode* prop = n->body;
             u64 thisOffset = tp->getInfo().size;
             while (prop) {
                 if (prop->tp != nt_property) {
@@ -1525,8 +1492,8 @@ namespace gs {
                 prop = prop->next;
             }
 
-            ast_node* meth = n->body;
-            ast_node* dtor = nullptr;
+            ParseNode* meth = n->body;
+            ParseNode* dtor = nullptr;
             while (meth) {
                 if (meth->tp != nt_function) {
                     meth = meth->next;
@@ -1567,7 +1534,7 @@ namespace gs {
 
             return tp;
         }
-        Function* Compiler::compileFunction(ast_node* n, bool templatesDefined) {
+        Function* Compiler::compileFunction(ParseNode* n, bool templatesDefined) {
             enterNode(n);
             utils::String name = n->str();
             
@@ -1587,7 +1554,7 @@ namespace gs {
 
                 name += '<';
 
-                ast_node* arg = n->template_parameters;
+                ParseNode* arg = n->template_parameters;
                 while (arg) {
                     symbol* s = scope().get(arg->str());
                     // symbol for template parameter should always be defined here
@@ -1610,7 +1577,7 @@ namespace gs {
                 fd->setReturnType(resolveTypeSpecifier(n->data_type));
             }
 
-            ast_node* p = n->parameters;
+            ParseNode* p = n->parameters;
             DataType* poisonTp = currentFunction()->getPoison().getType();
             while (p) {
                 DataType* tp = poisonTp;
@@ -1634,7 +1601,7 @@ namespace gs {
 
             return out;
         }
-        void Compiler::compileExport(ast_node* n) {
+        void Compiler::compileExport(ParseNode* n) {
             enterNode(n);
             if (!inInitFunction()) {
                 error(cm_err_export_not_in_root_scope, "'export' keyword encountered outside of root scope");
@@ -1665,7 +1632,7 @@ namespace gs {
             error(cm_err_export_invalid, "Expected type, function, class, or variable");
             exitNode();
         }
-        void Compiler::compileImport(ast_node* n) {
+        void Compiler::compileImport(ParseNode* n) {
             enterNode(n);
             if (!inInitFunction()) {
                 error(cm_err_import_not_in_root_scope, "'import' keyword encountered outside of root scope");
@@ -1673,10 +1640,115 @@ namespace gs {
                 return;
             }
 
-            // todo
+            Module* m = m_ctx->getModule(n->str());
+            if (!m) {
+                error(cm_err_import_module_not_found, "Module '%s' not found", n->str().c_str());
+                exitNode();
+                return;
+            }
+
+            if (n->body->tp == nt_import_module) {
+                scope().getBase().add(n->body->str(), m);
+            } else if (n->body->tp == nt_import_symbol) {
+                ParseNode* sym = n->body;
+                while (sym) {
+                    DataType* tp = sym->data_type ? resolveTypeSpecifier(sym->data_type) : nullptr;
+                    String name = sym->str();
+                    utils::Array<Function*> funcs;
+                    utils::Array<const module_data*> vars;
+                    utils::Array<u32> var_slots;
+
+                    m->getData().each([&name, &vars, &var_slots, tp](const module_data& m, u32 idx) {
+                        if (m.access == private_access) return;
+                        if (m.name != name) return;
+                        if (tp && !m.type->isEquivalentTo(tp)) return;
+                        vars.push(&m);
+                        var_slots.push(idx);
+                    });
+
+                    if (tp) {
+                        if (tp->getInfo().is_function) {
+                            FunctionType* ftp = (FunctionType*)tp;
+                            utils::Array<DataType*> args = ftp->getArguments().map([](const function_argument& a) { return a.dataType; });
+                            funcs = m->findFunctions(
+                                name,
+                                ftp->getReturnType(),
+                                const_cast<const DataType**>(args.data()),
+                                args.size(),
+                                fm_exclude_private | fm_strict
+                            );
+                        }
+                        
+                        if (funcs.size() + vars.size() > 1) {
+                            error(
+                                cm_err_export_ambiguous,
+                                "Module '%s' has multiple exports named '%s' that match the type '%s'",
+                                n->str().c_str(),
+                                name.c_str(),
+                                tp->getName().c_str()
+                            );
+                            for (u32 i = 0;i < funcs.size();i++) {
+                                info(cm_info_could_be, "^ Could be '%s'", funcs[i]->getFullyQualifiedName().c_str());
+                            }
+                            for (u32 i = 0;i < vars.size();i++) {
+                                info(cm_info_could_be, "^ Could be '%s %s'", vars[i]->type->getName().c_str(), vars[i]->name.c_str());
+                            }
+                        } else if (funcs.size() == 1) {
+                            m_output->import(funcs[0], sym->alias ? sym->alias->str() : name);
+                        } else if (vars.size() == 1) {
+                            scope().getBase().add(sym->alias ? sym->alias->str() : name, m, var_slots[0]);
+                        } else {
+                            error(
+                                cm_err_export_not_found,
+                                "Module '%s' has no export named '%s' that matches the type '%s'",
+                                n->str().c_str(),
+                                name.c_str(),
+                                tp->getName().c_str()
+                            );
+                        }
+                    } else {
+                        m->allFunctions().each([&funcs, &name](Function* fn) {
+                            if (!fn) return;
+                            if (fn->getAccessModifier() == private_access) return;
+                            if (fn->getName() != name) return;
+                            funcs.push(fn);
+                        });
+
+                        if (funcs.size() + vars.size() > 1) {
+                            error(
+                                cm_err_export_ambiguous,
+                                "Module '%s' has multiple exports named '%s'",
+                                n->str().c_str(),
+                                name.c_str(),
+                                tp->getName().c_str()
+                            );
+                            for (u32 i = 0;i < funcs.size();i++) {
+                                info(cm_info_could_be, "^ Could be '%s'", funcs[i]->getFullyQualifiedName().c_str());
+                            }
+                            for (u32 i = 0;i < vars.size();i++) {
+                                info(cm_info_could_be, "^ Could be '%s %s'", vars[i]->type->getName().c_str(), vars[i]->name.c_str());
+                            }
+                        } else if (funcs.size() == 1) {
+                            m_output->import(funcs[0], sym->alias ? sym->alias->str() : name);
+                        } else if (vars.size() == 1) {
+                            scope().getBase().add(sym->alias ? sym->alias->str() : name, m, var_slots[0]);
+                        } else {
+                            error(
+                                cm_err_export_not_found,
+                                "Module '%s' has no export named '%s'",
+                                n->str().c_str(),
+                                name.c_str()
+                            );
+                        }
+                    }
+
+                    sym = sym->next;
+                }
+            }
+
             exitNode();
         }
-        Value Compiler::compileConditionalExpr(ast_node* n) {
+        Value Compiler::compileConditionalExpr(ParseNode* n) {
             FunctionDef* cf = currentFunction();
 
             scope().enter();
@@ -1744,7 +1816,7 @@ namespace gs {
 
             return out;
         }
-        Value Compiler::compileMemberExpr(ast_node* n, bool topLevel, member_expr_hints* hints) {
+        Value Compiler::compileMemberExpr(ParseNode* n, bool topLevel, member_expr_hints* hints) {
             FunctionDef* cf = currentFunction();
 
             enterNode(n->lvalue);
@@ -1770,11 +1842,11 @@ namespace gs {
 
             return out;
         }
-        Value Compiler::compileArrowFunction(ast_node* n) {
+        Value Compiler::compileArrowFunction(ParseNode* n) {
             // todo
             return currentFunction()->getPoison();
         }
-        Value Compiler::compileExpressionInner(ast_node* n) {
+        Value Compiler::compileExpressionInner(ParseNode* n) {
             if (n->tp == nt_identifier) {
                 symbol* s = scope().get(n->str());
                 if (s) return *s->values.last();
@@ -1805,9 +1877,7 @@ namespace gs {
                     case lt_array: {
                         return currentFunction()->getPoison(); // todo
                     }
-                    case lt_null: {
-                        return currentFunction()->getPoison(); // todo
-                    }
+                    case lt_null: return currentFunction()->getNull();
                     case lt_true: return currentFunction()->imm(true);
                     case lt_false: return currentFunction()->imm(false);
                 }
@@ -1878,7 +1948,7 @@ namespace gs {
                     DataType* type = resolveTypeSpecifier(n->data_type);
 
                     Array<Value> args;
-                    ast_node* p = n->parameters;
+                    ParseNode* p = n->parameters;
                     while (p) {
                         args.push(compileExpression(p));
                         p = p->next;
@@ -1890,7 +1960,7 @@ namespace gs {
                     DataType* type = resolveTypeSpecifier(n->data_type);
 
                     Array<Value> args;
-                    ast_node* p = n->parameters;
+                    ParseNode* p = n->parameters;
                     while (p) {
                         args.push(compileExpression(p));
                         p = p->next;
@@ -1904,7 +1974,7 @@ namespace gs {
                     member_expr_hints h;
                     h.for_func_call = true;
                     h.self = nullptr;
-                    ast_node* p = n->parameters;
+                    ParseNode* p = n->parameters;
 
                     while (p) {
                         h.args.push(compileExpression(p));
@@ -1925,7 +1995,7 @@ namespace gs {
 
             return currentFunction()->getPoison();
         }
-        Value Compiler::compileExpression(ast_node* n) {
+        Value Compiler::compileExpression(ParseNode* n) {
             enterNode(n);
             scope().enter();
 
@@ -1936,7 +2006,7 @@ namespace gs {
 
             return out;
         }
-        void Compiler::compileIfStatement(ast_node* n) {
+        void Compiler::compileIfStatement(ParseNode* n) {
             FunctionDef* cf = currentFunction();
             enterNode(n);
 
@@ -1966,14 +2036,14 @@ namespace gs {
 
             exitNode();
         }
-        void Compiler::compileReturnStatement(ast_node* n) {
+        void Compiler::compileReturnStatement(ParseNode* n) {
             enterNode(n);
             DataType* retTp = currentFunction()->getReturnType();
 
             if (n->body) {
                 Value ret = compileExpression(n->body);
 
-                if (retTp) {
+                if (retTp && currentFunction()->isReturnTypeExplicit()) {
                     add(ir_ret).op(ret.convertedTo(retTp));
                 } else {
                     currentFunction()->setReturnType(ret.getType());
@@ -1984,7 +2054,7 @@ namespace gs {
                 return;
             }
 
-            if (retTp) {
+            if (retTp && currentFunction()->isReturnTypeExplicit()) {
                 error(
                     cm_err_function_must_return_a_value,
                     "Function '%s' must return a value of type '%s'",
@@ -2000,16 +2070,16 @@ namespace gs {
             add(ir_ret);
             exitNode();
         }
-        void Compiler::compileSwitchStatement(ast_node* n) {
+        void Compiler::compileSwitchStatement(ParseNode* n) {
             // todo
         }
-        void Compiler::compileThrow(ast_node* n) {
+        void Compiler::compileThrow(ParseNode* n) {
             // todo
         }
-        void Compiler::compileTryBlock(ast_node* n) {
+        void Compiler::compileTryBlock(ParseNode* n) {
             // todo
         }
-        Value& Compiler::compileVarDecl(ast_node* n, u32* moduleSlot) {
+        Value& Compiler::compileVarDecl(ParseNode* n, u32* moduleSlot) {
             enterNode(n);
             Value* v = nullptr;
             Value init = n->initializer ? compileExpression(n->initializer) : currentFunction()->getPoison();
@@ -2046,13 +2116,13 @@ namespace gs {
             exitNode();
             return *v;
         }
-        void Compiler::compileObjectDecompositor(ast_node* n) {
+        void Compiler::compileObjectDecompositor(ParseNode* n) {
             enterNode(n);
             FunctionDef* cf = currentFunction();
 
             Value source = compileExpression(n->initializer);
             
-            ast_node* p = n->body;
+            ParseNode* p = n->body;
             while (p) {
                 enterNode(p);
                 Value init = source.getProp(p->str());
@@ -2076,7 +2146,7 @@ namespace gs {
 
             exitNode();
         }
-        void Compiler::compileLoop(ast_node* n) {
+        void Compiler::compileLoop(ParseNode* n) {
             FunctionDef* cf = currentFunction();
             enterNode(n);
             Scope& s = scope().enter();
@@ -2139,7 +2209,7 @@ namespace gs {
             scope().exit();
             exitNode();
         }
-        void Compiler::compileContinue(ast_node* n) {
+        void Compiler::compileContinue(ParseNode* n) {
             if (m_lsStack.size() == 0) {
                 error(n, cm_err_continue_scope, "'continue' used outside of loop scope");
                 return;
@@ -2154,7 +2224,7 @@ namespace gs {
             scope().emitScopeExitInstructions(*ls.outer_scope);
             add(ir_jump).label(ls.loop_begin);
         }
-        void Compiler::compileBreak(ast_node* n) {
+        void Compiler::compileBreak(ParseNode* n) {
             if (m_lsStack.size() == 0) {
                 error(n, cm_err_continue_scope, "'break' used outside of loop or switch scope");
                 return;
@@ -2164,7 +2234,7 @@ namespace gs {
             scope().emitScopeExitInstructions(*ls.outer_scope);
             ls.pending_end_label.push(add(ir_jump));
         }
-        void Compiler::compileBlock(ast_node* n) {
+        void Compiler::compileBlock(ParseNode* n) {
             scope().enter();
 
             n = n->body;
@@ -2175,7 +2245,7 @@ namespace gs {
 
             scope().exit();
         }
-        void Compiler::compileAny(ast_node* n) {
+        void Compiler::compileAny(ParseNode* n) {
             switch (n->tp) {
                 case nt_break: return compileBreak(n);
                 case nt_class: {

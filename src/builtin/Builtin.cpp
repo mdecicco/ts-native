@@ -1,10 +1,11 @@
-#include <gs/builtin/Builtin.h>
-#include <gs/common/Context.h>
-#include <gs/bind/bind.hpp>
+#include <tsn/builtin/Builtin.h>
+#include <tsn/common/Context.h>
+#include <tsn/common/Module.h>
+#include <tsn/bind/bind.hpp>
 
-using namespace gs::ffi;
+using namespace tsn::ffi;
 
-namespace gs {
+namespace tsn {
     template <typename T>
     void BindNumberType(Context* ctx, const char* name) {
         auto b = bind<T>(ctx, name);
@@ -35,11 +36,26 @@ namespace gs {
         BindNumberType<f64>(ctx, "f64");
 
         auto v  = bind<void>(ctx, "void").finalize(ctx->getGlobal());
-        auto vp = bind<void*>(ctx, "data").finalize(ctx->getGlobal());
+
+        auto vp = bind<void*>(ctx, "data");
+        type_meta& vpi = vp.info();
+        vpi.is_primitive = 1;
+        vpi.is_unsigned = 1;
+        vpi.is_integral = 1;
+        vp.access(trusted_access).finalize(ctx->getGlobal());
+
+        auto n = bind<null_t>(ctx, "null_t");
+        type_meta& ni = n.info();
+        ni.is_primitive = 1;
+        ni.is_integral = 1;
+        ni.is_unsigned = 1;
+        n.finalize(ctx->getGlobal());
+
         auto b = bind<bool>(ctx, "boolean").finalize(ctx->getGlobal());
         auto p = bind<poison_t>(ctx, "$poison").finalize(ctx->getGlobal());
-        auto ectx = bind<ExecutionContext>(ctx, "$exec").dtor(gs::private_access).finalize(ctx->getGlobal());
+        auto ectx = bind<ExecutionContext>(ctx, "$exec").dtor(tsn::private_access).finalize(ctx->getGlobal());
 
         BindString(ctx);
+        BindMemory(ctx);
     }
 };

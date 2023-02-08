@@ -1,8 +1,8 @@
-#include <gs/compiler/Lexer.h>
-#include <gs/utils/ProgramSource.h>
+#include <tsn/compiler/Lexer.h>
+#include <tsn/utils/ProgramSource.h>
 #include <utils/Array.hpp>
 
-namespace gs {
+namespace tsn {
     namespace compiler {
         utils::String token::str() const {
             return utils::String(const_cast<char*>(text.c_str()), text.size());

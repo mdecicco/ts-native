@@ -1,11 +1,11 @@
 #include "../catch.hpp"
 
-#include <gs/utils/ProgramSource.h>
-#include <gs/compiler/Lexer.h>
+#include <tsn/utils/ProgramSource.h>
+#include <tsn/compiler/Lexer.h>
 
 #include <utils/Array.hpp>
 
-using namespace gs;
+using namespace tsn;
 using namespace compiler;
 using namespace utils;
 
@@ -15,7 +15,7 @@ TEST_CASE("Lexer", "[lexer]") {
             const char* testSource =
                 "'test' \"test\" `test`"
             ;
-            ProgramSource src = ProgramSource("Strings.gs", testSource);
+            ProgramSource src = ProgramSource("Strings.tsn", testSource);
             Lexer l(&src);
             const Array<token>& out = l.tokenize();
 
@@ -33,7 +33,7 @@ TEST_CASE("Lexer", "[lexer]") {
             const char* testSource =
                 "'te\\'st' \"te\\\"st\" `te\\`st`"
             ;
-            ProgramSource src = ProgramSource("EscapedStrings.gs", testSource);
+            ProgramSource src = ProgramSource("EscapedStrings.tsn", testSource);
             Lexer l(&src);
             const Array<token>& out = l.tokenize();
 
@@ -51,7 +51,7 @@ TEST_CASE("Lexer", "[lexer]") {
             const char* testSource =
                 "'test"
             ;
-            ProgramSource src = ProgramSource("BadString.gs", testSource);
+            ProgramSource src = ProgramSource("BadString.tsn", testSource);
             Lexer l(&src);
 
             REQUIRE_THROWS_WITH(l.tokenize(), "Encountered unexpected end of input while scanning string literal");
@@ -63,7 +63,7 @@ TEST_CASE("Lexer", "[lexer]") {
             const char* testSource =
                 "12345 1 0 -1 -12345"
             ;
-            ProgramSource src = ProgramSource("Integers.gs", testSource);
+            ProgramSource src = ProgramSource("Integers.tsn", testSource);
             Lexer l(&src);
             const Array<token>& out = l.tokenize();
 
@@ -90,7 +90,7 @@ TEST_CASE("Lexer", "[lexer]") {
                 "1Ull 1ULl 1ULL 1UlL\n"
                 "1ull 1uLl 1uLL 1ulL\n"
             ;
-            ProgramSource src = ProgramSource("SuffixedIntegers.gs", testSource);
+            ProgramSource src = ProgramSource("SuffixedIntegers.tsn", testSource);
             Lexer l(&src);
             const Array<token>& out = l.tokenize();
 
@@ -205,7 +205,7 @@ TEST_CASE("Lexer", "[lexer]") {
             const char* testSource =
                 "12345. 1.0 0.4532. -0.1 -123.45"
             ;
-            ProgramSource src = ProgramSource("FloatingPoint.gs", testSource);
+            ProgramSource src = ProgramSource("FloatingPoint.tsn", testSource);
             Lexer l(&src);
             const Array<token>& out = l.tokenize();
 
@@ -229,7 +229,7 @@ TEST_CASE("Lexer", "[lexer]") {
             const char* testSource =
                 "12345.0f 1.0ull 0.4532.f"
             ;
-            ProgramSource src = ProgramSource("SuffixedFloatingPoint.gs", testSource);
+            ProgramSource src = ProgramSource("SuffixedFloatingPoint.tsn", testSource);
             Lexer l(&src);
             const Array<token>& out = l.tokenize();
 
@@ -263,7 +263,7 @@ TEST_CASE("Lexer", "[lexer]") {
             "default true false this function let "
             "new try throw catch"
         ;
-        ProgramSource src = ProgramSource("Keywords.gs", testSource);
+        ProgramSource src = ProgramSource("Keywords.tsn", testSource);
         Lexer l(&src);
         const Array<token>& out = l.tokenize();
 
@@ -371,7 +371,7 @@ TEST_CASE("Lexer", "[lexer]") {
         const char* testSource =
             "test _test 0test test0 _0test test_0"
         ;
-        ProgramSource src = ProgramSource("Identifiers.gs", testSource);
+        ProgramSource src = ProgramSource("Identifiers.tsn", testSource);
         Lexer l(&src);
         const Array<token>& out = l.tokenize();
 
@@ -402,7 +402,7 @@ TEST_CASE("Lexer", "[lexer]") {
             "?"
             "a+a a+=a a&&=a"
         ;
-        ProgramSource src = ProgramSource("Symbols.gs", testSource);
+        ProgramSource src = ProgramSource("Symbols.tsn", testSource);
         Lexer l(&src);
         const Array<token>& out = l.tokenize();
 
@@ -505,7 +505,7 @@ TEST_CASE("Lexer", "[lexer]") {
 
     SECTION("Lexer No Input") {
         const char* testSource = "";
-        ProgramSource src = ProgramSource("NoInput.gs", testSource);
+        ProgramSource src = ProgramSource("NoInput.tsn", testSource);
         Lexer l(&src);
         const Array<token>& out = l.tokenize();
 
@@ -535,7 +535,7 @@ TEST_CASE("Lexer", "[lexer]") {
             "    return a < 0 ? 0 : arr[a];\n"
             "}"
         ;
-        ProgramSource src = ProgramSource("OtherTokens.gs", testSource);
+        ProgramSource src = ProgramSource("OtherTokens.tsn", testSource);
         Lexer l(&src);
         const Array<token>& out = l.tokenize();
 

@@ -1,26 +1,29 @@
-#include <gs/compiler/FunctionDef.hpp>
-#include <gs/compiler/Compiler.h>
-#include <gs/common/Context.h>
-#include <gs/common/Function.h>
-#include <gs/common/DataType.h>
-#include <gs/common/Module.h>
-#include <gs/common/TypeRegistry.h>
-#include <gs/interfaces/IDataTypeHolder.hpp>
-#include <gs/interfaces/ICodeHolder.h>
-#include <gs/bind/ExecutionContext.h>
+#include <tsn/compiler/FunctionDef.hpp>
+#include <tsn/compiler/Compiler.h>
+#include <tsn/compiler/Output.h>
+#include <tsn/common/Context.h>
+#include <tsn/common/Function.h>
+#include <tsn/common/DataType.h>
+#include <tsn/common/Module.h>
+#include <tsn/common/TypeRegistry.h>
+#include <tsn/interfaces/IDataTypeHolder.hpp>
+#include <tsn/interfaces/ICodeHolder.h>
+#include <tsn/bind/ExecutionContext.h>
 
 #include <utils/Array.hpp>
+#include <utils/Buffer.hpp>
 
 using namespace utils;
-using namespace gs::ffi;
+using namespace tsn::ffi;
 
-namespace gs {
+namespace tsn {
     namespace compiler {
         FunctionDef::FunctionDef(Compiler* c, const utils::String& name, DataType* methodOf) {
             m_comp = c;
             m_src = c->getCurrentSrc();
             m_name = name;
-            m_retTp = nullptr;
+            m_retTp = c->getContext()->getTypes()->getType<void>();
+            m_retTpSet = false;
             m_thisTp = methodOf;
             m_output = nullptr;
             m_nextAllocId = 1;
@@ -33,8 +36,7 @@ namespace gs {
             
             DataType* ptrTp = c->getContext()->getTypes()->getType<void*>();
             m_argInfo.push({ arg_type::func_ptr, ptrTp });
-            // ret pointer type will be set later
-            m_argInfo.push({ arg_type::ret_ptr, nullptr });
+            m_argInfo.push({ arg_type::ret_ptr, m_retTp });
             m_argInfo.push({ arg_type::context_ptr, ptrTp });
             if (methodOf) {
                 m_argInfo.push({ arg_type::this_ptr, methodOf });
@@ -47,6 +49,8 @@ namespace gs {
             m_src = c->getCurrentSrc();
             m_name = func->getName();
             m_thisTp = nullptr;
+            m_retTp = c->getContext()->getTypes()->getType<void>();
+            m_retTpSet = false;
             m_output = func;
             m_nextAllocId = 1;
             m_nextRegId = 1;
@@ -60,6 +64,7 @@ namespace gs {
             FunctionType* sig = func->getSignature();
             if (sig) {
                 m_retTp = sig->getReturnType();
+                m_retTpSet = true;
                 const auto& args = sig->getArguments();
                 for (u8 a = 0;a < args.size();a++) {
                     if (args[a].isImplicit()) m_implicitArgCount++;
@@ -110,6 +115,7 @@ namespace gs {
         void FunctionDef::setReturnType(DataType* tp) {
             m_retTp = tp;
             m_argInfo[1].dataType = tp;
+            m_retTpSet = true;
         }
 
         void FunctionDef::setThisType(ffi::DataType* tp) {
@@ -128,6 +134,10 @@ namespace gs {
             return m_retTp;
         }
 
+        bool FunctionDef::isReturnTypeExplicit() const {
+            return m_retTpSet;
+        }
+
         DataType* FunctionDef::getThisType() const {
             return m_thisTp;
         }
@@ -137,7 +147,7 @@ namespace gs {
         }
 
         u32 FunctionDef::getArgCount() const {
-            return m_args.size();
+            return m_argInfo.size() - m_implicitArgCount;
         }
 
         u32 FunctionDef::getImplicitArgCount() const {
@@ -201,6 +211,12 @@ namespace gs {
 
         Value& FunctionDef::getPoison() {
             return *m_poison;
+        }
+
+        Value FunctionDef::getNull() {
+            Value v = imm<u64>(0);
+            v.m_type = m_comp->getContext()->getTypes()->getType<null_t>();
+            return v;
         }
 
         alloc_id FunctionDef::reserveStackId() {
@@ -310,6 +326,50 @@ namespace gs {
         
         ffi::Function* FunctionDef::getOutput() {
             return m_output;
+        }
+        
+        bool FunctionDef::serialize(utils::Buffer* out, Context* ctx) const {
+            auto writeInstruction = [out, ctx](const Instruction& i) {
+                return !i.serialize(out, ctx);
+            };
+
+            if (!out->write(m_output->isMethod())) return false;
+            if (!out->write(m_output->isTemplate())) return false;
+            if (!m_output->serialize(out, ctx)) return false;
+            if (!out->write(m_instructions.size())) return false;
+            if (m_instructions.some(writeInstruction)) return false;
+            
+            return true;
+        }
+
+        bool FunctionDef::deserialize(utils::Buffer* in, Context* ctx) {
+            bool isMethod = false, isTemplate = false;
+            if (!in->read(isMethod)) return false;
+            if (!in->read(isTemplate)) return false;
+
+            if (isTemplate) {
+                if (isMethod) m_output = new TemplateMethod();
+                else m_output = new TemplateFunction();
+            } else {
+                if (isMethod) m_output = new Method();
+                else m_output = new Function();
+            }
+
+            if (!m_output->deserialize(in, ctx)) {
+                delete m_output;
+                m_output = nullptr;
+                return false;
+            }
+
+            u32 instructionCount = 0;
+            if (!in->read(instructionCount)) return false;
+            for (u32 i = 0;i < instructionCount;i++) {
+                Instruction inst;
+                if (!inst.deserialize(in, ctx)) return false;
+                m_instructions.push(inst);
+            }
+
+            return true;
         }
     };
 };

@@ -1,11 +1,11 @@
-#include <gs/utils/function_match.h>
-#include <gs/common/DataType.h>
-#include <gs/common/Function.h>
+#include <tsn/utils/function_match.h>
+#include <tsn/common/DataType.h>
+#include <tsn/common/Function.h>
 
 #include <utils/String.h>
 #include <utils/Array.hpp>
 
-namespace gs {
+namespace tsn {
     bool func_match_filter(
         const utils::String& name,
         const ffi::DataType* retTp,

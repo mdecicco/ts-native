@@ -1,7 +1,7 @@
-#include <gs/utils/ProgramSource.h>
+#include <tsn/utils/ProgramSource.h>
 #include <utils/Array.hpp>
 
-namespace gs {
+namespace tsn {
     ProgramSource::ProgramSource(const utils::String& sourceName, const utils::String& rawCode) {
         m_sourceName = sourceName;
         m_rawCode = rawCode;

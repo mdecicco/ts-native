@@ -1,7 +1,9 @@
-#include <gs/utils/SourceLocation.h>
-#include <gs/utils/ProgramSource.h>
+#include <tsn/utils/SourceLocation.h>
+#include <tsn/utils/ProgramSource.h>
 
-namespace gs {
+#include <utils/Buffer.hpp>
+
+namespace tsn {
     SourceLocation::SourceLocation() {
         m_ref = nullptr;
         m_linePtr = nullptr;
@@ -83,6 +85,34 @@ namespace gs {
 
     char SourceLocation::operator*() const {
         return m_linePtr[m_col];
+    }
+
+    bool SourceLocation::serialize(utils::Buffer* out, Context* ctx) const {
+        if (!out->write(m_length)) return false;
+        if (!out->write(m_endLine)) return false;
+        if (!out->write(m_endCol)) return false;
+        if (!out->write(m_line)) return false;
+        if (!out->write(m_lineLen)) return false;
+        if (!out->write(m_col)) return false;
+    }
+
+    bool SourceLocation::deserialize(utils::Buffer* in, Context* ctx) {
+        if (!in->read(m_length)) return false;
+        if (!in->read(m_endLine)) return false;
+        if (!in->read(m_endCol)) return false;
+        if (!in->read(m_line)) return false;
+        if (!in->read(m_lineLen)) return false;
+        if (!in->read(m_col)) return false;
+
+        if (m_ref->getLineCount() <= m_line) {
+            m_lineLen = 0;
+            m_linePtr = nullptr;
+            return false;
+        } else {
+            const utils::String& ln = m_ref->getLine(m_line);
+            m_lineLen = ln.size();
+            m_linePtr = ln.c_str();
+        }
     }
 
 

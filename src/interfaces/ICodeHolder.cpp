@@ -1,9 +1,9 @@
-#include <gs/interfaces/ICodeHolder.h>
-#include <gs/compiler/IR.h>
+#include <tsn/interfaces/ICodeHolder.h>
+#include <tsn/compiler/IR.h>
 
 #include <utils/Array.hpp>
 
-namespace gs {
+namespace tsn {
     namespace compiler {
         ICodeHolder::ICodeHolder() {
             m_nextLabelId = 1;

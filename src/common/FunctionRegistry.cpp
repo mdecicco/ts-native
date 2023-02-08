@@ -1,8 +1,8 @@
-#include <gs/common/FunctionRegistry.h>
-#include <gs/utils/function_match.h>
-#include <gs/common/Function.h>
+#include <tsn/common/FunctionRegistry.h>
+#include <tsn/utils/function_match.h>
+#include <tsn/common/Function.h>
 
-namespace gs {
+namespace tsn {
     namespace ffi {
         FunctionRegistry::FunctionRegistry(Context* ctx) : IContextual(ctx) { }
         FunctionRegistry::~FunctionRegistry() { }
@@ -12,7 +12,8 @@ namespace gs {
                 throw std::exception("Function already registered");
             }
 
-            fn->m_id = allFunctions().size();
+            fn->m_id = (function_id)std::hash<utils::String>()(fn->m_fullyQualifiedName);
+            fn->m_registryIndex = allFunctions().size();
             addFunction(fn);
         }
 

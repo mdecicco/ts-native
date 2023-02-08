@@ -1,12 +1,13 @@
-#include <gs/compiler/Scope.h>
-#include <gs/compiler/Parser.h>
-#include <gs/compiler/Compiler.h>
-#include <gs/compiler/FunctionDef.h>
-#include <gs/common/DataType.h>
+#include <tsn/compiler/Scope.h>
+#include <tsn/compiler/Parser.h>
+#include <tsn/compiler/Compiler.h>
+#include <tsn/compiler/Output.h>
+#include <tsn/compiler/FunctionDef.h>
+#include <tsn/common/DataType.h>
 
 #include <utils/Array.hpp>
 
-namespace gs {
+namespace tsn {
     namespace compiler {
         //
         // Scope
@@ -43,6 +44,10 @@ namespace gs {
 
         void Scope::add(const utils::String& name, Module* m) {
             add(name, new Value(m_comp->getOutput()->getFuncs()[0], m));
+        }
+
+        void Scope::add(const utils::String& name, Module* m, u32 slotId) {
+            add(name, new Value(m_comp->getOutput()->getFuncs()[0], m, slotId));
         }
 
         symbol* Scope::get(const utils::String& name) {
@@ -102,6 +107,10 @@ namespace gs {
 
         void ScopeManager::add(const utils::String& name, Module* m) {
             m_scopes[m_scopes.size() - 1].add(name, m);
+        }
+
+        void ScopeManager::add(const utils::String& name, Module* m, u32 slotId) {
+            m_scopes[m_scopes.size() - 1].add(name, m, slotId);
         }
 
         symbol* ScopeManager::get(const utils::String& name) {

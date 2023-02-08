@@ -24,4 +24,4 @@ include_directories(${tsnc_include_dirs})
 link_directories(${tsnc_library_dirs})
 add_executable(tsnc ${tsnc_src})
 
-target_link_libraries(tsnc gs ffi_shared)
+target_link_libraries(tsnc tsn ffi_shared)

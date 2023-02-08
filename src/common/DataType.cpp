@@ -1,14 +1,27 @@
-#include <gs/common/DataType.h>
-#include <gs/common/Function.h>
-#include <gs/compiler/Parser.h>
-#include <gs/utils/function_match.h>
+#include <tsn/common/DataType.h>
+#include <tsn/common/TypeRegistry.h>
+#include <tsn/common/Function.h>
+#include <tsn/common/FunctionRegistry.h>
+#include <tsn/common/Context.h>
+#include <tsn/compiler/Parser.h>
+#include <tsn/utils/function_match.h>
 #include <utils/Array.hpp>
+#include <utils/Buffer.hpp>
 
-namespace gs {
+namespace tsn {
     namespace ffi {
         //
         // DataType
         //
+
+        DataType::DataType() {
+            m_id = -1;
+            m_name = "";
+            m_fullyQualifiedName = "";
+            m_info = { 0 };
+            m_destructor = nullptr;
+            m_access = public_access;
+        }
 
         DataType::DataType(
             const utils::String& name,
@@ -41,13 +54,6 @@ namespace gs {
             m_destructor = dtor;
             m_methods = methods;
             m_access = public_access;
-        }
-
-        DataType::DataType() {
-            m_id = -1;
-            m_destructor = nullptr;
-            m_access = public_access;
-            memset(&m_info, 0, sizeof(type_meta));
         }
 
         DataType::~DataType() {
@@ -210,6 +216,138 @@ namespace gs {
             if (m_info.is_alias) return ((AliasType*)this)->getRefType()->getEffectiveType();
             return this;
         }
+            
+        bool DataType::serialize(utils::Buffer* out, Context* ctx) const {
+            auto writeFunc = [out](const Function* f) {
+                if (f) return !out->write(f->getId());
+                return !out->write(function_id(0));
+            };
+
+            auto writeProperty = [out, writeFunc](const type_property& p) {
+                if (!out->write(p.name)) return true;
+                if (!out->write(p.access)) return true;
+                if (!out->write(p.offset)) return true;
+                if (!out->write(p.type->getId())) return true;
+                if (!out->write(p.flags)) return true;
+                if (writeFunc(p.getter)) return true;
+                if (writeFunc(p.setter)) return true;
+                return false;
+            };
+
+            auto writeBase = [out](const type_base& b) {
+                if (!out->write(b.type->getId())) return true;
+                if (!out->write(b.offset)) return true;
+                if (!out->write(b.access)) return true;
+                return false;
+            };
+
+            if (!out->write(m_id)) return false;
+            if (!out->write(m_name)) return false;
+            if (!out->write(m_fullyQualifiedName)) return false;
+            if (!out->write(m_info)) return false;
+            if (!out->write(m_access)) return false;
+            if (writeFunc(m_destructor)) return false;
+
+            if (!out->write(m_properties.size())) return false;
+            if (m_properties.some(writeProperty)) return false;
+
+            if (!out->write(m_bases.size())) return false;
+            if (m_bases.some(writeBase)) return false;
+
+            if (!out->write(m_methods.size())) return false;
+            if (m_methods.some(writeFunc)) return false;
+
+            return true;
+        }
+
+        bool DataType::deserialize(utils::Buffer* in, Context* ctx) {
+            auto readStr = [in](utils::String& s) {
+                u16 len = 0;
+                if (!in->read(len)) return false;
+                s = in->readStr(len);
+                if (s.size() != len) return false;
+                return true;
+            };
+
+            auto readFunc = [in, ctx](Function** out) {
+                function_id id;
+                if (!in->read(id)) return false;
+
+                if (id == 0) *out = nullptr;
+                else {
+                    *out = ctx->getFunctions()->getFunction(id);
+                    if (!*out) return false;
+                }
+                
+                return true;
+            };
+
+            auto readType = [in, ctx](DataType** out) {
+                type_id id;
+                if (!in->read(id)) return false;
+                
+                if (id == 0) *out = nullptr;
+                else {
+                    *out = ctx->getTypes()->getType(id);
+                    if (!*out) return false;
+                }
+
+                return true;
+            };
+
+            auto readProperty = [in, readStr, readFunc, readType](type_property& p) {
+                if (!readStr(p.name)) return false;
+                if (!in->read(p.access)) return false;
+                if (!in->read(p.offset)) return false;
+                if (!readType(&p.type)) return false;
+                if (!in->read(p.flags)) return false;
+                if (!readFunc(&p.getter)) return false;
+                if (!readFunc(&p.setter)) return false;
+
+                return true;
+            };
+
+            auto readBase = [in, readType](type_base& b) {
+                if (!readType(&b.type)) return false;
+                if (!in->read(b.offset)) return false;
+                if (!in->read(b.access)) return false;
+
+                return true;
+            };
+            
+            if (!in->read(m_id)) return false;
+            if (!readStr(m_name)) return false;
+            if (!readStr(m_fullyQualifiedName)) return false;
+            if (!in->read(m_info)) return false;
+            if (!in->read(m_access)) return false;
+            if (!readFunc(&m_destructor)) return false;
+
+            u32 pcount = 0;
+            if (!in->read(pcount)) return false;
+            for (u32 i = 0;i < pcount;i++) {
+                type_property p;
+                if (!readProperty(p)) return false;
+                m_properties.push(p);
+            }
+
+            u32 bcount = 0;
+            if (!in->read(bcount)) return false;
+            for (u32 i = 0;i < bcount;i++) {
+                type_base b;
+                if (!readBase(b)) return false;
+                m_bases.push(b);
+            }
+
+            u32 mcount = 0;
+            if (!in->read(mcount)) return false;
+            for (u32 i = 0;i < mcount;i++) {
+                Function* m;
+                if (!readFunc(&m)) return false;
+                m_methods.push(m);
+            }
+            
+            return true;
+        }
 
 
 
@@ -225,7 +363,10 @@ namespace gs {
         //
         // FunctionSignatureType
         //
-        
+        FunctionType::FunctionType() {
+            m_returnType = nullptr;
+        }
+
         FunctionType::FunctionType(DataType* returnType, const utils::Array<function_argument>& args) {
             m_name = returnType->m_name + "(";
             m_fullyQualifiedName = returnType->m_fullyQualifiedName + "(";
@@ -258,7 +399,7 @@ namespace gs {
             m_name += ")";
             m_fullyQualifiedName += ")";
 
-            m_id = std::hash<utils::String>()(m_fullyQualifiedName);
+            m_id = (type_id)std::hash<utils::String>()(m_fullyQualifiedName);
             m_info = {
                 1            , // is pod
                 0            , // is_trivially_constructible
@@ -382,13 +523,63 @@ namespace gs {
             m_name += ")";
             m_fullyQualifiedName += ")";
         }
+            
+        bool FunctionType::serialize(utils::Buffer* out, Context* ctx) const {
+            if (!DataType::serialize(out, ctx)) return false;
+
+            auto writeArg = [out](const function_argument& a) {
+                if (!out->write(a.argType)) return true;
+                if (!out->write(a.dataType->getId())) return true;
+                return false;
+            };
+
+            if (!out->write(m_returnType ? m_returnType->getId() : type_id(0))) return false;
+            if (!out->write(m_args.size())) return false;
+            if (m_args.some(writeArg)) return false;
+
+            return true;
+        }
+
+        bool FunctionType::deserialize(utils::Buffer* in, Context* ctx) {
+            if (!DataType::deserialize(in, ctx)) return false;
+
+            auto readType = [in, ctx](DataType** out) {
+                type_id id;
+                if (!in->read(id)) return false;
+
+                if (id == 0) *out = nullptr;
+                else {
+                    *out = ctx->getTypes()->getType(id);
+                    if (!*out) return false;
+                }
+                
+                return true;
+            };
+            auto readArg = [in, readType](function_argument& a) {
+                if (!in->read(a.argType)) return false;
+                if (!readType(&a.dataType)) return false;
+                return false;
+            };
+
+            if (!readType(&m_returnType)) return false;
+
+            u32 acount = 0;
+            if (!in->read(acount)) return false;
+            for (u32 i = 0;i < acount;i++) {
+                function_argument a;
+                if (!readArg(a)) return false;
+                m_args.push(a);
+            }
+
+            return true;
+        }
 
 
 
         //
         // TemplateType
         //
-        type_meta templateTypeMeta (compiler::ast_node* n) {
+        type_meta templateTypeMeta (compiler::ParseNode* n) {
             return {
                 0, // is_pod
                 0, // is_trivially_constructible
@@ -409,20 +600,42 @@ namespace gs {
             };
         }
 
+        TemplateType::TemplateType() {
+            m_ast = nullptr;
+        }
+
         TemplateType::TemplateType(
             const utils::String& name,
             const utils::String& fullyQualifiedName,
-            compiler::ast_node* baseAST
+            compiler::ParseNode* baseAST
         ) : DataType(name, fullyQualifiedName, templateTypeMeta(baseAST)) {
             m_ast = baseAST;
         }
 
         TemplateType::~TemplateType() {
-            compiler::ast_node::destroyDetachedAST(m_ast);
+            compiler::ParseNode::destroyDetachedAST(m_ast);
         }
 
-        compiler::ast_node* TemplateType::getAST() const {
+        compiler::ParseNode* TemplateType::getAST() const {
             return m_ast;
+        }
+            
+        bool TemplateType::serialize(utils::Buffer* out, Context* ctx) const {
+            if (!DataType::serialize(out, ctx)) return false;
+            if (!m_ast->serialize(out, ctx)) return false;
+            return true;
+        }
+
+        bool TemplateType::deserialize(utils::Buffer* in, Context* ctx) {
+            if (!DataType::deserialize(in, ctx)) return false;
+            m_ast = new compiler::ParseNode();
+            if (!m_ast->deserialize(in, ctx)) {
+                delete m_ast;
+                m_ast = nullptr;
+                return false;
+            }
+
+            return true;
         }
 
 
@@ -436,6 +649,10 @@ namespace gs {
             i.is_alias = 1;
             i.is_anonymous = 0;
             return i;
+        }
+
+        AliasType::AliasType() {
+            m_ref = nullptr;
         }
 
         AliasType::AliasType(
@@ -453,13 +670,35 @@ namespace gs {
         DataType* AliasType::getRefType() const {
             return m_ref;
         }
+            
+        bool AliasType::serialize(utils::Buffer* out, Context* ctx) const {
+            if (!DataType::serialize(out, ctx)) return false;
+            if (!out->write(m_ref->getId())) return false;
+            return true;
+        }
+
+        bool AliasType::deserialize(utils::Buffer* in, Context* ctx) {
+            if (!DataType::deserialize(in, ctx)) return false;
+
+            type_id id;
+            if (!in->read(id)) return false;
+
+            if (id == 0) m_ref = nullptr;
+            else {
+                m_ref = ctx->getTypes()->getType(id);
+                if (!m_ref) return false;
+            }
+            
+            return true;
+        }
 
 
 
         //
         // ClassType
         //
-        
+        ClassType::ClassType() { }
+
         ClassType::ClassType(const utils::String& name, const utils::String& fullyQualifiedName) : DataType(name, fullyQualifiedName, { 0 }, {}, {}, nullptr, {}) {
             m_info.is_pod = 1;
             m_info.is_trivially_constructible = 1;

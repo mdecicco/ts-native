@@ -1,7 +1,7 @@
 #include "../catch.hpp"
 
-#include <gs/utils/ProgramSource.h>
-using namespace gs;
+#include <tsn/utils/ProgramSource.h>
+using namespace tsn;
 
 TEST_CASE("ProgramSource", "[input]") {
     SECTION("Input has muiltiple lines") {
@@ -12,7 +12,7 @@ TEST_CASE("ProgramSource", "[input]") {
             "    nonsense(1, 2, 3);\r\n"
             "}"
         ;
-        ProgramSource src = ProgramSource("LineSplit.gs", testSource);
+        ProgramSource src = ProgramSource("LineSplit.tsn", testSource);
 
         REQUIRE(src.getLineCount() == 5);
 

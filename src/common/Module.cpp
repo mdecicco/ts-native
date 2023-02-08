@@ -1,8 +1,8 @@
-#include <gs/common/Module.h>
-#include <gs/common/DataType.h>
+#include <tsn/common/Module.h>
+#include <tsn/common/DataType.h>
 #include <utils/Array.hpp>
 
-namespace gs {
+namespace tsn {
     Module::Module(Context* ctx, const utils::String& name) : IContextual(ctx), m_name(name) {
         m_id = std::hash<utils::String>()(name);
     }

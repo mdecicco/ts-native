@@ -1,12 +1,12 @@
-#include <gs/bind/bind_type.h>
-#include <gs/bind/bind.h>
-#include <gs/common/DataType.h>
-#include <gs/common/TypeRegistry.h>
-#include <gs/common/FunctionRegistry.h>
-#include <gs/common/Module.h>
+#include <tsn/bind/bind_type.h>
+#include <tsn/bind/bind.h>
+#include <tsn/common/DataType.h>
+#include <tsn/common/TypeRegistry.h>
+#include <tsn/common/FunctionRegistry.h>
+#include <tsn/common/Module.h>
 #include <utils/Array.hpp>
 
-namespace gs {
+namespace tsn {
     namespace ffi {
         DataTypeBinder::DataTypeBinder(FunctionRegistry* freg, DataTypeRegistry* treg, const utils::String& name, const utils::String& fullyQualifiedName, type_meta&& meta) {
             funcRegistry = freg;
@@ -22,6 +22,14 @@ namespace gs {
                 delete m_type;
             }
             m_type = nullptr;
+        }
+        
+        type_meta& DataTypeBinder::info() {
+            return m_type->m_info;
+        }
+        
+        void DataTypeBinder::setAccessModifier(access_modifier access) {
+            m_type->m_access = access;
         }
 
         void DataTypeBinder::setDestructor(Function* dtor) {
@@ -94,7 +102,7 @@ namespace gs {
                 if (mod) mod->addFunction(m_type->m_methods[i]);
             }
 
-            m_type->m_id = std::hash<utils::String>()(m_type->getName());
+            m_type->m_id = (type_id)std::hash<utils::String>()(m_type->getFullyQualifiedName());
 
             return m_type;
         }
