@@ -1,12 +1,12 @@
 #include "../catch.hpp"
 
-#include <gs/utils/ProgramSource.h>
-#include <gs/compiler/Lexer.h>
-#include <gs/compiler/Parser.h>
+#include <tsn/utils/ModuleSource.h>
+#include <tsn/compiler/Lexer.h>
+#include <tsn/compiler/Parser.h>
 
 #include <utils/Array.hpp>
 
-using namespace gs;
+using namespace tsn;
 using namespace compiler;
 using namespace utils;
 
@@ -17,11 +17,11 @@ TEST_CASE("Parser", "[parser]") {
         "const a = f(1, 2);\n"
         "let b = f(f(1, a), f(2, a + 1));\n"
     ;
-    ProgramSource src = ProgramSource("Parser.gs", testSource);
+    ModuleSource src = ModuleSource("Parser.tsn", testSource);
     Lexer l(&src);
     Parser ps(&l);
 
-    ast_node* n = ps.parse();
+    ParseNode* n = ps.parse();
     const auto& errors = ps.errors();
     for (const auto& e : errors) {
         printf("Error [%d, %d]: %s\n", e.src.src.getLine(), e.src.src.getCol(), e.text.c_str());

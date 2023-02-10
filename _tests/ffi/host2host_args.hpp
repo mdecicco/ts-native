@@ -1,7 +1,7 @@
 #include "../catch.hpp"
-#include <gs/gs.h>
-using namespace gs;
-using namespace gs::ffi;
+#include <tsn/gs.h>
+using namespace tsn;
+using namespace tsn::ffi;
 
 i32 a, b, c;
 

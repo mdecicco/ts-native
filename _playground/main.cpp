@@ -1,9 +1,9 @@
-#include <gs/gs.h>
+#include <tsn/gs.h>
 
 #include <stdio.h>
 
-using namespace gs;
-using namespace gs::ffi;
+using namespace tsn;
+using namespace tsn::ffi;
 
 struct test {
     test(i32 _a, i32 _b, i32 _c) : a(_a), b(_b), c(_c) {}

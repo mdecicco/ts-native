@@ -1,1 +1,1 @@
-add_subdirectory("./gs2json")
+add_subdirectory("./tsnc")

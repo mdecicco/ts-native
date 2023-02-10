@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.0.0)
-project(gs VERSION 0.1.0)
+project(tsn VERSION 0.1.0)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -8,13 +8,13 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF) 
 
 set(
-    gs_include_dirs
+    tsn_include_dirs
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/_deps/utils/include
     ${CMAKE_CURRENT_SOURCE_DIR}/build/_deps/libffi/include
 )
 set(
-    gs_library_dirs
+    tsn_library_dirs
     ${CMAKE_CURRENT_SOURCE_DIR}/_bin/Debug
 )
 
@@ -22,7 +22,7 @@ set (all_sources "")
 macro(add_sources group dir)
     set(_all "")
 
-    file(GLOB _inc "include/gs/${dir}/*.h" "include/gs/${dir}/*.hpp" "include/gs/${dir}/*.inl")
+    file(GLOB _inc "include/tsn/${dir}/*.h" "include/tsn/${dir}/*.hpp" "include/tsn/${dir}/*.inl")
     list(APPEND _all ${_inc})
 
     file(GLOB _src "src/${dir}/*.cpp" "src/${dir}/*.c")
@@ -38,8 +38,10 @@ macro(add_sources group dir)
 endmacro(add_sources)
 
 add_sources("src"            ".")
+add_sources("src/io"         "io")
 add_sources("src/bind"       "bind")
 add_sources("src/builtin"    "builtin")
+add_sources("src/backend"    "backend")
 add_sources("src/common"     "common")
 add_sources("src/interfaces" "interfaces")
 add_sources("src/utils"      "utils")
@@ -51,29 +53,29 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/_bin)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/_bin)
 
 
-include_directories(${gs_include_dirs})
-link_directories(${gs_library_dirs})
+include_directories(${tsn_include_dirs})
+link_directories(${tsn_library_dirs})
 
-add_library(gs ${all_sources})
-target_link_libraries(gs
+add_library(tsn ${all_sources})
+target_link_libraries(tsn
     utils
     ffi_shared
 )
 
 add_subdirectory("./_deps")
 
-set(GS_BUILD_TESTS TRUE CACHE BOOL "Build gs test targets")
-set(GS_BUILD_PLAYGROUND TRUE CACHE BOOL "Build gs playground")
-set(GS_BUILD_TOOLS TRUE CACHE BOOL "Build gs tools")
+set(TSN_BUILD_TESTS TRUE CACHE BOOL "Build tsn test targets")
+set(TSN_BUILD_PLAYGROUND TRUE CACHE BOOL "Build tsn playground")
+set(TSN_BUILD_TOOLS TRUE CACHE BOOL "Build tsn tools")
 
-if (GS_BUILD_TESTS)
+if (TSN_BUILD_TESTS)
     add_subdirectory("./_tests")
 endif ()
 
-if (GS_BUILD_PLAYGROUND)
+if (TSN_BUILD_PLAYGROUND)
     add_subdirectory("./_playground")
 endif ()
 
-if (GS_BUILD_TOOLS)
+if (TSN_BUILD_TOOLS)
     add_subdirectory("./_tools")
 endif ()

@@ -1,30 +1,50 @@
-#include <gs/compiler/FunctionDef.hpp>
-#include <gs/compiler/Compiler.h>
-#include <gs/common/Context.h>
-#include <gs/common/Function.h>
-#include <gs/common/DataType.h>
-#include <gs/common/Module.h>
-#include <gs/common/TypeRegistry.h>
-#include <gs/interfaces/IDataTypeHolder.hpp>
-#include <gs/interfaces/ICodeHolder.h>
-#include <gs/bind/ExecutionContext.h>
+#include <tsn/compiler/FunctionDef.hpp>
+#include <tsn/compiler/Compiler.h>
+#include <tsn/compiler/OutputBuilder.h>
+#include <tsn/common/Context.h>
+#include <tsn/common/Function.h>
+#include <tsn/common/DataType.h>
+#include <tsn/common/Module.h>
+#include <tsn/common/TypeRegistry.h>
+#include <tsn/interfaces/IDataTypeHolder.hpp>
+#include <tsn/bind/ExecutionContext.h>
 
 #include <utils/Array.hpp>
+#include <utils/Buffer.hpp>
 
 using namespace utils;
-using namespace gs::ffi;
+using namespace tsn::ffi;
 
-namespace gs {
+namespace tsn {
     namespace compiler {
+        FunctionDef::FunctionDef() {
+            m_comp = nullptr;
+            m_retTp = nullptr;
+            m_retTpSet = false;
+            m_thisTp = nullptr;
+            m_output = nullptr;
+            m_nextAllocId = 1;
+            m_nextRegId = 1;
+            m_nextLabelId = 1;
+            m_thisArg = nullptr;
+            m_ectxArg = nullptr;
+            m_fptrArg = nullptr;
+            m_retpArg = nullptr;
+            m_poison = nullptr;
+            m_implicitArgCount = 0;
+        }
+
         FunctionDef::FunctionDef(Compiler* c, const utils::String& name, DataType* methodOf) {
             m_comp = c;
             m_src = c->getCurrentSrc();
             m_name = name;
-            m_retTp = nullptr;
+            m_retTp = c->getContext()->getTypes()->getType<void>();
+            m_retTpSet = false;
             m_thisTp = methodOf;
             m_output = nullptr;
             m_nextAllocId = 1;
             m_nextRegId = 1;
+            m_nextLabelId = 1;
             m_thisArg = nullptr;
             m_ectxArg = nullptr;
             m_fptrArg = nullptr;
@@ -33,8 +53,7 @@ namespace gs {
             
             DataType* ptrTp = c->getContext()->getTypes()->getType<void*>();
             m_argInfo.push({ arg_type::func_ptr, ptrTp });
-            // ret pointer type will be set later
-            m_argInfo.push({ arg_type::ret_ptr, nullptr });
+            m_argInfo.push({ arg_type::ret_ptr, m_retTp });
             m_argInfo.push({ arg_type::context_ptr, ptrTp });
             if (methodOf) {
                 m_argInfo.push({ arg_type::this_ptr, methodOf });
@@ -46,12 +65,13 @@ namespace gs {
             m_comp = c;
             m_src = c->getCurrentSrc();
             m_name = func->getName();
-            FunctionType* sig = func->getSignature();
-            m_retTp = sig->getReturnType();
             m_thisTp = nullptr;
+            m_retTp = c->getContext()->getTypes()->getType<void>();
+            m_retTpSet = false;
             m_output = func;
             m_nextAllocId = 1;
             m_nextRegId = 1;
+            m_nextLabelId = 1;
             m_thisArg = nullptr;
             m_ectxArg = nullptr;
             m_fptrArg = nullptr;
@@ -59,10 +79,15 @@ namespace gs {
             m_poison = &val("@poison", c->getContext()->getTypes()->getType<poison_t>());
             m_implicitArgCount = 0;
 
-            const auto& args = sig->getArguments();
-            for (u8 a = 0;a < args.size();a++) {
-                if (args[a].isImplicit()) m_implicitArgCount++;
-                m_argInfo.push(args[a]);
+            FunctionType* sig = func->getSignature();
+            if (sig) {
+                m_retTp = sig->getReturnType();
+                m_retTpSet = true;
+                const auto& args = sig->getArguments();
+                for (u8 a = 0;a < args.size();a++) {
+                    if (args[a].isImplicit()) m_implicitArgCount++;
+                    m_argInfo.push(args[a]);
+                }
             }
         }
 
@@ -86,11 +111,14 @@ namespace gs {
         }
 
         InstructionRef FunctionDef::add(ir_instruction i) {
-            return ICodeHolder::add(i, m_comp->getCurrentSrc());
+            m_instructions.push(Instruction(i, m_comp->getCurrentSrc()));
+            return InstructionRef(this, m_instructions.size() - 1);
         }
 
         label_id FunctionDef::label() {
-            return ICodeHolder::label(m_comp->getCurrentSrc());
+            label_id l = m_nextLabelId++;
+            add(ir_label).label(l);
+            return l;
         }
 
         Compiler* FunctionDef::getCompiler() const {
@@ -108,6 +136,7 @@ namespace gs {
         void FunctionDef::setReturnType(DataType* tp) {
             m_retTp = tp;
             m_argInfo[1].dataType = tp;
+            m_retTpSet = true;
         }
 
         void FunctionDef::setThisType(ffi::DataType* tp) {
@@ -126,6 +155,10 @@ namespace gs {
             return m_retTp;
         }
 
+        bool FunctionDef::isReturnTypeExplicit() const {
+            return m_retTpSet;
+        }
+
         DataType* FunctionDef::getThisType() const {
             return m_thisTp;
         }
@@ -135,7 +168,7 @@ namespace gs {
         }
 
         u32 FunctionDef::getArgCount() const {
-            return m_args.size();
+            return m_argInfo.size() - m_implicitArgCount;
         }
 
         u32 FunctionDef::getImplicitArgCount() const {
@@ -199,6 +232,12 @@ namespace gs {
 
         Value& FunctionDef::getPoison() {
             return *m_poison;
+        }
+
+        Value FunctionDef::getNull() {
+            Value v = imm<u64>(0);
+            v.m_type = m_comp->getContext()->getTypes()->getType<null_t>();
+            return v;
         }
 
         alloc_id FunctionDef::reserveStackId() {
@@ -308,6 +347,10 @@ namespace gs {
         
         ffi::Function* FunctionDef::getOutput() {
             return m_output;
+        }
+        
+        const utils::Array<Instruction>& FunctionDef::getCode() const {
+            return m_instructions;
         }
     };
 };

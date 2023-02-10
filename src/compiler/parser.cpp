@@ -1,18 +1,19 @@
-#include <gs/compiler/Parser.h>
-#include <gs/compiler/Lexer.h>
-#include <gs/utils/ProgramSource.h>
+#include <tsn/compiler/Parser.h>
+#include <tsn/compiler/Lexer.h>
+#include <tsn/utils/ModuleSource.h>
 #include <utils/Array.hpp>
+#include <utils/Buffer.hpp>
 
 #include <stdarg.h>
 #include <iostream>
 
-namespace gs {
+namespace tsn {
     namespace compiler {
         //
-        // ast_node
+        // ParseNode
         //
         
-        utils::String ast_node::str() const {
+        utils::String ParseNode::str() const {
             if (str_len == 0) return utils::String();
             return utils::String(const_cast<char*>(value.s), str_len);
         }
@@ -25,7 +26,7 @@ namespace gs {
             va_end(l);    
         }
         
-        void getNodeEndLoc(const ast_node* n, SourceLocation* out, bool ignoreNext = true) {
+        void getNodeEndLoc(const ParseNode* n, SourceLocation* out, bool ignoreNext = true) {
             if (!n) return;
 
             if (n->tok.src.getLine() > out->getLine()) {
@@ -59,7 +60,7 @@ namespace gs {
             if (!ignoreNext) getNodeEndLoc(n->next, out, false);
         }
 
-        void ast_node::computeSourceLocationRange() {
+        void ParseNode::computeSourceLocationRange() {
             if (tok.src.m_length > 0) return;
 
             SourceLocation end = tok.src;
@@ -70,13 +71,13 @@ namespace gs {
             tok.src.m_endCol = end.m_col;
         }
         
-        void ast_node::manuallySpecifyRange(const token& end) {
+        void ParseNode::manuallySpecifyRange(const token& end) {
             tok.src.m_length = end.src.getOffset() - tok.src.getOffset();
             tok.src.m_endLine = end.src.m_line;
             tok.src.m_endCol = end.src.m_col;
         }
 
-        void ast_node::json(u32 indent, u32 index, bool noIndentOpenBrace) {
+        void ParseNode::json(u32 indent, u32 index, bool noIndentOpenBrace) {
             static const char* nts[] = {
                 "empty",
                 "error",
@@ -392,8 +393,8 @@ namespace gs {
             }
         }
         
-        ast_node* ast_node::clone(bool copyNext) {
-            ast_node* c = new ast_node();
+        ParseNode* ParseNode::clone(bool copyNext) {
+            ParseNode* c = new ParseNode();
             c->tok = tok;
             c->tp = tp;
             c->value_tp = value_tp;
@@ -453,22 +454,254 @@ namespace gs {
 
             return c;
         }
+
+        bool ParseNode::serialize(utils::Buffer* out, Context* ctx, void* extra) const {
+            if (!out->write(tok.tp)) return false;
+            if (!out->write(tok.text)) return false;
+            if (!tok.src.serialize(out, ctx, nullptr)) return false;
+
+            if (!out->write(tp)) return false;
+            if (!out->write(value_tp)) return false;
+            if (!out->write(op)) return false;
+            if (!out->write(str_len)) return false;
+            if (str_len > 0) {
+                // this isn't strictly necessary, but I'd
+                // rather write 0 than a memory address
+                const char* dummy = nullptr;
+                if (!out->write(&dummy, sizeof(const char*))) return false;
+            } else if (!out->write(value)) return false;
+            if (!out->write(flags)) return false;
+
+            if (data_type && !out->write(true)) return false;
+            else if (!out->write(false)) return false;
+            if (lvalue && !out->write(true)) return false;
+            else if (!out->write(false)) return false;
+            if (rvalue && !out->write(true)) return false;
+            else if (!out->write(false)) return false;
+            if (cond && !out->write(true)) return false;
+            else if (!out->write(false)) return false;
+            if (body && !out->write(true)) return false;
+            else if (!out->write(false)) return false;
+            if (else_body && !out->write(true)) return false;
+            else if (!out->write(false)) return false;
+            if (initializer && !out->write(true)) return false;
+            else if (!out->write(false)) return false;
+            if (parameters && !out->write(true)) return false;
+            else if (!out->write(false)) return false;
+            if (template_parameters && !out->write(true)) return false;
+            else if (!out->write(false)) return false;
+            if (modifier && !out->write(true)) return false;
+            else if (!out->write(false)) return false;
+            if (alias && !out->write(true)) return false;
+            else if (!out->write(false)) return false;
+            if (inheritance && !out->write(true)) return false;
+            else if (!out->write(false)) return false;
+            if (next && !out->write(true)) return false;
+            else if (!out->write(false)) return false;
+
+            if (data_type && !data_type->serialize(out, ctx, nullptr)) return false;
+            if (lvalue && !lvalue->serialize(out, ctx, nullptr)) return false;
+            if (rvalue && !rvalue->serialize(out, ctx, nullptr)) return false;
+            if (cond && !cond->serialize(out, ctx, nullptr)) return false;
+            if (body && !body->serialize(out, ctx, nullptr)) return false;
+            if (else_body && !else_body->serialize(out, ctx, nullptr)) return false;
+            if (initializer && !initializer->serialize(out, ctx, nullptr)) return false;
+            if (parameters && !parameters->serialize(out, ctx, nullptr)) return false;
+            if (template_parameters && !template_parameters->serialize(out, ctx, nullptr)) return false;
+            if (modifier && !modifier->serialize(out, ctx, nullptr)) return false;
+            if (alias && !alias->serialize(out, ctx, nullptr)) return false;
+            if (inheritance && !inheritance->serialize(out, ctx, nullptr)) return false;
+            if (next && !next->serialize(out, ctx, nullptr)) return false;
+
+            return true;
+        }
+
+        bool ParseNode::deserialize(utils::Buffer* in, Context* ctx, void* extra) {
+            auto readStr = [in](utils::String& str) {
+                str = in->readStr();
+                if (str.size() == 0) return false;
+                return true;
+            };
+
+            if (!in->read(tok.tp)) return false;
+            if (!readStr(tok.text)) return false;
+
+            // todo
+            // tok.src = SourceLocation(m_progSrc, 0, 0);
+            // (SourceLocation.deserialize depends on having the program set set)
+            if (!tok.src.deserialize(in, ctx, nullptr)) return false;
+
+            if (!in->read(tp)) return false;
+            if (!in->read(value_tp)) return false;
+            if (!in->read(op)) return false;
+            if (!in->read(str_len)) return false;
+            if (str_len > 0) value.s = tok.text.c_str();
+            else if (!in->read(value)) return false;
+            if (!in->read(flags)) return false;
+
+            bool has_data_type = false;
+            bool has_lvalue = false;
+            bool has_rvalue = false;
+            bool has_cond = false;
+            bool has_body = false;
+            bool has_else_body = false;
+            bool has_initializer = false;
+            bool has_parameters = false;
+            bool has_template_parameters = false;
+            bool has_modifier = false;
+            bool has_alias = false;
+            bool has_inheritance = false;
+            bool has_next = false;
+
+            if (!in->read(has_data_type)) return false;
+            if (!in->read(has_lvalue)) return false;
+            if (!in->read(has_rvalue)) return false;
+            if (!in->read(has_cond)) return false;
+            if (!in->read(has_body)) return false;
+            if (!in->read(has_else_body)) return false;
+            if (!in->read(has_initializer)) return false;
+            if (!in->read(has_parameters)) return false;
+            if (!in->read(has_template_parameters)) return false;
+            if (!in->read(has_modifier)) return false;
+            if (!in->read(has_alias)) return false;
+            if (!in->read(has_inheritance)) return false;
+            if (!in->read(has_next)) return false;
+
+            if (has_data_type) {
+                data_type = new ParseNode();
+                if (!data_type->deserialize(in, ctx, nullptr)) {
+                    delete data_type;
+                    data_type = nullptr;
+                    return false;
+                }
+            }
+
+            if (has_lvalue) {
+                lvalue = new ParseNode();
+                if (!lvalue->deserialize(in, ctx, nullptr)) {
+                    delete lvalue;
+                    lvalue = nullptr;
+                    return false;
+                }
+            }
+
+            if (has_rvalue) {
+                rvalue = new ParseNode();
+                if (!rvalue->deserialize(in, ctx, nullptr)) {
+                    delete rvalue;
+                    rvalue = nullptr;
+                    return false;
+                }
+            }
+
+            if (has_cond) {
+                cond = new ParseNode();
+                if (!cond->deserialize(in, ctx, nullptr)) {
+                    delete cond;
+                    cond = nullptr;
+                    return false;
+                }
+            }
+
+            if (has_body) {
+                body = new ParseNode();
+                if (!body->deserialize(in, ctx, nullptr)) {
+                    delete body;
+                    body = nullptr;
+                    return false;
+                }
+            }
+
+            if (has_else_body) {
+                else_body = new ParseNode();
+                if (!else_body->deserialize(in, ctx, nullptr)) {
+                    delete else_body;
+                    else_body = nullptr;
+                    return false;
+                }
+            }
+
+            if (has_initializer) {
+                initializer = new ParseNode();
+                if (!initializer->deserialize(in, ctx, nullptr)) {
+                    delete initializer;
+                    initializer = nullptr;
+                    return false;
+                }
+            }
+
+            if (has_parameters) {
+                parameters = new ParseNode();
+                if (!parameters->deserialize(in, ctx, nullptr)) {
+                    delete parameters;
+                    parameters = nullptr;
+                    return false;
+                }
+            }
+
+            if (has_template_parameters) {
+                template_parameters = new ParseNode();
+                if (!template_parameters->deserialize(in, ctx, nullptr)) {
+                    delete template_parameters;
+                    template_parameters = nullptr;
+                    return false;
+                }
+            }
+
+            if (has_modifier) {
+                modifier = new ParseNode();
+                if (!modifier->deserialize(in, ctx, nullptr)) {
+                    delete modifier;
+                    modifier = nullptr;
+                    return false;
+                }
+            }
+
+            if (has_alias) {
+                alias = new ParseNode();
+                if (!alias->deserialize(in, ctx, nullptr)) {
+                    delete alias;
+                    alias = nullptr;
+                    return false;
+                }
+            }
+
+            if (has_inheritance) {
+                inheritance = new ParseNode();
+                if (!inheritance->deserialize(in, ctx, nullptr)) {
+                    delete inheritance;
+                    inheritance = nullptr;
+                    return false;
+                }
+            }
+
+            if (has_next) {
+                next = new ParseNode();
+                if (!next->deserialize(in, ctx, nullptr)) {
+                    delete next;
+                    next = nullptr;
+                    return false;
+                }
+            }
+
+            return true;
+        }
         
-        void ast_node::destroyDetachedAST(ast_node* n) {
+        void ParseNode::destroyDetachedAST(ParseNode* n) {
             if (n->str_len > 0) delete [] n->value.s;
-            if (n->data_type) ast_node::destroyDetachedAST(n->data_type);
-            if (n->lvalue) ast_node::destroyDetachedAST(n->lvalue);
-            if (n->rvalue) ast_node::destroyDetachedAST(n->rvalue);
-            if (n->cond) ast_node::destroyDetachedAST(n->cond);
-            if (n->body) ast_node::destroyDetachedAST(n->body);
-            if (n->else_body) ast_node::destroyDetachedAST(n->else_body);
-            if (n->initializer) ast_node::destroyDetachedAST(n->initializer);
-            if (n->parameters) ast_node::destroyDetachedAST(n->parameters);
-            if (n->template_parameters) ast_node::destroyDetachedAST(n->template_parameters);
-            if (n->modifier) ast_node::destroyDetachedAST(n->modifier);
-            if (n->alias) ast_node::destroyDetachedAST(n->alias);
-            if (n->inheritance) ast_node::destroyDetachedAST(n->inheritance);
-            if (n->next) ast_node::destroyDetachedAST(n->next);
+            if (n->data_type) ParseNode::destroyDetachedAST(n->data_type);
+            if (n->lvalue) ParseNode::destroyDetachedAST(n->lvalue);
+            if (n->rvalue) ParseNode::destroyDetachedAST(n->rvalue);
+            if (n->cond) ParseNode::destroyDetachedAST(n->cond);
+            if (n->body) ParseNode::destroyDetachedAST(n->body);
+            if (n->else_body) ParseNode::destroyDetachedAST(n->else_body);
+            if (n->initializer) ParseNode::destroyDetachedAST(n->initializer);
+            if (n->parameters) ParseNode::destroyDetachedAST(n->parameters);
+            if (n->template_parameters) ParseNode::destroyDetachedAST(n->template_parameters);
+            if (n->modifier) ParseNode::destroyDetachedAST(n->modifier);
+            if (n->alias) ParseNode::destroyDetachedAST(n->alias);
+            if (n->inheritance) ParseNode::destroyDetachedAST(n->inheritance);
+            if (n->next) ParseNode::destroyDetachedAST(n->next);
         }
         
         
@@ -479,6 +712,7 @@ namespace gs {
         
         Parser::Parser(Lexer* l) : m_tokens(l->tokenize()), m_currentIdx(32), m_nodeAlloc(1024, 1024, true) {
             m_currentIdx.push(0);
+            m_currentErrorCount.push(0);
         }
         
         Parser::~Parser() {
@@ -504,6 +738,19 @@ namespace gs {
             m_currentErrorCount.last() = m_errors.size();
             m_currentIdx[m_currentIdx.size() - 1] = idx;
         }
+
+        void Parser::pushRecovery(recoverfn recoverFunc) {
+            m_recoveryStack.push(recoverFunc);
+        }
+        
+        void Parser::popRecovery() {
+            m_recoveryStack.pop();
+        }
+        
+        recoverfn Parser::getRecoveryFn() const {
+            if (m_recoveryStack.size() == 0) return nullptr;
+            return m_recoveryStack.last();
+        }
         
         void Parser::consume() {
             m_currentIdx[m_currentIdx.size() - 1]++;
@@ -518,19 +765,19 @@ namespace gs {
             return m_tokens[idx > 0 ? idx - 1 : 0];
         }
         
-        ast_node* Parser::parse() {
+        ParseNode* Parser::parse() {
             m_nodeAlloc.reset();
             return program(this);
         }
         
-        ast_node* Parser::newNode(node_type tp, const token* src) {
-            ast_node* n = m_nodeAlloc.alloc();
+        ParseNode* Parser::newNode(node_type tp, const token* src) {
+            ParseNode* n = m_nodeAlloc.alloc();
             n->tok = src ? *src : get();
             n->tp = tp;
             return n;
         }
         
-        void Parser::freeNode(ast_node* n) {
+        void Parser::freeNode(ParseNode* n) {
             if (n->data_type) freeNode(n->data_type);
             if (n->lvalue) freeNode(n->lvalue);
             if (n->rvalue) freeNode(n->rvalue);
@@ -588,36 +835,77 @@ namespace gs {
         // Helpers
         //
         
-        ast_node* array_of(Parser* ps, parsefn fn) {
-            ast_node* f = fn(ps);
-            ast_node* n = f;
+        ParseNode* errorNode(Parser* ps) {
+            return ps->newNode(nt_error, &ps->getPrev());
+        }
+        bool isError(ParseNode* n) {
+            return n->tp == nt_error;
+        }
+        bool findRecoveryToken(Parser* ps, bool consumeRecoveryToken) {
+            recoverfn fn = ps->getRecoveryFn();
+            if (!fn) return false;
+
+            ps->push();
+            bool found = false;
+            const token& tok = ps->get();
+            while (tok.tp != tt_eof) {
+                if (fn(tok)) {
+                    if (consumeRecoveryToken) ps->consume();
+                    ps->commit();
+                    return true;
+                }
+
+                ps->consume();
+            }
+
+            ps->revert();
+            return false;
+        }
+        ParseNode* array_of(Parser* ps, parsefn fn) {
+            ParseNode* f = fn(ps);
+            if (f && isError(f)) return f;
+
+            ParseNode* n = f;
             while (n) {
                 n->next = fn(ps);
+                if (n->next && isError(n->next)) {
+                    ps->freeNode(f);
+                    return errorNode(ps);
+                }
+
                 n = n->next;
             }
+
             return f;
         }
-        ast_node* list_of(
+        ParseNode* list_of(
             Parser* ps, parsefn fn,
             parse_error_code before_comma_err, const utils::String& before_comma_msg,
             parse_error_code after_comma_err, const utils::String& after_comma_msg
         ) {
-            ast_node* f = fn(ps);
+            ParseNode* f = fn(ps);
             if (!f) {
                 if (before_comma_err != pec_none) {
                     ps->error(before_comma_err, before_comma_msg);
                 }
+
                 return nullptr;
             }
 
-            ast_node* n = f;
+            ParseNode* n = f;
             while (ps->typeIs(tt_comma)) {
                 ps->consume();
                 n->next = fn(ps);
+
                 if (!n->next) {
                     ps->error(after_comma_err, after_comma_msg);
                     ps->freeNode(f);
-                    return nullptr;
+                    return errorNode(ps);
+                }
+
+                if (isError(n->next)) {
+                    ps->freeNode(f);
+                    return errorNode(ps);
                 }
 
                 n = n->next;
@@ -625,17 +913,24 @@ namespace gs {
 
             return f;
         }
-        ast_node* one_of(Parser* ps, std::initializer_list<parsefn> rules) {
+        ParseNode* one_of(Parser* ps, std::initializer_list<parsefn> rules) {
             for (auto fn : rules) {
-                ast_node* n = fn(ps);
-                if (n) return n;
+                ps->push();
+
+                ParseNode* n = fn(ps);
+                if (n) {
+                    ps->commit();
+                    return n;
+                }
+
+                ps->revert();
             }
 
             return nullptr;
         }
-        ast_node* all_of(Parser* ps, std::initializer_list<parsefn> rules) {
-            ast_node* f = nullptr;
-            ast_node* n = nullptr;
+        ParseNode* all_of(Parser* ps, std::initializer_list<parsefn> rules) {
+            ParseNode* f = nullptr;
+            ParseNode* n = nullptr;
             for (auto fn : rules) {
                 if (!f) f = n = fn(ps);
                 else {
@@ -643,7 +938,7 @@ namespace gs {
                     n = n->next;
                 }
 
-                if (!n) {
+                if (!n || isError(n)) {
                     if (f) ps->freeNode(f);
                     return nullptr;
                 }
@@ -793,18 +1088,121 @@ namespace gs {
             return op_undefined;
         }
         
+        const token& skipToNextType(Parser* ps, std::initializer_list<token_type> stopAt) {
+            ps->push();
+
+            do {
+                const token& t = ps->get();
+                for (token_type tt : stopAt) {
+                    if (t.tp == tt) {
+                        ps->commit();
+                        return t;
+                    }
+                }
+
+                if (t.tp == tt_eof) {
+                    ps->revert();
+                    return t;
+                }
+
+                ps->consume();
+            } while (true);
+
+            return ps->get();
+        }
+        const token& skipToNextText(Parser* ps, const char* str, std::initializer_list<token_type> stopAt = {}) {
+            ps->push();
+
+            do {
+                const token& t = ps->get();
+                for (token_type tt : stopAt) {
+                    if (t.tp == tt) {
+                        ps->revert();
+                        return t;
+                    }
+                }
+                
+                if (t.tp == tt_eof) {
+                    ps->revert();
+                    return t;
+                }
+
+                if (ps->textIs(str)) {
+                    ps->commit();
+                    return t;
+                }
+
+                ps->consume();
+            } while (true);
+
+            return ps->get();
+        }
+        const token& skipToNextKeyword(Parser* ps, const char* str, std::initializer_list<token_type> stopAt = {}) {
+            ps->push();
+
+            do {
+                const token& t = ps->get();
+                for (token_type tt : stopAt) {
+                    if (t.tp == tt) {
+                        ps->revert();
+                        return t;
+                    }
+                }
+                
+                if (t.tp == tt_eof) {
+                    ps->revert();
+                    return t;
+                }
+
+                if (ps->isKeyword(str)) {
+                    ps->commit();
+                    return t;
+                }
+
+                ps->consume();
+            } while (true);
+
+            return ps->get();
+        }
+        const token& skipToNextSymbol(Parser* ps, const char* str, std::initializer_list<token_type> stopAt = {}) {
+            ps->push();
+
+            do {
+                const token& t = ps->get();
+                for (token_type tt : stopAt) {
+                    if (t.tp == tt) {
+                        ps->revert();
+                        return t;
+                    }
+                }
+                
+                if (t.tp == tt_eof) {
+                    ps->revert();
+                    return t;
+                }
+                
+                if (ps->isSymbol(str)) {
+                    ps->commit();
+                    return t;
+                }
+
+                ps->consume();
+            } while (true);
+
+            return ps->get();
+        }
+
         
         
         //
         // Misc
         //
-        
-        ast_node* eos(Parser* ps) {
+        ParseNode* eos(Parser* ps) {
             if (!ps->typeIs(tt_semicolon)) return nullptr;
             ps->consume();
             return ps->newNode(nt_eos, &ps->getPrev());
         }
-        ast_node* eosRequired(Parser* ps) {
+        ParseNode* eosRequired(Parser* ps) {
             if (!ps->typeIs(tt_semicolon)) {
                 ps->error(pec_expected_eos, "Expected ';'");
                 return nullptr;
@@ -812,18 +1210,18 @@ namespace gs {
             ps->consume();
             return ps->newNode(nt_eos, &ps->getPrev());
         }
-        ast_node* identifier(Parser* ps) {
+        ParseNode* identifier(Parser* ps) {
             if (!ps->typeIs(tt_identifier)) return nullptr;
-            ast_node* n = ps->newNode(nt_identifier);
+            ParseNode* n = ps->newNode(nt_identifier);
             const token& t = ps->get();
             n->value.s = t.text.c_str();
             n->str_len = t.text.size();
             ps->consume();
             return n;
         }
-        ast_node* typedIdentifier(Parser* ps) {
+        ParseNode* typedIdentifier(Parser* ps) {
             ps->push();
-            ast_node* id = identifier(ps);
+            ParseNode* id = identifier(ps);
             if (!id) {
                 ps->revert();
                 return nullptr;
@@ -837,51 +1235,64 @@ namespace gs {
             ps->consume();
 
             id->data_type = typeSpecifier(ps);
-            if (!id->data_type) {
-                ps->error(pec_expected_type_specifier, "Expected type specifier after ':'");
-                // attempt to continue
+            if (!id->data_type || isError(id->data_type)) {
+                if (!id->data_type) ps->error(pec_expected_type_specifier, "Expected type specifier after ':'");
+                ps->freeNode(id);
+                id = errorNode(ps);
             }
 
             ps->commit();
             return id;
         }
-        ast_node* objectDecompositorProperty(Parser* ps) {
+        ParseNode* objectDecompositorProperty(Parser* ps) {
             return one_of(ps, {
                 typedAssignable,
                 assignable
             });
         }
-        ast_node* objectDecompositor(Parser* ps) {
+        ParseNode* objectDecompositor(Parser* ps) {
             const token* tok = &ps->get();
             if (!ps->typeIs(tt_open_brace)) return nullptr;
             ps->push();
             ps->consume();
 
-            ast_node* f = objectDecompositorProperty(ps);
+            ParseNode* f = objectDecompositorProperty(ps);
             if (!f) {
                 ps->revert();
                 return nullptr;
             }
             ps->commit();
 
-            ast_node* n = f;
+            ParseNode* n = f;
             while (n) {
                 if (!ps->typeIs(tt_comma)) break;
                 ps->consume();
 
                 n->next = objectDecompositorProperty(ps);
                 n = n->next;
-                if (!n) {
+                if (!n || isError(n)) {
                     ps->error(pec_expected_parameter, "Expected property after ','");
-                    // attempt to continue
-                    break;
+                    const token& r = skipToNextType(ps, { tt_comma, tt_close_brace, tt_semicolon });
+                    switch (r.tp) {
+                        case tt_comma: continue;
+                        case tt_close_brace: {
+                            ps->consume();
+                            n = ps->newNode(nt_object_decompositor, tok);
+                            n->body = f;
+                            return n;
+                        }
+                        default: {
+                            ps->freeNode(f);
+                            return errorNode(ps);
+                        }
+                    }
                 }
             }
 
             if (!ps->typeIs(tt_close_brace)) {
                 ps->error(pec_expected_closing_brace, "Expected '}' to close object decompositor");
                 ps->freeNode(f);
-                return nullptr;
+                return errorNode(ps);
             }
             ps->consume();
 
@@ -897,17 +1308,20 @@ namespace gs {
         // Parameters / Arguments
         //
         
-        ast_node* templateArgs(Parser* ps) {
+        ParseNode* templateArgs(Parser* ps) {
             if (!ps->isSymbol("<")) return nullptr;
             ps->consume();
 
-            ast_node* args = typeSpecifier(ps);
+            ParseNode* args = typeSpecifier(ps);
             if (!args) {
                 ps->error(pec_expected_type_specifier, "Expected template argument");
-                // attempt to continue
-            }
+                const token& r = skipToNextType(ps, { tt_comma });
 
-            ast_node* n = args;
+                // May not actually be template args, not enough info here
+                if (r.tp != tt_comma) return nullptr;
+            } else if (isError(args)) return args;
+
+            ParseNode* n = args;
             while (n) {
                 if (!ps->typeIs(tt_comma)) break;
                 ps->consume();
@@ -916,32 +1330,51 @@ namespace gs {
                 n = n->next;
                 if (!n) {
                     ps->error(pec_expected_type_specifier, "Expected template argument");
-                    ps->freeNode(args);
-                    return nullptr;
+
+                    const token& r = skipToNextType(ps, { tt_comma });
+                    switch (r.tp) {
+                        case tt_comma: continue;
+                        default: {
+                            ps->freeNode(args);
+                            return errorNode(ps);
+                        }
+                    }
                 }
             }
 
             if (!ps->isSymbol(">")) {
                 ps->error(pec_expected_symbol, "Expected '>' after template argument list");
+
+                const token& r = skipToNextSymbol(ps, ">");
+                if (r.tp == tt_symbol) {
+                    ps->consume();
+                    return args;
+                }
+                
                 if (args) ps->freeNode(args);
-                return nullptr;
+                return errorNode(ps);
             }
 
             ps->consume();
 
             return args;
         }
-        ast_node* templateParams(Parser* ps) {
+        ParseNode* templateParams(Parser* ps) {
             if (!ps->isSymbol("<")) return nullptr;
             ps->consume();
 
-            ast_node* args = identifier(ps);
+            ParseNode* args = identifier(ps);
             if (!args) {
                 ps->error(pec_expected_type_specifier, "Expected template parameter");
-                // attempt to continue
+                const token& r = skipToNextType(ps, { tt_comma });
+
+                // May not actually be template params, not enough info here
+                if (r.tp != tt_comma) return nullptr;
             }
 
-            ast_node* n = args;
+            if (isError(args)) return args;
+
+            ParseNode* n = args;
             while (n) {
                 if (!ps->typeIs(tt_comma)) break;
                 ps->consume();
@@ -950,36 +1383,49 @@ namespace gs {
                 n = n->next;
                 if (!n) {
                     ps->error(pec_expected_type_specifier, "Expected template parameter");
-                    ps->freeNode(args);
-                    return nullptr;
+
+                    const token& r = skipToNextType(ps, { tt_comma });
+                    switch (r.tp) {
+                        case tt_comma: continue;
+                        default: {
+                            ps->freeNode(args);
+                            return errorNode(ps);
+                        }
+                    }
                 }
             }
 
             if (!ps->isSymbol(">")) {
                 ps->error(pec_expected_symbol, "Expected '>' after template parameter list");
+
+                const token& r = skipToNextSymbol(ps, ">");
+                if (r.tp == tt_symbol) {
+                    ps->consume();
+                    return args;
+                }
+                
                 if (args) ps->freeNode(args);
-                return nullptr;
+                return errorNode(ps);
             }
 
             ps->consume();
-
             return args;
         }
-        ast_node* parameter(Parser* ps) {
+        ParseNode* parameter(Parser* ps) {
             return one_of(ps, {
                 typedAssignable,
                 assignable
             });
         }
-        ast_node* typedParameter(Parser* ps) {
+        ParseNode* typedParameter(Parser* ps) {
             return typedAssignable(ps);
         }
-        ast_node* maybeTypedParameterList(Parser* ps) {
+        ParseNode* maybeTypedParameterList(Parser* ps) {
             if (!ps->typeIs(tt_open_parenth)) return nullptr;
             ps->consume();
 
-            ast_node* f = typedParameter(ps);
-            ast_node* n = f;
+            ParseNode* f = typedParameter(ps);
+            ParseNode* n = f;
             while (n) {
                 if (!ps->typeIs(tt_comma)) break;
                 ps->consume();
@@ -988,25 +1434,43 @@ namespace gs {
                 n = n->next;
                 if (!n) {
                     ps->error(pec_expected_parameter, "Expected typed parameter after ','");
-                    // attempt to continue
-                    break;
+
+                    const token& r = skipToNextType(ps, { tt_comma });
+                    switch (r.tp) {
+                        case tt_comma: continue;
+                        default: {
+                            ps->freeNode(f);
+                            return errorNode(ps);
+                        }
+                    }
                 }
             }
 
             if (!ps->typeIs(tt_close_parenth)) {
-                if (f) ps->freeNode(f);
-                return nullptr;
+                ps->error(pec_expected_closing_parenth, "Expected ')' after typed parameter list");
+
+                if (f) {
+                    const token& r = skipToNextType(ps, { tt_close_parenth });
+                    if (r.tp != tt_close_parenth) {
+                        // malformed typed parameter list
+                        ps->freeNode(f);
+                        return errorNode(ps);
+                    }
+                } else {
+                    // possibly not a typed parameter list
+                    return nullptr;
+                }
             }
             ps->consume();
 
             return f;
         }
-        ast_node* maybeParameterList(Parser* ps) {
+        ParseNode* maybeParameterList(Parser* ps) {
             if (!ps->typeIs(tt_open_parenth)) return nullptr;
             ps->consume();
 
-            ast_node* f = parameter(ps);
-            ast_node* n = f;
+            ParseNode* f = parameter(ps);
+            ParseNode* n = f;
             while (n) {
                 if (!ps->typeIs(tt_comma)) break;
                 ps->consume();
@@ -1015,25 +1479,43 @@ namespace gs {
                 n = n->next;
                 if (!n) {
                     ps->error(pec_expected_parameter, "Expected parameter after ','");
-                    // attempt to continue
-                    break;
+
+                    const token& r = skipToNextType(ps, { tt_comma });
+                    switch (r.tp) {
+                        case tt_comma: continue;
+                        default: {
+                            ps->freeNode(f);
+                            return errorNode(ps);
+                        }
+                    }
                 }
             }
 
             if (!ps->typeIs(tt_close_parenth)) {
-                if (f) ps->freeNode(f);
-                return nullptr;
+                ps->error(pec_expected_closing_parenth, "Expected ')' after parameter list");
+
+                if (f) {
+                    const token& r = skipToNextType(ps, { tt_close_parenth });
+                    if (r.tp != tt_close_parenth) {
+                        // malformed parameter list
+                        ps->freeNode(f);
+                        return errorNode(ps);
+                    }
+                } else {
+                    // possibly not a parameter list
+                    return nullptr;
+                }
             }
             ps->consume();
 
             return f;
         }
-        ast_node* parameterList(Parser* ps) {
+        ParseNode* parameterList(Parser* ps) {
             if (!ps->typeIs(tt_open_parenth)) return nullptr;
             ps->consume();
 
-            ast_node* f = parameter(ps);
-            ast_node* n = f;
+            ParseNode* f = parameter(ps);
+            ParseNode* n = f;
             while (n) {
                 if (!ps->typeIs(tt_comma)) break;
                 ps->consume();
@@ -1042,26 +1524,43 @@ namespace gs {
                 n = n->next;
                 if (!n) {
                     ps->error(pec_expected_parameter, "Expected parameter after ','");
-                    // attempt to continue
-                    break;
+
+                    const token& r = skipToNextType(ps, { tt_comma });
+                    switch (r.tp) {
+                        case tt_comma: continue;
+                        default: {
+                            ps->freeNode(f);
+                            return errorNode(ps);
+                        }
+                    }
                 }
             }
 
             if (!ps->typeIs(tt_close_parenth)) {
                 ps->error(pec_expected_closing_parenth, "Expected ')' to close parameter list");
-                if (f) ps->freeNode(f);
-                return nullptr;
-            }
-            ps->consume();
 
+                const token& r = skipToNextType(ps, { tt_close_parenth });
+                switch (r.tp) {
+                    case tt_close_parenth: {
+                        ps->consume();
+                        return f;
+                    }
+                    default: {
+                        if (f) ps->freeNode(f);
+                        return errorNode(ps);
+                    }
+                }
+            }
+            
+            ps->consume();
             return f;
         }
-        ast_node* typedParameterList(Parser* ps) {
+        ParseNode* typedParameterList(Parser* ps) {
             if (!ps->typeIs(tt_open_parenth)) return nullptr;
             ps->consume();
 
-            ast_node* f = typedParameter(ps);
-            ast_node* n = f;
+            ParseNode* f = typedParameter(ps);
+            ParseNode* n = f;
             while (n) {
                 if (!ps->typeIs(tt_comma)) break;
                 ps->consume();
@@ -1070,33 +1569,64 @@ namespace gs {
                 n = n->next;
                 if (!n) {
                     ps->error(pec_expected_parameter, "Expected parameter after ','");
-                    // attempt to continue
-                    break;
+
+                    const token& r = skipToNextType(ps, { tt_comma });
+                    switch (r.tp) {
+                        case tt_comma: continue;
+                        default: {
+                            ps->freeNode(f);
+                            return errorNode(ps);
+                        }
+                    }
                 }
             }
 
             if (!ps->typeIs(tt_close_parenth)) {
                 ps->error(pec_expected_closing_parenth, "Expected ')' to close parameter list");
-                if (f) ps->freeNode(f);
-                return nullptr;
-            }
-            ps->consume();
 
+                const token& r = skipToNextType(ps, { tt_close_parenth });
+                switch (r.tp) {
+                    case tt_close_parenth: {
+                        ps->consume();
+                        return f;
+                    }
+                    default: {
+                        if (f) ps->freeNode(f);
+                        return errorNode(ps);
+                    }
+                }
+            }
+
+            ps->consume();
             return f;
         }
-        ast_node* arguments(Parser* ps) {
+        ParseNode* arguments(Parser* ps) {
             if (!ps->typeIs(tt_open_parenth)) return nullptr;
             ps->consume();
 
-            ast_node* n = expressionSequence(ps);
+            ParseNode* n = expressionSequence(ps);
 
             if (!ps->typeIs(tt_close_parenth)) {
                 ps->error(pec_expected_closing_parenth, "Expected ')' to close argument list");
-                ps->freeNode(n);
-                return nullptr;
-            }
-            ps->consume();
 
+                const token& r = skipToNextType(ps, { tt_close_parenth });
+                switch (r.tp) {
+                    case tt_close_parenth: {
+                        ps->consume();
+                        return n;
+                    }
+                    default: {
+                        if (n) {
+                            ps->freeNode(n);
+                            return errorNode(ps);
+                        }
+
+                        return nullptr;
+                    }
+                }
+            }
+
+            ps->consume();
             return n;
         }
         
@@ -1105,8 +1635,8 @@ namespace gs {
         // Types
         //
         
-        ast_node* typeModifier(Parser* ps) {
-            ast_node* mod = nullptr;
+        ParseNode* typeModifier(Parser* ps) {
+            ParseNode* mod = nullptr;
             if (ps->isSymbol("*")) {
                 ps->consume();
 
@@ -1117,7 +1647,16 @@ namespace gs {
                 ps->consume();
                 if (!ps->typeIs(tt_close_bracket)) {
                     ps->error(pec_expected_closing_bracket, "Expected ']'");
-                    // attempt to continue
+
+                    const token& r = skipToNextType(ps, { tt_close_bracket });
+                    switch (r.tp) {
+                        case tt_close_bracket: {
+                            ps->consume();
+                        }
+                        default: {
+                            return errorNode(ps);
+                        }
+                    }
                 } else ps->consume();
 
                 mod = ps->newNode(nt_type_modifier, t);
@@ -1127,9 +1666,9 @@ namespace gs {
             if (mod) mod->modifier = typeModifier(ps);
             return mod;
         }
-        ast_node* typeProperty(Parser* ps) {
+        ParseNode* typeProperty(Parser* ps) {
             ps->push();
-            ast_node* n = identifier(ps);
+            ParseNode* n = identifier(ps);
             if (!n) {
                 ps->revert();
                 return nullptr;
@@ -1149,18 +1688,23 @@ namespace gs {
             if (!n->data_type) {
                 ps->error(pec_expected_type_specifier, "Expected type specifier after ':'");
                 ps->freeNode(n);
-                return nullptr;
+                return errorNode(ps);
+            }
+
+            if (isError(n->data_type)) {
+                ps->freeNode(n);
+                return errorNode(ps);
             }
 
             return n;
         }
-        ast_node* parenthesizedTypeSpecifier(Parser* ps) {
+        ParseNode* parenthesizedTypeSpecifier(Parser* ps) {
             if (!ps->typeIs(tt_open_parenth)) return nullptr;
             const token* t = &ps->get();
             ps->push();
             ps->consume();
 
-            ast_node* n = typeSpecifier(ps);
+            ParseNode* n = typeSpecifier(ps);
             if (!n) {
                 ps->revert();
                 return nullptr;
@@ -1172,32 +1716,39 @@ namespace gs {
 
             if (!ps->typeIs(tt_close_parenth)) {
                 ps->error(pec_expected_closing_parenth, "Expected ')'");
-                ps->freeNode(n);
-                return nullptr;
-            }
-            ps->consume();
 
+                const token& r = skipToNextType(ps, { tt_close_parenth });
+                switch (r.tp) {
+                    case tt_close_parenth: break;
+                    default: {
+                        ps->freeNode(n);
+                        return errorNode(ps);
+                    }
+                }
+            }
+
+            ps->consume();
             return n;
         }
-        ast_node* identifierTypeSpecifier(Parser* ps, ast_node* id) {
+        ParseNode* identifierTypeSpecifier(Parser* ps, ParseNode* id) {
             id->template_parameters = templateArgs(ps);
             id->modifier = typeModifier(ps);
 
-            ast_node* n = ps->newNode(nt_type_specifier, &id->tok);
+            ParseNode* n = ps->newNode(nt_type_specifier, &id->tok);
             n->body = id;
 
             return n;
         }
-        ast_node* typeSpecifier(Parser* ps) {
+        ParseNode* typeSpecifier(Parser* ps) {
             const token* tok = &ps->get();
-            ast_node* id = identifier(ps);
+            ParseNode* id = identifier(ps);
             if (id) return identifierTypeSpecifier(ps, id);
 
             if (ps->typeIs(tt_open_brace)) {
                 ps->push();
                 ps->consume();
 
-                ast_node* f = typeProperty(ps);
+                ParseNode* f = typeProperty(ps);
                 if (!f) {
                     ps->revert();
                     return nullptr;
@@ -1206,10 +1757,11 @@ namespace gs {
                 
                 if (!ps->typeIs(tt_semicolon)) {
                     ps->error(pec_expected_eos, "Expected ';' after type property");
+                    if (ps->typeIs(tt_comma)) ps->consume(); // a likely mistake
                     // attempt to continue
                 } else ps->consume();
 
-                ast_node* n = f;
+                ParseNode* n = f;
                 do {
                     n->next = typeProperty(ps);
                     n = n->next;
@@ -1218,18 +1770,23 @@ namespace gs {
 
                     if (!ps->typeIs(tt_semicolon)) {
                         ps->error(pec_expected_eos, "Expected ';' after type property");
+                        if (ps->typeIs(tt_comma)) ps->consume(); // a likely mistake
                         // attempt to continue
                     } else ps->consume();
                 } while (true);
 
                 if (!ps->typeIs(tt_close_brace)) {
                     ps->error(pec_expected_closing_brace, "Expected '}' to close object type definition");
-                    ps->freeNode(f);
-                    return nullptr;
+                    const token& r = skipToNextType(ps, { tt_close_brace });
+                    if (r.tp != tt_close_brace) {
+                        ps->freeNode(f);
+                        return errorNode(ps);
+                    }
                 }
+
                 ps->consume();
 
-                ast_node* t = ps->newNode(nt_type_specifier, tok);
+                ParseNode* t = ps->newNode(nt_type_specifier, tok);
                 t->body = f;
                 t->modifier = typeModifier(ps);
 
@@ -1239,9 +1796,9 @@ namespace gs {
             if (ps->typeIs(tt_open_parenth)) {
                 const token* t = &ps->get();
                 ps->push();
-                ast_node* p = maybeTypedParameterList(ps);
+                ParseNode* p = maybeTypedParameterList(ps);
                 if (p) {
-                    ast_node* n = ps->newNode(nt_type_specifier, t);
+                    ParseNode* n = ps->newNode(nt_type_specifier, t);
                     n->parameters = p;
 
                     if (ps->typeIs(tt_forward)) {
@@ -1251,27 +1808,31 @@ namespace gs {
                         if (!n->data_type) {
                             ps->error(pec_expected_type_specifier, "Expected return type specifier");
                             ps->freeNode(n);
-                            return nullptr;
+                            return errorNode(ps);
                         }
+                    } else {
+                        ps->error(pec_expected_symbol, "Expected '=>' to indicate return type specifier after parameter list");
+                        ps->freeNode(n);
+                        return errorNode(ps);
+                    }
 
-                        return n;
-                    } else ps->freeNode(n);
+                    return n;
                 }
 
                 ps->revert();
             }
 
-            ast_node* n = parenthesizedTypeSpecifier(ps);
+            ParseNode* n = parenthesizedTypeSpecifier(ps);
             if (n) n->modifier = typeModifier(ps);
 
             return n;
         }
-        ast_node* assignable(Parser* ps) {
+        ParseNode* assignable(Parser* ps) {
             return identifier(ps);
         }
-        ast_node* typedAssignable(Parser* ps) {
+        ParseNode* typedAssignable(Parser* ps) {
             ps->push();
-            ast_node* id = identifier(ps);
+            ParseNode* id = identifier(ps);
             if (!id) {
                 ps->revert();
                 return nullptr;
@@ -1287,7 +1848,8 @@ namespace gs {
             id->data_type = typeSpecifier(ps);
             if (!id->data_type) {
                 ps->error(pec_expected_type_specifier, "Expected type specifier after ':'");
-                // attempt to continue
+                ps->freeNode(id);
+                id = errorNode(ps);
             }
 
             ps->commit();
@@ -1300,13 +1862,13 @@ namespace gs {
         // Literals
         //
         
-        ast_node* numberLiteral(Parser* ps) {
+        ParseNode* numberLiteral(Parser* ps) {
             if (!ps->typeIs(tt_number)) return nullptr;
 
             const token& t = ps->get();
             ps->consume();
 
-            ast_node* n = ps->newNode(nt_literal, &t);
+            ParseNode* n = ps->newNode(nt_literal, &t);
 
             if (ps->typeIs(tt_number_suffix)) {
                 const token& s = ps->get();
@@ -1334,6 +1896,7 @@ namespace gs {
                 else n->value_tp = lt_i32;
             }
 
+            // todo: error on numbers outside of valid ranges
             switch (n->value_tp) {
                 case lt_u8:
                 case lt_u16:
@@ -1359,35 +1922,35 @@ namespace gs {
 
             return n;
         }
-        ast_node* stringLiteral(Parser* ps) {
+        ParseNode* stringLiteral(Parser* ps) {
             if (!ps->typeIs(tt_string)) return nullptr;
             const token& t = ps->get();
             ps->consume();
-            ast_node* n = ps->newNode(nt_literal, &t);
+            ParseNode* n = ps->newNode(nt_literal, &t);
             n->value_tp = lt_string;
             n->value.s = t.text.c_str();
             n->str_len = t.text.size();
             return n;
         }
-        ast_node* templateStringLiteral(Parser* ps) {
+        ParseNode* templateStringLiteral(Parser* ps) {
             if (!ps->typeIs(tt_template_string)) return nullptr;
             // todo...
 
             const token& t = ps->get();
             ps->consume();
-            ast_node* n = ps->newNode(nt_literal, &t);
+            ParseNode* n = ps->newNode(nt_literal, &t);
             n->value_tp = lt_string;
             n->value.s = t.text.c_str();
             n->str_len = t.text.size();
             return n;
         }
-        ast_node* arrayLiteral(Parser* ps) {
+        ParseNode* arrayLiteral(Parser* ps) {
             const token* tok = &ps->get();
             if (!ps->typeIs(tt_open_bracket)) return nullptr;
             ps->push();
             ps->consume();
 
-            ast_node* n = expressionSequence(ps);
+            ParseNode* n = expressionSequence(ps);
             if (!n) {
                 ps->revert();
                 return nullptr;
@@ -1395,83 +1958,110 @@ namespace gs {
 
             if (!ps->typeIs(tt_close_bracket)) {
                 ps->error(pec_expected_closing_bracket, "Expected ']' to close array literal");
-                ps->freeNode(n);
-                return nullptr;
+
+                const token& r = skipToNextType(ps, { tt_close_bracket });
+                switch (r.tp) {
+                    case tt_close_bracket: break;
+                    default: {
+                        if (n) ps->freeNode(n);
+                        return errorNode(ps);
+                    }
+                }
             }
             n->manuallySpecifyRange(ps->get());
             ps->consume();
             ps->commit();
 
-            ast_node* a = ps->newNode(nt_literal, tok);
+            ParseNode* a = ps->newNode(nt_literal, tok);
             a->value_tp = lt_array;
             a->body = n;
             return a;
         }
-        ast_node* objectLiteralProperty(Parser* ps, bool expected) {
-            const token* tok = &ps->get();
+        ParseNode* objectLiteralProperty(Parser* ps, bool expected) {
             ps->push();
-            ast_node* name = identifier(ps);
-            if (!name) {
+            ParseNode* n = identifier(ps);
+            if (!n) {
                 ps->revert();
                 return nullptr;
             }
 
             if (!ps->typeIs(tt_colon)) {
                 if (expected) {
-                    ps->error(pec_expected_colon, utils::String::Format("Expected ':' after '%s'", name->str().c_str()));
+                    ps->error(pec_expected_colon, utils::String::Format("Expected ':' after '%s'", n->str().c_str()));
                 }
                 ps->revert();
-                ps->freeNode(name);
-                return nullptr;
+                ps->freeNode(n);
+                return expected ? errorNode(ps) : nullptr;
             }
 
-            ast_node* n = ps->newNode(nt_object_literal_property, tok);
-            n->lvalue = name;
-            n->rvalue = singleExpression(ps);
-            if (!n->rvalue) {
-                ps->error(pec_expected_expr, utils::String::Format("Expected expression after '%s:'", name->str().c_str()));
+            n->tp = nt_object_literal_property;
+            n->initializer = singleExpression(ps);
+            if (!n->initializer) {
+                ps->error(pec_expected_expr, utils::String::Format("Expected expression after '%s:'", n->str().c_str()));
                 ps->revert();
                 ps->freeNode(n);
-                return nullptr;
+                return errorNode(ps);
             }
 
             ps->commit();
             return n;
         }
-        ast_node* objectLiteral(Parser* ps) {
+        ParseNode* objectLiteral(Parser* ps) {
             const token* tok = &ps->get();
             if (!ps->typeIs(tt_open_brace)) return nullptr;
             ps->push();
             ps->consume();
 
-            ast_node* f = objectLiteralProperty(ps, false);
+            ParseNode* f = objectLiteralProperty(ps, false);
             if (!f) {
                 ps->revert();
                 return nullptr;
             }
-            ast_node* n = f;
+            
+            ps->commit();
+            
+            if (isError(f)) {
+                skipToNextType(ps, { tt_close_brace });
+                return f;
+            }
+
+            ParseNode* n = f;
             while (n) {
                 if (!ps->typeIs(tt_comma)) break;
                 ps->consume();
                 n->next = objectLiteralProperty(ps, true);
                 n = n->next;
-                if (!n) {
-                    ps->error(pec_expected_object_property, "Expected object literal property after ','");
-                    // attempt to continue
-                    break;
+                if (!n || isError(n)) {
+                    if (!n) ps->error(pec_expected_object_property, "Expected object literal property after ','");
+
+                    const token& r = skipToNextType(ps, { tt_comma });
+                    switch (r.tp) {
+                        case tt_comma: continue;
+                        default: {
+                            ps->freeNode(f);
+                            return errorNode(ps);
+                        }
+                    }
                 }
             }
 
             if (!ps->typeIs(tt_close_brace)) {
                 ps->error(pec_expected_closing_bracket, "Expected '}' to close object literal");
-                ps->freeNode(n);
-                return nullptr;
-            }
-            n->manuallySpecifyRange(ps->get());
-            ps->consume();
-            ps->commit();
 
-            ast_node* a = ps->newNode(nt_literal, tok);
+                const token& r = skipToNextType(ps, { tt_close_brace });
+                switch (r.tp) {
+                    case tt_close_brace: break;
+                    default: {
+                        ps->freeNode(f);
+                        return errorNode(ps);
+                    }
+                }
+            }
+
+            f->manuallySpecifyRange(ps->get());
+            ps->consume();
+
+            ParseNode* a = ps->newNode(nt_literal, tok);
             a->value_tp = lt_object;
             a->body = f;
             return a;
@@ -1483,7 +2073,7 @@ namespace gs {
         // Expressions
         //
         
-        ast_node* primaryExpression(Parser* ps) {
+        ParseNode* primaryExpression(Parser* ps) {
             if (ps->isKeyword("this")) {
                 ps->consume();
                 return ps->newNode(nt_this, &ps->getPrev());
@@ -1491,45 +2081,44 @@ namespace gs {
 
             if (ps->isKeyword("null")) {
                 ps->consume();
-                ast_node* n = ps->newNode(nt_literal, &ps->getPrev());
+                ParseNode* n = ps->newNode(nt_literal, &ps->getPrev());
                 n->value_tp = lt_null;
                 return n;
             }
 
             if (ps->isKeyword("true")) {
                 ps->consume();
-                ast_node* n = ps->newNode(nt_literal, &ps->getPrev());
+                ParseNode* n = ps->newNode(nt_literal, &ps->getPrev());
                 n->value_tp = lt_true;
                 return n;
             }
 
             if (ps->isKeyword("false")) {
                 ps->consume();
-                ast_node* n = ps->newNode(nt_literal, &ps->getPrev());
+                ParseNode* n = ps->newNode(nt_literal, &ps->getPrev());
                 n->value_tp = lt_false;
                 return n;
             }
 
             if (ps->isKeyword("sizeof")) {
                 ps->consume();
-                ast_node* n = ps->newNode(nt_sizeof, &ps->getPrev());
+                ParseNode* n = ps->newNode(nt_sizeof, &ps->getPrev());
 
                 if (!ps->isSymbol("<")) {
                     ps->error(pec_expected_symbol, "Expected single template parameter after 'sizeof'");
                     ps->freeNode(n);
-                    return nullptr;
+                    return errorNode(ps);
                 }
 
                 n->data_type = templateArgs(ps);
                 if (!n->data_type) {
                     // error already emitted
                     ps->freeNode(n);
-                    return nullptr;
+                    return errorNode(ps);
                 }
 
                 if (n->data_type->next) {
                     ps->error(pec_expected_single_template_arg, "Expected single template parameter after 'sizeof'");
-                    // attempt to continue
                 }
 
                 return n;
@@ -1539,7 +2128,7 @@ namespace gs {
             // hex literal
             // regex literal?
 
-            ast_node* n = numberLiteral(ps);
+            ParseNode* n = numberLiteral(ps);
             if (n) return n;
 
             n = stringLiteral(ps);
@@ -1558,9 +2147,9 @@ namespace gs {
             if (n) {
                 if (ps->isSymbol("<")) {
                     ps->push();
-                    ast_node* args = templateArgs(ps);
+                    ParseNode* args = templateArgs(ps);
                     
-                    if (args) {
+                    if (args && !isError(args)) {
                         // it's either a type specifier or a function specialization
                         ps->commit();
                         n->template_parameters = args;
@@ -1576,11 +2165,11 @@ namespace gs {
 
             return nullptr;
         }
-        ast_node* functionExpression(Parser* ps) {
+        ParseNode* functionExpression(Parser* ps) {
             const token* tok = &ps->get();
             ps->push();
-            ast_node* params = one_of(ps, { identifier, maybeParameterList });
-            if (!params) {
+            ParseNode* params = one_of(ps, { identifier, maybeParameterList });
+            if (!params || isError(params)) {
                 ps->revert();
                 return nullptr;
             }
@@ -1593,37 +2182,37 @@ namespace gs {
             ps->commit();
             ps->consume();
 
-            ast_node* n = ps->newNode(nt_function, tok);
+            ParseNode* n = ps->newNode(nt_function, tok);
             n->parameters = params;
             n->body = one_of(ps, { block, expression });
 
-            if (!n->body) {
-                ps->error(pec_expected_function_body, "Expected arrow function body");
+            if (!n->body || isError(n->body)) {
+                if (!n->body) ps->error(pec_expected_function_body, "Expected arrow function body");
                 ps->freeNode(n);
-                return nullptr;
+                return errorNode(ps);
             }
 
             return n;
         }
-        ast_node* memberExpression(Parser* ps) {
-            ast_node* n = functionExpression(ps);
+        ParseNode* memberExpression(Parser* ps) {
+            ParseNode* n = functionExpression(ps);
             if (!n) n = primaryExpression(ps);
             if (!n) return nullptr;
 
-            ast_node* l = n;
+            ParseNode* l = n;
             while (true) {
                 if (ps->typeIs(tt_dot)) {
                     const token& tok = ps->get();
                     ps->consume();
 
-                    ast_node* r = identifier(ps);
+                    ParseNode* r = identifier(ps);
                     if (!r) {
                         ps->error(pec_expected_identifier, "Expected identifier after '.'");
                         ps->freeNode(l);
-                        return nullptr;
+                        return errorNode(ps);
                     }
 
-                    ast_node* e = ps->newNode(nt_expression, &tok);
+                    ParseNode* e = ps->newNode(nt_expression, &tok);
                     e->op = op_member;
                     e->lvalue = l;
                     e->rvalue = r;
@@ -1633,22 +2222,42 @@ namespace gs {
                     const token& tok = ps->get();
                     ps->consume();
                     
-                    ast_node* r = expression(ps);
+                    ParseNode* r = expression(ps);
                     if (!r) {
                         ps->revert();
                         ps->error(pec_expected_expr, "Expected expression after '['");
-                        ps->freeNode(l);
-                        return nullptr;
+
+                        const token& rt = skipToNextType(ps, { tt_close_bracket });
+                        switch (rt.tp) {
+                            case tt_close_bracket: {
+                                r = errorNode(ps);
+                                break;
+                            }
+                            default: {
+                                ps->freeNode(l);
+                                return errorNode(ps);
+                            }
+                        }
                     }
 
                     if (!ps->typeIs(tt_close_bracket)) {
                         ps->revert();
                         ps->error(pec_expected_closing_bracket, "Expected ']'");
-                        ps->freeNode(l);
-                        return nullptr;
+
+                        const token& rt = skipToNextType(ps, { tt_close_bracket });
+                        switch (rt.tp) {
+                            case tt_close_bracket: {
+                                ps->consume();
+                                break;
+                            }
+                            default: {
+                                ps->freeNode(l);
+                                return errorNode(ps);
+                            }
+                        }
                     }
 
-                    ast_node* e = ps->newNode(nt_expression, &tok);
+                    ParseNode* e = ps->newNode(nt_expression, &tok);
                     e->op = op_index;
                     e->lvalue = l;
                     e->rvalue = r;
@@ -1661,9 +2270,9 @@ namespace gs {
 
             return l;
         }
-        ast_node* callExpression(Parser* ps) {
+        ParseNode* callExpression(Parser* ps) {
             ps->push();
-            ast_node* callee = memberExpression(ps);
+            ParseNode* callee = memberExpression(ps);
             if (!callee) {
                 ps->revert();
                 return nullptr;
@@ -1671,21 +2280,21 @@ namespace gs {
 
             const token& argTok = ps->get();
 
-            ast_node* args = arguments(ps);
+            ParseNode* args = arguments(ps);
             if (!args) {
                 ps->revert();
                 ps->freeNode(callee);
                 return nullptr;
             }
 
-            ast_node* n = ps->newNode(nt_expression, &argTok);
+            ParseNode* n = ps->newNode(nt_expression, &argTok);
             n->op = op_call;
             n->lvalue = callee;
             n->parameters = args;
 
             while (true) {
                 if (ps->typeIs(tt_open_parenth)) {
-                    ast_node* e = ps->newNode(nt_expression, &ps->get());
+                    ParseNode* e = ps->newNode(nt_expression, &ps->get());
                     e->op = op_call;
                     e->lvalue = n;
                     e->parameters = arguments(ps);
@@ -1694,7 +2303,7 @@ namespace gs {
                     continue;
                 } else if (ps->typeIs(tt_dot)) {
                     ps->consume();
-                    ast_node* e = ps->newNode(nt_expression, &ps->getPrev());
+                    ParseNode* e = ps->newNode(nt_expression, &ps->getPrev());
                     e->op = op_member;
                     e->lvalue = n;
                     e->rvalue = identifier(ps);
@@ -1703,14 +2312,14 @@ namespace gs {
                         ps->revert();
                         ps->error(pec_expected_identifier, "Expected identifier after '.'");
                         ps->freeNode(e);
-                        return nullptr;
+                        return errorNode(ps);
                     }
 
                     n = e;
                     continue;
                 } else if (ps->typeIs(tt_open_bracket)) {
                     ps->consume();
-                    ast_node* e = ps->newNode(nt_expression, &ps->getPrev());
+                    ParseNode* e = ps->newNode(nt_expression, &ps->getPrev());
                     e->op = op_index;
                     e->lvalue = n;
                     e->rvalue = expression(ps);
@@ -1718,15 +2327,35 @@ namespace gs {
                     if (!e->rvalue) {
                         ps->revert();
                         ps->error(pec_expected_expr, "Expected expression after '['");
-                        ps->freeNode(e);
-                        return nullptr;
+
+                        const token& rt = skipToNextType(ps, { tt_close_bracket });
+                        switch (rt.tp) {
+                            case tt_close_bracket: {
+                                e->rvalue = errorNode(ps);
+                                break;
+                            }
+                            default: {
+                                ps->freeNode(e);
+                                return errorNode(ps);
+                            }
+                        }
                     }
 
                     if (!ps->typeIs(tt_close_bracket)) {
                         ps->revert();
                         ps->error(pec_expected_closing_bracket, "Expected ']'");
-                        ps->freeNode(e);
-                        return nullptr;
+
+                        const token& rt = skipToNextType(ps, { tt_close_bracket });
+                        switch (rt.tp) {
+                            case tt_close_bracket: {
+                                ps->consume();
+                                break;
+                            }
+                            default: {
+                                ps->freeNode(e);
+                                return nullptr;
+                            }
+                        }
                     }
 
                     n = e;
@@ -1740,12 +2369,12 @@ namespace gs {
 
             return n;
         }
-        ast_node* leftHandSideExpression(Parser* ps) {
-            ast_node* n = callExpression(ps);
+        ParseNode* leftHandSideExpression(Parser* ps) {
+            ParseNode* n = callExpression(ps);
             if (!n) n = memberExpression(ps);
 
             if (ps->isKeyword("as")) {
-                ast_node* o = ps->newNode(nt_cast);
+                ParseNode* o = ps->newNode(nt_cast);
                 ps->consume();
 
                 o->body = n;
@@ -1754,7 +2383,7 @@ namespace gs {
                 if (!o->data_type) {
                     ps->error(pec_expected_type_specifier, "Expected type specifier after 'as' keyword");
                     ps->freeNode(o);
-                    return nullptr;
+                    return errorNode(ps);
                 }
 
                 n = o;
@@ -1762,8 +2391,8 @@ namespace gs {
 
             return n;
         }
-        ast_node* postfixExpression(Parser* ps) {
-            ast_node* n = leftHandSideExpression(ps);
+        ParseNode* postfixExpression(Parser* ps) {
+            ParseNode* n = leftHandSideExpression(ps);
             if (!n) return nullptr;
 
             const token& t = ps->get();
@@ -1771,7 +2400,7 @@ namespace gs {
                 // --, ++
                 ps->consume();
 
-                ast_node* e = ps->newNode(nt_expression, &t);
+                ParseNode* e = ps->newNode(nt_expression, &t);
                 e->op = (t.text[0] == '-') ? op_postDec : op_postInc;
                 e->lvalue = n;
 
@@ -1780,22 +2409,22 @@ namespace gs {
 
             return n;
         }
-        ast_node* unaryExpression(Parser* ps) {
-            ast_node* n = postfixExpression(ps);
+        ParseNode* unaryExpression(Parser* ps) {
+            ParseNode* n = postfixExpression(ps);
             if (n) return n;
 
             const token& t = ps->get();
             if (t.text.size() == 1 && (t.text[0] == '-' || t.text[0] == '~' || t.text[0] == '!')) {
                 ps->consume();
 
-                ast_node* e = ps->newNode(nt_expression, &t);
+                ParseNode* e = ps->newNode(nt_expression, &t);
                 e->op = (t.text[0] == '-') ? op_negate : ((t.text[0] == '~') ? op_bitInv : op_not);
                 e->lvalue = unaryExpression(ps);
                 
                 if (!e->lvalue) {
                     ps->error(pec_expected_expr, utils::String::Format("Expected expression after '%c'", t.text[0]));
                     ps->freeNode(e);
-                    return nullptr;
+                    return errorNode(ps);
                 }
 
                 return e;
@@ -1805,14 +2434,14 @@ namespace gs {
                 // --, ++
                 ps->consume();
 
-                ast_node* e = ps->newNode(nt_expression, &t);
+                ParseNode* e = ps->newNode(nt_expression, &t);
                 e->op = (t.text[0] == '-') ? op_preDec : op_preInc;
                 e->lvalue = unaryExpression(ps);
                 
                 if (!e->lvalue) {
                     ps->error(pec_expected_expr, utils::String::Format("Expected expression after '%c%c'", t.text[0], t.text[0]));
                     ps->freeNode(e);
-                    return nullptr;
+                    return errorNode(ps);
                 }
 
                 return e;
@@ -1820,91 +2449,94 @@ namespace gs {
 
             return nullptr;
         }
-        ast_node* multiplicativeExpression(Parser* ps) {
+        ParseNode* multiplicativeExpression(Parser* ps) {
             const token* first = &ps->get();
-            ast_node* n = unaryExpression(ps);
+            ParseNode* n = unaryExpression(ps);
 
-            const token& t = ps->get();
-            if (t.text.size() == 1 && (t.text[0] == '*' || t.text[0] == '/' || t.text[0] == '%')) {
+            const token* t = &ps->get();
+            while (n && t->text.size() == 1 && (t->text[0] == '*' || t->text[0] == '/' || t->text[0] == '%')) {
                 ps->consume();
 
-                ast_node* e = ps->newNode(nt_expression, first);
-                e->op = (t.text[0] == '*') ? op_mul : ((t.text[0] == '/') ? op_div : op_mod);
+                ParseNode* e = ps->newNode(nt_expression, first);
+                e->op = (t->text[0] == '*') ? op_mul : ((t->text[0] == '/') ? op_div : op_mod);
                 e->lvalue = n;
                 e->rvalue = unaryExpression(ps);
                 
                 if (!e->rvalue) {
-                    ps->error(pec_expected_expr, utils::String::Format("Expected expression after '%c'", t.text[0]));
+                    ps->error(pec_expected_expr, utils::String::Format("Expected expression after '%c'", t->text[0]));
                     ps->freeNode(e);
-                    return nullptr;
+                    return errorNode(ps);
                 }
 
-                return e;
+                n = e;
+                t = &ps->get();
             }
 
             return n;
         }
-        ast_node* additiveExpression(Parser* ps) {
+        ParseNode* additiveExpression(Parser* ps) {
             const token* first = &ps->get();
-            ast_node* n = multiplicativeExpression(ps);
+            ParseNode* n = multiplicativeExpression(ps);
 
-            const token& t = ps->get();
-            if (t.text.size() == 1 && (t.text[0] == '+' || t.text[0] == '-')) {
+            const token* t = &ps->get();
+            while (n && t->text.size() == 1 && (t->text[0] == '+' || t->text[0] == '-')) {
                 ps->consume();
 
-                ast_node* e = ps->newNode(nt_expression, first);
-                e->op = (t.text[0] == '+') ? op_add : op_sub;
+                ParseNode* e = ps->newNode(nt_expression, first);
+                e->op = (t->text[0] == '+') ? op_add : op_sub;
                 e->lvalue = n;
                 e->rvalue = multiplicativeExpression(ps);
                 
                 if (!e->rvalue) {
-                    ps->error(pec_expected_expr, utils::String::Format("Expected expression after '%c'", t.text[0]));
+                    ps->error(pec_expected_expr, utils::String::Format("Expected expression after '%c'", t->text[0]));
                     ps->freeNode(e);
-                    return nullptr;
+                    return errorNode(ps);
                 }
 
-                return e;
+                n = e;
+                t = &ps->get();
             }
 
             return n;
         }
-        ast_node* shiftExpression(Parser* ps) {
+        ParseNode* shiftExpression(Parser* ps) {
             const token* first = &ps->get();
-            ast_node* n = additiveExpression(ps);
+            ParseNode* n = additiveExpression(ps);
 
-            const token& t = ps->get();
-            if (t.text.size() == 2 && (t.text[0] == '<' || t.text[0] == '>') && t.text[0] == t.text[1]) {
+            const token* t = &ps->get();
+            while (n && t->text.size() == 2 && (t->text[0] == '<' || t->text[0] == '>') && t->text[0] == t->text[1]) {
                 ps->consume();
 
-                ast_node* e = ps->newNode(nt_expression, first);
-                e->op = (t.text[0] == '<') ? op_shLeft : op_shRight;
+                ParseNode* e = ps->newNode(nt_expression, first);
+                e->op = (t->text[0] == '<') ? op_shLeft : op_shRight;
                 e->lvalue = n;
                 e->rvalue = additiveExpression(ps);
                 
                 if (!e->rvalue) {
-                    ps->error(pec_expected_expr, utils::String::Format("Expected expression after '%c%c'", t.text[0]));
+                    ps->error(pec_expected_expr, utils::String::Format("Expected expression after '%c%c'", t->text[0]));
                     ps->freeNode(e);
-                    return nullptr;
+                    return errorNode(ps);
                 }
 
-                return e;
+                n = e;
+                t = &ps->get();
             }
 
             return n;
         }
-        ast_node* relationalExpression(Parser* ps) {
+        ParseNode* relationalExpression(Parser* ps) {
             const token* first = &ps->get();
-            ast_node* n = shiftExpression(ps);
+            ParseNode* n = shiftExpression(ps);
 
-            const token& t = ps->get();
-            if ((t.text[0] == '<' || t.text[0] == '>') && (t.text.size() == 1 || t.text[1] == '=')) {
+            const token* t = &ps->get();
+            while (n && (t->text[0] == '<' || t->text[0] == '>') && (t->text.size() == 1 || t->text[1] == '=')) {
                 ps->consume();
 
-                ast_node* e = ps->newNode(nt_expression, first);
+                ParseNode* e = ps->newNode(nt_expression, first);
 
                 const char* sym = nullptr;
-                if (t.text[0] == '<') {
-                    if (t.text.size() == 1) {
+                if (t->text[0] == '<') {
+                    if (t->text.size() == 1) {
                         e->op = op_lessThan;
                         sym = "<";
                     } else {
@@ -1912,7 +2544,7 @@ namespace gs {
                         sym = "<=";
                     }
                 } else {
-                    if (t.text.size() == 1) {
+                    if (t->text.size() == 1) {
                         e->op = op_greaterThan;
                         sym = ">";
                     } else {
@@ -1927,46 +2559,48 @@ namespace gs {
                 if (!e->rvalue) {
                     ps->error(pec_expected_expr, utils::String::Format("Expected expression after '%s'", sym));
                     ps->freeNode(e);
-                    return nullptr;
+                    return errorNode(ps);
                 }
 
-                return e;
+                n = e;
+                t = &ps->get();
             }
 
             return n;
         }
-        ast_node* equalityExpression(Parser* ps) {
+        ParseNode* equalityExpression(Parser* ps) {
             const token* first = &ps->get();
-            ast_node* n = relationalExpression(ps);
+            ParseNode* n = relationalExpression(ps);
 
-            const token& t = ps->get();
-            if (t.text.size() == 2 && (t.text[0] == '!' || t.text[0] == '=')) {
+            const token* t = &ps->get();
+            while (n && t->text.size() == 2 && (t->text[0] == '!' || t->text[0] == '=')) {
                 ps->consume();
 
-                ast_node* e = ps->newNode(nt_expression, first);
-                e->op = (t.text[0] == '!') ? op_notEq : op_compare;
+                ParseNode* e = ps->newNode(nt_expression, first);
+                e->op = (t->text[0] == '!') ? op_notEq : op_compare;
                 e->lvalue = n;
                 e->rvalue = relationalExpression(ps);
                 
                 if (!e->rvalue) {
-                    ps->error(pec_expected_expr, utils::String::Format("Expected expression after '%c='", t.text[0]));
+                    ps->error(pec_expected_expr, utils::String::Format("Expected expression after '%c='", t->text[0]));
                     ps->freeNode(e);
-                    return nullptr;
+                    return errorNode(ps);
                 }
 
-                return e;
+                n = e;
+                t = &ps->get();
             }
 
             return n;
         }
-        ast_node* bitwiseAndExpression(Parser* ps) {
+        ParseNode* bitwiseAndExpression(Parser* ps) {
             const token* first = &ps->get();
-            ast_node* n = equalityExpression(ps);
+            ParseNode* n = equalityExpression(ps);
 
-            if (ps->textIs("&")) {
+            while (n && ps->textIs("&")) {
                 ps->consume();
 
-                ast_node* e = ps->newNode(nt_expression, first);
+                ParseNode* e = ps->newNode(nt_expression, first);
                 e->op = op_bitAnd;
                 e->lvalue = n;
                 e->rvalue = equalityExpression(ps);
@@ -1974,22 +2608,22 @@ namespace gs {
                 if (!e->rvalue) {
                     ps->error(pec_expected_expr, "Expected expression after '&'");
                     ps->freeNode(e);
-                    return nullptr;
+                    return errorNode(ps);
                 }
 
-                return e;
+                n = e;
             }
 
             return n;
         }
-        ast_node* XOrExpression(Parser* ps) {
+        ParseNode* XOrExpression(Parser* ps) {
             const token* first = &ps->get();
-            ast_node* n = bitwiseAndExpression(ps);
+            ParseNode* n = bitwiseAndExpression(ps);
 
-            if (ps->textIs("^")) {
+            while (n && ps->textIs("^")) {
                 ps->consume();
 
-                ast_node* e = ps->newNode(nt_expression, first);
+                ParseNode* e = ps->newNode(nt_expression, first);
                 e->op = op_xor;
                 e->lvalue = n;
                 e->rvalue = bitwiseAndExpression(ps);
@@ -1997,22 +2631,22 @@ namespace gs {
                 if (!e->rvalue) {
                     ps->error(pec_expected_expr, "Expected expression after '^'");
                     ps->freeNode(e);
-                    return nullptr;
+                    return errorNode(ps);
                 }
 
-                return e;
+                n = e;
             }
 
             return n;
         }
-        ast_node* bitwiseOrExpression(Parser* ps) {
+        ParseNode* bitwiseOrExpression(Parser* ps) {
             const token* first = &ps->get();
-            ast_node* n = XOrExpression(ps);
+            ParseNode* n = XOrExpression(ps);
 
-            if (ps->textIs("|")) {
+            while (n && ps->textIs("|")) {
                 ps->consume();
 
-                ast_node* e = ps->newNode(nt_expression, first);
+                ParseNode* e = ps->newNode(nt_expression, first);
                 e->op = op_bitOr;
                 e->lvalue = n;
                 e->rvalue = XOrExpression(ps);
@@ -2020,22 +2654,22 @@ namespace gs {
                 if (!e->rvalue) {
                     ps->error(pec_expected_expr, "Expected expression after '|'");
                     ps->freeNode(e);
-                    return nullptr;
+                    return errorNode(ps);
                 }
 
-                return e;
+                n = e;
             }
 
             return n;
         }
-        ast_node* logicalAndExpression(Parser* ps) {
+        ParseNode* logicalAndExpression(Parser* ps) {
             const token* first = &ps->get();
-            ast_node* n = bitwiseOrExpression(ps);
+            ParseNode* n = bitwiseOrExpression(ps);
 
-            if (ps->textIs("&&")) {
+            while (n && ps->textIs("&&")) {
                 ps->consume();
 
-                ast_node* e = ps->newNode(nt_expression, first);
+                ParseNode* e = ps->newNode(nt_expression, first);
                 e->op = op_logAnd;
                 e->lvalue = n;
                 e->rvalue = bitwiseOrExpression(ps);
@@ -2043,22 +2677,22 @@ namespace gs {
                 if (!e->rvalue) {
                     ps->error(pec_expected_expr, "Expected expression after '&&'");
                     ps->freeNode(e);
-                    return nullptr;
+                    return errorNode(ps);
                 }
 
-                return e;
+                n = e;
             }
 
             return n;
         }
-        ast_node* logicalOrExpression(Parser* ps) {
+        ParseNode* logicalOrExpression(Parser* ps) {
             const token* first = &ps->get();
-            ast_node* n = logicalAndExpression(ps);
+            ParseNode* n = logicalAndExpression(ps);
 
-            if (ps->textIs("||")) {
+            while (n && ps->textIs("||")) {
                 ps->consume();
 
-                ast_node* e = ps->newNode(nt_expression, first);
+                ParseNode* e = ps->newNode(nt_expression, first);
                 e->op = op_logOr;
                 e->lvalue = n;
                 e->rvalue = logicalAndExpression(ps);
@@ -2066,21 +2700,21 @@ namespace gs {
                 if (!e->rvalue) {
                     ps->error(pec_expected_expr, "Expected expression after '||'");
                     ps->freeNode(e);
-                    return nullptr;
+                    return errorNode(ps);
                 }
 
-                return e;
+                n = e;
             }
 
             return n;
         }
-        ast_node* conditionalExpression(Parser* ps) {
+        ParseNode* conditionalExpression(Parser* ps) {
             const token* first = &ps->get();
-            ast_node* n = logicalOrExpression(ps);
+            ParseNode* n = logicalOrExpression(ps);
 
-            if (ps->get().text[0] == '?') {
+            if (n && ps->get().text[0] == '?') {
                 ps->consume();
-                ast_node* c = ps->newNode(nt_expression, first);
+                ParseNode* c = ps->newNode(nt_expression, first);
                 c->op = op_conditional;
                 c->cond = n;
                 c->lvalue = assignmentExpression(ps);
@@ -2088,13 +2722,13 @@ namespace gs {
                 if (!c->lvalue) {
                     ps->error(pec_expected_expr, "Expected expression for conditional expression's truth result");
                     ps->freeNode(c);
-                    return nullptr;
+                    return errorNode(ps);
                 }
 
                 if (!ps->typeIs(tt_colon)) {
                     ps->error(pec_expected_symbol, "Expected ':' after conditional expression's truth result");
                     ps->freeNode(c);
-                    return nullptr;
+                    return errorNode(ps);
                 }
                 ps->consume();
                 c->rvalue = assignmentExpression(ps);
@@ -2102,7 +2736,7 @@ namespace gs {
                 if (!c->rvalue) {
                     ps->error(pec_expected_expr, "Expected expression for conditional expression's false result");
                     ps->freeNode(c);
-                    return nullptr;
+                    return errorNode(ps);
                 }
 
                 return c;
@@ -2110,45 +2744,62 @@ namespace gs {
 
             return n;
         }
-        ast_node* assignmentExpression(Parser* ps) {
+        ParseNode* assignmentExpression(Parser* ps) {
             const token* first = &ps->get();
             ps->push();
-            ast_node* lvalue = leftHandSideExpression(ps);
-            if (lvalue) {
-                if (isAssignmentOperator(ps)) {
-                    expr_operator op = getOperatorType(ps);
-                    ps->consume();
-                    ast_node* rvalue = assignmentExpression(ps);
+            ParseNode* n = leftHandSideExpression(ps);
 
-                    if (rvalue) {
-                        ps->commit();
+            if (n) {
+                bool isAssignment = isAssignmentOperator(ps);
 
-                        ast_node* out = ps->newNode(nt_expression, first);
-                        out->op = op;
-                        out->lvalue = lvalue;
-                        out->rvalue = rvalue;
-                        return out;
-                    }
+                if (isAssignment) {
+                    ps->commit();
+                    do {
+                        expr_operator op = getOperatorType(ps);
+                        ps->consume();
+                        ParseNode* rvalue = assignmentExpression(ps);
+
+                        if (!rvalue) {
+                            ps->freeNode(n);
+                            ps->error(pec_expected_expr, "Expected expression for rvalue");
+                            return errorNode(ps);
+                        }
+
+                        ParseNode* e = ps->newNode(nt_expression, first);
+                        e->op = op;
+                        e->lvalue = n;
+                        e->rvalue = rvalue;
+                        n = e;
+                    } while (isAssignmentOperator(ps));
+
+                    return n;
                 }
             }
 
             ps->revert();
             return conditionalExpression(ps);
         }
-        ast_node* singleExpression(Parser* ps) {
+        ParseNode* singleExpression(Parser* ps) {
             return assignmentExpression(ps);
         }
-        ast_node* expression(Parser* ps) {
-            ast_node* n = assignmentExpression(ps);
-            ast_node* b = n;
-            while (ps->typeIs(tt_comma)) {
+        ParseNode* expression(Parser* ps) {
+            ParseNode* n = assignmentExpression(ps);
+            ParseNode* b = n;
+            while (b && ps->typeIs(tt_comma)) {
                 ps->consume();
 
                 b->next = assignmentExpression(ps);
-                if (!b->next) {
-                    ps->error(pec_expected_expr, "Expected expression after ','");
-                    // attempt to continue
-                    break;
+                if (!b->next || isError(b->next)) {
+                    if (!isError(b->next)) ps->error(pec_expected_expr, "Expected expression after ','");
+
+                    const token& r = skipToNextType(ps, { tt_comma, tt_semicolon, tt_close_parenth, tt_close_bracket });
+                    switch (r.tp) {
+                        case tt_comma: continue;
+                        default: {
+                            ps->freeNode(n);
+                            return errorNode(ps);
+                        }
+                    }
                 }
 
                 b = b->next;
@@ -2156,11 +2807,11 @@ namespace gs {
 
             return n;
         }
-        ast_node* expressionSequence(Parser* ps) {
-            ast_node* f = singleExpression(ps);
+        ParseNode* expressionSequence(Parser* ps) {
+            ParseNode* f = singleExpression(ps);
             if (!f) return nullptr;
             
-            ast_node* n = f;
+            ParseNode* n = f;
             while (true) {
                 if (!ps->typeIs(tt_comma)) break;
                 ps->consume();
@@ -2170,19 +2821,25 @@ namespace gs {
 
                 if (!n) {
                     ps->error(pec_expected_expr, "Expected expression after ','");
-                    ps->freeNode(f);
-                    return nullptr;
+                    const token& r = skipToNextType(ps, { tt_comma, tt_semicolon, tt_close_parenth });
+                    switch (r.tp) {
+                        case tt_comma: continue;
+                        default: {
+                            ps->freeNode(f);
+                            return errorNode(ps);
+                        }
+                    }
                 }
             }
 
             return f;
         }
-        ast_node* expressionSequenceGroup(Parser* ps) {
+        ParseNode* expressionSequenceGroup(Parser* ps) {
             if (!ps->typeIs(tt_open_parenth)) return nullptr;
             ps->push();
             ps->consume();
             
-            ast_node* n = expressionSequence(ps);
+            ParseNode* n = expressionSequence(ps);
             
             if (!n) {
                 ps->revert();
@@ -2192,7 +2849,16 @@ namespace gs {
             ps->commit();
             if (!ps->typeIs(tt_close_parenth)) {
                 ps->error(pec_expected_closing_parenth, "Expected ')'");
-                // attempt to continue
+
+                const token& r = skipToNextType(ps, { tt_close_parenth, tt_semicolon });
+                switch (r.tp) {
+                    case tt_close_parenth: break;
+                    default: {
+                        ps->freeNode(n);
+                        return errorNode(ps);
+                    }
+                }
+
                 return n;
             }
 
@@ -2205,43 +2871,50 @@ namespace gs {
         //
         // Declarations
         //
-        ast_node* variableDecl(Parser* ps) {
-            ast_node* _assignable = one_of(ps, { typedAssignable, assignable, objectDecompositor });
-            if (!_assignable) return nullptr;
 
-            ast_node* decl = ps->newNode(nt_variable, &_assignable->tok);
+        ParseNode* variableDecl(Parser* ps) {
+            ParseNode* _assignable = one_of(ps, { typedAssignable, assignable, objectDecompositor });
+            if (!_assignable || isError(_assignable)) return nullptr;
+
+            ParseNode* decl = ps->newNode(nt_variable, &_assignable->tok);
             decl->body = _assignable;
             if (ps->isSymbol("=")) {
                 ps->consume();
                 decl->initializer = singleExpression(ps);
-                if (!decl->initializer) {
-                    ps->error(pec_expected_expr, "Expected expression for variable initializer");
+                if (!decl->initializer || isError(decl->initializer)) {
+                    if (!isError(decl->initializer)) ps->error(pec_expected_expr, "Expected expression for variable initializer");
+                    
+                    const token& r = skipToNextType(ps, { tt_semicolon });
+                    switch (r.tp) {
+                        case tt_semicolon: break;
+                        default: {
+                            ps->freeNode(decl);
+                            return errorNode(ps);
+                        }
+                    }
                 }
             }
 
             return decl;
         }
-        ast_node* variableDeclList(Parser* ps) {
+        ParseNode* variableDeclList(Parser* ps) {
             bool isConst = ps->isKeyword("const");
             if (!isConst && !ps->isKeyword("let")) return nullptr;
             const token* tok = &ps->get();
-            ps->push();
+
             ps->consume();
 
-            ast_node* f = variableDecl(ps);
-            if (!f) {
-                ps->error(pec_expected_variable_decl, "Expected variable declaration");
-                ps->revert();
+            ParseNode* f = variableDecl(ps);
+            if (!f || isError(f)) {
+                if (!isError(f)) ps->error(pec_expected_variable_decl, "Expected variable declaration");
                 ps->freeNode(f);
-                return nullptr;
+                return errorNode(ps);
             }
 
             f->flags.is_const = isConst ? 1 : 0;
             f->tok = *tok;
 
-            ps->commit();
-
-            ast_node* n = f;
+            ParseNode* n = f;
             while (true) {
                 if (!ps->typeIs(tt_comma)) break;
                 ps->consume();
@@ -2251,9 +2924,15 @@ namespace gs {
 
                 if (!n) {
                     ps->error(pec_expected_variable_decl, "Expected variable declaration");
-                    ps->revert();
-                    ps->freeNode(f);
-                    return nullptr;
+                    
+                    const token& r = skipToNextType(ps, { tt_comma, tt_semicolon });
+                    switch (r.tp) {
+                        case tt_comma: continue;
+                        default: {
+                            ps->freeNode(f);
+                            return errorNode(ps);
+                        }
+                    }
                 }
 
                 n->flags.is_const = isConst ? 1 : 0;
@@ -2261,7 +2940,7 @@ namespace gs {
 
             return f;
         }
-        ast_node* classPropertyOrMethod(Parser* ps) {
+        ParseNode* classPropertyOrMethod(Parser* ps) {
             access_modifier am = public_access;
             bool isStatic = false;
             const token& ft = ps->get();
@@ -2281,7 +2960,7 @@ namespace gs {
             }
 
             if (ps->isKeyword("static")) {
-                ps->commit();
+                if (!didCommit) ps->commit();
                 didCommit = true;
                 isStatic = true;
             }
@@ -2290,24 +2969,24 @@ namespace gs {
             bool isSetter = false;
 
             if (ps->isKeyword("get")) {
-                ps->commit();
+                if (!didCommit) ps->commit();
                 didCommit = true;
                 isGetter = true;
                 ps->consume();
             } else if (ps->isKeyword("set")) {
-                ps->commit();
+                if (!didCommit) ps->commit();
                 didCommit = true;
                 isSetter = true;
                 ps->consume();
             }
 
-            ast_node* n = identifier(ps);
+            ParseNode* n = identifier(ps);
             bool isOperator = false;
             bool isCastOperator = false;
             if (!n && ps->typeIs(tt_keyword) && ps->textIs("operator")) {
                 if (isGetter || isSetter) {
                     ps->error(pec_reserved_word, "Cannot name a getter or setter method 'operator', 'operator' is a reserved word");
-                    return nullptr;
+                    isGetter = isSetter = false;
                 }
 
                 // treat "operator" as an identifier for the method name
@@ -2321,8 +3000,15 @@ namespace gs {
                     n->data_type = typeSpecifier(ps);
                     if (!n->data_type) {
                         ps->error(pec_expected_operator_override_target, "Expected operator or type specifier after 'operator' keyword");
-                        ps->freeNode(n);
-                        return nullptr;
+                
+                        const token& r = skipToNextType(ps, { tt_open_brace });
+                        switch (r.tp) {
+                            case tt_open_brace: break;
+                            default: {
+                                ps->freeNode(n);
+                                return errorNode(ps);
+                            }
+                        }
                     }
 
                     isCastOperator = true;
@@ -2340,14 +3026,45 @@ namespace gs {
             if (!n) {
                 if (isGetter) {
                     ps->error(pec_expected_identifier, "Expected property name for getter method");
+                    
+                    const token& r = skipToNextType(ps, { tt_open_brace });
+                    switch (r.tp) {
+                        case tt_open_brace: {
+                            n = errorNode(ps);
+                            break;
+                        }
+                        default: return errorNode(ps);
+                    }
                 } else if (isSetter) {
                     ps->error(pec_expected_identifier, "Expected property name for setter method");
+                    
+                    const token& r = skipToNextType(ps, { tt_open_brace });
+                    switch (r.tp) {
+                        case tt_open_brace: {
+                            n = errorNode(ps);
+                            break;
+                        }
+                        default: return errorNode(ps);
+                    }
                 } else if (didCommit) {
                     ps->error(pec_expected_identifier, "Expected property or method name");
+                    
+                    const token& r = skipToNextType(ps, { tt_semicolon, tt_open_parenth });
+                    switch (r.tp) {
+                        case tt_semicolon: {
+                            n = errorNode(ps);
+                            break;
+                        }
+                        case tt_open_parenth: {
+                            n = errorNode(ps);
+                            break;
+                        }
+                        default: return errorNode(ps);
+                    }
+                } else {
+                    ps->revert();
+                    return nullptr;
                 }
-
-                ps->revert();
-                return nullptr;
             }
 
             if (!didCommit) {
@@ -2364,34 +3081,45 @@ namespace gs {
             if (!isGetter && !isSetter && ps->typeIs(tt_colon)) {
                 if (isOperator) {
                     ps->error(pec_reserved_word, "Cannot name a class property 'operator', 'operator' is a reserved word");
-                    ps->freeNode(n);
-                    return nullptr;
                 }
 
                 ps->consume();
                 n->tp = nt_property;
                 n->data_type = typeSpecifier(ps);
-                if (!n->data_type) {
-                    ps->error(pec_expected_type_specifier, "Expected type specifier for class property");
-                    ps->freeNode(n);
-                    return nullptr;
+                if (!n->data_type || isError(n->data_type)) {
+                    if (!isError(n->data_type)) ps->error(pec_expected_type_specifier, "Expected type specifier for class property");
                 }
 
                 if (!ps->typeIs(tt_semicolon)) {
                     ps->error(pec_expected_eos, "Expected ';' after property declaration");
-                    // attempt to continue
-                } else ps->consume();
-
+                    
+                    const token& r = skipToNextType(ps, { tt_semicolon });
+                    switch (r.tp) {
+                        case tt_semicolon: break;
+                        default: {
+                            ps->freeNode(n);
+                            return errorNode(ps);
+                        }
+                    }
+                }
+                
+                ps->consume();
                 return n;
             }
 
-            ast_node* templArgs = nullptr;
+            ParseNode* templArgs = nullptr;
             if (ps->isSymbol("<")) {
                 templArgs = templateParams(ps);
-                if (!templArgs) {
-                    // error already emitted
-                    ps->freeNode(n);
-                    return nullptr;
+                if (!templArgs || isError(templArgs)) {
+                    
+                    const token& r = skipToNextType(ps, { tt_open_parenth, tt_open_brace, tt_close_brace });
+                    switch (r.tp) {
+                        case tt_open_parenth: break;
+                        default: {
+                            ps->freeNode(n);
+                            return errorNode(ps);
+                        }
+                    }
                 }
             }
 
@@ -2417,48 +3145,102 @@ namespace gs {
                     ps->consume();
                     n->data_type = typeSpecifier(ps);
                     if (!n->data_type) {
-                        if (!isCastOperator && n->str() != "constructor" && n->str() == "destructor") ps->error(pec_expected_type_specifier, "Expected type specifier for return value of class method");
-                        ps->freeNode(n);
-                        return nullptr;
+                        if (!isCastOperator && n->str() != "constructor" && n->str() != "destructor") {
+                            ps->error(pec_expected_type_specifier, "Expected type specifier for return value of class method");
+                        }
+
+                        const token& r = skipToNextType(ps, { tt_open_brace });
+                        switch (r.tp) {
+                            case tt_open_brace: {
+                                n->data_type = errorNode(ps);
+                                break;
+                            }
+                            default: {
+                                ps->freeNode(n);
+                                return errorNode(ps);
+                            }
+                        }
                     }
                 }
 
                 n->body = block(ps);
                 if (!n->body) {
                     ps->error(pec_expected_function_body, "Expected function body after class method declaration");
-                    ps->freeNode(n);
-                    return nullptr;
+
+                    const token& r = skipToNextType(ps, { tt_close_brace });
+                    switch (r.tp) {
+                        case tt_close_brace: {
+                            n->body = errorNode(ps);
+                            break;
+                        }
+                        default: {
+                            ps->freeNode(n);
+                            return errorNode(ps);
+                        }
+                    }
                 }
 
                 return n;
             } else if (isOperator || templArgs) {
                 // Only possibility is that it was supposed to be a method
-                ps->error(pec_expected_parameter_list, "Expected parameter list for operator override method");
+                ps->error(pec_expected_parameter_list, "Expected parameter list for operator override or method");
                 ps->freeNode(n);
-                return nullptr;
+                return errorNode(ps);
             } else if (isGetter) {
                 ps->error(pec_expected_identifier, "Expected class property getter method");
                 ps->freeNode(n);
-                return nullptr;
+                return errorNode(ps);
             } else if (isSetter) {
                 ps->error(pec_expected_identifier, "Expected class property setter method");
                 ps->freeNode(n);
-                return nullptr;
+                return errorNode(ps);
             }
         
             ps->freeNode(n);
             ps->error(pec_malformed_class_element, "Expected property type specifier or method parameter list after identifier");
-            return nullptr;
+            return errorNode(ps);
         }
-        ast_node* classDef(Parser* ps) {
+        ParseNode* classDef(Parser* ps) {
             if (!ps->isKeyword("class")) return nullptr;
             const token& ft = ps->get();
             ps->consume();
 
-            ast_node* n = identifier(ps);
+            ParseNode* n = identifier(ps);
+            if (!n || isError(n)) {
+                if (!n) ps->error(pec_expected_identifier, "Expected identifier for class name");
+
+                const token& r = skipToNextKeyword(ps, "extends", { tt_open_brace });
+                switch (r.tp) {
+                    case tt_open_brace: {
+                        if (!n) n = errorNode(ps);
+                        break;
+                    }
+                    case tt_keyword: {
+                        if (!n) n = errorNode(ps);
+                        break;
+                    }
+                    default: {
+                        ps->freeNode(n);
+                        return errorNode(ps);
+                    }
+                }
+            }
+
             n->tok = ft;
             n->tp = nt_class;
             n->template_parameters = templateParams(ps);
+
+            if (n->template_parameters && isError(n->template_parameters)) {
+                const token& r = skipToNextKeyword(ps, "extends", { tt_open_brace });
+                switch (r.tp) {
+                    case tt_open_brace: break;
+                    case tt_keyword: break;
+                    default: {
+                        ps->freeNode(n);
+                        return errorNode(ps);
+                    }
+                }
+            }
 
             if (ps->isKeyword("extends")) {
                 ps->consume();
@@ -2471,10 +3253,16 @@ namespace gs {
                     "Expected type specifier after ','"
                 );
                 
-                if (!n->inheritance) {
-                    // error already emitted
-                    ps->freeNode(n);
-                    return nullptr;
+                if (!n->inheritance || isError(n->inheritance)) {
+                    const token& r = skipToNextType(ps, { tt_open_brace });
+                    switch (r.tp) {
+                        case tt_open_brace: break;
+                        default: {
+                            // error already emitted
+                            ps->freeNode(n);
+                            return errorNode(ps);
+                        }
+                    }
                 }
             }
 
@@ -2487,10 +3275,20 @@ namespace gs {
 
             n->body = array_of(ps, classPropertyOrMethod);
 
-            if (!n->body) {
-                ps->error(pec_empty_class, "Class body cannot be empty");
-                ps->freeNode(n);
-                return nullptr;
+            if (!n->body || isError(n->body)) {
+                if (!n->body) {
+                    // no error emitted yet
+                    ps->error(pec_empty_class, "Class body cannot be empty");
+                }
+
+                const token& r = skipToNextType(ps, { tt_close_brace });
+                switch (r.tp) {
+                    case tt_close_brace: break;
+                    default: {
+                        ps->freeNode(n);
+                        return errorNode(ps);
+                    }
+                }
             }
 
             if (!ps->typeIs(tt_close_brace)) {
@@ -2508,24 +3306,60 @@ namespace gs {
 
             return n;
         }
-        ast_node* typeDef(Parser* ps) {
+        ParseNode* typeDef(Parser* ps) {
             if (!ps->isKeyword("type")) return nullptr;
             const token* t = &ps->get();
             ps->consume();
 
-            ast_node* n = identifier(ps);
+            ParseNode* n = identifier(ps);
+
+            if (!n || isError(n)) {
+                if (!n) ps->error(pec_expected_identifier, "Expected identifier for type name");
+
+                const token& r = skipToNextType(ps, { tt_open_brace, tt_identifier });
+                switch (r.tp) {
+                    case tt_open_brace: {
+                        if (!n) n = errorNode(ps);
+                        break;
+                    }
+                    case tt_identifier: {
+                        if (!n) n = errorNode(ps);
+                        break;
+                    }
+                    default: {
+                        ps->freeNode(n);
+                        return errorNode(ps);
+                    }
+                }
+            }
 
             n->template_parameters = templateParams(ps);
 
-            if (!n) {
-                ps->error(pec_expected_identifier, "Expected identifier for type name");
-                return nullptr;
+            if (n->template_parameters && isError(n->template_parameters)) {
+                const token& r = skipToNextSymbol(ps, "=", { tt_open_brace, tt_identifier });
+                switch (r.tp) {
+                    case tt_symbol: break;
+                    case tt_open_brace: break;
+                    case tt_identifier: break;
+                    default: {
+                        ps->freeNode(n);
+                        return errorNode(ps);
+                    }
+                }
             }
 
             if (!ps->isSymbol("=")) {
                 ps->error(pec_expected_symbol, utils::String::Format("Expected '=' after 'type %s'", n->str().c_str()));
-                ps->freeNode(n);
-                return nullptr;
+                
+                const token& r = skipToNextType(ps, { tt_open_brace, tt_identifier });
+                switch (r.tp) {
+                    case tt_open_brace: break;
+                    case tt_identifier: break;
+                    default: {
+                        ps->freeNode(n);
+                        return errorNode(ps);
+                    }
+                }
             }
             ps->consume();
 
@@ -2535,7 +3369,7 @@ namespace gs {
             if (!n->data_type) {
                 ps->error(pec_expected_type_specifier, utils::String::Format("Expected type specifier after 'type %s ='", n->str().c_str()));
                 ps->freeNode(n);
-                return nullptr;
+                return errorNode(ps);
             }
 
             if (!ps->typeIs(tt_semicolon)) {
@@ -2545,32 +3379,51 @@ namespace gs {
 
             return n;
         }
-        ast_node* functionDecl(Parser* ps) {
+        ParseNode* functionDecl(Parser* ps) {
             if (!ps->isKeyword("function")) return nullptr;
             const token* t = &ps->get();
             ps->consume();
 
-            ast_node* n = identifier(ps);
-            if (!n) {
-                ps->error(pec_expected_identifier, "Expected identifier after 'function'");
-                return nullptr;
-            }
+            ParseNode* n = identifier(ps);
 
+            if (!n || isError(n)) {
+                if (!n) ps->error(pec_expected_identifier, "Expected identifier after 'function'");
+
+                const token& r = skipToNextType(ps, { tt_open_parenth });
+                switch (r.tp) {
+                    case tt_open_parenth: {
+                        if (!n) n = errorNode(ps);
+                        break;
+                    }
+                    default: {
+                        ps->freeNode(n);
+                        return errorNode(ps);
+                    }
+                }
+            }
 
             n->tp = nt_function;
             n->tok = *t;
             n->template_parameters = templateParams(ps);
             n->parameters = parameterList(ps);
-            if (!n->parameters) {
-                ps->error(pec_expected_parameter_list, "Expected function parameter list");
-                ps->freeNode(n);
-                return nullptr;
+            if (!n->parameters || isError(n->parameters)) {
+                if (!n->parameters) ps->error(pec_expected_parameter_list, "Expected function parameter list");
+
+                const token& r = skipToNextType(ps, { tt_open_brace, tt_semicolon });
+                switch (r.tp) {
+                    case tt_open_parenth: break;
+                    case tt_semicolon: break;
+                    default: {
+                        ps->freeNode(n);
+                        return errorNode(ps);
+                    }
+                }
             }
 
             return n;
         }
-        ast_node* functionDef(Parser* ps) {
-            ast_node* n = functionDecl(ps);
+        ParseNode* functionDef(Parser* ps) {
+            ParseNode* n = functionDecl(ps);
             if (!n) return nullptr;
 
             n->body = block(ps);
@@ -2581,7 +3434,7 @@ namespace gs {
 
             return n;
         }
-        ast_node* declaration(Parser* ps) {
+        ParseNode* declaration(Parser* ps) {
             return one_of(ps, {
                 variableStatement,
                 classDef,
@@ -2595,19 +3448,30 @@ namespace gs {
         //
         // Statements
         //
-        ast_node* variableStatement(Parser* ps) {
+
+        ParseNode* variableStatement(Parser* ps) {
             return all_of(ps, { variableDeclList, eosRequired });
         }
-        ast_node* emptyStatement(Parser* ps) {
+        ParseNode* emptyStatement(Parser* ps) {
             return eos(ps);
         }
-        ast_node* expressionStatement(Parser* ps) {
-            return all_of(ps, { expressionSequence, eosRequired });
+        ParseNode* expressionStatement(Parser* ps) {
+            ParseNode* expr = expressionSequence(ps);
+            if (!expr) return nullptr;
+
+            if (isError(expr)) {
+                const token& r = skipToNextType(ps, { tt_semicolon });
+                if (r.tp != tt_semicolon) return expr;
+            }
+
+            expr->next = eosRequired(ps);
+            
+            return expr;
         }
-        ast_node* ifStatement(Parser* ps) {
+        ParseNode* ifStatement(Parser* ps) {
             if (!ps->isKeyword("if")) return nullptr;
             ps->consume();
-            ast_node* n = ps->newNode(nt_if, &ps->getPrev());
+            ParseNode* n = ps->newNode(nt_if, &ps->getPrev());
             n->cond = expressionSequenceGroup(ps);
             if (!n->cond) {
                 ps->error(pec_expected_expgroup, "Expected '(<expression>)' after 'if'");
@@ -2623,13 +3487,7 @@ namespace gs {
             }
 
             if (n->body->tp != nt_scoped_block) {
-                if (!ps->typeIs(tt_semicolon)) {
-                    ps->error(pec_expected_eos, "Expected ';' after 'if (<expression>) statement'");
-                    // attempt to continue
-                } else {
-                    n->manuallySpecifyRange(ps->get());
-                    ps->consume();
-                }
+                n->manuallySpecifyRange(ps->get());
             }
             
             if (ps->isKeyword("else")) {
@@ -2642,19 +3500,13 @@ namespace gs {
                 }
 
                 if (n->else_body->tp != nt_scoped_block) {
-                    if (!ps->typeIs(tt_semicolon)) {
-                        ps->error(pec_expected_eos, "Expected ';' after 'else statement'");
-                        // attempt to continue
-                    } else {
-                        n->manuallySpecifyRange(ps->get());
-                        ps->consume();
-                    }
+                    n->manuallySpecifyRange(ps->get());
                 }
             }
 
             return n;
         }
-        ast_node* continueStatement(Parser* ps) {
+        ParseNode* continueStatement(Parser* ps) {
             if (!ps->isKeyword("continue")) return nullptr;
             ps->consume();
 
@@ -2665,7 +3517,7 @@ namespace gs {
 
             return ps->newNode(nt_continue, &ps->getPrev());
         }
-        ast_node* breakStatement(Parser* ps) {
+        ParseNode* breakStatement(Parser* ps) {
             if (!ps->isKeyword("break")) return nullptr;
             ps->consume();
 
@@ -2676,10 +3528,10 @@ namespace gs {
 
             return ps->newNode(nt_continue, &ps->getPrev());
         }
-        ast_node* iterationStatement(Parser* ps) {
+        ParseNode* iterationStatement(Parser* ps) {
             if (ps->isKeyword("do")) {
                 ps->consume();
-                ast_node* n = ps->newNode(nt_loop, &ps->getPrev());
+                ParseNode* n = ps->newNode(nt_loop, &ps->getPrev());
                 n->body = statement(ps);
                 if (!n->body) {
                     ps->error(pec_expected_statement, "Expected block or statement after 'do'");
@@ -2713,7 +3565,7 @@ namespace gs {
                 return n;
             } else if (ps->isKeyword("while")) {
                 ps->consume();
-                ast_node* n = ps->newNode(nt_loop, &ps->getPrev());
+                ParseNode* n = ps->newNode(nt_loop, &ps->getPrev());
                 n->cond = expressionSequenceGroup(ps);
                 if (!n->cond) {
                     ps->error(pec_expected_expgroup, "Expected '(<expression>)' after 'while'");
@@ -2741,7 +3593,7 @@ namespace gs {
                 return n;
             } else if (ps->isKeyword("for")) {
                 ps->consume();
-                ast_node* n = ps->newNode(nt_loop, &ps->getPrev());
+                ParseNode* n = ps->newNode(nt_loop, &ps->getPrev());
 
                 if (!ps->typeIs(tt_open_parenth)) {
                     ps->error(pec_expected_open_parenth, "Expected '(' after 'for'");
@@ -2799,11 +3651,11 @@ namespace gs {
 
             return nullptr;
         }
-        ast_node* returnStatement(Parser* ps) {
+        ParseNode* returnStatement(Parser* ps) {
             if (!ps->isKeyword("return")) return nullptr;
             ps->consume();
 
-            ast_node* n = ps->newNode(nt_return, &ps->getPrev());
+            ParseNode* n = ps->newNode(nt_return, &ps->getPrev());
             n->body = singleExpression(ps);
 
             if (!ps->typeIs(tt_semicolon)) {
@@ -2813,11 +3665,11 @@ namespace gs {
 
             return n;
         }
-        ast_node* switchCase(Parser* ps) {
+        ParseNode* switchCase(Parser* ps) {
             if (!ps->isKeyword("case")) return nullptr;
             ps->consume();
 
-            ast_node* n = ps->newNode(nt_switch_case, &ps->getPrev());
+            ParseNode* n = ps->newNode(nt_switch_case, &ps->getPrev());
             n->cond = expressionSequence(ps);
             if (!n->cond) {
                 ps->error(pec_expected_expgroup, "Expected '(<expression>)' after 'case'");
@@ -2834,11 +3686,11 @@ namespace gs {
 
             return n;
         }
-        ast_node* switchStatement(Parser* ps) {
+        ParseNode* switchStatement(Parser* ps) {
             if (!ps->isKeyword("switch")) return nullptr;
             ps->consume();
 
-            ast_node* n = ps->newNode(nt_return, &ps->getPrev());
+            ParseNode* n = ps->newNode(nt_return, &ps->getPrev());
             n->cond = expressionSequenceGroup(ps);
             if (!n->cond) {
                 ps->error(pec_expected_expgroup, "Expected '(<expression>)' after 'switch'");
@@ -2871,11 +3723,11 @@ namespace gs {
 
             return n;
         }
-        ast_node* throwStatement(Parser* ps) {
+        ParseNode* throwStatement(Parser* ps) {
             if (!ps->isKeyword("throw")) return nullptr;
             const token* t = &ps->get();
             ps->consume();
-            ast_node* expr = singleExpression(ps);
+            ParseNode* expr = singleExpression(ps);
             if (!expr) {
                 ps->error(pec_expected_expr, "Expected expression after 'throw'");
                 return nullptr;
@@ -2886,11 +3738,11 @@ namespace gs {
                 // attempt to continue
             } else ps->consume();
 
-            ast_node* n = ps->newNode(nt_throw, t);
+            ParseNode* n = ps->newNode(nt_throw, t);
             n->body = expr;
             return n;
         }
-        ast_node* catchBlock(Parser* ps) {
+        ParseNode* catchBlock(Parser* ps) {
             if (!ps->isKeyword("catch")) return nullptr;
             const token* t = &ps->get();
             ps->consume();
@@ -2901,7 +3753,7 @@ namespace gs {
             }
             ps->consume();
 
-            ast_node* n = ps->newNode(nt_catch, t);
+            ParseNode* n = ps->newNode(nt_catch, t);
             n->parameters = parameter(ps);
             if (!n->parameters) {
                 ps->error(pec_expected_catch_param, "Expected 'catch' block to take exactly one parameter");
@@ -2926,18 +3778,18 @@ namespace gs {
 
             return n;
         }
-        ast_node* tryStatement(Parser* ps) {
+        ParseNode* tryStatement(Parser* ps) {
             if (!ps->isKeyword("try")) return nullptr;
             const token* t = &ps->get();
             ps->consume();
 
-            ast_node* body = block(ps);
+            ParseNode* body = block(ps);
             if (!body) {
                 ps->error(pec_expected_statement, "Expected block or statement after 'try'");
                 return nullptr;
             }
 
-            ast_node* n = ps->newNode(nt_try, t);
+            ParseNode* n = ps->newNode(nt_try, t);
             n->body = body;
             n->else_body = catchBlock(ps);
             if (!n->else_body) {
@@ -2946,7 +3798,7 @@ namespace gs {
                 return nullptr;
             }
 
-            ast_node* c = n->else_body;
+            ParseNode* c = n->else_body;
             while (c) {
                 c->next = catchBlock(ps);
                 c = c->next;
@@ -2954,13 +3806,13 @@ namespace gs {
 
             return n;
         }
-        ast_node* placementNewStatement(Parser* ps) {
+        ParseNode* placementNewStatement(Parser* ps) {
             if (!ps->isKeyword("new")) return nullptr;
             const token* first = &ps->get();
             ps->push();
             ps->consume();
 
-            ast_node* type = typeSpecifier(ps);
+            ParseNode* type = typeSpecifier(ps);
             if (!type) {
                 ps->revert();
                 return nullptr;
@@ -2972,7 +3824,7 @@ namespace gs {
                 return nullptr;
             }
 
-            ast_node* args = arguments(ps);
+            ParseNode* args = arguments(ps);
 
             if (!ps->typeIs(tt_forward)) {
                 ps->revert();
@@ -2984,7 +3836,7 @@ namespace gs {
             ps->commit();
             ps->consume();
 
-            ast_node* n = ps->newNode(nt_expression, first);
+            ParseNode* n = ps->newNode(nt_expression, first);
             n->op = op_placementNew;
             n->data_type = type;
             n->parameters = args;
@@ -3004,21 +3856,39 @@ namespace gs {
 
             return n;
         }
-        ast_node* symbolImport(Parser* ps) {
-            ast_node* n = one_of(ps, {
+        ParseNode* symbolImport(Parser* ps) {
+            ParseNode* n = one_of(ps, {
                 typedIdentifier,
                 identifier
             });
             if (!n) return nullptr;
             n->tp = nt_import_symbol;
+
+            if (ps->isKeyword("as")) {
+                ps->consume();
+
+                n->alias = identifier(ps);
+                if (!n->alias) {
+                    ps->error(pec_expected_identifier, "Expected identifier for symbol alias");
+                    return errorNode(ps);
+                }
+            }
+
             return n;
         }
-        ast_node* importList(Parser* ps) {
+        ParseNode* importList(Parser* ps) {
             if (!ps->typeIs(tt_open_brace)) return nullptr;
             ps->consume();
 
-            ast_node* f = symbolImport(ps);
-            ast_node* n = f;
+            ParseNode* f = symbolImport(ps);
+            if (f && isError(f)) {
+                const token& r = skipToNextType(ps, { tt_comma, tt_close_brace, tt_semicolon });
+                if (r.tp != tt_comma && r.tp != tt_close_brace) {
+                    return f;
+                }
+            }
+
+            ParseNode* n = f;
             while (n) {
                 if (!ps->typeIs(tt_comma)) break;
                 ps->consume();
@@ -3034,14 +3904,18 @@ namespace gs {
 
             if (!ps->typeIs(tt_close_brace)) {
                 ps->error(pec_expected_closing_parenth, "Expected '}' to close import list");
-                ps->freeNode(f);
-                return nullptr;
+
+                const token& r = skipToNextType(ps, { tt_close_brace });
+                if (r.tp != tt_close_brace) {
+                    ps->freeNode(f);
+                    return errorNode(ps);
+                }
             }
             ps->consume();
 
             return f;
         }
-        ast_node* importModule(Parser* ps) {
+        ParseNode* importModule(Parser* ps) {
             if (!ps->typeIs(tt_open_brace)) return nullptr;
             ps->push();
             ps->consume();
@@ -3055,50 +3929,65 @@ namespace gs {
 
             if (!ps->isKeyword("as")) {
                 ps->error(pec_expected_import_alias, "Expected 'as' after 'import { *'");
-                return nullptr;
+                
+                const token& r = skipToNextType(ps, { tt_close_brace });
+                if (r.tp == tt_close_brace) ps->consume();
+                return errorNode(ps);
             }
             ps->consume();
 
-            ast_node* n = identifier(ps);
+            ParseNode* n = identifier(ps);
             if (!n) {
                 ps->error(pec_expected_identifier, "Expected identifier for module alias");
-                return nullptr;
+
+                const token& r = skipToNextType(ps, { tt_close_brace });
+                if (r.tp == tt_close_brace) ps->consume();
+                return errorNode(ps);
             }
 
             if (!ps->typeIs(tt_close_brace)) {
                 ps->error(pec_expected_closing_parenth, "Expected '}' to close import list");
+                const token& r = skipToNextType(ps, { tt_close_brace });
+                if (r.tp == tt_close_brace) ps->consume();
                 ps->freeNode(n);
-                return nullptr;
+                return errorNode(ps);
             }
             ps->consume();
 
             n->tp = nt_import_module;
             return n;
         }
-        ast_node* importStatement(Parser* ps) {
+        ParseNode* importStatement(Parser* ps) {
             if (!ps->isKeyword("import")) return nullptr;
             ps->consume();
 
-            ast_node* n = ps->newNode(nt_import, &ps->getPrev());
+            ParseNode* n = ps->newNode(nt_import, &ps->getPrev());
             n->body = importModule(ps);
             if (!n->body) n->body = importList(ps);
             if (!n->body) {
                 ps->error(pec_expected_import_list, "Expected import list after 'import'");
-                ps->freeNode(n);
-                return nullptr;
+
+                const token& r = skipToNextKeyword(ps, "from", { tt_semicolon });
+                if (r.tp != tt_keyword) {
+                    ps->freeNode(n);
+                    return errorNode(ps);
+                }
+                n->body = errorNode(ps);
             }
 
             if (!ps->isKeyword("from")) {
                 ps->error(pec_expected_import_name, "Expected 'from'");
                 ps->freeNode(n);
-                return nullptr;
+                const token& r = skipToNextType(ps, { tt_semicolon });
+                return errorNode(ps);
             }
             ps->consume();
 
             if (!ps->typeIs(tt_string)) {
                 ps->error(pec_expected_import_name, "Expected string literal module name or file path after 'from'");
                 ps->freeNode(n);
-                return nullptr;
+                const token& r = skipToNextType(ps, { tt_semicolon });
+                return errorNode(ps);
             }
             const token& t = ps->get();
             ps->consume();
@@ -3108,23 +3997,23 @@ namespace gs {
 
             return n;
         }
-        ast_node* exportStatement(Parser* ps) {
+        ParseNode* exportStatement(Parser* ps) {
             if (!ps->isKeyword("export")) return nullptr;
             const token* t = &ps->get();
             ps->consume();
 
-            ast_node* decl = declaration(ps);
+            ParseNode* decl = declaration(ps);
             if (!decl) {
                 ps->error(pec_expected_export_decl, "Expected function, class, type, or variable declaration after 'export'");
                 return nullptr;
             }
 
-            ast_node* e = ps->newNode(nt_export, t);
+            ParseNode* e = ps->newNode(nt_export, t);
             e->body = decl;
             return e;
         }
-        ast_node* statement(Parser* ps) {
-            ast_node* n = one_of(ps, {
+        ParseNode* statement(Parser* ps) {
+            ParseNode* n = one_of(ps, {
                 block,
                 variableStatement,
                 importStatement,
@@ -3142,19 +4031,39 @@ namespace gs {
                 switchStatement,
                 throwStatement,
                 tryStatement,
-                functionDef
+                functionDef,
+                eos
             });
 
             return n;
         }
-        ast_node* statementList(Parser* ps) {
-            return array_of(ps, statement);
+        ParseNode* statementList(Parser* ps) {
+            ParseNode* f = statement(ps);
+
+            ParseNode* n = f;
+            while (n) {
+                n->next = statement(ps);
+                if (n->next && isError(n->next)) {
+                    const token& r = skipToNextType(ps, { tt_semicolon });
+                    switch (r.tp) {
+                        case tt_semicolon: break;
+                        default: {
+                            ps->freeNode(n->next);
+                            return errorNode(ps);
+                        }
+                    }
+                }
+
+                n = n->next;
+            }
+
+            return f;
         }
-        ast_node* block(Parser* ps) {
+        ParseNode* block(Parser* ps) {
             if (!ps->typeIs(tt_open_brace)) return nullptr;
             ps->consume();
 
-            ast_node* b = ps->newNode(nt_scoped_block, &ps->getPrev());
+            ParseNode* b = ps->newNode(nt_scoped_block, &ps->getPrev());
             b->body = statementList(ps);
             if (!ps->typeIs(tt_close_brace)) {
                 ps->error(pec_expected_closing_brace, "Expected '}'");
@@ -3172,8 +4081,9 @@ namespace gs {
         //
         // Entry
         //
-        ast_node* program(Parser* ps) {
-            ast_node* statements = array_of(ps, statement);
+
+        ParseNode* program(Parser* ps) {
+            ParseNode* statements = statementList(ps);
 
             if (!ps->typeIs(tt_eof)) {
                 ps->error(pec_expected_eof, "Expected end of file");
@@ -3184,7 +4094,7 @@ namespace gs {
 
             if (!statements) return nullptr;
             
-            ast_node* root = ps->newNode(nt_root, &statements->tok);
+            ParseNode* root = ps->newNode(nt_root, &statements->tok);
             root->body = statements;
             return root;
         }

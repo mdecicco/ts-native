@@ -1,6 +1,6 @@
-#include <gs/interfaces/ITypedObject.h>
+#include <tsn/interfaces/ITypedObject.h>
 
-namespace gs {
+namespace tsn {
     ITypedObject::ITypedObject(ffi::DataType* type) {
         m_type = type;
     }

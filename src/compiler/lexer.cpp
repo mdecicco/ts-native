@@ -1,14 +1,14 @@
-#include <gs/compiler/Lexer.h>
-#include <gs/utils/ProgramSource.h>
+#include <tsn/compiler/Lexer.h>
+#include <tsn/utils/ModuleSource.h>
 #include <utils/Array.hpp>
 
-namespace gs {
+namespace tsn {
     namespace compiler {
         utils::String token::str() const {
             return utils::String(const_cast<char*>(text.c_str()), text.size());
         }
 
-        Lexer::Lexer(ProgramSource* src) : m_curSrc(src, 0, 0) {
+        Lexer::Lexer(ModuleSource* src) : m_curSrc(src, 0, 0) {
             m_source = src;
         }
 
@@ -433,7 +433,7 @@ namespace gs {
 
                     out.push({
                         tt_number,
-                        utils::String::View(begin, end - begin),
+                        utils::String::View(begin, u32(end - begin)),
                         tokBegin
                     });
 
@@ -840,7 +840,7 @@ namespace gs {
                 if (begin != end && tp != tt_comment) {
                     out.push({
                         tp,
-                        utils::String::View(begin, end - begin),
+                        utils::String::View(begin, u32(end - begin)),
                         tokBegin
                     });
                 }

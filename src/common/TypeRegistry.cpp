@@ -1,8 +1,8 @@
-#include <gs/common/TypeRegistry.h>
-#include <gs/common/DataType.h>
+#include <tsn/common/TypeRegistry.h>
+#include <tsn/common/DataType.h>
 #include <utils/Array.hpp>
 
-namespace gs {
+namespace tsn {
     namespace ffi {
         DataTypeRegistry::DataTypeRegistry(Context* ctx) : IContextual(ctx) {
             m_anonTypeCount = 0;

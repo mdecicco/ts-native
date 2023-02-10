@@ -1,6 +1,6 @@
-#include <gs/interfaces/IContextual.h>
+#include <tsn/interfaces/IContextual.h>
 
-namespace gs {
+namespace tsn {
     IContextual::IContextual(Context* ctx) : m_ctx(ctx) {}
     IContextual::~IContextual() {}
 

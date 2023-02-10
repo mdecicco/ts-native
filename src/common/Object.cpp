@@ -1,12 +1,12 @@
-#include <gs/common/Object.hpp>
-#include <gs/common/DataType.h>
-#include <gs/bind/calling.hpp>
+#include <tsn/common/Object.hpp>
+#include <tsn/common/DataType.h>
+#include <tsn/bind/calling.hpp>
 
 
 #include <utils/Allocator.hpp>
 #include <utils/Array.hpp>
 
-namespace gs {
+namespace tsn {
     Object::Object(Context* ctx, ffi::DataType* tp) : ITypedObject(tp), IContextual(ctx) {
         if (tp->getInfo().size > 0) {
             m_data = utils::Mem::alloc(tp->getInfo().size);

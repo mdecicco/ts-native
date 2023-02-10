@@ -1,6 +1,6 @@
-#include <gs/bind/bind.h>
+#include <tsn/bind/bind.h>
 
-namespace gs {
+namespace tsn {
     namespace ffi {
         BindException::BindException(const utils::String& message) : m_message(message) {
         }

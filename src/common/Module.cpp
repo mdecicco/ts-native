@@ -1,10 +1,10 @@
-#include <gs/common/Module.h>
-#include <gs/common/DataType.h>
+#include <tsn/common/Module.h>
+#include <tsn/common/DataType.h>
 #include <utils/Array.hpp>
 
-namespace gs {
-    Module::Module(Context* ctx, const utils::String& name) : IContextual(ctx), m_name(name) {
-        m_id = std::hash<utils::String>()(name);
+namespace tsn {
+    Module::Module(Context* ctx, const utils::String& name, const utils::String& path) : IContextual(ctx), m_name(name), m_path(path) {
+        m_id = (u32)std::hash<utils::String>()(path);
     }
 
     Module::~Module() {}
@@ -16,6 +16,10 @@ namespace gs {
 
     const utils::String& Module::getName() const {
         return m_name;
+    }
+
+    const utils::String& Module::getPath() const {
+        return m_path;
     }
 
     u32 Module::getDataSlotCount() const {

@@ -38,17 +38,13 @@ export function activate(context: ExtensionContext) {
 
 	// Options to control the language client
 	const clientOptions: LanguageClientOptions = {
-		documentSelector: [{ scheme: 'file', language: 'tsn' }],
-		synchronize: {
-			// Notify the server about file changes to '.clientrc files contained in the workspace
-			fileEvents: workspace.createFileSystemWatcher('**/.clientrc')
-		}
+		documentSelector: [{ scheme: 'file', language: 'tsn' }]
 	};
 
 	// Create the language client and start the client.
 	client = new LanguageClient(
-		'tsppServer',
-		'TS++ Server',
+		'tsnServer',
+		'TSN Server',
 		serverOptions,
 		clientOptions
 	);
