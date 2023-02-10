@@ -94,19 +94,19 @@ namespace tsn {
             return m_wrapperAddress;
         }
 
-        bool Function::serialize(utils::Buffer* out, Context* ctx) const {
+        bool Function::serialize(utils::Buffer* out, Context* ctx, void* extra) const {
             if (!out->write(m_id)) return false;
             if (!out->write(m_name)) return false;
             if (!out->write(m_displayName)) return false;
             if (!out->write(m_fullyQualifiedName)) return false;
             if (!out->write(m_access)) return false;
             if (!out->write(m_signature ? m_signature->getId() : type_id(0))) return false;
-            if (!m_src.serialize(out, ctx)) return false;
+            if (!m_src.serialize(out, ctx, nullptr)) return false;
 
             return true;
         }
 
-        bool Function::deserialize(utils::Buffer* in, Context* ctx) {
+        bool Function::deserialize(utils::Buffer* in, Context* ctx, void* extra) {
             auto readStr = [in](utils::String& str) {
                 str = in->readStr();
                 if (str.size() == 0) return false;
@@ -132,6 +132,7 @@ namespace tsn {
             if (!readStr(m_fullyQualifiedName)) return false;
             if (!in->read(m_access)) return false;
             if (!readType(&m_signature)) return false;
+            if (!m_src.deserialize(in, ctx, nullptr)) return false;
 
             return true;
         }
@@ -169,14 +170,14 @@ namespace tsn {
             return new Method(name, getSignature(), getAccessModifier(), getAddress(), getWrapperAddress(), baseOffset);
         }
 
-        bool Method::serialize(utils::Buffer* out, Context* ctx) const {
-            if (!Function::serialize(out, ctx)) return false;
+        bool Method::serialize(utils::Buffer* out, Context* ctx, void* extra) const {
+            if (!Function::serialize(out, ctx, nullptr)) return false;
             if (!out->write(m_baseOffset)) return false;
             return true;
         }
 
-        bool Method::deserialize(utils::Buffer* in, Context* ctx) {
-            if (!Function::deserialize(in, ctx)) return false;
+        bool Method::deserialize(utils::Buffer* in, Context* ctx, void* extra) {
+            if (!Function::deserialize(in, ctx, nullptr)) return false;
             if (!in->read(m_baseOffset)) return false;
             return true;
         }
@@ -206,17 +207,17 @@ namespace tsn {
             return m_ast;
         }
 
-        bool TemplateFunction::serialize(utils::Buffer* out, Context* ctx) const {
-            if (!Function::serialize(out, ctx)) return false;
-            if (!m_ast->serialize(out, ctx)) return false;
+        bool TemplateFunction::serialize(utils::Buffer* out, Context* ctx, void* extra) const {
+            if (!Function::serialize(out, ctx, nullptr)) return false;
+            if (!m_ast->serialize(out, ctx, nullptr)) return false;
             return true;
         }
 
-        bool TemplateFunction::deserialize(utils::Buffer* in, Context* ctx) {
-            if (!Function::deserialize(in, ctx)) return false;
+        bool TemplateFunction::deserialize(utils::Buffer* in, Context* ctx, void* extra) {
+            if (!Function::deserialize(in, ctx, nullptr)) return false;
             
             m_ast = new compiler::ParseNode();
-            if (!m_ast->deserialize(in, ctx)) {
+            if (!m_ast->deserialize(in, ctx, nullptr)) {
                 delete m_ast;
                 m_ast = nullptr;
                 return false;
@@ -250,17 +251,17 @@ namespace tsn {
             return m_ast;
         }
 
-        bool TemplateMethod::serialize(utils::Buffer* out, Context* ctx) const {
-            if (!Method::serialize(out, ctx)) return false;
-            if (!m_ast->serialize(out, ctx)) return false;
+        bool TemplateMethod::serialize(utils::Buffer* out, Context* ctx, void* extra) const {
+            if (!Method::serialize(out, ctx, nullptr)) return false;
+            if (!m_ast->serialize(out, ctx, nullptr)) return false;
             return true;
         }
 
-        bool TemplateMethod::deserialize(utils::Buffer* in, Context* ctx) {
-            if (!Method::deserialize(in, ctx)) return false;
+        bool TemplateMethod::deserialize(utils::Buffer* in, Context* ctx, void* extra) {
+            if (!Method::deserialize(in, ctx, nullptr)) return false;
 
             m_ast = new compiler::ParseNode();
-            if (!m_ast->deserialize(in, ctx)) {
+            if (!m_ast->deserialize(in, ctx, nullptr)) {
                 delete m_ast;
                 m_ast = nullptr;
                 return false;

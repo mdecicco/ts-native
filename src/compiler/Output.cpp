@@ -1,164 +1,188 @@
 #include <tsn/compiler/Output.h>
-#include <tsn/compiler/Compiler.h>
-#include <tsn/compiler/FunctionDef.hpp>
-#include <tsn/compiler/Parser.h>
-#include <tsn/common/Context.h>
-#include <tsn/common/Module.h>
-#include <tsn/common/Function.h>
-#include <tsn/common/DataType.h>
-#include <tsn/common/TypeRegistry.h>
-#include <tsn/common/FunctionRegistry.h>
+#include <tsn/compiler/OutputBuilder.h>
+#include <tsn/compiler/FunctionDef.h>
+#include <tsn/compiler/IR.h>
 #include <tsn/compiler/Value.hpp>
-#include <tsn/interfaces/IDataTypeHolder.hpp>
-#include <tsn/interfaces/ICodeHolder.h>
-#include <tsn/utils/function_match.h>
+#include <tsn/common/Context.h>
+#include <tsn/common/Function.h>
+#include <tsn/common/FunctionRegistry.h>
+#include <tsn/common/TypeRegistry.h>
+#include <tsn/common/Module.h>
+#include <tsn/utils/SourceMap.h>
+#include <tsn/utils/SourceLocation.h>
+#include <tsn/utils/ModuleSource.h>
 
 #include <utils/Array.hpp>
 #include <utils/Buffer.hpp>
 
-#include <stdarg.h>
-
-using namespace utils;
-using namespace tsn::ffi;
-
 namespace tsn {
     namespace compiler {
-        //
-        // CompilerOutput
-        //
-
-        CompilerOutput::CompilerOutput(Compiler* c, Module* m) {
-            m_comp = c;
-            m_mod = m;
+        Output::Output() {
+            m_mod = nullptr;
         }
 
-        CompilerOutput::~CompilerOutput() {
-            m_allFuncDefs.each([](FunctionDef* f) {
-                delete f;
+        Output::Output(OutputBuilder* in) {
+            m_mod = in->getModule();
+
+            const auto& funcs = in->getFuncs();
+            for (u32 i = 0;i < funcs.size();i++) {
+                if (!funcs[i]->getOutput()) continue;
+                if (funcs[i]->getOutput()->isTemplate()) continue;
+                
+                const auto& code = funcs[i]->getCode();
+
+                output::function f;
+                f.func = funcs[i]->getOutput();
+                f.icount = code.size();
+                f.map = new SourceMap(funcs[i]->getSource().getSource()->getModificationTime());
+                f.code = new output::instruction[code.size()];
+                
+                for (u32 c = 0;c < code.size();c++) {
+                    auto& inst = f.code[c];
+                    const auto& info = instruction_info(code[c].op);
+                    inst.op = code[c].op;
+                    
+                    for (u8 o = 0;o < code[c].oCnt;o++) {
+                        auto& v = inst.operands[o];
+                        const auto& s = code[c].operands[o];
+                        v.data_type = s.getType();
+                        v.is_imm = s.isImm();
+
+                        if (v.is_imm) {
+                            if (info.operands[o] == ot_fun) v.value.imm_u = s.getImm<FunctionDef*>()->getOutput()->getId();
+                            else v.value.imm_u = s.getImm<u64>();
+                        }
+                        else if (s.isReg()) v.value.reg_id = s.getRegId();
+                        else if (s.isStack()) v.value.alloc_id = s.getStackAllocId();
+                    }
+
+                    const SourceLocation& src = code[c].src;
+                    f.map->add(src.getLine(), src.getCol(), src.getEndLocation().getOffset() - src.getOffset());
+                }
+
+                m_funcs.push(f);
+            }
+        }
+
+        Output::~Output() {
+            m_funcs.each([](output::function* f) {
+                delete f->map;
+                delete [] f->code;
             });
-
-            m_symbolLifetimes.each([](const symbol_lifetime& s) {
-                delete s.sym;
-            });
-
-            // Types are someone else's responsibility now
         }
 
-        FunctionDef* CompilerOutput::newFunc(const utils::String& name, ffi::DataType* methodOf) {
-            FunctionDef* fn = new FunctionDef(m_comp, name, methodOf);
-            // Don't add __init__ function to scope
-            if (m_funcs.size() > 0) m_comp->scope().add(name, fn);
-            m_funcs.push(fn);
-            m_allFuncDefs.push(fn);
-            
-            // def index will be added to m_funcDefs later when output Function* is created
-
-            return fn;
-        }
-        
-        FunctionDef* CompilerOutput::newFunc(ffi::Function* preCreated, bool retTpExplicit) {
-            FunctionDef* fn = new FunctionDef(m_comp, preCreated);
-            fn->m_retTpSet = retTpExplicit;
-            m_comp->scope().add(preCreated->getName(), fn);
-            m_funcs.push(fn);
-            m_funcDefs[preCreated] = m_allFuncDefs.size();
-            m_allFuncDefs.push(fn);
-            return fn;
-        }
-        
-        void CompilerOutput::resolveFunctionDef(FunctionDef* def, ffi::Function* fn) {
-            i64 idx = m_allFuncDefs.findIndex([def](FunctionDef* d) { return d == def; });
-            m_funcDefs[fn] = (u32)idx;
-        }
-        
-        FunctionDef* CompilerOutput::getFunctionDef(ffi::Function* fn) {
-            auto it = m_funcDefs.find(fn);
-            if (it != m_funcDefs.end()) return m_allFuncDefs[it->second];
-
-            FunctionDef* def = new FunctionDef(m_comp, fn);
-            m_funcDefs[fn] = m_allFuncDefs.size();
-            m_allFuncDefs.push(def);
-            return def;
-        }
-
-        void CompilerOutput::add(ffi::DataType* tp) {
-            m_comp->scope().add(tp->getName(), tp);
-            m_types.push(tp);
-        }
-        
-        FunctionDef* CompilerOutput::import(Function* fn, const utils::String& as) {
-            FunctionDef* f = new FunctionDef(m_comp, fn);
-            m_comp->scope().add(as, f);
-            m_funcDefs[fn] = m_allFuncDefs.size();
-            m_allFuncDefs.push(f);
-            return f;
-        }
-
-        void CompilerOutput::import(DataType* tp, const utils::String& as) {
-            m_comp->scope().add(as, tp);
-        }
-
-        u32 CompilerOutput::addSymbolLifetime(const utils::String& name, ParseNode* scopeRoot, const Value& v) {
-            ParseNode* n = m_comp->currentNode();
-            scopeRoot->computeSourceLocationRange();
-
-            m_symbolLifetimes.push({
-                name,
-                new Value(v),
-                n->tok.src.getLine() > scopeRoot->tok.src.getLine() ? scopeRoot->tok.src : n->tok.src,
-                scopeRoot->tok.src.getEndLocation()
-            });
-
-            return m_symbolLifetimes.size() - 1;
-        }
-        
-        const utils::Array<symbol_lifetime>& CompilerOutput::getSymbolLifetimeData() const {
-            return m_symbolLifetimes;
-        }
-
-        const utils::Array<FunctionDef*>& CompilerOutput::getFuncs() const {
-            return m_funcs;
-        }
-
-        const utils::Array<DataType*>& CompilerOutput::getTypes() const {
-            return m_types;
-        }
-
-        Module* CompilerOutput::getModule() {
+        Module* Output::getModule() {
             return m_mod;
         }
 
-        bool CompilerOutput::serialize(utils::Buffer* out, Context* ctx) const {
-            auto writeFunc = [out, ctx](const FunctionDef* f) {
-                if (!f->serialize(out, ctx)) return true;
-                return false;
-            };
-            
-            auto writeType = [out, ctx](const DataType* f) {
-                if (!f->serialize(out, ctx)) return true;
-                return false;
-            };
-
+        bool Output::serialize(utils::Buffer* out, Context* ctx, void* extra) const {
             if (!out->write(m_mod->getId())) return false;
             if (!out->write(m_mod->getName())) return false;
+            if (!out->write(m_mod->getPath())) return false;
 
-            // Symbols lifetimes ignored, only used for autocompletion
-            // when editing scripts. ie. Only relevant in a context where
-            // the script would not be cached.
+            // todo: Serialize everything about the module...
 
             if (!out->write(m_funcs.size())) return false;
-            if (m_funcs.some(writeFunc)) return false;
-            if (!out->write(m_types.size())) return false;
-            if (m_types.some(writeType)) return false;
 
-            // m_importedFuncs, m_funcDefs, m_allFuncDefs are not relevant
-            // post-compilation.
+            for (u32 i = 0;i < m_funcs.size();i++) {
+                const auto& f = m_funcs[i];
+                if (!out->write(f.func->getId())) return false;
+                if (!out->write(f.icount)) return false;
+
+                for (u32 c = 0;c < f.icount;c++) {
+                    const auto& inst = f.code[c];
+                    const auto& info = instruction_info(inst.op);
+                    if (!out->write(inst.op)) return false;
+
+                    for (u8 o = 0;o < info.operand_count;o++) {
+                        if (!out->write(inst.operands[o].data_type->getId())) return false;
+                        if (!out->write(inst.operands[o].is_imm)) return false;
+                        if (!out->write(inst.operands[o].value)) return false;
+                    }
+                }
+
+                if (!f.map->serialize(out, ctx, extra)) return false;
+            }
 
             return true;
         }
 
-        bool CompilerOutput::deserialize(utils::Buffer* in, Context* ctx) {
-            return false;
+        bool Output::deserialize(utils::Buffer* in, Context* ctx, void* extra) {
+            ffi::FunctionRegistry* freg = ctx->getFunctions();
+            ffi::DataTypeRegistry* treg = ctx->getTypes();
+
+            u32 mid;
+            if (!in->read(mid)) return false;
+            utils::String name = in->readStr();
+            if (name.size() == 0) return false;
+            utils::String path = in->readStr();
+            if (path.size() == 0) return false;
+            
+            m_mod = ctx->createModule(name, path);
+            if (m_mod->getId() != mid) return false;
+
+            // todo: Deserialize everything about the module...
+
+            u32 fcount;
+            if (!in->read(fcount)) return false;
+            for (u32 i = 0;i < fcount;i++) {
+                output::function f;
+                u32 fid;
+                if (!in->read(fid)) return false;
+                f.func = freg->getFunction(fid);
+                if (!f.func) return false;
+
+                if (!in->read(f.icount)) return false;
+                f.code = new output::instruction[f.icount];
+
+                for (u32 c = 0;c < f.icount;c++) {
+                    auto& inst = f.code[c];
+                    inst.operands[0].data_type = nullptr;
+                    inst.operands[0].is_imm = false;
+                    inst.operands[0].value.imm_u = 0;
+
+                    const auto& info = instruction_info(inst.op);
+                    if (!in->read(inst.op)) {
+                        delete [] f.code;
+                        return false;
+                    }
+
+                    for (u8 o = 0;o < info.operand_count;o++) {
+                        type_id tid;
+                        if (!in->read(tid)) {
+                            delete [] f.code;
+                            return false;
+                        }
+
+                        inst.operands[o].data_type = treg->getType(tid);
+                        if (!inst.operands[o].data_type) {
+                            delete [] f.code;
+                            return false;
+                        }
+
+                        if (!in->read(inst.operands[o].is_imm)) {
+                            delete [] f.code;
+                            return false;
+                        }
+
+                        if (!in->read(inst.operands[o].value)) {
+                            delete [] f.code;
+                            return false;
+                        }
+                    }
+                }
+            
+                f.map = new SourceMap();
+                if (!f.map->deserialize(in, ctx, extra)) {
+                    delete [] f.code;
+                    delete f.map;
+                    return false;
+                }
+
+                m_funcs.push(f);
+            }
+
+            return true;
         }
     };
 };

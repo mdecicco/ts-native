@@ -33,6 +33,14 @@ namespace tsn {
             access_modifier access;
         };
 
+        enum data_type_instance {
+            dti_plain,
+            dti_function,
+            dti_template,
+            dti_alias,
+            dti_class
+        };
+
         class DataType : public IPersistable {
             public:
                 DataType();
@@ -169,16 +177,25 @@ namespace tsn {
                  *         type is an alias. Otherwise this function returns this data type.
                  */
                 DataType* getEffectiveType();
+
+                /**
+                 * @brief Get which type of data type this is
+                 */
+                data_type_instance getInstanceType() const;
             
-                virtual bool serialize(utils::Buffer* out, Context* ctx) const;
-                virtual bool deserialize(utils::Buffer* in, Context* ctx);
+                virtual bool serialize(utils::Buffer* out, Context* ctx, void* extra) const;
+                virtual bool deserialize(utils::Buffer* in, Context* ctx, void* extra);
             
-            private:
-                friend class FunctionType;
-                friend class ClassType;
+            protected:
                 friend class DataTypeBinder;
                 friend class DataTypeRegistry;
+                friend class FunctionType;
+                friend class TemplateType;
+                friend class AliasType;
+                friend class ClassType;
+                
                 type_id m_id;
+                data_type_instance m_itype;
                 utils::String m_name;
                 utils::String m_fullyQualifiedName;
                 type_meta m_info;
@@ -208,8 +225,8 @@ namespace tsn {
                 const utils::Array<function_argument>& getArguments() const;
                 virtual bool isEquivalentTo(DataType* to) const;
             
-                virtual bool serialize(utils::Buffer* out, Context* ctx) const;
-                virtual bool deserialize(utils::Buffer* in, Context* ctx);
+                virtual bool serialize(utils::Buffer* out, Context* ctx, void* extra) const;
+                virtual bool deserialize(utils::Buffer* in, Context* ctx, void* extra);
             protected:
                 friend class Function;
                 void setThisType(DataType* tp);
@@ -227,8 +244,8 @@ namespace tsn {
 
                 compiler::ParseNode* getAST() const;
             
-                virtual bool serialize(utils::Buffer* out, Context* ctx) const;
-                virtual bool deserialize(utils::Buffer* in, Context* ctx);
+                virtual bool serialize(utils::Buffer* out, Context* ctx, void* extra) const;
+                virtual bool deserialize(utils::Buffer* in, Context* ctx, void* extra);
 
             private:
                 compiler::ParseNode* m_ast;
@@ -242,8 +259,8 @@ namespace tsn {
 
                 DataType* getRefType() const;
             
-                virtual bool serialize(utils::Buffer* out, Context* ctx) const;
-                virtual bool deserialize(utils::Buffer* in, Context* ctx);
+                virtual bool serialize(utils::Buffer* out, Context* ctx, void* extra) const;
+                virtual bool deserialize(utils::Buffer* in, Context* ctx, void* extra);
 
             private:
                 DataType* m_ref;

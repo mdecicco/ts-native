@@ -20,7 +20,7 @@ namespace tsn {
     }
 
     void BindMemory(Context* ctx) {
-        Module* m = ctx->createModule("memory");
+        Module* m = ctx->createHostModule("memory");
         bind(m, "newMem", newMem, trusted_access);
         bind(m, "freeMem", freeMem, trusted_access);
         bind(m, "copyMem", copyMem, trusted_access);

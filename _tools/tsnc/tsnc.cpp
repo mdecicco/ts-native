@@ -1,15 +1,17 @@
-#include <tsn/utils/ProgramSource.h>
+#include <tsn/utils/ModuleSource.h>
 #include <tsn/common/Context.h>
 #include <tsn/common/Config.h>
 #include <tsn/common/Module.h>
 #include <tsn/common/DataType.h>
 #include <tsn/common/TypeRegistry.h>
 #include <tsn/common/Function.h>
+#include <tsn/io/Workspace.h>
 #include <tsn/interfaces/IDataTypeHolder.h>
 #include <tsn/interfaces/IFunctionHolder.h>
 #include <tsn/compiler/Lexer.h>
 #include <tsn/compiler/Parser.h>
 #include <tsn/compiler/Compiler.h>
+#include <tsn/compiler/OutputBuilder.h>
 #include <tsn/compiler/Output.h>
 #include <tsn/compiler/Value.hpp>
 #include <tsn/compiler/FunctionDef.h>
@@ -48,7 +50,7 @@ bool getBoolArg(i32 argc, const char** argv, const char* code);
 i32 parse_args(i32 argc, const char** argv, tsnc_config* conf);
 char* loadText(const char* filename, bool required);
 i32 processConfig(const json& configIn, Config& configOut);
-i32 handleAST(Context* ctx, ParseNode* n, const Parser& ps);
+i32 handleAST(Context* ctx, ParseNode* n, const Parser& ps, const script_metadata& meta);
 void initError(const char* err);
 
 i32 main (i32 argc, const char** argv) {
@@ -72,6 +74,14 @@ i32 main (i32 argc, const char** argv) {
     } catch (i32 error) {
         return error;
     }
+
+    script_metadata meta;
+    meta.path = conf.script_path;
+    meta.size = strlen(code);
+    meta.is_trusted = true;
+    meta.modified_on = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::filesystem::last_write_time(conf.script_path).time_since_epoch()
+    ).count();
 
     Config contextCfg;
     try {
@@ -100,12 +110,12 @@ i32 main (i32 argc, const char** argv) {
 
     {
         Context ctx = Context(1, &contextCfg);
-        ProgramSource src = ProgramSource(conf.script_path, code);
+        ModuleSource src = ModuleSource(code, 0);
         Lexer l(&src);
         Parser ps(&l);
         ParseNode* n = ps.parse();
 
-        if (n) status = handleAST(&ctx, n, ps);
+        if (n) status = handleAST(&ctx, n, ps, meta);
         else {
             initError("An unknown error occurred");
             status = UNKNOWN_ERROR;
@@ -275,21 +285,24 @@ void initError(const char* err) {
     printf("}");
 }
 
-i32 handleAST(Context* ctx, ParseNode* n, const Parser& ps) {
+i32 handleAST(Context* ctx, ParseNode* n, const Parser& ps, const script_metadata& meta) {
     static const char* access[] = { "public", "private", "trusted" };
     const auto& errors = ps.errors();
     if (errors.size() == 0) {
-        Compiler c(ctx, n);
-        CompilerOutput* out = c.compile();
-
-        Buffer* test = new Buffer();
-        if (out->serialize(test, ctx)) {
-            test->save("./out.tsnc");
-            delete test;
-        }
+        Compiler c(ctx, n, &meta);
+        OutputBuilder* out = c.compile();
 
         if (out) {
-            bool hadErrors = false;
+            bool hadErrors = c.getLogs().some([](const auto& m) { return m.type == cmt_error; });
+            if (!hadErrors) {
+                Output o = Output(out);
+                Buffer* test = new Buffer();
+                if (o.serialize(test, ctx, nullptr)) {
+                    test->save("./out.tsnc");
+                    delete test;
+                }
+            }
+
             printf("{\n");
 
             const auto& logs = c.getLogs();
@@ -298,7 +311,6 @@ i32 handleAST(Context* ctx, ParseNode* n, const Parser& ps) {
                 printf("    \"logs\": [\n");
                 for (u32 i = 0;i < logs.size();i++) {
                     const auto& log = logs[i];
-                    if (log.type == cmt_error) hadErrors = true;
                     const SourceLocation& src = log.src;
                     const SourceLocation& end = log.src.getEndLocation();
                     String ln = src.getSource()->getLine(src.getLine()).clone();
@@ -577,7 +589,7 @@ i32 handleAST(Context* ctx, ParseNode* n, const Parser& ps) {
                         if (code.size() > 0) {
                             printf("            \"code\": [\n");
                             for (u32 c = 0;c < code.size();c++) {
-                                printf("                \"%s\"%s\n", code[c].toString().c_str(), c < code.size() - 1 ? "," : "");
+                                printf("                \"%s\"%s\n", code[c].toString(ctx).c_str(), c < code.size() - 1 ? "," : "");
                             }
                             printf("            ],\n");
                         } else printf("            \"code\": [],\n");
@@ -606,6 +618,7 @@ i32 handleAST(Context* ctx, ParseNode* n, const Parser& ps) {
             printf("    \"ast\": ");
             n->json(1);
             printf("\n}\n");
+
             delete out;
 
             if (hadErrors) return COMPILATION_ERROR;

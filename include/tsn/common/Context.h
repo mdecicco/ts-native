@@ -41,8 +41,10 @@ namespace tsn {
             ffi::FunctionRegistry* getFunctions() const;
 
             Module* getGlobal() const;
-            Module* createModule(const utils::String& name);
-            Module* getModule(const utils::String& name);
+            Module* createModule(const utils::String& name, const utils::String& path);
+            Module* createHostModule(const utils::String& name);
+            Module* getModule(const utils::String& path);
+            Module* getModule(u32 moduleId);
         
         protected:
             Workspace* m_workspace;
@@ -51,6 +53,7 @@ namespace tsn {
             Module* m_global;
             Config* m_cfg;
             robin_hood::unordered_map<utils::String, Module*> m_modules;
+            robin_hood::unordered_map<u32, Module*> m_modulesById;
             u32 m_builtinApiVersion;
             u32 m_userApiVersion;
     };

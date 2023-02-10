@@ -18,7 +18,7 @@ namespace tsn {
         m_workspace = new Workspace(this);
         m_types = new ffi::DataTypeRegistry(this);
         m_funcs = new ffi::FunctionRegistry(this);
-        m_global = new Module(this, "global");
+        m_global = createHostModule("global");
 
         AddBuiltInBindings(this);
     }
@@ -54,23 +54,39 @@ namespace tsn {
     Module* Context::getGlobal() const {
         return m_global;
     }
-    
-    Module* Context::createModule(const utils::String& name) {
-        if (m_modules.count(name) != 0) {
+
+    Module* Context::createModule(const utils::String& name, const utils::String& path) {
+        if (m_modules.count(path) != 0) {
             return nullptr;
         }
 
-        Module* m = new Module(this, name);
-        m_modules[name] = m;
+        Module* m = new Module(this, name, path);
+        m_modules[path] = m;
+        m_modulesById[m->getId()] = m;
         return m;
     }
+    
+    Module* Context::createHostModule(const utils::String& name) {
+        return createModule(name, "<host>/" + name + ".tsn");
+    }
 
-    Module* Context::getModule(const utils::String& name) {
+    Module* Context::getModule(const utils::String& path) {
         // todo:
         //     workspace directory, auto-load modules
 
-        auto it = m_modules.find(name);
-        if (it == m_modules.end()) return nullptr;
+        auto it = m_modules.find(path);
+        if (it == m_modules.end()) {
+            // Maybe it's a host module
+            it = m_modules.find("<host>/" + path + ".tsn");
+            if (it == m_modules.end()) return nullptr;
+            return it->second;
+        }
+        return it->second;
+    }
+
+    Module* Context::getModule(u32 id) {
+        auto it = m_modulesById.find(id);
+        if (it == m_modulesById.end()) return nullptr;
         return it->second;
     }
 };

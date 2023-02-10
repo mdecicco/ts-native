@@ -9,6 +9,7 @@
 
 namespace tsn {
     class Module;
+    struct script_metadata;
 
     namespace ffi {
         class DataType;
@@ -20,7 +21,7 @@ namespace tsn {
     namespace compiler {
         class ParseNode;
         class FunctionDef;
-        class CompilerOutput;
+        class OutputBuilder;
         class Value;
         
         enum compilation_message_code {
@@ -44,6 +45,7 @@ namespace tsn {
             cm_err_export_invalid,
             cm_err_import_not_in_root_scope,
             cm_err_import_module_not_found,
+            cm_err_import_type_spec_invalid,
             cm_err_property_not_found,
             cm_err_property_is_private,
             cm_err_property_not_static,
@@ -106,7 +108,7 @@ namespace tsn {
 
         class Compiler : public IContextual {
             public:
-                Compiler(Context* ctx, ParseNode* programTree);
+                Compiler(Context* ctx, ParseNode* programTree, const script_metadata* meta);
                 ~Compiler();
 
                 void enterNode(ParseNode* n);
@@ -122,8 +124,9 @@ namespace tsn {
                 const SourceLocation& getCurrentSrc() const;
                 ScopeManager& scope();
 
-                CompilerOutput* getOutput();
-                CompilerOutput* compile();
+                const script_metadata* getScriptInfo() const;
+                OutputBuilder* getOutput();
+                OutputBuilder* compile();
 
                 void updateMethod(ffi::DataType* classTp, ffi::Method* m);
 
@@ -196,13 +199,14 @@ namespace tsn {
                 void compileAny(ParseNode* n);
 
             private:
+                const script_metadata* m_meta;
                 ParseNode* m_program;
                 utils::Array<ParseNode*> m_nodeStack;
                 utils::Array<FunctionDef*> m_funcStack;
                 utils::Array<compilation_message> m_messages;
                 ffi::DataType* m_curClass;
                 FunctionDef* m_curFunc;
-                CompilerOutput* m_output;
+                OutputBuilder* m_output;
                 ScopeManager m_scopeMgr;
 
                 utils::Array<loop_or_switch_context> m_lsStack;

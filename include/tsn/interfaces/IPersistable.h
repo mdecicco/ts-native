@@ -10,7 +10,7 @@ namespace tsn {
 
     class IPersistable {
         public:
-            virtual bool serialize(utils::Buffer* out, Context* ctx) const = 0;
-            virtual bool deserialize(utils::Buffer* in, Context* ctx) = 0;
+            virtual bool serialize(utils::Buffer* out, Context* ctx, void* extra) const = 0;
+            virtual bool deserialize(utils::Buffer* in, Context* ctx, void* extra) = 0;
     };
 };

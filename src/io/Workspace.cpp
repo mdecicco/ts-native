@@ -106,7 +106,7 @@ namespace tsn {
         return true;
     }
 
-    PersistenceDatabase::script_metadata* PersistenceDatabase::getScript(const std::string& path) {
+    script_metadata* PersistenceDatabase::getScript(const std::string& path) {
         auto it = m_scripts.find(path);
         if (it == m_scripts.end()) return nullptr;
         return it->second;
@@ -170,7 +170,11 @@ namespace tsn {
     }
 
     Module* Workspace::getModule(const utils::String& path, const utils::String& fromDir) {
-        
+        std::filesystem::path p = fromDir.c_str() / std::filesystem::path(path.c_str());
+        if (!std::filesystem::exists(p)) return nullptr;
+
+
+
         return nullptr;
     }
 

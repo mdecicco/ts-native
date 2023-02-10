@@ -21,6 +21,7 @@ namespace tsn {
             m_info = { 0 };
             m_destructor = nullptr;
             m_access = public_access;
+            m_itype = dti_plain;
         }
 
         DataType::DataType(
@@ -34,6 +35,7 @@ namespace tsn {
             m_info = info;
             m_destructor = nullptr;
             m_access = public_access;
+            m_itype = dti_plain;
         }
 
         DataType::DataType(
@@ -54,6 +56,7 @@ namespace tsn {
             m_destructor = dtor;
             m_methods = methods;
             m_access = public_access;
+            m_itype = dti_plain;
         }
 
         DataType::~DataType() {
@@ -216,8 +219,12 @@ namespace tsn {
             if (m_info.is_alias) return ((AliasType*)this)->getRefType()->getEffectiveType();
             return this;
         }
+        
+        data_type_instance DataType::getInstanceType() const {
+            return m_itype;
+        }
             
-        bool DataType::serialize(utils::Buffer* out, Context* ctx) const {
+        bool DataType::serialize(utils::Buffer* out, Context* ctx, void* extra) const {
             auto writeFunc = [out](const Function* f) {
                 if (f) return !out->write(f->getId());
                 return !out->write(function_id(0));
@@ -260,7 +267,7 @@ namespace tsn {
             return true;
         }
 
-        bool DataType::deserialize(utils::Buffer* in, Context* ctx) {
+        bool DataType::deserialize(utils::Buffer* in, Context* ctx, void* extra) {
             auto readStr = [in](utils::String& s) {
                 u16 len = 0;
                 if (!in->read(len)) return false;
@@ -365,9 +372,11 @@ namespace tsn {
         //
         FunctionType::FunctionType() {
             m_returnType = nullptr;
+            m_itype = dti_function;
         }
 
         FunctionType::FunctionType(DataType* returnType, const utils::Array<function_argument>& args) {
+            m_itype = dti_function;
             m_name = returnType->m_name + "(";
             m_fullyQualifiedName = returnType->m_fullyQualifiedName + "(";
             args.each([this](const function_argument& arg, u32 idx) {
@@ -524,8 +533,8 @@ namespace tsn {
             m_fullyQualifiedName += ")";
         }
             
-        bool FunctionType::serialize(utils::Buffer* out, Context* ctx) const {
-            if (!DataType::serialize(out, ctx)) return false;
+        bool FunctionType::serialize(utils::Buffer* out, Context* ctx, void* extra) const {
+            if (!DataType::serialize(out, ctx, nullptr)) return false;
 
             auto writeArg = [out](const function_argument& a) {
                 if (!out->write(a.argType)) return true;
@@ -540,8 +549,8 @@ namespace tsn {
             return true;
         }
 
-        bool FunctionType::deserialize(utils::Buffer* in, Context* ctx) {
-            if (!DataType::deserialize(in, ctx)) return false;
+        bool FunctionType::deserialize(utils::Buffer* in, Context* ctx, void* extra) {
+            if (!DataType::deserialize(in, ctx, nullptr)) return false;
 
             auto readType = [in, ctx](DataType** out) {
                 type_id id;
@@ -602,6 +611,7 @@ namespace tsn {
 
         TemplateType::TemplateType() {
             m_ast = nullptr;
+            m_itype = dti_template;
         }
 
         TemplateType::TemplateType(
@@ -610,6 +620,7 @@ namespace tsn {
             compiler::ParseNode* baseAST
         ) : DataType(name, fullyQualifiedName, templateTypeMeta(baseAST)) {
             m_ast = baseAST;
+            m_itype = dti_template;
         }
 
         TemplateType::~TemplateType() {
@@ -620,16 +631,16 @@ namespace tsn {
             return m_ast;
         }
             
-        bool TemplateType::serialize(utils::Buffer* out, Context* ctx) const {
-            if (!DataType::serialize(out, ctx)) return false;
-            if (!m_ast->serialize(out, ctx)) return false;
+        bool TemplateType::serialize(utils::Buffer* out, Context* ctx, void* extra) const {
+            if (!DataType::serialize(out, ctx, nullptr)) return false;
+            if (!m_ast->serialize(out, ctx, nullptr)) return false;
             return true;
         }
 
-        bool TemplateType::deserialize(utils::Buffer* in, Context* ctx) {
-            if (!DataType::deserialize(in, ctx)) return false;
+        bool TemplateType::deserialize(utils::Buffer* in, Context* ctx, void* extra) {
+            if (!DataType::deserialize(in, ctx, nullptr)) return false;
             m_ast = new compiler::ParseNode();
-            if (!m_ast->deserialize(in, ctx)) {
+            if (!m_ast->deserialize(in, ctx, nullptr)) {
                 delete m_ast;
                 m_ast = nullptr;
                 return false;
@@ -653,6 +664,7 @@ namespace tsn {
 
         AliasType::AliasType() {
             m_ref = nullptr;
+            m_itype = dti_alias;
         }
 
         AliasType::AliasType(
@@ -661,6 +673,7 @@ namespace tsn {
             DataType* refTp
         ) : DataType(name, fullyQualifiedName, aliasTypeMeta(refTp)) {
             m_ref = refTp;
+            m_itype = dti_alias;
         }
 
         AliasType::~AliasType() {
@@ -671,14 +684,14 @@ namespace tsn {
             return m_ref;
         }
             
-        bool AliasType::serialize(utils::Buffer* out, Context* ctx) const {
-            if (!DataType::serialize(out, ctx)) return false;
+        bool AliasType::serialize(utils::Buffer* out, Context* ctx, void* extra) const {
+            if (!DataType::serialize(out, ctx, nullptr)) return false;
             if (!out->write(m_ref->getId())) return false;
             return true;
         }
 
-        bool AliasType::deserialize(utils::Buffer* in, Context* ctx) {
-            if (!DataType::deserialize(in, ctx)) return false;
+        bool AliasType::deserialize(utils::Buffer* in, Context* ctx, void* extra) {
+            if (!DataType::deserialize(in, ctx, nullptr)) return false;
 
             type_id id;
             if (!in->read(id)) return false;
@@ -697,13 +710,16 @@ namespace tsn {
         //
         // ClassType
         //
-        ClassType::ClassType() { }
+        ClassType::ClassType() {
+            m_itype = dti_class;
+        }
 
         ClassType::ClassType(const utils::String& name, const utils::String& fullyQualifiedName) : DataType(name, fullyQualifiedName, { 0 }, {}, {}, nullptr, {}) {
             m_info.is_pod = 1;
             m_info.is_trivially_constructible = 1;
             m_info.is_trivially_copyable = 1;
             m_info.is_trivially_destructible = 1;
+            m_itype = dti_class;
         }
 
         ClassType::~ClassType() {

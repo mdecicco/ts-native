@@ -2,8 +2,6 @@
 #include <tsn/common/types.h>
 #include <tsn/common/DataType.h>
 #include <tsn/compiler/IR.h>
-#include <tsn/interfaces/ICodeHolder.h>
-#include <tsn/interfaces/IPersistable.h>
 
 #include <utils/String.h>
 
@@ -19,7 +17,7 @@ namespace tsn {
         class Compiler;
         class Value;
 
-        class FunctionDef : public ICodeHolder, IPersistable {
+        class FunctionDef {
             public:
                 ~FunctionDef();
 
@@ -76,12 +74,13 @@ namespace tsn {
                 ffi::Function* onExit();
 
                 ffi::Function* getOutput();
-
-                virtual bool serialize(utils::Buffer* out, Context* ctx) const;
-                virtual bool deserialize(utils::Buffer* in, Context* ctx);
+                const utils::Array<Instruction>& getCode() const;
 
             private:
-                friend class CompilerOutput;
+                friend class OutputBuilder;
+                friend class InstructionRef;
+
+                FunctionDef();
                 FunctionDef(Compiler* c, const utils::String& name, ffi::DataType* methodOf);
                 FunctionDef(Compiler* c, ffi::Function* func);
 
@@ -101,9 +100,11 @@ namespace tsn {
                 Value* m_poison;
                 ffi::DataType* m_thisTp;
                 ffi::Function* m_output;
-                
+
+                label_id m_nextLabelId;
                 alloc_id m_nextAllocId;
                 vreg_id m_nextRegId;
+                utils::Array<Instruction> m_instructions;
         };
     };
 };

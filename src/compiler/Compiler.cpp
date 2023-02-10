@@ -8,14 +8,15 @@
 #include <tsn/common/TypeRegistry.h>
 #include <tsn/common/FunctionRegistry.h>
 #include <tsn/compiler/Value.hpp>
-#include <tsn/compiler/Output.h>
+#include <tsn/compiler/OutputBuilder.h>
 #include <tsn/interfaces/IDataTypeHolder.hpp>
-#include <tsn/interfaces/ICodeHolder.h>
+#include <tsn/io/Workspace.h>
 #include <tsn/utils/function_match.h>
 
 #include <utils/Array.hpp>
 
 #include <stdarg.h>
+#include <filesystem>
 
 using namespace utils;
 using namespace tsn::ffi;
@@ -46,7 +47,8 @@ namespace tsn {
         // Compiler
         //
 
-        Compiler::Compiler(Context* ctx, ParseNode* programTree) : IContextual(ctx), m_scopeMgr(this) {
+        Compiler::Compiler(Context* ctx, ParseNode* programTree, const script_metadata* meta) : IContextual(ctx), m_scopeMgr(this) {
+            m_meta = meta;
             m_program = programTree;
             m_output = nullptr;
             m_curFunc = nullptr;
@@ -111,13 +113,20 @@ namespace tsn {
             return m_scopeMgr;
         }
         
-        CompilerOutput* Compiler::getOutput() {
+        const script_metadata* Compiler::getScriptInfo() const {
+            return m_meta;
+        }
+
+        OutputBuilder* Compiler::getOutput() {
             return m_output;
         }
 
-        CompilerOutput* Compiler::compile() {
-            Module* m = new Module(m_ctx, "test");
-            m_output = new CompilerOutput(this, m);
+        OutputBuilder* Compiler::compile() {
+            Module* m = m_ctx->createModule(
+                std::filesystem::path(m_meta->path).filename().replace_extension("").string(),
+                m_meta->path
+            );
+            m_output = new OutputBuilder(this, m);
 
             // init function
             FunctionDef* fd = m_output->newFunc("__init__");
@@ -726,7 +735,7 @@ namespace tsn {
                         aidx + 1
                     );
 
-                    return currentFunction()->getPoison();
+                    return cf->getPoison();
                 }
                 aidx++;
             }
@@ -762,9 +771,16 @@ namespace tsn {
             if (retTp->getInfo().is_primitive && retTp->getInfo().size != 0) {
                 call.op(result);
                 return result;
+            } else if (retTp->getInfo().size != 0) {
+                // stack return
+                call.op(cf->imm<u64>(0));
+                return result;
+            } else {
+                call.op(cf->imm<u64>(0));
             }
 
-            return cf->getPoison();
+            // void return
+            return cf->val(retTp);
         }
         
         Value Compiler::generateCall(Function* fn, const utils::Array<Value>& args, const Value* self) {
@@ -1698,15 +1714,30 @@ namespace tsn {
                         } else if (vars.size() == 1) {
                             scope().getBase().add(sym->alias ? sym->alias->str() : name, m, var_slots[0]);
                         } else {
-                            error(
-                                cm_err_export_not_found,
-                                "Module '%s' has no export named '%s' that matches the type '%s'",
-                                n->str().c_str(),
-                                name.c_str(),
-                                tp->getName().c_str()
-                            );
+                            DataType* mtp = m->allTypes().find([&name](const DataType* t) {
+                                return t->getName() == name;
+                            });
+
+                            if (mtp) {
+                                error(
+                                    cm_err_import_type_spec_invalid,
+                                    "Import type specifiers are not valid for imported types"
+                                );
+                            } else {
+                                error(
+                                    cm_err_export_not_found,
+                                    "Module '%s' has no export named '%s' that matches the type '%s'",
+                                    n->str().c_str(),
+                                    name.c_str(),
+                                    tp->getName().c_str()
+                                );
+                            }
                         }
                     } else {
+                        DataType* mtp = m->allTypes().find([&name](const DataType* t) {
+                            return t->getName() == name;
+                        });
+
                         m->allFunctions().each([&funcs, &name](Function* fn) {
                             if (!fn) return;
                             if (fn->getAccessModifier() == private_access) return;
@@ -1714,7 +1745,7 @@ namespace tsn {
                             funcs.push(fn);
                         });
 
-                        if (funcs.size() + vars.size() > 1) {
+                        if ((funcs.size() + vars.size() + (mtp ? 1 : 0)) > 1) {
                             error(
                                 cm_err_export_ambiguous,
                                 "Module '%s' has multiple exports named '%s'",
@@ -1728,10 +1759,15 @@ namespace tsn {
                             for (u32 i = 0;i < vars.size();i++) {
                                 info(cm_info_could_be, "^ Could be '%s %s'", vars[i]->type->getName().c_str(), vars[i]->name.c_str());
                             }
+                            if (mtp) {
+                                info(cm_info_could_be, "^ Could be '%s'", mtp->getFullyQualifiedName().c_str());
+                            }
                         } else if (funcs.size() == 1) {
                             m_output->import(funcs[0], sym->alias ? sym->alias->str() : name);
                         } else if (vars.size() == 1) {
                             scope().getBase().add(sym->alias ? sym->alias->str() : name, m, var_slots[0]);
+                        } else if (mtp) {
+                            m_output->import(mtp, sym->alias ? sym->alias->str() : name);
                         } else {
                             error(
                                 cm_err_export_not_found,

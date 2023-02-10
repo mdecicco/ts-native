@@ -1,7 +1,7 @@
 #include <tsn/compiler/Scope.h>
 #include <tsn/compiler/Parser.h>
 #include <tsn/compiler/Compiler.h>
-#include <tsn/compiler/Output.h>
+#include <tsn/compiler/OutputBuilder.h>
 #include <tsn/compiler/FunctionDef.h>
 #include <tsn/common/DataType.h>
 

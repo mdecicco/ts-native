@@ -1,6 +1,6 @@
 #include <tsn/compiler/Parser.h>
 #include <tsn/compiler/Lexer.h>
-#include <tsn/utils/ProgramSource.h>
+#include <tsn/utils/ModuleSource.h>
 #include <utils/Array.hpp>
 #include <utils/Buffer.hpp>
 
@@ -455,10 +455,10 @@ namespace tsn {
             return c;
         }
 
-        bool ParseNode::serialize(utils::Buffer* out, Context* ctx) const {
+        bool ParseNode::serialize(utils::Buffer* out, Context* ctx, void* extra) const {
             if (!out->write(tok.tp)) return false;
             if (!out->write(tok.text)) return false;
-            if (!tok.src.serialize(out, ctx)) return false;
+            if (!tok.src.serialize(out, ctx, nullptr)) return false;
 
             if (!out->write(tp)) return false;
             if (!out->write(value_tp)) return false;
@@ -499,24 +499,24 @@ namespace tsn {
             if (next && !out->write(true)) return false;
             else if (!out->write(false)) return false;
 
-            if (data_type && !data_type->serialize(out, ctx)) return false;
-            if (lvalue && !lvalue->serialize(out, ctx)) return false;
-            if (rvalue && !rvalue->serialize(out, ctx)) return false;
-            if (cond && !cond->serialize(out, ctx)) return false;
-            if (body && !body->serialize(out, ctx)) return false;
-            if (else_body && !else_body->serialize(out, ctx)) return false;
-            if (initializer && !initializer->serialize(out, ctx)) return false;
-            if (parameters && !parameters->serialize(out, ctx)) return false;
-            if (template_parameters && !template_parameters->serialize(out, ctx)) return false;
-            if (modifier && !modifier->serialize(out, ctx)) return false;
-            if (alias && !alias->serialize(out, ctx)) return false;
-            if (inheritance && !inheritance->serialize(out, ctx)) return false;
-            if (next && !next->serialize(out, ctx)) return false;
+            if (data_type && !data_type->serialize(out, ctx, nullptr)) return false;
+            if (lvalue && !lvalue->serialize(out, ctx, nullptr)) return false;
+            if (rvalue && !rvalue->serialize(out, ctx, nullptr)) return false;
+            if (cond && !cond->serialize(out, ctx, nullptr)) return false;
+            if (body && !body->serialize(out, ctx, nullptr)) return false;
+            if (else_body && !else_body->serialize(out, ctx, nullptr)) return false;
+            if (initializer && !initializer->serialize(out, ctx, nullptr)) return false;
+            if (parameters && !parameters->serialize(out, ctx, nullptr)) return false;
+            if (template_parameters && !template_parameters->serialize(out, ctx, nullptr)) return false;
+            if (modifier && !modifier->serialize(out, ctx, nullptr)) return false;
+            if (alias && !alias->serialize(out, ctx, nullptr)) return false;
+            if (inheritance && !inheritance->serialize(out, ctx, nullptr)) return false;
+            if (next && !next->serialize(out, ctx, nullptr)) return false;
 
             return true;
         }
 
-        bool ParseNode::deserialize(utils::Buffer* in, Context* ctx) {
+        bool ParseNode::deserialize(utils::Buffer* in, Context* ctx, void* extra) {
             auto readStr = [in](utils::String& str) {
                 str = in->readStr();
                 if (str.size() == 0) return false;
@@ -529,7 +529,7 @@ namespace tsn {
             // todo
             // tok.src = SourceLocation(m_progSrc, 0, 0);
             // (SourceLocation.deserialize depends on having the program set set)
-            if (!tok.src.deserialize(in, ctx)) return false;
+            if (!tok.src.deserialize(in, ctx, nullptr)) return false;
 
             if (!in->read(tp)) return false;
             if (!in->read(value_tp)) return false;
@@ -569,7 +569,7 @@ namespace tsn {
 
             if (has_data_type) {
                 data_type = new ParseNode();
-                if (!data_type->deserialize(in, ctx)) {
+                if (!data_type->deserialize(in, ctx, nullptr)) {
                     delete data_type;
                     data_type = nullptr;
                     return false;
@@ -578,7 +578,7 @@ namespace tsn {
 
             if (has_lvalue) {
                 lvalue = new ParseNode();
-                if (!lvalue->deserialize(in, ctx)) {
+                if (!lvalue->deserialize(in, ctx, nullptr)) {
                     delete lvalue;
                     lvalue = nullptr;
                     return false;
@@ -587,7 +587,7 @@ namespace tsn {
 
             if (has_rvalue) {
                 rvalue = new ParseNode();
-                if (!rvalue->deserialize(in, ctx)) {
+                if (!rvalue->deserialize(in, ctx, nullptr)) {
                     delete rvalue;
                     rvalue = nullptr;
                     return false;
@@ -596,7 +596,7 @@ namespace tsn {
 
             if (has_cond) {
                 cond = new ParseNode();
-                if (!cond->deserialize(in, ctx)) {
+                if (!cond->deserialize(in, ctx, nullptr)) {
                     delete cond;
                     cond = nullptr;
                     return false;
@@ -605,7 +605,7 @@ namespace tsn {
 
             if (has_body) {
                 body = new ParseNode();
-                if (!body->deserialize(in, ctx)) {
+                if (!body->deserialize(in, ctx, nullptr)) {
                     delete body;
                     body = nullptr;
                     return false;
@@ -614,7 +614,7 @@ namespace tsn {
 
             if (has_else_body) {
                 else_body = new ParseNode();
-                if (!else_body->deserialize(in, ctx)) {
+                if (!else_body->deserialize(in, ctx, nullptr)) {
                     delete else_body;
                     else_body = nullptr;
                     return false;
@@ -623,7 +623,7 @@ namespace tsn {
 
             if (has_initializer) {
                 initializer = new ParseNode();
-                if (!initializer->deserialize(in, ctx)) {
+                if (!initializer->deserialize(in, ctx, nullptr)) {
                     delete initializer;
                     initializer = nullptr;
                     return false;
@@ -632,7 +632,7 @@ namespace tsn {
 
             if (has_parameters) {
                 parameters = new ParseNode();
-                if (!parameters->deserialize(in, ctx)) {
+                if (!parameters->deserialize(in, ctx, nullptr)) {
                     delete parameters;
                     parameters = nullptr;
                     return false;
@@ -641,7 +641,7 @@ namespace tsn {
 
             if (has_template_parameters) {
                 template_parameters = new ParseNode();
-                if (!template_parameters->deserialize(in, ctx)) {
+                if (!template_parameters->deserialize(in, ctx, nullptr)) {
                     delete template_parameters;
                     template_parameters = nullptr;
                     return false;
@@ -650,7 +650,7 @@ namespace tsn {
 
             if (has_modifier) {
                 modifier = new ParseNode();
-                if (!modifier->deserialize(in, ctx)) {
+                if (!modifier->deserialize(in, ctx, nullptr)) {
                     delete modifier;
                     modifier = nullptr;
                     return false;
@@ -659,7 +659,7 @@ namespace tsn {
 
             if (has_alias) {
                 alias = new ParseNode();
-                if (!alias->deserialize(in, ctx)) {
+                if (!alias->deserialize(in, ctx, nullptr)) {
                     delete alias;
                     alias = nullptr;
                     return false;
@@ -668,7 +668,7 @@ namespace tsn {
 
             if (has_inheritance) {
                 inheritance = new ParseNode();
-                if (!inheritance->deserialize(in, ctx)) {
+                if (!inheritance->deserialize(in, ctx, nullptr)) {
                     delete inheritance;
                     inheritance = nullptr;
                     return false;
@@ -677,7 +677,7 @@ namespace tsn {
 
             if (has_next) {
                 next = new ParseNode();
-                if (!next->deserialize(in, ctx)) {
+                if (!next->deserialize(in, ctx, nullptr)) {
                     delete next;
                     next = nullptr;
                     return false;

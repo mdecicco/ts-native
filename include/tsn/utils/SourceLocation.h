@@ -10,14 +10,14 @@ namespace tsn {
         class ParseNode;
     };
 
-    class ProgramSource;
+    class ModuleSource;
     class SourceLocation : public IPersistable {
         public:
             SourceLocation();
-            SourceLocation(ProgramSource* src, u32 line, u32 col);
+            SourceLocation(ModuleSource* src, u32 line, u32 col);
             ~SourceLocation();
 
-            ProgramSource* getSource() const;
+            ModuleSource* getSource() const;
             utils::String getLineText() const;
             const char* getPointer() const;
             u32 getLine() const;
@@ -30,8 +30,8 @@ namespace tsn {
             bool operator++(int);
             char operator*() const;
 
-            virtual bool serialize(utils::Buffer* out, Context* ctx) const;
-            virtual bool deserialize(utils::Buffer* in, Context* ctx);
+            virtual bool serialize(utils::Buffer* out, Context* ctx, void* extra) const;
+            virtual bool deserialize(utils::Buffer* in, Context* ctx, void* extra);
         
         protected:
             friend class compiler::ParseNode;
@@ -40,7 +40,7 @@ namespace tsn {
             u32 m_endCol;
 
         private:
-            ProgramSource* m_ref;
+            ModuleSource* m_ref;
             const char* m_linePtr;
             u32 m_line;
             u32 m_lineLen;

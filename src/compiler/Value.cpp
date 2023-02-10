@@ -1,9 +1,10 @@
 #include <tsn/compiler/Value.hpp>
 #include <tsn/compiler/Compiler.h>
-#include <tsn/compiler/Output.h>
+#include <tsn/compiler/OutputBuilder.h>
 #include <tsn/compiler/FunctionDef.h>
 #include <tsn/common/Context.h>
 #include <tsn/common/TypeRegistry.h>
+#include <tsn/common/FunctionRegistry.h>
 #include <tsn/interfaces/IDataTypeHolder.hpp>
 #include <tsn/common/Function.h>
 #include <tsn/common/DataType.h>
@@ -1208,14 +1209,6 @@ namespace tsn {
             if (m_name.size() > 0) s += "(" + m_name + ")";
 
             return s;
-        }
-
-        bool Value::serialize(utils::Buffer* out, Context* ctx) const {
-            return false;
-        }
-
-        bool Value::deserialize(utils::Buffer* in, Context* ctx) {
-            return false;
         }
     };
 };

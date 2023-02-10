@@ -1,6 +1,6 @@
 #include "../catch.hpp"
 
-#include <tsn/utils/ProgramSource.h>
+#include <tsn/utils/ModuleSource.h>
 #include <tsn/compiler/Lexer.h>
 #include <tsn/compiler/Parser.h>
 
@@ -17,7 +17,7 @@ TEST_CASE("Parser", "[parser]") {
         "const a = f(1, 2);\n"
         "let b = f(f(1, a), f(2, a + 1));\n"
     ;
-    ProgramSource src = ProgramSource("Parser.tsn", testSource);
+    ModuleSource src = ModuleSource("Parser.tsn", testSource);
     Lexer l(&src);
     Parser ps(&l);
 

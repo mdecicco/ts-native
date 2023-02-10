@@ -8,15 +8,15 @@
 namespace tsn {
     class Module;
 
+    struct script_metadata {
+        std::string path;
+        size_t size;
+        u64 modified_on;
+        bool is_trusted;
+    };
+
     class PersistenceDatabase : public IContextual {
         public:
-            struct script_metadata {
-                std::string path;
-                size_t size;
-                u64 modified_on;
-                bool is_trusted;
-            };
-
             PersistenceDatabase(Context* ctx);
             ~PersistenceDatabase();
 

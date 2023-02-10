@@ -3,13 +3,13 @@
 #include <tsn/utils/SourceLocation.h>
 #include <tsn/compiler/Value.h>
 #include <tsn/compiler/types.h>
-#include <tsn/interfaces/ICodeHolder.h>
-#include <tsn/interfaces/IPersistable.h>
 
 #include <utils/Array.h>
 #include <utils/String.h>
 
 namespace tsn {
+    class Context;
+
     namespace compiler {
         class FunctionDef;
 
@@ -29,7 +29,7 @@ namespace tsn {
 
             // Labels address for instructions which represent jumps
             //
-            // Label 0 will be the ID of the label
+            // Operand 0 will be the label
             ir_label,
 
             // Allocates space on the stack
@@ -87,7 +87,7 @@ namespace tsn {
 
             // Unconditional jump to a label
             //
-            // Label 0 will be the label ID to jump to
+            // Operand 0 will be the label to jump to
             ir_jump,
 
             // Converts the value of a vreg from one data type to another
@@ -101,15 +101,14 @@ namespace tsn {
             // Multiple parameters will be specified in left to right order
             //
             // Operand 0 will be val representing the parameter to pass
-            // Operand 1 will be u32 imm ID of the function being called
             ir_param,
 
             // Calls a function
             //
-            // Operand 0 will either be u32 imm ID of the function being called
-            // or a vreg which holds a pointer to the function closure being called
+            // Operand 0 will either be imm pointer to the FunctionDef being called
+            // or a vreg which holds a pointer to the function or closure being called
             // Operand 1 will be a vreg which will receive the function return value,
-            // if the function returns non-void. Otherwise it will be empty
+            // if the function returns non-void. Otherwise it will be imm(0)
             ir_call,
 
             // Returns from the current function
@@ -121,8 +120,8 @@ namespace tsn {
             // Branches to one of two labels based on the value of a vreg
             //
             // Operand 0 will be vreg which holds a boolean value
-            // Label 0 will be the label to jump to if op0 is true
-            // Label 1 will be the label to jump to if op0 is false
+            // Operand 1 will be the label to jump to if op 0 is true
+            // Operand 2 will be the label to jump to if op 0 is false
             ir_branch,
 
             ir_iadd,  // op0 = op1 + op2 (signed integer)
@@ -192,30 +191,51 @@ namespace tsn {
             ir_assign // op0 = op1
         };
 
-        class Instruction : public IPersistable {
+        enum operand_type : u8 {
+            /** operand unused */
+            ot_nil,
+
+            /** immediate value */
+            ot_imm,
+
+            /** label id (immediate) */
+            ot_lbl,
+
+            /** virtual register id */
+            ot_reg,
+
+            /** register or immediate */
+            ot_val,
+
+            /** function (immediate function id or function pointer in virtual register) */
+            ot_fun
+        };
+
+        struct ir_instruction_info {
+            const char* name;
+            u8 operand_count;
+            operand_type operands[3];
+            u8 assigns_operand_index;
+        };
+
+        const ir_instruction_info& instruction_info(ir_instruction op);
+
+        class Instruction {
             public:
                 Instruction();
                 Instruction(ir_instruction i, const SourceLocation& src);
 
                 ir_instruction op;
                 Value operands[3];
-                label_id labels[2];
                 SourceLocation src;
                 u8 oCnt;
-                u8 lCnt;
-
-                // since function IDs won't be known until a function has finished compiling
-                // a pointer to the function must be stored when referring to an uncompiled
-                // function. The corresponding operands will be updated later, when finished
-                // compiling
-                FunctionDef* fn_operands[3];
 
                 /**
                  * @brief Returns pointer to Value that would be assigned by this instruction
                  * 
                  * @return Pointer to Value if op refers to an assigning instruction, otherwise null
                  */
-                Value* assigns() const;
+                const Value* assigns() const;
 
                 /**
                  * @brief Returns true if this instruction involves the specified vreg ID
@@ -227,15 +247,12 @@ namespace tsn {
                  */
                 bool involves(vreg_id reg, bool excludeAssignment = false) const;
 
-                utils::String toString() const;
-
-                virtual bool serialize(utils::Buffer* out, Context* ctx) const;
-                virtual bool deserialize(utils::Buffer* in, Context* ctx);
+                utils::String toString(Context* ctx) const;
         };
 
         class InstructionRef {
             public:
-                InstructionRef(ICodeHolder* owner, u32 index);
+                InstructionRef(FunctionDef* owner, u32 index);
 
                 InstructionRef& instr(ir_instruction i);
                 InstructionRef& op(const Value& v);
@@ -247,7 +264,7 @@ namespace tsn {
                  * 
                  * @return Pointer to Value if op refers to an assigning instruction, otherwise null
                  */
-                Value* assigns() const;
+                const Value* assigns() const;
 
                 /**
                  * @brief Returns true if this instruction involves the specified vreg ID
@@ -259,12 +276,10 @@ namespace tsn {
                  */
                 bool involves(vreg_id reg, bool excludeAssignment = false) const;
                 
-                void remove();
-
-                utils::String toString() const;
+                utils::String toString(Context* ctx) const;
                 
             private:
-                ICodeHolder* m_owner;
+                FunctionDef* m_owner;
                 u32 m_index;
         };
     };

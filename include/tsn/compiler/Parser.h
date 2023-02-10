@@ -188,8 +188,8 @@ namespace tsn {
                 void json(u32 indent = 0, u32 index = 0, bool noIndentOpenBrace = true);
                 ParseNode* clone(bool copyNext = false);
 
-                virtual bool serialize(utils::Buffer* out, Context* ctx) const;
-                virtual bool deserialize(utils::Buffer* in, Context* ctx);
+                virtual bool serialize(utils::Buffer* out, Context* ctx, void* extra) const;
+                virtual bool deserialize(utils::Buffer* in, Context* ctx, void* extra);
 
                 struct {
                     unsigned is_const   : 1;

@@ -69,7 +69,10 @@ namespace utils {
     }
 
     bool Buffer::write(const String& str) {
-        return write((void*)str.c_str(), str.size());
+        static u8 n = 0;
+        if (str.size() == 0) return write(&n, 1);
+        if (!write((void*)str.c_str(), str.size())) return false;
+        return write(&n, 1);
     }
 
     String Buffer::readStr() {

@@ -3,7 +3,6 @@
 #include <tsn/compiler/types.h>
 #include <tsn/utils/SourceLocation.h>
 #include <tsn/interfaces/ITypedObject.h>
-#include <tsn/interfaces/IPersistable.h>
 
 #include <utils/Array.h>
 #include <utils/String.h>
@@ -21,7 +20,7 @@ namespace tsn {
         enum ir_instruction;
         struct member_expr_hints;
 
-        class Value : public ITypedObject, IPersistable {
+        class Value : public ITypedObject {
             public:
                 struct flags {
                     // Whether or not the value is a pointer to the data type
@@ -125,9 +124,6 @@ namespace tsn {
                 Value operator_logicalOrAssign(const Value& rhs);
 
                 utils::String toString() const;
-
-                virtual bool serialize(utils::Buffer* out, Context* ctx) const;
-                virtual bool deserialize(utils::Buffer* in, Context* ctx);
             protected:
                 friend class Scope;
                 friend class ScopeManager;
@@ -167,15 +163,16 @@ namespace tsn {
                 ) const;
 
                 FunctionDef* m_func;
+                Value* m_srcPtr;
+                FunctionDef* m_srcSetter;
+                Value* m_srcSelf;
+
                 utils::String m_name;
                 SourceLocation m_src;
                 vreg_id m_regId;
                 alloc_id m_allocId;
                 u32 m_slotId;
                 flags m_flags;
-                Value* m_srcPtr;
-                FunctionDef* m_srcSetter;
-                Value* m_srcSelf;
                 union {
                     u64 u;
                     i64 i;

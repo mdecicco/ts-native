@@ -1,9 +1,9 @@
 #include "../catch.hpp"
 
-#include <tsn/utils/ProgramSource.h>
+#include <tsn/utils/ModuleSource.h>
 using namespace tsn;
 
-TEST_CASE("ProgramSource", "[input]") {
+TEST_CASE("ModuleSource", "[input]") {
     SECTION("Input has muiltiple lines") {
         const char* testSource =
             "import { nonsense } from 'notreal';\n\r"
@@ -12,7 +12,7 @@ TEST_CASE("ProgramSource", "[input]") {
             "    nonsense(1, 2, 3);\r\n"
             "}"
         ;
-        ProgramSource src = ProgramSource("LineSplit.tsn", testSource);
+        ModuleSource src = ModuleSource("LineSplit.tsn", testSource);
 
         REQUIRE(src.getLineCount() == 5);
 

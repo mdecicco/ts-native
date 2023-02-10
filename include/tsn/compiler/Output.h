@@ -1,13 +1,14 @@
 #pragma once
 #include <tsn/common/types.h>
-#include <tsn/utils/SourceLocation.h>
+#include <tsn/compiler/types.h>
 #include <tsn/interfaces/IPersistable.h>
+#include <tsn/utils/SourceLocation.h>
 
-#include <utils/robin_hood.h>
-#include <utils/String.h>
+#include <utils/Array.hpp>
 
 namespace tsn {
     class Module;
+    class SourceMap;
 
     namespace ffi {
         class DataType;
@@ -15,51 +16,53 @@ namespace tsn {
     };
 
     namespace compiler {
-        class ParseNode;
-        class FunctionDef;
-        class Compiler;
-        class Value;
-        
-        struct symbol_lifetime {
-            utils::String name;
-            Value* sym;
-            SourceLocation begin;
-            SourceLocation end;
+        class OutputBuilder;
+        enum ir_instruction;
+        enum operand_type : u8;
+
+        namespace output {
+            struct operand {
+                bool is_imm;
+                ffi::DataType* data_type;
+
+                union {
+                    vreg_id reg_id;
+                    alloc_id alloc_id;
+                    function_id func_id;
+                    label_id lab_id;
+                    u64 imm_u;
+                    i64 imm_i;
+                    f64 imm_f;
+                } value;
+            };
+            
+            struct instruction {
+                ir_instruction op;
+                operand operands[3];
+            };
+
+            struct function {
+                ffi::Function* func;
+                u32 icount;
+                instruction* code;
+                SourceMap* map;
+            };
         };
 
-        class CompilerOutput : public IPersistable {
+        class Output : public IPersistable {
             public:
-                CompilerOutput(Compiler* c, Module* m);
-                ~CompilerOutput();
-
-                FunctionDef* newFunc(const utils::String& name, ffi::DataType* methodOf = nullptr);
-                FunctionDef* newFunc(ffi::Function* preCreated, bool retTpExplicit = true);
-                void resolveFunctionDef(FunctionDef* def, ffi::Function* fn);
-                FunctionDef* getFunctionDef(ffi::Function* fn);
-                void add(ffi::DataType* tp);
-
-                FunctionDef* import(ffi::Function* fn, const utils::String& as);
-                void import(ffi::DataType* fn, const utils::String& as);
-                u32 addSymbolLifetime(const utils::String& name, ParseNode* scopeRoot, const Value& v);
-
-                const utils::Array<FunctionDef*>& getFuncs() const;
-                const utils::Array<ffi::DataType*>& getTypes() const;
-                const utils::Array<symbol_lifetime>& getSymbolLifetimeData() const;
+                Output();
+                Output(OutputBuilder* in);
+                ~Output();
 
                 Module* getModule();
 
-                virtual bool serialize(utils::Buffer* out, Context* ctx) const;
-                virtual bool deserialize(utils::Buffer* in, Context* ctx);
+                virtual bool serialize(utils::Buffer* out, Context* ctx, void* extra) const;
+                virtual bool deserialize(utils::Buffer* in, Context* ctx, void* extra);
 
             protected:
-                Compiler* m_comp;
                 Module* m_mod;
-                utils::Array<symbol_lifetime> m_symbolLifetimes;
-                utils::Array<FunctionDef*> m_funcs;
-                utils::Array<ffi::DataType*> m_types;
-                utils::Array<FunctionDef*> m_importedFuncs;
-                robin_hood::unordered_map<ffi::Function*, u32> m_funcDefs;
-                utils::Array<FunctionDef*> m_allFuncDefs;
+                utils::Array<output::function> m_funcs;
         };
     };
 };

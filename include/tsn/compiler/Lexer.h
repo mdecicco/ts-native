@@ -6,7 +6,7 @@
 #include <exception>
 
 namespace tsn {
-    class ProgramSource;
+    class ModuleSource;
     class SourceLocation;
 
     namespace compiler {
@@ -49,7 +49,7 @@ namespace tsn {
         struct token {
             token_type tp;
 
-            // View of ProgramSource::m_rawCode, read only, unless tp == tt_string | tt_template_string
+            // View of ModuleSource::m_rawCode, read only, unless tp == tt_string | tt_template_string
             utils::String text;
             SourceLocation src;
 
@@ -58,7 +58,7 @@ namespace tsn {
 
         class Lexer {
             public:
-                Lexer(ProgramSource* src);
+                Lexer(ModuleSource* src);
                 ~Lexer();
 
                 utils::Array<token> tokenize();
@@ -66,7 +66,7 @@ namespace tsn {
             private:
                 void reset();
 
-                ProgramSource* m_source;
+                ModuleSource* m_source;
                 SourceLocation m_curSrc;
         };
     };

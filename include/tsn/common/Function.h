@@ -57,8 +57,8 @@ namespace tsn {
                 //     Will be null pointer
                 void* getWrapperAddress() const;
 
-                virtual bool serialize(utils::Buffer* out, Context* ctx) const;
-                virtual bool deserialize(utils::Buffer* in, Context* ctx);
+                virtual bool serialize(utils::Buffer* out, Context* ctx, void* extra) const;
+                virtual bool deserialize(utils::Buffer* in, Context* ctx, void* extra);
 
             protected:
                 friend class compiler::Compiler;
@@ -88,8 +88,8 @@ namespace tsn {
                 u64 getThisPtrOffset() const;
                 Method* clone(const utils::String& name, u64 baseOffset) const;
 
-                virtual bool serialize(utils::Buffer* out, Context* ctx) const;
-                virtual bool deserialize(utils::Buffer* in, Context* ctx);
+                virtual bool serialize(utils::Buffer* out, Context* ctx, void* extra) const;
+                virtual bool deserialize(utils::Buffer* in, Context* ctx, void* extra);
 
             private:
                 u64 m_baseOffset;
@@ -103,8 +103,8 @@ namespace tsn {
 
                 compiler::ParseNode* getAST();
 
-                virtual bool serialize(utils::Buffer* out, Context* ctx) const;
-                virtual bool deserialize(utils::Buffer* in, Context* ctx);
+                virtual bool serialize(utils::Buffer* out, Context* ctx, void* extra) const;
+                virtual bool deserialize(utils::Buffer* in, Context* ctx, void* extra);
             
             private:
                 compiler::ParseNode* m_ast;
@@ -118,8 +118,8 @@ namespace tsn {
 
                 compiler::ParseNode* getAST();
 
-                virtual bool serialize(utils::Buffer* out, Context* ctx) const;
-                virtual bool deserialize(utils::Buffer* in, Context* ctx);
+                virtual bool serialize(utils::Buffer* out, Context* ctx, void* extra) const;
+                virtual bool deserialize(utils::Buffer* in, Context* ctx, void* extra);
             
             private:
                 compiler::ParseNode* m_ast;

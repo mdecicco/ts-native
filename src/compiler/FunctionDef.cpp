@@ -1,13 +1,12 @@
 #include <tsn/compiler/FunctionDef.hpp>
 #include <tsn/compiler/Compiler.h>
-#include <tsn/compiler/Output.h>
+#include <tsn/compiler/OutputBuilder.h>
 #include <tsn/common/Context.h>
 #include <tsn/common/Function.h>
 #include <tsn/common/DataType.h>
 #include <tsn/common/Module.h>
 #include <tsn/common/TypeRegistry.h>
 #include <tsn/interfaces/IDataTypeHolder.hpp>
-#include <tsn/interfaces/ICodeHolder.h>
 #include <tsn/bind/ExecutionContext.h>
 
 #include <utils/Array.hpp>
@@ -18,6 +17,23 @@ using namespace tsn::ffi;
 
 namespace tsn {
     namespace compiler {
+        FunctionDef::FunctionDef() {
+            m_comp = nullptr;
+            m_retTp = nullptr;
+            m_retTpSet = false;
+            m_thisTp = nullptr;
+            m_output = nullptr;
+            m_nextAllocId = 1;
+            m_nextRegId = 1;
+            m_nextLabelId = 1;
+            m_thisArg = nullptr;
+            m_ectxArg = nullptr;
+            m_fptrArg = nullptr;
+            m_retpArg = nullptr;
+            m_poison = nullptr;
+            m_implicitArgCount = 0;
+        }
+
         FunctionDef::FunctionDef(Compiler* c, const utils::String& name, DataType* methodOf) {
             m_comp = c;
             m_src = c->getCurrentSrc();
@@ -28,6 +44,7 @@ namespace tsn {
             m_output = nullptr;
             m_nextAllocId = 1;
             m_nextRegId = 1;
+            m_nextLabelId = 1;
             m_thisArg = nullptr;
             m_ectxArg = nullptr;
             m_fptrArg = nullptr;
@@ -54,6 +71,7 @@ namespace tsn {
             m_output = func;
             m_nextAllocId = 1;
             m_nextRegId = 1;
+            m_nextLabelId = 1;
             m_thisArg = nullptr;
             m_ectxArg = nullptr;
             m_fptrArg = nullptr;
@@ -93,11 +111,14 @@ namespace tsn {
         }
 
         InstructionRef FunctionDef::add(ir_instruction i) {
-            return ICodeHolder::add(i, m_comp->getCurrentSrc());
+            m_instructions.push(Instruction(i, m_comp->getCurrentSrc()));
+            return InstructionRef(this, m_instructions.size() - 1);
         }
 
         label_id FunctionDef::label() {
-            return ICodeHolder::label(m_comp->getCurrentSrc());
+            label_id l = m_nextLabelId++;
+            add(ir_label).label(l);
+            return l;
         }
 
         Compiler* FunctionDef::getCompiler() const {
@@ -328,48 +349,8 @@ namespace tsn {
             return m_output;
         }
         
-        bool FunctionDef::serialize(utils::Buffer* out, Context* ctx) const {
-            auto writeInstruction = [out, ctx](const Instruction& i) {
-                return !i.serialize(out, ctx);
-            };
-
-            if (!out->write(m_output->isMethod())) return false;
-            if (!out->write(m_output->isTemplate())) return false;
-            if (!m_output->serialize(out, ctx)) return false;
-            if (!out->write(m_instructions.size())) return false;
-            if (m_instructions.some(writeInstruction)) return false;
-            
-            return true;
-        }
-
-        bool FunctionDef::deserialize(utils::Buffer* in, Context* ctx) {
-            bool isMethod = false, isTemplate = false;
-            if (!in->read(isMethod)) return false;
-            if (!in->read(isTemplate)) return false;
-
-            if (isTemplate) {
-                if (isMethod) m_output = new TemplateMethod();
-                else m_output = new TemplateFunction();
-            } else {
-                if (isMethod) m_output = new Method();
-                else m_output = new Function();
-            }
-
-            if (!m_output->deserialize(in, ctx)) {
-                delete m_output;
-                m_output = nullptr;
-                return false;
-            }
-
-            u32 instructionCount = 0;
-            if (!in->read(instructionCount)) return false;
-            for (u32 i = 0;i < instructionCount;i++) {
-                Instruction inst;
-                if (!inst.deserialize(in, ctx)) return false;
-                m_instructions.push(inst);
-            }
-
-            return true;
+        const utils::Array<Instruction>& FunctionDef::getCode() const {
+            return m_instructions;
         }
     };
 };
