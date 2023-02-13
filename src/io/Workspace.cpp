@@ -1,6 +1,9 @@
 #include <tsn/io/Workspace.h>
 #include <tsn/common/Context.h>
 #include <tsn/common/Config.h>
+#include <tsn/compiler/Output.h>
+#include <tsn/interfaces/IPersistable.h>
+#include <tsn/pipeline/Pipeline.h>
 
 #include <utils/Buffer.hpp>
 
@@ -63,6 +66,8 @@ namespace tsn {
                 if (!in->read(m->modified_on)) throw false;
                 if (!in->read(m->is_trusted)) throw false;
 
+                m->module_id = (u32)std::hash<utils::String>()(m->path);
+
                 m_scripts[m->path] = m;
             }
         } catch (bool success) {
@@ -115,6 +120,7 @@ namespace tsn {
     void PersistenceDatabase::onFileDiscovered(const std::string& path, size_t size, u64 modifiedTimestamp, bool trusted) {
         m_scripts[path] = new script_metadata({
             path,
+            (u32)std::hash<utils::String>()(path),
             size,
             modifiedTimestamp,
             trusted
@@ -124,6 +130,18 @@ namespace tsn {
     void PersistenceDatabase::onFileChanged(script_metadata* script, size_t size, u64 modifiedTimestamp) {
         script->size = size;
         script->modified_on = modifiedTimestamp;
+    }
+    
+    bool PersistenceDatabase::onScriptCompiled(script_metadata* script, compiler::Output* output) {
+        utils::Buffer cached;
+        if (!output->serialize(&cached, m_ctx, nullptr)) return false;
+
+        std::filesystem::path p = m_ctx->getConfig()->supportDir;
+        p /= utils::String::Format("%u.tsnc", script->module_id).c_str();
+
+        if (!cached.save(p.string())) return false;
+
+        return true;
     }
 
 
@@ -170,12 +188,65 @@ namespace tsn {
     }
 
     Module* Workspace::getModule(const utils::String& path, const utils::String& fromDir) {
-        std::filesystem::path p = fromDir.c_str() / std::filesystem::path(path.c_str());
-        if (!std::filesystem::exists(p)) return nullptr;
+        using fspath = std::filesystem::path;
 
+        utils::String pathWithExt = path;
+        if (path.toLowerCase().firstIndexOf(".tsn") < 0) pathWithExt += ".tsn";
 
+        fspath p;
+
+        // Try relative to the current path first
+        if (fromDir.size() > 0) {
+            p = fromDir.c_str() / fspath(pathWithExt.c_str());
+            if (std::filesystem::exists(p)) return loadModule(p.string());
+        }
+
+        // Then relative to the workspace root
+        p = fspath(m_ctx->getConfig()->workspaceRoot) / fspath(pathWithExt.c_str());
+        if (std::filesystem::exists(p)) return loadModule(p.string());
+
+        // Then relative to the trusted folder
+        p = fspath(m_ctx->getConfig()->workspaceRoot) / "trusted" / fspath(pathWithExt.c_str());
+        if (std::filesystem::exists(p)) return loadModule(p.string());
 
         return nullptr;
+    }
+    
+    PersistenceDatabase* Workspace::getPersistor() const {
+        return m_db;
+    }
+
+    Module* Workspace::loadModule(const std::string& path) {
+        std::filesystem::path relpath = std::filesystem::relative(path, m_ctx->getConfig()->workspaceRoot);
+        script_metadata* meta = m_db->getScript(relpath.string());
+
+        if (meta) {
+            // find out if it's cached, and if the cache is still valid
+            u64 lastModifiedOn = std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::filesystem::last_write_time(path).time_since_epoch()
+            ).count();
+
+            if (lastModifiedOn == meta->modified_on) {
+                Module* mod = loadCached(meta);
+                if (mod) return mod;
+
+                // fallback to just loading the script normally
+            }
+        }
+
+        return m_ctx->getPipeline()->buildFromSource(meta);
+    }
+    
+    Module* Workspace::loadCached(script_metadata* script) {
+        utils::String cachePath = utils::String::Format(
+            "%s/%u.tsnc",
+            m_ctx->getConfig()->supportDir.c_str(),
+            script->module_id
+        );
+
+        if (!std::filesystem::exists(cachePath.c_str())) return nullptr;
+
+        return m_ctx->getPipeline()->buildFromCached(script);
     }
 
     void Workspace::initPersistence() {

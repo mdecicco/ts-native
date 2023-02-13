@@ -2,7 +2,7 @@
 #include <tsn/common/DataType.h>
 #include <tsn/common/TypeRegistry.h>
 #include <tsn/common/Context.h>
-#include <tsn/compiler/Parser.h>
+#include <tsn/compiler/TemplateContext.h>
 #include <utils/Buffer.hpp>
 #include <utils/Array.hpp>
 
@@ -22,8 +22,9 @@ namespace tsn {
             m_isTemplate = false;
         }
 
-        Function::Function(const utils::String& name, FunctionType* signature, access_modifier access, void* address, void* wrapperAddr) {
-            m_fullyQualifiedName = signature ? signature->generateFullyQualifiedFunctionName(name) : "";
+        Function::Function(const utils::String& name, const utils::String& extraQualifiers, FunctionType* signature, access_modifier access, void* address, void* wrapperAddr) {
+            m_extraQualifiers = extraQualifiers;
+            m_fullyQualifiedName = signature ? signature->generateFullyQualifiedFunctionName(extraQualifiers + name) : "";
             m_displayName = signature ? signature->generateFunctionDisplayName(name) : "";
             m_id = -1;
             m_registryIndex = -1;
@@ -101,47 +102,23 @@ namespace tsn {
             if (!out->write(m_fullyQualifiedName)) return false;
             if (!out->write(m_access)) return false;
             if (!out->write(m_signature ? m_signature->getId() : type_id(0))) return false;
+            if (!out->write(m_isTemplate)) return false;
+            if (!out->write(m_isMethod)) return false;
             if (!m_src.serialize(out, ctx, nullptr)) return false;
 
             return true;
         }
 
         bool Function::deserialize(utils::Buffer* in, Context* ctx, void* extra) {
-            auto readStr = [in](utils::String& str) {
-                str = in->readStr();
-                if (str.size() == 0) return false;
-                return true;
-            };
-            
-            auto readType = [in, ctx](FunctionType** out) {
-                type_id id;
-                if (!in->read(id)) return false;
-
-                if (id == 0) *out = nullptr;
-                else {
-                    *out = (FunctionType*)ctx->getTypes()->getType(id);
-                    if (!*out) return false;
-                }
-                
-                return true;
-            };
-
-            if (!in->read(m_id)) return false;
-            if (!readStr(m_name)) return false;
-            if (!readStr(m_displayName)) return false;
-            if (!readStr(m_fullyQualifiedName)) return false;
-            if (!in->read(m_access)) return false;
-            if (!readType(&m_signature)) return false;
-            if (!m_src.deserialize(in, ctx, nullptr)) return false;
-
-            return true;
+            // Functions must be deserialized specially, due to circular dependance between functions and types
+            return false;
         }
 
         void Function::setThisType(DataType* tp) {
             FunctionType* sig = getSignature();
             sig->setThisType(tp);
-            m_fullyQualifiedName = sig->generateFullyQualifiedFunctionName(tp->getFullyQualifiedName() + "::" + m_name);
-            m_displayName = sig->generateFunctionDisplayName(tp->getName() + "::" + m_name);
+            m_fullyQualifiedName = sig->generateFullyQualifiedFunctionName(m_extraQualifiers + tp->getName() + "::" + m_name);
+            m_displayName = sig->generateFunctionDisplayName(m_extraQualifiers + tp->getName() + "::" + m_name);
         }
 
 
@@ -155,8 +132,8 @@ namespace tsn {
             m_isMethod = true;
         }
 
-        Method::Method(const utils::String& name, FunctionType* signature, access_modifier access, void* address, void* wrapperAddr, u64 baseOffset)
-        : Function(name, signature, access, address, wrapperAddr)
+        Method::Method(const utils::String& name, const utils::String& extraQualifiers, FunctionType* signature, access_modifier access, void* address, void* wrapperAddr, u64 baseOffset)
+        : Function(name, extraQualifiers, signature, access, address, wrapperAddr)
         {
             m_baseOffset = baseOffset;
             m_isMethod = true;
@@ -167,7 +144,7 @@ namespace tsn {
         }
         
         Method* Method::clone(const utils::String& name, u64 baseOffset) const {
-            return new Method(name, getSignature(), getAccessModifier(), getAddress(), getWrapperAddress(), baseOffset);
+            return new Method(name, m_extraQualifiers, getSignature(), getAccessModifier(), getAddress(), getWrapperAddress(), baseOffset);
         }
 
         bool Method::serialize(utils::Buffer* out, Context* ctx, void* extra) const {
@@ -177,9 +154,8 @@ namespace tsn {
         }
 
         bool Method::deserialize(utils::Buffer* in, Context* ctx, void* extra) {
-            if (!Function::deserialize(in, ctx, nullptr)) return false;
-            if (!in->read(m_baseOffset)) return false;
-            return true;
+            // Functions must be deserialized specially, due to circular dependance between functions and types
+            return false;
         }
 
 
@@ -188,42 +164,34 @@ namespace tsn {
         // TemplateFunction
         //
         TemplateFunction::TemplateFunction() {
-            m_ast = nullptr;
+            m_data = nullptr;
             m_isTemplate = true;
         }
 
-        TemplateFunction::TemplateFunction(const utils::String& name, access_modifier access, compiler::ParseNode* ast)
-        : Function(name, nullptr, access, nullptr, nullptr) {
-            m_ast = ast;
+        TemplateFunction::TemplateFunction(const utils::String& name, const utils::String& extraQualifiers, access_modifier access, compiler::TemplateContext* templateData)
+        : Function(name, extraQualifiers, nullptr, access, nullptr, nullptr) {
+            m_data = templateData;
             m_isTemplate = true;
         }
 
         TemplateFunction::~TemplateFunction() {
-            if (m_ast) compiler::ParseNode::destroyDetachedAST(m_ast);
-            m_ast = nullptr;
+            if (m_data) delete m_data;
+            m_data = nullptr;
         }
 
-        compiler::ParseNode* TemplateFunction::getAST() {
-            return m_ast;
+        compiler::TemplateContext* TemplateFunction::getTemplateData() {
+            return m_data;
         }
 
         bool TemplateFunction::serialize(utils::Buffer* out, Context* ctx, void* extra) const {
             if (!Function::serialize(out, ctx, nullptr)) return false;
-            if (!m_ast->serialize(out, ctx, nullptr)) return false;
+            if (!m_data->serialize(out, ctx, nullptr)) return false;
             return true;
         }
 
         bool TemplateFunction::deserialize(utils::Buffer* in, Context* ctx, void* extra) {
-            if (!Function::deserialize(in, ctx, nullptr)) return false;
-            
-            m_ast = new compiler::ParseNode();
-            if (!m_ast->deserialize(in, ctx, nullptr)) {
-                delete m_ast;
-                m_ast = nullptr;
-                return false;
-            }
-
-            return true;
+            // Functions must be deserialized specially, due to circular dependance between functions and types
+            return false;
         }
 
 
@@ -232,42 +200,34 @@ namespace tsn {
         // TemplateMethod
         //
         TemplateMethod::TemplateMethod() {
-            m_ast = nullptr;
+            m_data = nullptr;
             m_isTemplate = true;
         }
 
-        TemplateMethod::TemplateMethod(const utils::String& name, access_modifier access, u64 baseOffset, compiler::ParseNode* ast)
-        : Method(name, nullptr, access, nullptr, nullptr, baseOffset) {
-            m_ast = ast;
+        TemplateMethod::TemplateMethod(const utils::String& name, const utils::String& extraQualifiers, access_modifier access, u64 baseOffset, compiler::TemplateContext* templateData)
+        : Method(name, extraQualifiers, nullptr, access, nullptr, nullptr, baseOffset) {
+            m_data = templateData;
             m_isTemplate = true;
         }
 
         TemplateMethod::~TemplateMethod() {
-            if (m_ast) compiler::ParseNode::destroyDetachedAST(m_ast);
-            m_ast = nullptr;
+            if (m_data) delete m_data;
+            m_data = nullptr;
         }
 
-        compiler::ParseNode* TemplateMethod::getAST() {
-            return m_ast;
+        compiler::TemplateContext* TemplateMethod::getTemplateData() {
+            return m_data;
         }
 
         bool TemplateMethod::serialize(utils::Buffer* out, Context* ctx, void* extra) const {
             if (!Method::serialize(out, ctx, nullptr)) return false;
-            if (!m_ast->serialize(out, ctx, nullptr)) return false;
+            if (!m_data->serialize(out, ctx, nullptr)) return false;
             return true;
         }
 
         bool TemplateMethod::deserialize(utils::Buffer* in, Context* ctx, void* extra) {
-            if (!Method::deserialize(in, ctx, nullptr)) return false;
-
-            m_ast = new compiler::ParseNode();
-            if (!m_ast->deserialize(in, ctx, nullptr)) {
-                delete m_ast;
-                m_ast = nullptr;
-                return false;
-            }
-
-            return true;
+            // Functions must be deserialized specially, due to circular dependance between functions and types
+            return false;
         }
     };
 };

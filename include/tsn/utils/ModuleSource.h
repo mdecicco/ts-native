@@ -4,10 +4,15 @@
 #include <utils/String.h>
 #include <utils/Array.h>
 
+namespace utils {
+    class Buffer;
+};
+
 namespace tsn {
     class ModuleSource {
         public:
             ModuleSource(const utils::String& code, u64 modificationTime);
+            ModuleSource(const utils::Buffer* code, u64 modificationTime);
             ~ModuleSource();
 
             u32 getLineCount() const;
@@ -18,6 +23,8 @@ namespace tsn {
             const utils::String& getLine(u32 idx) const;
         
         private:
+            void init();
+            
             u64 m_modificationTime;
             utils::String m_code;
             utils::Array<utils::String> m_lines;

@@ -15,8 +15,8 @@ namespace tsn {
         m_line = line;
         m_col = col;
         m_length = m_endLine = m_endCol = 0;
-
-        if (src->getLineCount() <= line) {
+        
+        if (!src || src->getLineCount() <= line) {
             m_lineLen = 0;
             m_linePtr = nullptr;
         } else {
@@ -34,6 +34,7 @@ namespace tsn {
     }
 
     utils::String SourceLocation::getLineText() const {
+        if (!m_linePtr) return utils::String();
         return utils::String::View(m_linePtr, m_lineLen);
     }
 
@@ -50,6 +51,7 @@ namespace tsn {
     }
 
     u32 SourceLocation::getOffset() const {
+        if (!m_ref) return 0;
         return u32(m_ref->getLine(m_line).c_str() - m_ref->getCode().c_str()) + m_col;
     }
 
@@ -63,10 +65,13 @@ namespace tsn {
     }
 
     bool SourceLocation::isValid() const {
+        if (!m_ref) return false;
         return m_col < m_lineLen && m_line < m_ref->getLineCount();
     }
 
     bool SourceLocation::operator++(int) {
+        if (!m_ref) return false;
+
         if (m_col < m_lineLen - 1) {
             m_col++;
             m_linePtr++;
@@ -84,6 +89,7 @@ namespace tsn {
     }
 
     char SourceLocation::operator*() const {
+        if (!m_linePtr) return 0;
         return m_linePtr[m_col];
     }
 

@@ -89,7 +89,7 @@ namespace tsn {
         }
 
         template <typename Ret, typename... Args>
-        Function* bind_function(FunctionRegistry* freg, DataTypeRegistry* treg, const utils::String& name, Ret (*func)(Args... args), access_modifier access) {
+        Function* bind_function(Module* mod, FunctionRegistry* freg, DataTypeRegistry* treg, const utils::String& name, Ret (*func)(Args... args), access_modifier access, DataType* selfType) {
             DataType* retTp = treg->getType<Ret>();
             if (!retTp) {
                 throw BindException(utils::String::Format(
@@ -119,6 +119,7 @@ namespace tsn {
 
             Function* fn = new Function(
                 name,
+                utils::String(mod ? mod->getName() + "::" : "") + utils::String(selfType ? selfType->getName() + "::" : ""),
                 sig,
                 access,
                 *reinterpret_cast<void**>(&func),
@@ -131,7 +132,7 @@ namespace tsn {
         }
         
         template <typename Cls, typename Ret, typename... Args>
-        Function* bind_pseudo_method(FunctionRegistry* freg, DataTypeRegistry* treg, const utils::String& name, Ret (*func)(Cls*, Args...), access_modifier access) {
+        Function* bind_pseudo_method(Module* mod, FunctionRegistry* freg, DataTypeRegistry* treg, const utils::String& name, Ret (*func)(Cls*, Args...), access_modifier access) {
             DataType* selfTp = treg->getType<Cls>();
             if (!selfTp) {
                 throw BindException(utils::String::Format(
@@ -170,6 +171,7 @@ namespace tsn {
 
             return new Function(
                 name,
+                utils::String(mod ? mod->getName() + "::" : "") + selfTp->getName() + "::",
                 sig,
                 access,
                 *reinterpret_cast<void**>(&func),
@@ -178,7 +180,7 @@ namespace tsn {
         }
         
         template <typename Cls, typename Ret, typename... Args>
-        Function* bind_method(FunctionRegistry* freg, DataTypeRegistry* treg, const utils::String& name, Ret (Cls::*func)(Args...), access_modifier access) {
+        Function* bind_method(Module* mod, FunctionRegistry* freg, DataTypeRegistry* treg, const utils::String& name, Ret (Cls::*func)(Args...), access_modifier access) {
             DataType* selfTp = treg->getType<Cls>();
             if (!selfTp) {
                 throw BindException(utils::String::Format(
@@ -215,6 +217,7 @@ namespace tsn {
 
             return new Method(
                 name,
+                utils::String(mod ? mod->getName() + "::" : "") + selfTp->getName() + "::",
                 sig,
                 access,
                 *reinterpret_cast<void**>(&func),
@@ -224,7 +227,7 @@ namespace tsn {
         }
         
         template <typename Cls, typename Ret, typename... Args>
-        Function* bind_method(FunctionRegistry* freg, DataTypeRegistry* treg, const utils::String& name, Ret (Cls::*func)(Args...) const, access_modifier access) {
+        Function* bind_method(Module* mod, FunctionRegistry* freg, DataTypeRegistry* treg, const utils::String& name, Ret (Cls::*func)(Args...) const, access_modifier access) {
             DataType* selfTp = treg->getType<Cls>();
             if (!selfTp) {
                 throw BindException(utils::String::Format(
@@ -261,6 +264,7 @@ namespace tsn {
 
             return new Method(
                 name,
+                utils::String(mod ? mod->getName() + "::" : "") + selfTp->getName() + "::",
                 sig,
                 access,
                 *reinterpret_cast<void**>(&func),
@@ -270,7 +274,7 @@ namespace tsn {
         }
 
         template <typename Cls, typename... Args>
-        Function* bind_constructor(FunctionRegistry* freg, DataTypeRegistry* treg, DataType* forType, access_modifier access) {
+        Function* bind_constructor(Module* mod, FunctionRegistry* freg, DataTypeRegistry* treg, DataType* forType, access_modifier access) {
             DataType* selfTp = treg->getType<Cls>();
             if (!selfTp) {
                 throw BindException(utils::String::Format(
@@ -279,7 +283,7 @@ namespace tsn {
                 ));
             }
 
-            utils::String name = forType->getName() + "::constructor";
+            utils::String name = "constructor";
 
             DataType* ptrTp = treg->getType<void*>();
             DataType* voidTp = treg->getType<void>();
@@ -306,6 +310,7 @@ namespace tsn {
 
             return new Function(
                 name,
+                utils::String(mod ? mod->getName() + "::" : "") + forType->getName() + "::",
                 sig,
                 access,
                 *reinterpret_cast<void**>(&func),
@@ -314,7 +319,7 @@ namespace tsn {
         }
 
         template <typename Cls>
-        Function* bind_destructor(FunctionRegistry* freg, DataTypeRegistry* treg, DataType* forType, access_modifier access) {
+        Function* bind_destructor(Module* mod, FunctionRegistry* freg, DataTypeRegistry* treg, DataType* forType, access_modifier access) {
             DataType* selfTp = treg->getType<Cls>();
             if (!selfTp) {
                 throw BindException(utils::String::Format(
@@ -323,7 +328,7 @@ namespace tsn {
                 ));
             }
 
-            utils::String name = forType->getName() + "::destructor";
+            utils::String name = "destructor";
 
             DataType* ptrTp = treg->getType<void*>();
             DataType* voidTp = treg->getType<void>();
@@ -346,6 +351,7 @@ namespace tsn {
 
             return new Function(
                 name,
+                utils::String(mod ? mod->getName() + "::" : "") + forType->getName() + "::",
                 sig,
                 access,
                 *reinterpret_cast<void**>(&func),

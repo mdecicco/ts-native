@@ -119,12 +119,20 @@ namespace tsn {
             return m_funcs;
         }
 
+        utils::Array<FunctionDef*>& OutputBuilder::getFuncs() {
+            return m_funcs;
+        }
+
         const utils::Array<DataType*>& OutputBuilder::getTypes() const {
             return m_types;
         }
 
         Module* OutputBuilder::getModule() {
             return m_mod;
+        }
+
+        Compiler* OutputBuilder::getCompiler() {
+            return m_comp;
         }
     };
 };

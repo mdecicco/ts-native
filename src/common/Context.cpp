@@ -3,6 +3,7 @@
 #include <tsn/common/TypeRegistry.h>
 #include <tsn/common/Module.h>
 #include <tsn/common/Config.h>
+#include <tsn/pipeline/Pipeline.h>
 #include <tsn/interfaces/IDataTypeHolder.hpp>
 #include <tsn/builtin/Builtin.h>
 #include <tsn/io/Workspace.h>
@@ -15,6 +16,7 @@ namespace tsn {
         if (cfg) m_cfg = new Config(*cfg);
         else m_cfg = new Config();
 
+        m_pipeline = new Pipeline(this, nullptr, nullptr);
         m_workspace = new Workspace(this);
         m_types = new ffi::DataTypeRegistry(this);
         m_funcs = new ffi::FunctionRegistry(this);
@@ -28,6 +30,7 @@ namespace tsn {
         if (m_funcs) delete m_funcs;
         if (m_types) delete m_types;
         if (m_workspace) delete m_workspace;
+        if (m_pipeline) delete m_pipeline;
         if (m_cfg) delete m_cfg;
     }
 
@@ -51,6 +54,14 @@ namespace tsn {
         return m_funcs;
     }
 
+    Workspace* Context::getWorkspace() const {
+        return m_workspace;
+    }
+
+    Pipeline* Context::getPipeline() const {
+        return m_pipeline;
+    }
+
     Module* Context::getGlobal() const {
         return m_global;
     }
@@ -70,17 +81,17 @@ namespace tsn {
         return createModule(name, "<host>/" + name + ".tsn");
     }
 
-    Module* Context::getModule(const utils::String& path) {
-        // todo:
-        //     workspace directory, auto-load modules
-
+    Module* Context::getModule(const utils::String& path, const utils::String& fromDir) {
         auto it = m_modules.find(path);
         if (it == m_modules.end()) {
             // Maybe it's a host module
             it = m_modules.find("<host>/" + path + ".tsn");
-            if (it == m_modules.end()) return nullptr;
+            if (it == m_modules.end()) {
+                return m_workspace->getModule(path, fromDir);
+            }
             return it->second;
         }
+
         return it->second;
     }
 

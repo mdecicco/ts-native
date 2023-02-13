@@ -3,6 +3,7 @@
 #include <tsn/common/Function.h>
 #include <tsn/common/FunctionRegistry.h>
 #include <tsn/common/Context.h>
+#include <tsn/compiler/TemplateContext.h>
 #include <tsn/compiler/Parser.h>
 #include <tsn/utils/function_match.h>
 #include <utils/Array.hpp>
@@ -249,6 +250,7 @@ namespace tsn {
             };
 
             if (!out->write(m_id)) return false;
+            if (!out->write(m_itype)) return false;
             if (!out->write(m_name)) return false;
             if (!out->write(m_fullyQualifiedName)) return false;
             if (!out->write(m_info)) return false;
@@ -268,92 +270,8 @@ namespace tsn {
         }
 
         bool DataType::deserialize(utils::Buffer* in, Context* ctx, void* extra) {
-            auto readStr = [in](utils::String& s) {
-                u16 len = 0;
-                if (!in->read(len)) return false;
-                s = in->readStr(len);
-                if (s.size() != len) return false;
-                return true;
-            };
-
-            auto readFunc = [in, ctx](Function** out) {
-                function_id id;
-                if (!in->read(id)) return false;
-
-                if (id == 0) *out = nullptr;
-                else {
-                    *out = ctx->getFunctions()->getFunction(id);
-                    if (!*out) return false;
-                }
-                
-                return true;
-            };
-
-            auto readType = [in, ctx](DataType** out) {
-                type_id id;
-                if (!in->read(id)) return false;
-                
-                if (id == 0) *out = nullptr;
-                else {
-                    *out = ctx->getTypes()->getType(id);
-                    if (!*out) return false;
-                }
-
-                return true;
-            };
-
-            auto readProperty = [in, readStr, readFunc, readType](type_property& p) {
-                if (!readStr(p.name)) return false;
-                if (!in->read(p.access)) return false;
-                if (!in->read(p.offset)) return false;
-                if (!readType(&p.type)) return false;
-                if (!in->read(p.flags)) return false;
-                if (!readFunc(&p.getter)) return false;
-                if (!readFunc(&p.setter)) return false;
-
-                return true;
-            };
-
-            auto readBase = [in, readType](type_base& b) {
-                if (!readType(&b.type)) return false;
-                if (!in->read(b.offset)) return false;
-                if (!in->read(b.access)) return false;
-
-                return true;
-            };
-            
-            if (!in->read(m_id)) return false;
-            if (!readStr(m_name)) return false;
-            if (!readStr(m_fullyQualifiedName)) return false;
-            if (!in->read(m_info)) return false;
-            if (!in->read(m_access)) return false;
-            if (!readFunc(&m_destructor)) return false;
-
-            u32 pcount = 0;
-            if (!in->read(pcount)) return false;
-            for (u32 i = 0;i < pcount;i++) {
-                type_property p;
-                if (!readProperty(p)) return false;
-                m_properties.push(p);
-            }
-
-            u32 bcount = 0;
-            if (!in->read(bcount)) return false;
-            for (u32 i = 0;i < bcount;i++) {
-                type_base b;
-                if (!readBase(b)) return false;
-                m_bases.push(b);
-            }
-
-            u32 mcount = 0;
-            if (!in->read(mcount)) return false;
-            for (u32 i = 0;i < mcount;i++) {
-                Function* m;
-                if (!readFunc(&m)) return false;
-                m_methods.push(m);
-            }
-            
-            return true;
+            // Types must be deserialized specially, due to circular dependance between functions and types
+            return false;
         }
 
 
@@ -550,37 +468,8 @@ namespace tsn {
         }
 
         bool FunctionType::deserialize(utils::Buffer* in, Context* ctx, void* extra) {
-            if (!DataType::deserialize(in, ctx, nullptr)) return false;
-
-            auto readType = [in, ctx](DataType** out) {
-                type_id id;
-                if (!in->read(id)) return false;
-
-                if (id == 0) *out = nullptr;
-                else {
-                    *out = ctx->getTypes()->getType(id);
-                    if (!*out) return false;
-                }
-                
-                return true;
-            };
-            auto readArg = [in, readType](function_argument& a) {
-                if (!in->read(a.argType)) return false;
-                if (!readType(&a.dataType)) return false;
-                return false;
-            };
-
-            if (!readType(&m_returnType)) return false;
-
-            u32 acount = 0;
-            if (!in->read(acount)) return false;
-            for (u32 i = 0;i < acount;i++) {
-                function_argument a;
-                if (!readArg(a)) return false;
-                m_args.push(a);
-            }
-
-            return true;
+            // Types must be deserialized specially, due to circular dependance between functions and types
+            return false;
         }
 
 
@@ -588,7 +477,7 @@ namespace tsn {
         //
         // TemplateType
         //
-        type_meta templateTypeMeta (compiler::ParseNode* n) {
+        type_meta templateTypeMeta (const compiler::ParseNode* n) {
             return {
                 0, // is_pod
                 0, // is_trivially_constructible
@@ -610,43 +499,36 @@ namespace tsn {
         }
 
         TemplateType::TemplateType() {
-            m_ast = nullptr;
+            m_data = nullptr;
             m_itype = dti_template;
         }
 
         TemplateType::TemplateType(
             const utils::String& name,
             const utils::String& fullyQualifiedName,
-            compiler::ParseNode* baseAST
-        ) : DataType(name, fullyQualifiedName, templateTypeMeta(baseAST)) {
-            m_ast = baseAST;
+            compiler::TemplateContext* templateData
+        ) : DataType(name, fullyQualifiedName, templateTypeMeta(templateData->getAST())) {
+            m_data = templateData;
             m_itype = dti_template;
         }
 
         TemplateType::~TemplateType() {
-            compiler::ParseNode::destroyDetachedAST(m_ast);
+            if (m_data) delete m_data;
         }
 
-        compiler::ParseNode* TemplateType::getAST() const {
-            return m_ast;
+        compiler::TemplateContext* TemplateType::getTemplateData() const {
+            return m_data;
         }
             
         bool TemplateType::serialize(utils::Buffer* out, Context* ctx, void* extra) const {
             if (!DataType::serialize(out, ctx, nullptr)) return false;
-            if (!m_ast->serialize(out, ctx, nullptr)) return false;
+            if (!m_data->serialize(out, ctx, nullptr)) return false;
             return true;
         }
 
         bool TemplateType::deserialize(utils::Buffer* in, Context* ctx, void* extra) {
-            if (!DataType::deserialize(in, ctx, nullptr)) return false;
-            m_ast = new compiler::ParseNode();
-            if (!m_ast->deserialize(in, ctx, nullptr)) {
-                delete m_ast;
-                m_ast = nullptr;
-                return false;
-            }
-
-            return true;
+            // Types must be deserialized specially, due to circular dependance between functions and types
+            return false;
         }
 
 
@@ -691,18 +573,8 @@ namespace tsn {
         }
 
         bool AliasType::deserialize(utils::Buffer* in, Context* ctx, void* extra) {
-            if (!DataType::deserialize(in, ctx, nullptr)) return false;
-
-            type_id id;
-            if (!in->read(id)) return false;
-
-            if (id == 0) m_ref = nullptr;
-            else {
-                m_ref = ctx->getTypes()->getType(id);
-                if (!m_ref) return false;
-            }
-            
-            return true;
+            // Types must be deserialized specially, due to circular dependance between functions and types
+            return false;
         }
 
 

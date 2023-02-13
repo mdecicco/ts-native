@@ -1,13 +1,16 @@
 #include <tsn/compiler/Output.h>
 #include <tsn/compiler/OutputBuilder.h>
 #include <tsn/compiler/FunctionDef.h>
+#include <tsn/compiler/Compiler.h>
 #include <tsn/compiler/IR.h>
 #include <tsn/compiler/Value.hpp>
+#include <tsn/compiler/TemplateContext.h>
 #include <tsn/common/Context.h>
 #include <tsn/common/Function.h>
 #include <tsn/common/FunctionRegistry.h>
 #include <tsn/common/TypeRegistry.h>
 #include <tsn/common/Module.h>
+#include <tsn/io/Workspace.h>
 #include <tsn/utils/SourceMap.h>
 #include <tsn/utils/SourceLocation.h>
 #include <tsn/utils/ModuleSource.h>
@@ -17,6 +20,8 @@
 
 namespace tsn {
     namespace compiler {
+        using namespace output;
+
         Output::Output() {
             m_mod = nullptr;
         }
@@ -34,7 +39,7 @@ namespace tsn {
                 output::function f;
                 f.func = funcs[i]->getOutput();
                 f.icount = code.size();
-                f.map = new SourceMap(funcs[i]->getSource().getSource()->getModificationTime());
+                f.map = new SourceMap(in->getCompiler()->getScriptInfo()->modified_on);
                 f.code = new output::instruction[code.size()];
                 
                 for (u32 c = 0;c < code.size();c++) {
@@ -80,7 +85,27 @@ namespace tsn {
             if (!out->write(m_mod->getName())) return false;
             if (!out->write(m_mod->getPath())) return false;
 
-            // todo: Serialize everything about the module...
+            // Minus one because first function in IFunctionHolder is always null
+            const auto funcs = m_mod->allFunctions();
+            if (!out->write(funcs.size() - 1)) return false;
+            for (u32 i = 1;i < funcs.size();i++) {
+                if (!funcs[i]->serialize(out, ctx, nullptr)) return false;
+            }
+
+            const auto& types = m_mod->allTypes();
+            if (!out->write(types.size())) return false;
+            for (u32 i = 0;i < types.size();i++) {
+                if (!types[i]->serialize(out, ctx, nullptr)) return false;
+            }
+
+            const auto& data = m_mod->getData();
+            if (!out->write(data.size())) return false;
+            for (u32 i = 0;i < data.size();i++) {
+                if (!out->write(data[i].type->getId())) return false;
+                if (!out->write(data[i].access)) return false;
+                if (!out->write(data[i].name)) return false;
+                if (!out->write(data[i].ptr, data[i].type->getInfo().size)) return false;
+            }
 
             if (!out->write(m_funcs.size())) return false;
 
@@ -108,6 +133,8 @@ namespace tsn {
         }
 
         bool Output::deserialize(utils::Buffer* in, Context* ctx, void* extra) {
+            utils::Array<proto_function> proto_funcs;
+            utils::Array<proto_type> proto_types;
             ffi::FunctionRegistry* freg = ctx->getFunctions();
             ffi::DataTypeRegistry* treg = ctx->getTypes();
 
@@ -121,11 +148,141 @@ namespace tsn {
             m_mod = ctx->createModule(name, path);
             if (m_mod->getId() != mid) return false;
 
-            // todo: Deserialize everything about the module...
+            u32 count;
+            // read functions
+            if (!in->read(count)) return false;
+            for (u32 i = 0;i < count;i++) {
+                function_id id;
+                if (!in->read(id)) return false;
+                proto_funcs.push(proto_function());
+                proto_function& pf = proto_funcs.last();
+                pf.id = id;
 
-            u32 fcount;
-            if (!in->read(fcount)) return false;
-            for (u32 i = 0;i < fcount;i++) {
+                pf.name = in->readStr();
+                if (pf.name.size() == 0) return false;
+                pf.displayName = in->readStr();
+                if (pf.displayName.size() == 0) return false;
+                pf.fullyQualifiedName = in->readStr();
+                if (pf.fullyQualifiedName.size() == 0) return false;
+
+                if (!in->read(pf.access)) return false;
+                if (!in->read(pf.signatureTypeId)) return false;
+                if (!in->read(pf.isTemplate)) return false;
+                if (!in->read(pf.isMethod)) return false;
+                if (!pf.src.deserialize(in, ctx, nullptr)) return false;
+                
+                if (pf.isMethod) {
+                    if (!in->read(pf.baseOffset)) return false;
+                }
+
+                if (pf.isTemplate) {
+                    pf.tctx = new TemplateContext();
+                    if (!pf.tctx->deserialize(in, ctx, nullptr)) {
+                        delete pf.tctx;
+                        pf.tctx = nullptr;
+                        return false;
+                    }
+                }
+            }
+
+            // read types
+            if (!in->read(count)) return false;
+            for (u32 i = 0;i < count;i++) {
+                type_id id;
+                if (!in->read(id)) return false;
+                proto_types.push(proto_type());
+                proto_type& pt = proto_types.last();
+                pt.id = id;
+
+                if (!in->read(pt.itype)) return false;
+
+                pt.name = in->readStr();
+                if (pt.name.size() == 0) return false;
+                pt.fullyQualifiedName = in->readStr();
+                if (pt.fullyQualifiedName.size() == 0) return false;
+                if (!in->read(pt.info)) return false;
+                if (!in->read(pt.access)) return false;
+                if (!in->read(pt.destructorId)) return false;
+                
+                u32 pcount;
+                if (!in->read(pcount)) return false;
+                for (u32 p = 0;p < pcount;p++) {
+                    pt.props.push(proto_type_prop());
+                    proto_type_prop& prop = pt.props.last();
+
+                    prop.name = in->readStr();
+                    if (prop.name.size() == 0) return false;
+
+                    if (!in->read(prop.access)) return false;
+                    if (!in->read(prop.offset)) return false;
+                    if (!in->read(prop.typeId)) return false;
+                    if (!in->read(prop.flags)) return false;
+                    if (!in->read(prop.getterId)) return false;
+                    if (!in->read(prop.setterId)) return false;
+                }
+
+                u32 bcount;
+                if (!in->read(bcount)) return false;
+                pt.bases.reserve(bcount);
+                if (!in->read(pt.bases.data(), bcount * sizeof(proto_type_base))) return false;
+
+                u32 mcount;
+                if (!in->read(mcount)) return false;
+                pt.methodIds.reserve(mcount);
+                if (!in->read(pt.methodIds.data(), mcount * sizeof(function_id))) return false;
+
+                switch (pt.itype) {
+                    case ffi::dti_plain: break;
+                    case ffi::dti_function: {
+                        if (!in->read(pt.returnTypeId)) return false;
+                        u32 acount;
+                        if (!in->read(acount)) return false;
+                        for (u32 a = 0;a < acount;a++) {
+                            proto_type_arg arg;
+                            if (!in->read(arg.argType)) return false;
+                            if (!in->read(arg.dataTypeId)) return false;
+                            pt.args.push(arg);
+                        }
+                        break;
+                    }
+                    case ffi::dti_template: {
+                        pt.tctx = new TemplateContext();
+                        if (!pt.tctx->deserialize(in, ctx, nullptr)) {
+                            delete pt.tctx;
+                            pt.tctx = nullptr;
+                            return false;
+                        }
+                        break;
+                    }
+                    case ffi::dti_alias: {
+                        if (!in->read(pt.aliasTypeId)) return false;
+                        break;
+                    }
+                    case ffi::dti_class: break;
+                }
+            }
+
+            generateTypesAndFunctions(proto_funcs, proto_types, freg, treg);
+
+            // read data
+            if (!in->read(count)) return false;
+            for (u32 i = 0;i < count;i++) {
+                module_data md;
+                type_id tid;
+                if (!in->read(tid)) return false;
+                md.type = treg->getType(tid);
+
+                if (!in->read(md.access)) return false;
+                md.name = in->readStr();
+                if (md.name.size() == 0) return false;
+
+                m_mod->addData(md.name, md.type, md.access);
+                
+                if (!in->read(m_mod->m_data[i].ptr, md.type->getInfo().size)) return false;
+            }
+
+            if (!in->read(count)) return false;
+            for (u32 i = 0;i < count;i++) {
                 output::function f;
                 u32 fid;
                 if (!in->read(fid)) return false;
@@ -180,6 +337,130 @@ namespace tsn {
                 }
 
                 m_funcs.push(f);
+            }
+
+            return true;
+        }
+
+        bool Output::generateTypesAndFunctions(
+            utils::Array<proto_function>& funcs,
+            utils::Array<proto_type>& types,
+            ffi::FunctionRegistry* freg,
+            ffi::DataTypeRegistry* treg
+        ) {
+            utils::Array<ffi::Function*> ofuncs(funcs.size());
+            utils::Array<ffi::DataType*> otypes(types.size());
+
+            // Generate functions without signatures
+            for (auto& pf : funcs) {
+                ffi::Function* f = nullptr;
+                if (pf.isMethod) {
+                    if (pf.isTemplate) f = new ffi::TemplateMethod(pf.name, "", pf.access, pf.baseOffset, pf.tctx);
+                    else f = new ffi::Method(pf.name, "", nullptr, pf.access, nullptr, nullptr, pf.baseOffset);
+                } else {
+                    if (pf.isTemplate) f = new ffi::TemplateFunction(pf.name, "", pf.access, pf.tctx);
+                    else f = new ffi::Function(pf.name, "", nullptr, pf.access, nullptr, nullptr);
+                }
+
+                f->m_fullyQualifiedName = pf.fullyQualifiedName;
+                f->m_displayName = pf.displayName;
+                ofuncs.push(f);
+                freg->registerFunction(f);
+                m_mod->addFunction(f);
+            }
+
+            // Generate types without properties or bases
+            for (auto& pt : types) {
+                ffi::DataType* tp = nullptr;
+                switch (pt.itype) {
+                    case ffi::dti_plain: { tp = new ffi::DataType(); break; }
+                    case ffi::dti_function: { tp = new ffi::FunctionType(); break; }
+                    case ffi::dti_template: { tp = new ffi::TemplateType(); break; }
+                    case ffi::dti_alias: { tp = new ffi::AliasType(); break; }
+                    case ffi::dti_class: { tp = new ffi::ClassType(); break; }
+                }
+
+                tp->m_id = pt.id;
+                tp->m_name = pt.name;
+                tp->m_fullyQualifiedName = pt.fullyQualifiedName;
+                tp->m_info = pt.info;
+                tp->m_access = pt.access;
+                tp->m_destructor = pt.destructorId == 0 ? nullptr : freg->getFunction(pt.destructorId);
+
+                for (auto mid : pt.methodIds) {
+                    tp->m_methods.push(freg->getFunction(mid));
+                }
+
+                treg->addForeignType(tp);
+                m_mod->addForeignType(tp);
+                otypes.push(tp);
+            }
+
+            // Add signatures to functions
+            for (u32 i = 0;i < funcs.size();i++) {
+                proto_function& pf = funcs[i];
+                ffi::Function* f = ofuncs[i];
+
+                f->m_signature = pf.signatureTypeId == 0 ? nullptr : (ffi::FunctionType*)treg->getType(pf.signatureTypeId);
+            }
+
+            // Add properties, bases, derived info to types
+            for (u32 i = 0;i < types.size();i++) {
+                proto_type& pt = types[i];
+                ffi::DataType* tp = otypes[i];
+
+                for (u32 p = 0;p < pt.props.size();p++) {
+                    proto_type_prop& pp = pt.props[p];
+                    tp->m_properties.push(ffi::type_property());
+                    ffi::type_property& prop = tp->m_properties.last();
+
+                    prop.name = pp.name;
+                    prop.flags = pp.flags;
+                    prop.access = pp.access;
+                    prop.offset = pp.offset;
+                    prop.type = treg->getType(pp.typeId);
+                    prop.getter = pp.getterId == 0 ? nullptr : freg->getFunction(pp.getterId);
+                    prop.setter = pp.setterId == 0 ? nullptr : freg->getFunction(pp.setterId);
+                }
+
+                for (u32 b = 0;b < pt.bases.size();b++) {
+                    proto_type_base& pb = pt.bases[b];
+                    tp->m_bases.push(ffi::type_base());
+                    ffi::type_base& base = tp->m_bases.last();
+
+                    base.access = pb.access;
+                    base.offset = pb.offset;
+                    base.type = treg->getType(pb.typeId);
+                }
+
+                switch (pt.itype) {
+                    case ffi::dti_plain: break;
+                    case ffi::dti_function: {
+                        ffi::FunctionType* ft = (ffi::FunctionType*)tp;
+                        ft->m_returnType = pt.returnTypeId == 0 ? nullptr : treg->getType(pt.returnTypeId);
+                        
+                        for (u32 a = 0;a < pt.args.size();a++) {
+                            proto_type_arg& parg = pt.args[a];
+                            ft->m_args.push(ffi::function_argument());
+                            ffi::function_argument& arg = ft->m_args.last();
+
+                            arg.argType = parg.argType;
+                            arg.dataType = treg->getType(parg.dataTypeId);
+                        }
+                        break;
+                    }
+                    case ffi::dti_template: {
+                        ffi::TemplateType* tt = (ffi::TemplateType*)tp;
+                        tt->m_data = pt.tctx;
+                        break;
+                    }
+                    case ffi::dti_alias: {
+                        ffi::AliasType* at = (ffi::AliasType*)tp;
+                        at->m_ref = treg->getType(pt.aliasTypeId);
+                        break;
+                    }
+                    case ffi::dti_class: break;
+                }
             }
 
             return true;

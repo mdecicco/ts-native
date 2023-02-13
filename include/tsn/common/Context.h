@@ -7,6 +7,7 @@ namespace tsn {
     class Module;
     class Config;
     class Workspace;
+    class Pipeline;
 
     namespace ffi {
         class DataTypeRegistry;
@@ -39,15 +40,19 @@ namespace tsn {
             const Config* getConfig() const;
             ffi::DataTypeRegistry* getTypes() const;
             ffi::FunctionRegistry* getFunctions() const;
+            Workspace* getWorkspace() const;
+            Pipeline* getPipeline() const;
 
             Module* getGlobal() const;
             Module* createModule(const utils::String& name, const utils::String& path);
             Module* createHostModule(const utils::String& name);
-            Module* getModule(const utils::String& path);
+            Module* getModule(const utils::String& path, const utils::String& fromDir = utils::String());
             Module* getModule(u32 moduleId);
         
         protected:
             Workspace* m_workspace;
+            Pipeline* m_pipeline;
+
             ffi::DataTypeRegistry* m_types;
             ffi::FunctionRegistry* m_funcs;
             Module* m_global;

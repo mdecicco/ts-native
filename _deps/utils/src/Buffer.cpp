@@ -110,12 +110,12 @@ namespace utils {
     }
 
     void* Buffer::data(u64 offset) {
-        if (offset = m_capacity) return nullptr;
+        if (offset >= m_capacity) return nullptr;
         return m_data + offset;
     }
 
     const void* Buffer::data(u64 offset) const {
-        if (offset = m_capacity) return nullptr;
+        if (offset >= m_capacity) return nullptr;
         return m_data + offset;
     }
 
@@ -188,6 +188,8 @@ namespace utils {
             delete buf;
             return nullptr;
         }
+
+        buf->m_used = buf->m_capacity;
 
         fclose(fp);
         return buf;

@@ -75,6 +75,7 @@ namespace tsn {
 
                 ffi::Function* getOutput();
                 const utils::Array<Instruction>& getCode() const;
+                utils::Array<Instruction>& getCode();
 
             private:
                 friend class OutputBuilder;

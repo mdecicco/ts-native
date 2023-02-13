@@ -334,12 +334,12 @@ namespace tsn {
 
             m_output = new Function(
                 m_name,
+                m_comp->getOutput()->getModule()->getName() + "::",
                 new FunctionType(m_retTp, m_argInfo),
                 private_access,
                 nullptr,
                 nullptr
             );
-
             m_comp->getOutput()->resolveFunctionDef(this, m_output);
 
             return m_output;
@@ -350,6 +350,10 @@ namespace tsn {
         }
         
         const utils::Array<Instruction>& FunctionDef::getCode() const {
+            return m_instructions;
+        }
+    
+        utils::Array<Instruction>& FunctionDef::getCode() {
             return m_instructions;
         }
     };

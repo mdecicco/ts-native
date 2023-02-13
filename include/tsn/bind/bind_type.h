@@ -18,11 +18,11 @@ namespace tsn {
 
         class DataTypeBinder {
             public:
-                DataTypeBinder(FunctionRegistry* freg, DataTypeRegistry* treg, const utils::String& name, const utils::String& fullyQualifiedName, type_meta&& meta);
+                DataTypeBinder(Module* mod, FunctionRegistry* freg, DataTypeRegistry* treg, const utils::String& name, const utils::String& fullyQualifiedName, type_meta&& meta);
                 ~DataTypeBinder();
 
                 type_meta& info();
-                DataType* finalize(Module* mod = nullptr);
+                DataType* finalize();
 
             protected:
                 void setAccessModifier(access_modifier access);
@@ -35,12 +35,13 @@ namespace tsn {
                 FunctionRegistry* funcRegistry;
                 DataTypeRegistry* typeRegistry;
                 DataType* m_type;
+                Module* m_mod;
         };
 
         template <typename Cls>
         class PrimitiveTypeBinder : public DataTypeBinder {
             public:
-                PrimitiveTypeBinder(FunctionRegistry* freg, DataTypeRegistry* treg, const utils::String& name, const utils::String& fullyQualifiedName);
+                PrimitiveTypeBinder(Module* mod, FunctionRegistry* freg, DataTypeRegistry* treg, const utils::String& name, const utils::String& fullyQualifiedName);
                 ~PrimitiveTypeBinder();
 
                 PrimitiveTypeBinder<Cls>& access(access_modifier access);
@@ -76,7 +77,7 @@ namespace tsn {
         template <typename Cls>
         class ObjectTypeBinder : public DataTypeBinder {
             public:
-                ObjectTypeBinder(FunctionRegistry* freg, DataTypeRegistry* treg, const utils::String& name, const utils::String& fullyQualifiedName);
+                ObjectTypeBinder(Module* mod, FunctionRegistry* freg, DataTypeRegistry* treg, const utils::String& name, const utils::String& fullyQualifiedName);
                 ~ObjectTypeBinder();
 
                 ObjectTypeBinder<Cls>& access(access_modifier access);

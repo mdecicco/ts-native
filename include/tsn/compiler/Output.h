@@ -4,7 +4,8 @@
 #include <tsn/interfaces/IPersistable.h>
 #include <tsn/utils/SourceLocation.h>
 
-#include <utils/Array.hpp>
+#include <utils/Array.h>
+#include <utils/robin_hood.h>
 
 namespace tsn {
     class Module;
@@ -13,10 +14,14 @@ namespace tsn {
     namespace ffi {
         class DataType;
         class Function;
+        enum data_type_instance;
+        class FunctionRegistry;
+        class DataTypeRegistry;
     };
 
     namespace compiler {
         class OutputBuilder;
+        class TemplateContext;
         enum ir_instruction;
         enum operand_type : u8;
 
@@ -47,6 +52,68 @@ namespace tsn {
                 instruction* code;
                 SourceMap* map;
             };
+            
+            struct proto_function {
+                function_id id;
+                utils::String name;
+                utils::String displayName;
+                utils::String fullyQualifiedName;
+                access_modifier access;
+                type_id signatureTypeId;
+                bool isTemplate;
+                bool isMethod;
+                SourceLocation src;
+
+                // methods only
+                u64 baseOffset;
+
+                // templates only
+                TemplateContext* tctx;
+            };
+
+            struct proto_type_prop {
+                utils::String name;
+                access_modifier access;
+                u64 offset;
+                type_id typeId;
+                value_flags flags;
+                function_id getterId;
+                function_id setterId;
+            };
+
+            struct proto_type_base {
+                type_id typeId;
+                u64 offset;
+                access_modifier access;
+            };
+
+            struct proto_type_arg {
+                arg_type argType;
+                type_id dataTypeId;
+            };
+
+            struct proto_type {
+                type_id id;
+                ffi::data_type_instance itype;
+                utils::String name;
+                utils::String fullyQualifiedName;
+                type_meta info;
+                access_modifier access;
+                function_id destructorId;
+                utils::Array<proto_type_prop> props;
+                utils::Array<proto_type_base> bases;
+                utils::Array<function_id> methodIds;
+
+                // function types only
+                function_id returnTypeId;
+                utils::Array<proto_type_arg> args;
+
+                // template types only
+                TemplateContext* tctx;
+
+                // alias types only
+                type_id aliasTypeId;
+            };
         };
 
         class Output : public IPersistable {
@@ -61,6 +128,13 @@ namespace tsn {
                 virtual bool deserialize(utils::Buffer* in, Context* ctx, void* extra);
 
             protected:
+                bool generateTypesAndFunctions(
+                    utils::Array<output::proto_function>& funcs,
+                    utils::Array<output::proto_type>& types,
+                    ffi::FunctionRegistry* freg,
+                    ffi::DataTypeRegistry* treg
+                );
+
                 Module* m_mod;
                 utils::Array<output::function> m_funcs;
         };

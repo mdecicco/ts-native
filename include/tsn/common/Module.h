@@ -10,6 +10,7 @@
 namespace tsn {
     namespace compiler {
         class Compiler;
+        class Output;
     };
 
     struct module_data {
@@ -33,6 +34,7 @@ namespace tsn {
         
         private:
             friend class compiler::Compiler;
+            friend class compiler::Output;
             friend class Context;
             Module(Context* ctx, const utils::String& name, const utils::String& path);
             ~Module();

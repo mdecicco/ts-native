@@ -1,6 +1,7 @@
 #pragma once
 #include <tsn/common/types.h>
 #include <tsn/interfaces/IContextual.h>
+#include <tsn/interfaces/IWithLogger.h>
 #include <tsn/utils/SourceLocation.h>
 #include <tsn/compiler/Scope.h>
 #include <tsn/compiler/IR.h>
@@ -19,79 +20,11 @@ namespace tsn {
     };
 
     namespace compiler {
+        class TemplateContext;
         class ParseNode;
         class FunctionDef;
         class OutputBuilder;
         class Value;
-        
-        enum compilation_message_code {
-            cm_info_could_be,
-            cm_info_arg_conversion,
-
-            cm_err_ambiguous_constructor,
-            cm_err_no_matching_constructor,
-            cm_err_private_constructor,
-            cm_err_identifier_does_not_refer_to_type,
-            cm_err_identifier_not_found,
-            cm_err_identifier_ambiguous,
-            cm_err_template_type_expected,
-            cm_err_too_few_template_args,
-            cm_err_too_many_template_args,
-            cm_err_symbol_already_exists,
-            cm_err_dtor_already_exists,
-            cm_err_expected_method_argument_type,
-            cm_err_expected_function_argument_type,
-            cm_err_export_not_in_root_scope,
-            cm_err_export_invalid,
-            cm_err_import_not_in_root_scope,
-            cm_err_import_module_not_found,
-            cm_err_import_type_spec_invalid,
-            cm_err_property_not_found,
-            cm_err_property_is_private,
-            cm_err_property_not_static,
-            cm_err_property_is_static,
-            cm_err_property_no_read_access,
-            cm_err_property_or_method_ambiguous,
-            cm_err_value_not_callable_with_args,
-            cm_err_method_not_found,
-            cm_err_method_ambiguous,
-            cm_err_method_is_static,
-            cm_err_method_not_static,
-            cm_err_export_ambiguous,
-            cm_err_export_not_found,
-            cm_err_malformed_member_expression,
-            cm_err_this_outside_class,
-            cm_err_function_must_return_a_value,
-            cm_err_function_ambiguous,
-            cm_err_function_property_access,
-            cm_err_function_argument_count_mismatch,
-            cm_err_could_not_deduce_type,
-            cm_err_continue_scope,
-            cm_err_break_scope,
-            cm_err_class_scope,
-            cm_err_function_scope,
-            cm_err_type_scope,
-            cm_err_type_not_convertible,
-            cm_err_value_not_writable,
-            cm_err_type_used_as_value,
-            cm_err_module_used_as_value,
-            cm_err_module_data_used_as_value,
-            cm_err_internal
-        };
-
-        enum compilation_message_type {
-            cmt_info,
-            cmt_warn,
-            cmt_error
-        };
-
-        struct compilation_message {
-            compilation_message_type type;
-            compilation_message_code code;
-            utils::String msg;
-            SourceLocation src;
-            ParseNode* node;
-        };
 
         struct loop_or_switch_context {
             bool is_loop;
@@ -106,9 +39,9 @@ namespace tsn {
             Value* self;
         };
 
-        class Compiler : public IContextual {
+        class Compiler : public IContextual, IWithLogger {
             public:
-                Compiler(Context* ctx, ParseNode* programTree, const script_metadata* meta);
+                Compiler(Context* ctx, Logger* log, ParseNode* programTree, const script_metadata* meta);
                 ~Compiler();
 
                 void enterNode(ParseNode* n);
@@ -130,21 +63,20 @@ namespace tsn {
 
                 void updateMethod(ffi::DataType* classTp, ffi::Method* m);
 
-                compilation_message& typeError(ffi::DataType* tp, compilation_message_code code, const char* msg, ...);
-                compilation_message& typeError(ParseNode* node, ffi::DataType* tp, compilation_message_code code, const char* msg, ...);
-                compilation_message& valueError(const Value& val, compilation_message_code code, const char* msg, ...);
-                compilation_message& valueError(ParseNode* node, const Value& val, compilation_message_code code, const char* msg, ...);
-                compilation_message& functionError(ffi::DataType* selfTp, ffi::DataType* retTp, const utils::Array<Value>& args, compilation_message_code code, const char* msg, ...);
-                compilation_message& functionError(ParseNode* node, ffi::DataType* selfTp, ffi::DataType* retTp, const utils::Array<Value>& args, compilation_message_code code, const char* msg, ...);
-                compilation_message& functionError(ffi::DataType* selfTp, ffi::DataType* retTp, const utils::Array<const ffi::DataType*>& argTps, compilation_message_code code, const char* msg, ...);
-                compilation_message& functionError(ParseNode* node, ffi::DataType* selfTp, ffi::DataType* retTp, const utils::Array<const ffi::DataType*>& argTps, compilation_message_code code, const char* msg, ...);
-                compilation_message& error(compilation_message_code code, const char* msg, ...);
-                compilation_message& error(ParseNode* node, compilation_message_code code, const char* msg, ...);
-                compilation_message& warn(compilation_message_code code, const char* msg, ...);
-                compilation_message& warn(ParseNode* node, compilation_message_code code, const char* msg, ...);
-                compilation_message& info(compilation_message_code code, const char* msg, ...);
-                compilation_message& info(ParseNode* node, compilation_message_code code, const char* msg, ...);
-                const utils::Array<compilation_message>& getLogs() const;
+                log_message& typeError(ffi::DataType* tp, log_message_code code, const char* msg, ...);
+                log_message& typeError(ParseNode* node, ffi::DataType* tp, log_message_code code, const char* msg, ...);
+                log_message& valueError(const Value& val, log_message_code code, const char* msg, ...);
+                log_message& valueError(ParseNode* node, const Value& val, log_message_code code, const char* msg, ...);
+                log_message& functionError(ffi::DataType* selfTp, ffi::DataType* retTp, const utils::Array<Value>& args, log_message_code code, const char* msg, ...);
+                log_message& functionError(ParseNode* node, ffi::DataType* selfTp, ffi::DataType* retTp, const utils::Array<Value>& args, log_message_code code, const char* msg, ...);
+                log_message& functionError(ffi::DataType* selfTp, ffi::DataType* retTp, const utils::Array<const ffi::DataType*>& argTps, log_message_code code, const char* msg, ...);
+                log_message& functionError(ParseNode* node, ffi::DataType* selfTp, ffi::DataType* retTp, const utils::Array<const ffi::DataType*>& argTps, log_message_code code, const char* msg, ...);
+                log_message& error(log_message_code code, const char* msg, ...);
+                log_message& error(ParseNode* node, log_message_code code, const char* msg, ...);
+                log_message& warn(log_message_code code, const char* msg, ...);
+                log_message& warn(ParseNode* node, log_message_code code, const char* msg, ...);
+                log_message& info(log_message_code code, const char* msg, ...);
+                log_message& info(ParseNode* node, log_message_code code, const char* msg, ...);
 
             protected:
                 friend class Value;
@@ -173,6 +105,8 @@ namespace tsn {
                 ffi::DataType* resolveTypeNameSpecifier(ParseNode* n);
                 ffi::DataType* applyTypeModifiers(ffi::DataType* tp, ParseNode* mod);
                 ffi::DataType* resolveTypeSpecifier(ParseNode* n);
+                void importTemplateContext(TemplateContext* tctx);
+                void buildTemplateContext(ParseNode* n, TemplateContext* tctx, robin_hood::unordered_set<utils::String>& added);
                 ffi::Method* compileMethodDecl(ParseNode* n, u64 thisOffset, bool* wasDtor, bool templatesDefined = false, bool dtorExists = false);
                 void compileMethodDef(ParseNode* n, ffi::DataType* methodOf, ffi::Method* m);
                 ffi::DataType* compileType(ParseNode* n);
@@ -203,7 +137,6 @@ namespace tsn {
                 ParseNode* m_program;
                 utils::Array<ParseNode*> m_nodeStack;
                 utils::Array<FunctionDef*> m_funcStack;
-                utils::Array<compilation_message> m_messages;
                 ffi::DataType* m_curClass;
                 FunctionDef* m_curFunc;
                 OutputBuilder* m_output;

@@ -6,10 +6,15 @@
 #include <string>
 
 namespace tsn {
+    namespace compiler {
+        class Output;
+    };
+
     class Module;
 
     struct script_metadata {
         std::string path;
+        u32 module_id;
         size_t size;
         u64 modified_on;
         bool is_trusted;
@@ -26,6 +31,9 @@ namespace tsn {
             script_metadata* getScript(const std::string& path);
             void onFileDiscovered(const std::string& path, size_t size, u64 modifiedTimestamp, bool trusted);
             void onFileChanged(script_metadata* script, size_t size, u64 modifiedTimestamp);
+
+            /** Returns true if the compilation output was cached */
+            bool onScriptCompiled(script_metadata* script, compiler::Output* output);
         
         protected:
             robin_hood::unordered_map<std::string, script_metadata*> m_scripts;
@@ -39,8 +47,11 @@ namespace tsn {
             void service();
 
             Module* getModule(const utils::String& path, const utils::String& fromDir = utils::String());
+            PersistenceDatabase* getPersistor() const;
 
         protected:
+            Module* loadModule(const std::string& path);
+            Module* loadCached(script_metadata* script);
             void scanDirectory(const std::string& dir, bool trusted);
             void processScript(const std::string& path, size_t size, u64 modifiedTimestamp, bool trusted);
             void initPersistence();

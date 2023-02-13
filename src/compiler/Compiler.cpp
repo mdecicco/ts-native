@@ -9,6 +9,7 @@
 #include <tsn/common/FunctionRegistry.h>
 #include <tsn/compiler/Value.hpp>
 #include <tsn/compiler/OutputBuilder.h>
+#include <tsn/compiler/TemplateContext.h>
 #include <tsn/interfaces/IDataTypeHolder.hpp>
 #include <tsn/io/Workspace.h>
 #include <tsn/utils/function_match.h>
@@ -47,7 +48,9 @@ namespace tsn {
         // Compiler
         //
 
-        Compiler::Compiler(Context* ctx, ParseNode* programTree, const script_metadata* meta) : IContextual(ctx), m_scopeMgr(this) {
+        Compiler::Compiler(Context* ctx, Logger* log, ParseNode* programTree, const script_metadata* meta)
+            : IContextual(ctx), IWithLogger(log), m_scopeMgr(this)
+        {
             m_meta = meta;
             m_program = programTree;
             m_output = nullptr;
@@ -167,15 +170,15 @@ namespace tsn {
             m->setThisType(classTp);
         }
         
-        static compilation_message null_msg = {
-            cmt_error,
-            (compilation_message_code)0,
+        static log_message null_msg = {
+            lt_error,
+            (log_message_code)0,
             utils::String(),
             SourceLocation(),
             nullptr
         };
 
-        compilation_message& Compiler::typeError(ffi::DataType* tp, compilation_message_code code, const char* msg, ...) {
+        log_message& Compiler::typeError(ffi::DataType* tp, log_message_code code, const char* msg, ...) {
             if (tp->isEqualTo(currentFunction()->getPoison().getType())) {
                 // If the type is poisoned, an error was already emitted. All (or most) subsequent
                 // errors would not actually be errors if the original error had not occurred. This
@@ -190,18 +193,16 @@ namespace tsn {
             va_end(l);
 
             ParseNode* n = m_nodeStack.last();
-            m_messages.push({
-                cmt_error,
+            return submitLog(
+                lt_error,
                 code,
                 utils::String(out, len),
                 n->tok.src,
                 n->clone()
-            });
-
-            return m_messages.last();
+            );
         }
 
-        compilation_message& Compiler::typeError(ParseNode* node, ffi::DataType* tp, compilation_message_code code, const char* msg, ...) {
+        log_message& Compiler::typeError(ParseNode* node, ffi::DataType* tp, log_message_code code, const char* msg, ...) {
             if (tp->isEqualTo(currentFunction()->getPoison().getType())) {
                 // If the type is poisoned, an error was already emitted. All (or most) subsequent
                 // errors would not actually be errors if the original error had not occurred. This
@@ -215,18 +216,16 @@ namespace tsn {
             i32 len = vsnprintf(out, 1024, msg, l);
             va_end(l);
             
-            m_messages.push({
-                cmt_error,
+            return submitLog(
+                lt_error,
                 code,
                 utils::String(out, len),
                 node->tok.src,
                 node->clone()
-            });
-
-            return m_messages.last();
+            );
         }
 
-        compilation_message& Compiler::valueError(const Value& val, compilation_message_code code, const char* msg, ...) {
+        log_message& Compiler::valueError(const Value& val, log_message_code code, const char* msg, ...) {
             if (val.getType()->isEqualTo(currentFunction()->getPoison().getType())) {
                 // If the type is poisoned, an error was already emitted. All (or most) subsequent
                 // errors would not actually be errors if the original error had not occurred. This
@@ -241,18 +240,16 @@ namespace tsn {
             va_end(l);
             
             ParseNode* n = m_nodeStack.last();
-            m_messages.push({
-                cmt_error,
+            return submitLog(
+                lt_error,
                 code,
                 utils::String(out, len),
                 n->tok.src,
                 n->clone()
-            });
-
-            return m_messages.last();
+            );
         }
 
-        compilation_message& Compiler::valueError(ParseNode* node, const Value& val, compilation_message_code code, const char* msg, ...) {
+        log_message& Compiler::valueError(ParseNode* node, const Value& val, log_message_code code, const char* msg, ...) {
             if (val.getType()->isEqualTo(currentFunction()->getPoison().getType())) {
                 // If the type is poisoned, an error was already emitted. All (or most) subsequent
                 // errors would not actually be errors if the original error had not occurred. This
@@ -266,18 +263,16 @@ namespace tsn {
             i32 len = vsnprintf(out, 1024, msg, l);
             va_end(l);
             
-            m_messages.push({
-                cmt_error,
+            return submitLog(
+                lt_error,
                 code,
                 utils::String(out, len),
                 node->tok.src,
                 node->clone()
-            });
-
-            return m_messages.last();
+            );
         }
 
-        compilation_message& Compiler::functionError(ffi::DataType* selfTp, ffi::DataType* retTp, const utils::Array<Value>& args, compilation_message_code code, const char* msg, ...) {
+        log_message& Compiler::functionError(ffi::DataType* selfTp, ffi::DataType* retTp, const utils::Array<Value>& args, log_message_code code, const char* msg, ...) {
             // If any of the involved types are poisoned, an error was already emitted. All
             // (or most) subsequent errors would not actually be errors if the original error
             // had not occurred. This should prevent a cascade of irrelevant errors.
@@ -296,18 +291,16 @@ namespace tsn {
             va_end(l);
 
             ParseNode* n = m_nodeStack.last();
-            m_messages.push({
-                cmt_error,
+            return submitLog(
+                lt_error,
                 code,
                 utils::String(out, len),
                 n->tok.src,
                 n->clone()
-            });
-
-            return m_messages.last();
+            );
         }
 
-        compilation_message& Compiler::functionError(ParseNode* node, ffi::DataType* selfTp, ffi::DataType* retTp, const utils::Array<Value>& args, compilation_message_code code, const char* msg, ...) {
+        log_message& Compiler::functionError(ParseNode* node, ffi::DataType* selfTp, ffi::DataType* retTp, const utils::Array<Value>& args, log_message_code code, const char* msg, ...) {
             // If any of the involved types are poisoned, an error was already emitted. All
             // (or most) subsequent errors would not actually be errors if the original error
             // had not occurred. This should prevent a cascade of irrelevant errors.
@@ -325,18 +318,16 @@ namespace tsn {
             i32 len = vsnprintf(out, 1024, msg, l);
             va_end(l);
             
-            m_messages.push({
-                cmt_error,
+            return submitLog(
+                lt_error,
                 code,
                 utils::String(out, len),
                 node->tok.src,
                 node->clone()
-            });
-
-            return m_messages.last();
+            );
         }
 
-        compilation_message& Compiler::functionError(ffi::DataType* selfTp, ffi::DataType* retTp, const utils::Array<const ffi::DataType*>& argTps, compilation_message_code code, const char* msg, ...) {
+        log_message& Compiler::functionError(ffi::DataType* selfTp, ffi::DataType* retTp, const utils::Array<const ffi::DataType*>& argTps, log_message_code code, const char* msg, ...) {
             // If any of the involved types are poisoned, an error was already emitted. All
             // (or most) subsequent errors would not actually be errors if the original error
             // had not occurred. This should prevent a cascade of irrelevant errors.
@@ -355,18 +346,16 @@ namespace tsn {
             va_end(l);
 
             ParseNode* n = m_nodeStack.last();
-            m_messages.push({
-                cmt_error,
+            return submitLog(
+                lt_error,
                 code,
                 utils::String(out, len),
                 n->tok.src,
                 n->clone()
-            });
-
-            return m_messages.last();
+            );
         }
 
-        compilation_message& Compiler::functionError(ParseNode* node, ffi::DataType* selfTp, ffi::DataType* retTp, const utils::Array<const ffi::DataType*>& argTps, compilation_message_code code, const char* msg, ...) {
+        log_message& Compiler::functionError(ParseNode* node, ffi::DataType* selfTp, ffi::DataType* retTp, const utils::Array<const ffi::DataType*>& argTps, log_message_code code, const char* msg, ...) {
             // If any of the involved types are poisoned, an error was already emitted. All
             // (or most) subsequent errors would not actually be errors if the original error
             // had not occurred. This should prevent a cascade of irrelevant errors.
@@ -384,18 +373,16 @@ namespace tsn {
             i32 len = vsnprintf(out, 1024, msg, l);
             va_end(l);
             
-            m_messages.push({
-                cmt_error,
+            return submitLog(
+                lt_error,
                 code,
                 utils::String(out, len),
                 node->tok.src,
                 node->clone()
-            });
-
-            return m_messages.last();
+            );
         }
 
-        compilation_message& Compiler::error(compilation_message_code code, const char* msg, ...) {
+        log_message& Compiler::error(log_message_code code, const char* msg, ...) {
             char out[1024] = { 0 };
             va_list l;
             va_start(l, msg);
@@ -403,36 +390,32 @@ namespace tsn {
             va_end(l);
 
             ParseNode* n = m_nodeStack.last();
-            m_messages.push({
-                cmt_error,
+            return submitLog(
+                lt_error,
                 code,
                 utils::String(out, len),
                 n->tok.src,
                 n->clone()
-            });
-
-            return m_messages.last();
+            );
         }
         
-        compilation_message& Compiler::error(ParseNode* node, compilation_message_code code, const char* msg, ...) {
+        log_message& Compiler::error(ParseNode* node, log_message_code code, const char* msg, ...) {
             char out[1024] = { 0 };
             va_list l;
             va_start(l, msg);
             i32 len = vsnprintf(out, 1024, msg, l);
             va_end(l);
             
-            m_messages.push({
-                cmt_error,
+            return submitLog(
+                lt_error,
                 code,
                 utils::String(out, len),
                 node->tok.src,
                 node->clone()
-            });
-
-            return m_messages.last();
+            );
         }
 
-        compilation_message& Compiler::warn(compilation_message_code code, const char* msg, ...) {
+        log_message& Compiler::warn(log_message_code code, const char* msg, ...) {
             char out[1024] = { 0 };
             va_list l;
             va_start(l, msg);
@@ -440,36 +423,32 @@ namespace tsn {
             va_end(l);
 
             ParseNode* n = m_nodeStack.last();
-            m_messages.push({
-                cmt_warn,
+            return submitLog(
+                lt_warn,
                 code,
                 utils::String(out, len),
                 n->tok.src,
                 n->clone()
-            });
-
-            return m_messages.last();
+            );
         }
 
-        compilation_message& Compiler::warn(ParseNode* node, compilation_message_code code, const char* msg, ...) {
+        log_message& Compiler::warn(ParseNode* node, log_message_code code, const char* msg, ...) {
             char out[1024] = { 0 };
             va_list l;
             va_start(l, msg);
             i32 len = vsnprintf(out, 1024, msg, l);
             va_end(l);
             
-            m_messages.push({
-                cmt_warn,
+            return submitLog(
+                lt_warn,
                 code,
                 utils::String(out, len),
                 node->tok.src,
                 node->clone()
-            });
-
-            return m_messages.last();
+            );
         }
 
-        compilation_message& Compiler::info(compilation_message_code code, const char* msg, ...) {
+        log_message& Compiler::info(log_message_code code, const char* msg, ...) {
             char out[1024] = { 0 };
             va_list l;
             va_start(l, msg);
@@ -477,37 +456,29 @@ namespace tsn {
             va_end(l);
 
             ParseNode* n = m_nodeStack.last();
-            m_messages.push({
-                cmt_info,
+            return submitLog(
+                lt_info,
                 code,
                 utils::String(out, len),
                 n->tok.src,
                 n->clone()
-            });
-
-            return m_messages.last();
+            );
         }
 
-        compilation_message& Compiler::info(ParseNode* node, compilation_message_code code, const char* msg, ...) {
+        log_message& Compiler::info(ParseNode* node, log_message_code code, const char* msg, ...) {
             char out[1024] = { 0 };
             va_list l;
             va_start(l, msg);
             i32 len = vsnprintf(out, 1024, msg, l);
             va_end(l);
             
-            m_messages.push({
-                cmt_info,
+            return submitLog(
+                lt_info,
                 code,
                 utils::String(out, len),
                 node->tok.src,
                 node->clone()
-            });
-
-            return m_messages.last();
-        }
-
-        const utils::Array<compilation_message>& Compiler::getLogs() const {
-            return m_messages;
+            );
         }
 
 
@@ -808,10 +779,8 @@ namespace tsn {
 
         DataType* getTypeFromSymbol(symbol* s) {
             if (!s) return nullptr;
-            for (u32 i = 0;i < s->values.size();i++) {
-                Value& v = *s->values[i];
-                if (v.getFlags().is_type) return v.getType();
-            }
+
+            if (s->value->getFlags().is_type) return s->value->getType();
 
             return nullptr;
         }
@@ -835,8 +804,10 @@ namespace tsn {
             } else {
                 String fullName = "Array<" + elemTp->getFullyQualifiedName() + ">";
                 TemplateType* at = (TemplateType*)scope().getBase().get("Array");
-                ParseNode* arrayAst = at->getAST();
+                TemplateContext* tctx = at->getTemplateData();
+                ParseNode* arrayAst = tctx->getAST();
                 Scope& tscope = scope().enter();
+                importTemplateContext(tctx);
                 DataType* outTp = nullptr;
 
                 // Add the array element type to the symbol table as the template argument name
@@ -875,8 +846,10 @@ namespace tsn {
             } else {
                 String fullName = "Pointer<" + destTp->getFullyQualifiedName() + ">";
                 TemplateType* pt = (TemplateType*)scope().getBase().get("Pointer");
-                ParseNode* pointerAst = pt->getAST();
+                TemplateContext* tctx = pt->getTemplateData();
+                ParseNode* pointerAst = tctx->getAST();
                 Scope& tscope = scope().enter();
+                importTemplateContext(tctx);
 
                 // Add the pointer destination type to the symbol table as the template argument name
                 tscope.add(pointerAst->template_parameters->str(), destTp);
@@ -912,7 +885,8 @@ namespace tsn {
 
             TemplateType* type = (TemplateType*)_type;
 
-            ParseNode* tpAst = type->getAST();
+            TemplateContext* tctx = type->getTemplateData();
+            ParseNode* tpAst = tctx->getAST();
             enterNode(tpAst);
             Scope& s = scope().enter();
 
@@ -990,14 +964,7 @@ namespace tsn {
 
             symbol* existing = scope().getBase().get(name);
             if (existing) {
-                DataType* etp = nullptr;
-                for (u32 i = 0;i < existing->values.size();i++) {
-                    Value& v = *existing->values[i];
-                    if (v.getFlags().is_type) {
-                        etp = v.getType();
-                        break;
-                    }
-                }
+                DataType* etp = getTypeFromSymbol(existing);
 
                 if (!etp) {
                     typeError(
@@ -1015,6 +982,8 @@ namespace tsn {
                 exitNode();
                 return etp;
             }
+
+            importTemplateContext(tctx);
 
             DataType* tp = nullptr;
             if (tpAst->tp == nt_type) {
@@ -1151,15 +1120,7 @@ namespace tsn {
                 return currentFunction()->getPoison().getType();
             }
 
-            DataType* srcTp = nullptr;
-
-            for (u32 i = 0;i < s->values.size();i++) {
-                Value& v = *s->values[i];
-                if (v.getFlags().is_type) {
-                    srcTp = v.getType();
-                    break;
-                }  
-            }
+            DataType* srcTp = getTypeFromSymbol(s);
 
             if (!srcTp) {
                 error(
@@ -1201,6 +1162,83 @@ namespace tsn {
 
             return applyTypeModifiers(tp, n->modifier);
         }
+        void Compiler::importTemplateContext(TemplateContext* tctx) {
+            const auto& moduleData = tctx->getModuleDataImports();
+            const auto& modules = tctx->getModuleImports();
+            const auto& funcs = tctx->getFunctionImports();
+            const auto& types = tctx->getTypeImports();
+
+            for (u32 i = 0;i < moduleData.size();i++) {
+                scope().add(
+                    moduleData[i].alias,
+                    m_ctx->getModule(moduleData[i].module_id),
+                    moduleData[i].slot_id
+                );
+            }
+
+            for (u32 i = 0;i < modules.size();i++) {
+                scope().add(
+                    modules[i].alias,
+                    m_ctx->getModule(modules[i].id)
+                );
+            }
+
+            for (u32 i = 0;i < funcs.size();i++) {
+                scope().add(
+                    funcs[i].alias,
+                    getOutput()->getFunctionDef(funcs[i].fn)
+                );
+            }
+
+            for (u32 i = 0;i < types.size();i++) {
+                scope().add(
+                    types[i].alias,
+                    types[i].tp
+                );
+            }
+        }
+        void Compiler::buildTemplateContext(ParseNode* n, TemplateContext* tctx, robin_hood::unordered_set<utils::String>& added) {
+            if (n->tp == nt_identifier) {
+                utils::String alias = n->str();
+                if (added.count(alias) > 0) return;
+                
+                symbol* s = scope().get(alias);
+                if (!s) return;
+
+                Value& v = *s->value;
+                auto& f = v.getFlags();
+
+                if (f.is_module) {
+                    tctx->addModuleImport(alias, v.getImm<Module*>()->getId());
+                    added.insert(alias);
+                } else if (f.is_module_data) {
+                    tctx->addModuleDataImport(alias, v.getImm<Module*>()->getId(), v.getModuleDataSlotId());
+                    added.insert(alias);
+                } else if (f.is_type) {
+                    tctx->addTypeImport(alias, v.getType());
+                    added.insert(alias);
+                } else if (f.is_function && v.isImm()) {
+                    tctx->addFunctionImport(alias, v.getImm<FunctionDef*>()->getOutput());
+                    added.insert(alias);
+                }
+
+                return;
+            }
+
+            if (n->data_type) buildTemplateContext(n->data_type, tctx, added);
+            if (n->lvalue) buildTemplateContext(n->lvalue, tctx, added);
+            if (n->rvalue) buildTemplateContext(n->rvalue, tctx, added);
+            if (n->cond) buildTemplateContext(n->cond, tctx, added);
+            if (n->body) buildTemplateContext(n->body, tctx, added);
+            if (n->else_body) buildTemplateContext(n->else_body, tctx, added);
+            if (n->initializer) buildTemplateContext(n->initializer, tctx, added);
+            if (n->parameters) buildTemplateContext(n->parameters, tctx, added);
+            if (n->template_parameters) buildTemplateContext(n->template_parameters, tctx, added);
+            if (n->modifier) buildTemplateContext(n->modifier, tctx, added);
+            if (n->alias) buildTemplateContext(n->alias, tctx, added);
+            if (n->inheritance) buildTemplateContext(n->inheritance, tctx, added);
+            if (n->next) buildTemplateContext(n->next, tctx, added);
+        }
 
         DataType* Compiler::compileType(ParseNode* n) {
             enterNode(n);
@@ -1208,7 +1246,10 @@ namespace tsn {
             String name = n->str();
 
             if (n->template_parameters) {
-                tp = new TemplateType(name, getOutput()->getModule()->getName() + "::" + name, n->clone());
+                TemplateContext* tctx = new TemplateContext(n);
+                robin_hood::unordered_set<utils::String> added;
+                buildTemplateContext(n, tctx, added);
+                tp = new TemplateType(name, getOutput()->getModule()->getName() + "::" + name, tctx);
                 tp->setAccessModifier(private_access);
                 m_output->add(tp);
             } else {
@@ -1291,11 +1332,15 @@ namespace tsn {
             
             if (n->template_parameters) {
                 if (!templatesDefined) {
+                    TemplateContext* tctx = new TemplateContext(n);
+                    robin_hood::unordered_set<utils::String> added;
+                    buildTemplateContext(n, tctx, added);
                     Method* m = new TemplateMethod(
                         name,
+                        m_output->getModule()->getName() + "::",
                         n->flags.is_private ? private_access : public_access,
                         thisOffset,
-                        n->clone()
+                        tctx
                     );
                     m_output->newFunc(m);
                     exitNode();
@@ -1416,6 +1461,7 @@ namespace tsn {
 
             Method* m = new Method(
                 name,
+                m_output->getModule()->getName() + "::",
                 sig,
                 n->flags.is_private ? private_access : public_access,
                 nullptr,
@@ -1434,7 +1480,10 @@ namespace tsn {
             
             if (n->template_parameters) {
                 if (!templatesDefined) {
-                    DataType* tp = new TemplateType(name, fullName, n->clone());
+                    TemplateContext* tctx = new TemplateContext(n);
+                    robin_hood::unordered_set<utils::String> added;
+                    buildTemplateContext(n, tctx, added);
+                    DataType* tp = new TemplateType(name, fullName, tctx);
                     tp->setAccessModifier(private_access);
                     m_output->add(tp);
                     exitNode();
@@ -1556,10 +1605,14 @@ namespace tsn {
             
             if (n->template_parameters) {
                 if (!templatesDefined) {
+                    TemplateContext* tctx = new TemplateContext(n);
+                    robin_hood::unordered_set<utils::String> added;
+                    buildTemplateContext(n, tctx, added);
                     TemplateFunction* f = new TemplateFunction(
                         name,
+                        m_output->getModule()->getName() + "::",
                         n->flags.is_private ? private_access : public_access,
-                        n->clone()
+                        tctx
                     );
                     
                     f->m_src = n->tok.src;
@@ -1656,7 +1709,7 @@ namespace tsn {
                 return;
             }
 
-            Module* m = m_ctx->getModule(n->str());
+            Module* m = m_ctx->getModule(n->str(), std::filesystem::path(m_meta->path).remove_filename().string());
             if (!m) {
                 error(cm_err_import_module_not_found, "Module '%s' not found", n->str().c_str());
                 exitNode();
@@ -1885,7 +1938,7 @@ namespace tsn {
         Value Compiler::compileExpressionInner(ParseNode* n) {
             if (n->tp == nt_identifier) {
                 symbol* s = scope().get(n->str());
-                if (s) return *s->values.last();
+                if (s) return *s->value;
 
                 error(n, cm_err_identifier_not_found, "Undefined identifier '%s'", n->str().c_str());
                 return currentFunction()->getPoison();

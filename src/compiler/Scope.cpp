@@ -24,12 +24,9 @@ namespace tsn {
 
         void Scope::add(const utils::String& name, Value* v) {
             auto it = m_symbols.find(name);
-            if (it != m_symbols.end()) {
-                it->second.values.push(v);
-                return;
-            }
+            if (it != m_symbols.end()) return;
 
-            m_symbols[name] = { { v } };
+            m_symbols[name] = { v };
             m_namedVars.push(v);
             m_comp->getOutput()->addSymbolLifetime(name, m_scopeOriginNode, *v);
         }

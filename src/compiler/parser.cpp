@@ -71,328 +71,13 @@ namespace tsn {
             tok.src.m_endCol = end.m_col;
         }
         
-        void ParseNode::manuallySpecifyRange(const token& end) {
-            tok.src.m_length = end.src.getOffset() - tok.src.getOffset();
-            tok.src.m_endLine = end.src.m_line;
-            tok.src.m_endCol = end.src.m_col;
+        void ParseNode::manuallySpecifyRange(const token& _end) {
+            SourceLocation end = _end.src.getEndLocation();
+            tok.src.m_length = end.getOffset() - tok.src.getOffset();
+            tok.src.m_endLine = end.m_line;
+            tok.src.m_endCol = end.m_col;
         }
 
-        void ParseNode::json(u32 indent, u32 index, bool noIndentOpenBrace) {
-            static const char* nts[] = {
-                "empty",
-                "error",
-                "root",
-                "eos",
-                "break",
-                "cast",
-                "catch",
-                "class",
-                "continue",
-                "export",
-                "expression",
-                "function_type",
-                "function",
-                "identifier",
-                "if",
-                "import_module",
-                "import_symbol",
-                "import",
-                "literal",
-                "loop",
-                "object_decompositor",
-                "object_literal_property",
-                "parameter",
-                "property",
-                "return",
-                "scoped_block",
-                "sizeof",
-                "switch_case",
-                "switch",
-                "this",
-                "throw",
-                "try",
-                "type_modifier",
-                "type_property",
-                "type_specifier",
-                "type",
-                "variable"
-            };
-            static const char* ops[] = {
-                "undefined",
-                "add",
-                "addEq",
-                "sub",
-                "subEq",
-                "mul",
-                "mulEq",
-                "div",
-                "divEq",
-                "mod",
-                "modEq",
-                "xor",
-                "xorEq",
-                "bitAnd",
-                "bitAndEq",
-                "bitOr",
-                "bitOrEq",
-                "bitInv",
-                "shLeft",
-                "shLeftEq",
-                "shRight",
-                "shRightEq",
-                "not",
-                "notEq",
-                "logAnd",
-                "logAndEq",
-                "logOr",
-                "logOrEq",
-                "assign",
-                "compare",
-                "lessThan",
-                "lessThanEq",
-                "greaterThan",
-                "greaterThanEq",
-                "preInc",
-                "postInc",
-                "preDec",
-                "postDec",
-                "negate",
-                "index",
-                "conditional",
-                "member",
-                "new",
-                "placementNew",
-                "call"
-            };
-            static const char* lts[] = {
-                "u8",
-                "u16",
-                "u32",
-                "u64",
-                "i8",
-                "i16",
-                "i32",
-                "i64",
-                "f32",
-                "f64",
-                "string",
-                "template_string",
-                "object",
-                "array",
-                "null",
-                "true",
-                "false"
-            };
-
-            if (next && index == 0) {
-                printf("[\n");
-                indent++;
-                noIndentOpenBrace = false;
-            }
-
-            if (noIndentOpenBrace) printf("{\n");
-            else iprintf(indent, "{\n");
-
-            indent++;
-            iprintf(indent, "\"type\": \"%s\",\n", nts[tp]);
-
-            if (tok.src.isValid()) {
-                computeSourceLocationRange();
-
-                utils::String ln = tok.src.getSource()->getLine(tok.src.getLine()).clone();
-                ln.replaceAll("\n", "");
-                ln.replaceAll("\r", "");
-                u32 wsc = 0;
-                for (;wsc < ln.size();wsc++) {
-                    if (isspace(ln[wsc])) continue;
-                    break;
-                }
-
-                SourceLocation end = tok.src.getEndLocation();
-                u32 baseOffset = tok.src.getOffset();
-                u32 endOffset = end.getOffset();
-
-                utils::String indxStr = "";
-                for (u32 i = 0;i < (tok.src.getCol() - wsc);i++) indxStr += ' ';
-                for (u32 i = 0;i < (endOffset - baseOffset) && indxStr.size() < (ln.size() - wsc);i++) {
-                    indxStr += '^';
-                }
-
-
-                iprintf(indent, "\"source\": {\n");
-                iprintf(indent + 1, "\"range\": {\n");
-                iprintf(indent + 1, "    \"start\": {\n");
-                iprintf(indent + 1, "        \"line\": %d,\n", tok.src.getLine());
-                iprintf(indent + 1, "        \"col\": %d,\n", tok.src.getCol());
-                iprintf(indent + 1, "        \"offset\": %d\n", baseOffset);
-                iprintf(indent + 1, "    },\n");
-                iprintf(indent + 1, "    \"end\": {\n");
-                iprintf(indent + 1, "        \"line\": %d,\n", end.getLine());
-                iprintf(indent + 1, "        \"col\": %d,\n", end.getCol());
-                iprintf(indent + 1, "        \"offset\": %d\n", endOffset);
-                iprintf(indent + 1, "    }\n");
-                iprintf(indent + 1, "},\n");
-                iprintf(indent + 1, "\"line_text\": \"%s\",\n", ln.c_str() + wsc);
-                iprintf(indent + 1, "\"indx_text\": \"%s\"\n", indxStr.c_str());
-                iprintf(indent, "}");
-            } else {
-                iprintf(indent, "\"source\": null");
-            }
-            
-            if (tp == nt_literal) {
-                printf(",\n");
-                iprintf(indent, "\"value_type\": \"%s\"", lts[value_tp]);
-
-                utils::String val;
-                switch (value_tp) {
-                    case lt_u8:
-                    case lt_u16:
-                    case lt_u32:
-                    case lt_u64: {
-                        printf(",\n");
-                        iprintf(indent, "\"value\": %llu", value.u);
-                        break;
-                    }
-                    case lt_i8:
-                    case lt_i16:
-                    case lt_i32:
-                    case lt_i64: {
-                        printf(",\n");
-                        iprintf(indent, "\"value\": %lli", value.i);
-                        break;
-                    }
-                    case lt_f32:
-                    case lt_f64: {
-                        printf(",\n");
-                        iprintf(indent, "\"value\": %f", value.f);
-                        break;
-                    }
-                    case lt_string:
-                    case lt_template_string: {
-                        printf(",\n");
-                        iprintf(indent, "\"value\": \"%s\"", str().c_str());
-                        break;
-                    }
-                    case lt_object:
-                    case lt_array: {
-                        printf(",\n");
-                        iprintf(indent, "\"value\": ");
-                        body->json(indent + 1);
-                        break;
-                    }
-                    case lt_null: {
-                        printf(",\n");
-                        iprintf(indent, "\"value\": null");
-                        break;
-                    }
-                    case lt_true: {
-                        printf(",\n");
-                        iprintf(indent, "\"value\": true");
-                        break;
-                    }
-                    case lt_false: {
-                        printf(",\n");
-                        iprintf(indent, "\"value\": false");
-                        break;
-                    }
-                }
-            } else if (str_len > 0) {
-                printf(",\n");
-                iprintf(indent, "\"text\": \"%s\"", str().c_str());
-            }
-            
-            if (op != op_undefined) {
-                printf(",\n");
-                iprintf(indent, "\"operation\": \"%s\"", ops[op]);
-            }
-
-            printf(",\n");
-            iprintf(indent, "\"flags\": [");
-            u32 i = 0;
-            if (flags.is_const) printf("%s\"is_const\"", (i++) > 0 ? ", " : "");
-            if (flags.is_static) printf("%s\"is_static\"", (i++) > 0 ? ", " : "");
-            if (flags.is_private) printf("%s\"is_private\"", (i++) > 0 ? ", " : "");
-            if (flags.is_array) printf("%s\"is_array\"", (i++) > 0 ? ", " : "");
-            if (flags.is_pointer) printf("%s\"is_pointer\"", (i++) > 0 ? ", " : "");
-            if (flags.defer_cond) printf("%s\"defer_cond\"", (i++) > 0 ? ", " : "");
-            printf("]");
-
-            if (data_type) {
-                printf(",\n");
-                iprintf(indent, "\"data_type\": ");
-                data_type->json(indent);
-            }
-            if (lvalue) {
-                printf(",\n");
-                iprintf(indent, "\"lvalue\": ");
-                lvalue->json(indent);
-            }
-            if (rvalue) {
-                printf(",\n");
-                iprintf(indent, "\"rvalue\": ");
-                rvalue->json(indent);
-            }
-            if (cond) {
-                printf(",\n");
-                iprintf(indent, "\"cond\": ");
-                cond->json(indent);
-            }
-            if (body) {
-                printf(",\n");
-                iprintf(indent, "\"body\": ");
-                body->json(indent);
-            }
-            if (else_body) {
-                printf(",\n");
-                iprintf(indent, "\"else_body\": ");
-                else_body->json(indent);
-            }
-            if (initializer) {
-                printf(",\n");
-                iprintf(indent, "\"initializer\": ");
-                initializer->json(indent);
-            }
-            if (parameters) {
-                printf(",\n");
-                iprintf(indent, "\"parameters\": ");
-                parameters->json(indent);
-            }
-            if (template_parameters) {
-                printf(",\n");
-                iprintf(indent, "\"template_parameters\": ");
-                template_parameters->json(indent);
-            }
-            if (modifier) {
-                printf(",\n");
-                iprintf(indent, "\"modifier\": ");
-                modifier->json(indent);
-            }
-            if (alias) {
-                printf(",\n");
-                iprintf(indent, "\"alias\": ");
-                alias->json(indent);
-            }
-            if (inheritance) {
-                printf(",\n");
-                iprintf(indent, "\"extends\": ");
-                inheritance->json(indent);
-            }
-
-            printf("\n");
-            iprintf(indent > 0 ? indent - 1 : 0, "}");
-
-            if (next) {
-                indent--;
-                printf(",\n");
-                next->json(indent, index + 1, false);
-
-                if (index == 0) {
-                    printf("\n");
-                    iprintf(--indent, "]");
-                }
-            }
-        }
-        
         ParseNode* ParseNode::clone(bool copyNext) {
             ParseNode* c = new ParseNode();
             c->tok = tok;
@@ -464,40 +149,36 @@ namespace tsn {
             if (!out->write(value_tp)) return false;
             if (!out->write(op)) return false;
             if (!out->write(str_len)) return false;
-            if (str_len > 0) {
-                // this isn't strictly necessary, but I'd
-                // rather write 0 than a memory address
-                const char* dummy = nullptr;
-                if (!out->write(&dummy, sizeof(const char*))) return false;
-            } else if (!out->write(value)) return false;
+            if (str_len == 0 && !out->write(value.u)) return false;
+            else if (str_len != 0 && !out->write(value.s, str_len)) return false;
             if (!out->write(flags)) return false;
 
             if (data_type && !out->write(true)) return false;
-            else if (!out->write(false)) return false;
+            else if (!data_type && !out->write(false)) return false;
             if (lvalue && !out->write(true)) return false;
-            else if (!out->write(false)) return false;
+            else if (!lvalue && !out->write(false)) return false;
             if (rvalue && !out->write(true)) return false;
-            else if (!out->write(false)) return false;
+            else if (!rvalue && !out->write(false)) return false;
             if (cond && !out->write(true)) return false;
-            else if (!out->write(false)) return false;
+            else if (!cond && !out->write(false)) return false;
             if (body && !out->write(true)) return false;
-            else if (!out->write(false)) return false;
+            else if (!body && !out->write(false)) return false;
             if (else_body && !out->write(true)) return false;
-            else if (!out->write(false)) return false;
+            else if (!else_body && !out->write(false)) return false;
             if (initializer && !out->write(true)) return false;
-            else if (!out->write(false)) return false;
+            else if (!initializer && !out->write(false)) return false;
             if (parameters && !out->write(true)) return false;
-            else if (!out->write(false)) return false;
+            else if (!parameters && !out->write(false)) return false;
             if (template_parameters && !out->write(true)) return false;
-            else if (!out->write(false)) return false;
+            else if (!template_parameters && !out->write(false)) return false;
             if (modifier && !out->write(true)) return false;
-            else if (!out->write(false)) return false;
+            else if (!modifier && !out->write(false)) return false;
             if (alias && !out->write(true)) return false;
-            else if (!out->write(false)) return false;
+            else if (!alias && !out->write(false)) return false;
             if (inheritance && !out->write(true)) return false;
-            else if (!out->write(false)) return false;
+            else if (!inheritance && !out->write(false)) return false;
             if (next && !out->write(true)) return false;
-            else if (!out->write(false)) return false;
+            else if (!next && !out->write(false)) return false;
 
             if (data_type && !data_type->serialize(out, ctx, nullptr)) return false;
             if (lvalue && !lvalue->serialize(out, ctx, nullptr)) return false;
@@ -535,8 +216,15 @@ namespace tsn {
             if (!in->read(value_tp)) return false;
             if (!in->read(op)) return false;
             if (!in->read(str_len)) return false;
-            if (str_len > 0) value.s = tok.text.c_str();
-            else if (!in->read(value)) return false;
+            if (str_len == 0 && !in->read(value.u)) return false;
+            else if (str_len != 0) {
+                char* s = new char[str_len + 1];
+                if (!in->read((void*)s, str_len)) return false;
+                s[str_len] = 0;
+
+                value.s = s;
+            }
+
             if (!in->read(flags)) return false;
 
             bool has_data_type = false;
@@ -688,6 +376,8 @@ namespace tsn {
         }
         
         void ParseNode::destroyDetachedAST(ParseNode* n) {
+            if (!n || n->flags.is_detached == 0) return;
+            
             if (n->str_len > 0) delete [] n->value.s;
             if (n->data_type) ParseNode::destroyDetachedAST(n->data_type);
             if (n->lvalue) ParseNode::destroyDetachedAST(n->lvalue);
@@ -710,46 +400,27 @@ namespace tsn {
         // Parser
         //
         
-        Parser::Parser(Lexer* l) : m_tokens(l->tokenize()), m_currentIdx(32), m_nodeAlloc(1024, 1024, true) {
+        Parser::Parser(Lexer* l, Logger* log) : IWithLogger(log), m_tokens(l->tokenize()), m_currentIdx(32), m_nodeAlloc(1024, 1024, true) {
             m_currentIdx.push(0);
-            m_currentErrorCount.push(0);
         }
         
         Parser::~Parser() {
         }
         
-        void Parser::push() {
+        void Parser::begin() {
             m_currentIdx.push(m_currentIdx[m_currentIdx.size() - 1]);
-            m_currentErrorCount.push(m_errors.size());
+            beginLoggerTransaction();
         }
         
         void Parser::revert() {
             m_currentIdx.pop();
-            m_currentErrorCount.pop();
-
-            if (m_currentErrorCount.size() > 0 && m_currentErrorCount.last() < m_errors.size()) {
-                m_errors.remove(m_currentErrorCount.last(), m_errors.size() - m_currentErrorCount.last());
-            }
+            revertLoggerTransaction();
         }
         
         void Parser::commit() {
             u32 idx = m_currentIdx.pop();
-            m_currentErrorCount.pop();
-            m_currentErrorCount.last() = m_errors.size();
             m_currentIdx[m_currentIdx.size() - 1] = idx;
-        }
-
-        void Parser::pushRecovery(recoverfn recoverFunc) {
-            m_recoveryStack.push(recoverFunc);
-        }
-        
-        void Parser::popRecovery() {
-            m_recoveryStack.pop();
-        }
-        
-        recoverfn Parser::getRecoveryFn() const {
-            if (m_recoveryStack.size() == 0) return nullptr;
-            return m_recoveryStack.last();
+            commitLoggerTransaction();
         }
         
         void Parser::consume() {
@@ -795,10 +466,6 @@ namespace tsn {
             m_nodeAlloc.free(n);
         }
         
-        const utils::Array<parse_error>& Parser::errors() const {
-            return m_errors;
-        }
-        
         bool Parser::typeIs(token_type tp) const {
             return get().tp == tp;
         }
@@ -817,16 +484,12 @@ namespace tsn {
             return t.tp == tt_symbol && t.text == str;
         }
         
-        void Parser::error(parse_error_code code, const utils::String& msg) {
-            error(code, msg, get());
+        void Parser::error(log_message_code code, const utils::String& msg) {
+            submitLog(lt_error, code, msg, get().src, nullptr);
         }
         
-        void Parser::error(parse_error_code code, const utils::String& msg, const token& tok) {
-            m_errors.push({
-                code,
-                msg,
-                tok
-            });
+        void Parser::error(log_message_code code, const utils::String& msg, const token& tok) {
+            submitLog(lt_error, code, msg, tok.src, nullptr);
         }
         
         
@@ -840,26 +503,6 @@ namespace tsn {
         }
         bool isError(ParseNode* n) {
             return n->tp == nt_error;
-        }
-        bool findRecoveryToken(Parser* ps, bool consumeRecoveryToken) {
-            recoverfn fn = ps->getRecoveryFn();
-            if (!fn) return false;
-
-            ps->push();
-            bool found = false;
-            const token& tok = ps->get();
-            while (tok.tp != tt_eof) {
-                if (fn(tok)) {
-                    if (consumeRecoveryToken) ps->consume();
-                    ps->commit();
-                    return true;
-                }
-
-                ps->consume();
-            }
-
-            ps->revert();
-            return false;
         }
         ParseNode* array_of(Parser* ps, parsefn fn) {
             ParseNode* f = fn(ps);
@@ -880,12 +523,12 @@ namespace tsn {
         }
         ParseNode* list_of(
             Parser* ps, parsefn fn,
-            parse_error_code before_comma_err, const utils::String& before_comma_msg,
-            parse_error_code after_comma_err, const utils::String& after_comma_msg
+            log_message_code before_comma_err, const utils::String& before_comma_msg,
+            log_message_code after_comma_err, const utils::String& after_comma_msg
         ) {
             ParseNode* f = fn(ps);
             if (!f) {
-                if (before_comma_err != pec_none) {
+                if (before_comma_err != pm_none) {
                     ps->error(before_comma_err, before_comma_msg);
                 }
 
@@ -915,7 +558,7 @@ namespace tsn {
         }
         ParseNode* one_of(Parser* ps, std::initializer_list<parsefn> rules) {
             for (auto fn : rules) {
-                ps->push();
+                ps->begin();
 
                 ParseNode* n = fn(ps);
                 if (n) {
@@ -990,7 +633,7 @@ namespace tsn {
             const token& op = ps->get();
             if (op.tp != tt_symbol) {
                 if (op.tp == tt_open_parenth) {
-                    ps->push();
+                    ps->begin();
                     ps->consume();
                     if (ps->typeIs(tt_close_parenth)) {
                         ps->revert();
@@ -999,7 +642,7 @@ namespace tsn {
                 }
 
                 if (op.tp == tt_open_bracket) {
-                    ps->push();
+                    ps->begin();
                     ps->consume();
                     if (ps->typeIs(tt_close_bracket)) {
                         ps->revert();
@@ -1089,7 +732,7 @@ namespace tsn {
         }
         
         const token& skipToNextType(Parser* ps, std::initializer_list<token_type> stopAt) {
-            ps->push();
+            ps->begin();
 
             do {
                 const token& t = ps->get();
@@ -1111,7 +754,7 @@ namespace tsn {
             return ps->get();
         }
         const token& skipToNextText(Parser* ps, const char* str, std::initializer_list<token_type> stopAt = {}) {
-            ps->push();
+            ps->begin();
 
             do {
                 const token& t = ps->get();
@@ -1138,7 +781,7 @@ namespace tsn {
             return ps->get();
         }
         const token& skipToNextKeyword(Parser* ps, const char* str, std::initializer_list<token_type> stopAt = {}) {
-            ps->push();
+            ps->begin();
 
             do {
                 const token& t = ps->get();
@@ -1165,7 +808,7 @@ namespace tsn {
             return ps->get();
         }
         const token& skipToNextSymbol(Parser* ps, const char* str, std::initializer_list<token_type> stopAt = {}) {
-            ps->push();
+            ps->begin();
 
             do {
                 const token& t = ps->get();
@@ -1204,7 +847,7 @@ namespace tsn {
         }
         ParseNode* eosRequired(Parser* ps) {
             if (!ps->typeIs(tt_semicolon)) {
-                ps->error(pec_expected_eos, "Expected ';'");
+                ps->error(pm_expected_eos, "Expected ';'");
                 return nullptr;
             }
             ps->consume();
@@ -1220,7 +863,7 @@ namespace tsn {
             return n;
         }
         ParseNode* typedIdentifier(Parser* ps) {
-            ps->push();
+            ps->begin();
             ParseNode* id = identifier(ps);
             if (!id) {
                 ps->revert();
@@ -1236,7 +879,7 @@ namespace tsn {
 
             id->data_type = typeSpecifier(ps);
             if (!id->data_type || isError(id->data_type)) {
-                if (!id->data_type) ps->error(pec_expected_type_specifier, "Expected type specifier after ':'");
+                if (!id->data_type) ps->error(pm_expected_type_specifier, "Expected type specifier after ':'");
                 ps->freeNode(id);
                 id = errorNode(ps);
             }
@@ -1253,7 +896,7 @@ namespace tsn {
         ParseNode* objectDecompositor(Parser* ps) {
             const token* tok = &ps->get();
             if (!ps->typeIs(tt_open_brace)) return nullptr;
-            ps->push();
+            ps->begin();
             ps->consume();
 
             ParseNode* f = objectDecompositorProperty(ps);
@@ -1271,7 +914,7 @@ namespace tsn {
                 n->next = objectDecompositorProperty(ps);
                 n = n->next;
                 if (!n || isError(n)) {
-                    ps->error(pec_expected_parameter, "Expected property after ','");
+                    ps->error(pm_expected_parameter, "Expected property after ','");
                     const token& r = skipToNextType(ps, { tt_comma, tt_close_brace, tt_semicolon });
                     switch (r.tp) {
                         case tt_comma: continue;
@@ -1290,7 +933,7 @@ namespace tsn {
             }
 
             if (!ps->typeIs(tt_close_brace)) {
-                ps->error(pec_expected_closing_brace, "Expected '}' to close object decompositor");
+                ps->error(pm_expected_closing_brace, "Expected '}' to close object decompositor");
                 ps->freeNode(f);
                 return errorNode(ps);
             }
@@ -1314,7 +957,7 @@ namespace tsn {
 
             ParseNode* args = typeSpecifier(ps);
             if (!args) {
-                ps->error(pec_expected_type_specifier, "Expected template argument");
+                ps->error(pm_expected_type_specifier, "Expected template argument");
                 const token& r = skipToNextType(ps, { tt_comma });
 
                 // May not actually be template args, not enough info here
@@ -1329,7 +972,7 @@ namespace tsn {
                 n->next = typeSpecifier(ps);
                 n = n->next;
                 if (!n) {
-                    ps->error(pec_expected_type_specifier, "Expected template argument");
+                    ps->error(pm_expected_type_specifier, "Expected template argument");
 
                     const token& r = skipToNextType(ps, { tt_comma });
                     switch (r.tp) {
@@ -1343,7 +986,7 @@ namespace tsn {
             }
 
             if (!ps->isSymbol(">")) {
-                ps->error(pec_expected_symbol, "Expected '>' after template argument list");
+                ps->error(pm_expected_symbol, "Expected '>' after template argument list");
 
                 const token& r = skipToNextSymbol(ps, ">");
                 if (r.tp == tt_symbol) {
@@ -1365,7 +1008,7 @@ namespace tsn {
 
             ParseNode* args = identifier(ps);
             if (!args) {
-                ps->error(pec_expected_type_specifier, "Expected template parameter");
+                ps->error(pm_expected_type_specifier, "Expected template parameter");
                 const token& r = skipToNextType(ps, { tt_comma });
 
                 // May not actually be template params, not enough info here
@@ -1382,7 +1025,7 @@ namespace tsn {
                 n->next = identifier(ps);
                 n = n->next;
                 if (!n) {
-                    ps->error(pec_expected_type_specifier, "Expected template parameter");
+                    ps->error(pm_expected_type_specifier, "Expected template parameter");
 
                     const token& r = skipToNextType(ps, { tt_comma });
                     switch (r.tp) {
@@ -1396,7 +1039,7 @@ namespace tsn {
             }
 
             if (!ps->isSymbol(">")) {
-                ps->error(pec_expected_symbol, "Expected '>' after template parameter list");
+                ps->error(pm_expected_symbol, "Expected '>' after template parameter list");
 
                 const token& r = skipToNextSymbol(ps, ">");
                 if (r.tp == tt_symbol) {
@@ -1433,7 +1076,7 @@ namespace tsn {
                 n->next = typedParameter(ps);
                 n = n->next;
                 if (!n) {
-                    ps->error(pec_expected_parameter, "Expected typed parameter after ','");
+                    ps->error(pm_expected_parameter, "Expected typed parameter after ','");
 
                     const token& r = skipToNextType(ps, { tt_comma });
                     switch (r.tp) {
@@ -1447,7 +1090,7 @@ namespace tsn {
             }
 
             if (!ps->typeIs(tt_close_parenth)) {
-                ps->error(pec_expected_closing_parenth, "Expected ')' after typed parameter list");
+                ps->error(pm_expected_closing_parenth, "Expected ')' after typed parameter list");
 
                 if (f) {
                     const token& r = skipToNextType(ps, { tt_close_parenth });
@@ -1478,7 +1121,7 @@ namespace tsn {
                 n->next = parameter(ps);
                 n = n->next;
                 if (!n) {
-                    ps->error(pec_expected_parameter, "Expected parameter after ','");
+                    ps->error(pm_expected_parameter, "Expected parameter after ','");
 
                     const token& r = skipToNextType(ps, { tt_comma });
                     switch (r.tp) {
@@ -1492,7 +1135,7 @@ namespace tsn {
             }
 
             if (!ps->typeIs(tt_close_parenth)) {
-                ps->error(pec_expected_closing_parenth, "Expected ')' after parameter list");
+                ps->error(pm_expected_closing_parenth, "Expected ')' after parameter list");
 
                 if (f) {
                     const token& r = skipToNextType(ps, { tt_close_parenth });
@@ -1523,7 +1166,7 @@ namespace tsn {
                 n->next = parameter(ps);
                 n = n->next;
                 if (!n) {
-                    ps->error(pec_expected_parameter, "Expected parameter after ','");
+                    ps->error(pm_expected_parameter, "Expected parameter after ','");
 
                     const token& r = skipToNextType(ps, { tt_comma });
                     switch (r.tp) {
@@ -1537,7 +1180,7 @@ namespace tsn {
             }
 
             if (!ps->typeIs(tt_close_parenth)) {
-                ps->error(pec_expected_closing_parenth, "Expected ')' to close parameter list");
+                ps->error(pm_expected_closing_parenth, "Expected ')' to close parameter list");
 
                 const token& r = skipToNextType(ps, { tt_close_parenth });
                 switch (r.tp) {
@@ -1568,7 +1211,7 @@ namespace tsn {
                 n->next = typedParameter(ps);
                 n = n->next;
                 if (!n) {
-                    ps->error(pec_expected_parameter, "Expected parameter after ','");
+                    ps->error(pm_expected_parameter, "Expected parameter after ','");
 
                     const token& r = skipToNextType(ps, { tt_comma });
                     switch (r.tp) {
@@ -1582,7 +1225,7 @@ namespace tsn {
             }
 
             if (!ps->typeIs(tt_close_parenth)) {
-                ps->error(pec_expected_closing_parenth, "Expected ')' to close parameter list");
+                ps->error(pm_expected_closing_parenth, "Expected ')' to close parameter list");
 
                 const token& r = skipToNextType(ps, { tt_close_parenth });
                 switch (r.tp) {
@@ -1607,7 +1250,7 @@ namespace tsn {
             ParseNode* n = expressionSequence(ps);
 
             if (!ps->typeIs(tt_close_parenth)) {
-                ps->error(pec_expected_closing_parenth, "Expected ')' to close argument list");
+                ps->error(pm_expected_closing_parenth, "Expected ')' to close argument list");
 
                 const token& r = skipToNextType(ps, { tt_close_parenth });
                 switch (r.tp) {
@@ -1646,7 +1289,7 @@ namespace tsn {
                 const token* t = &ps->get();
                 ps->consume();
                 if (!ps->typeIs(tt_close_bracket)) {
-                    ps->error(pec_expected_closing_bracket, "Expected ']'");
+                    ps->error(pm_expected_closing_bracket, "Expected ']'");
 
                     const token& r = skipToNextType(ps, { tt_close_bracket });
                     switch (r.tp) {
@@ -1667,7 +1310,7 @@ namespace tsn {
             return mod;
         }
         ParseNode* typeProperty(Parser* ps) {
-            ps->push();
+            ps->begin();
             ParseNode* n = identifier(ps);
             if (!n) {
                 ps->revert();
@@ -1686,7 +1329,7 @@ namespace tsn {
             n->tp = nt_type_property;
             n->data_type = typeSpecifier(ps);
             if (!n->data_type) {
-                ps->error(pec_expected_type_specifier, "Expected type specifier after ':'");
+                ps->error(pm_expected_type_specifier, "Expected type specifier after ':'");
                 ps->freeNode(n);
                 return errorNode(ps);
             }
@@ -1701,7 +1344,7 @@ namespace tsn {
         ParseNode* parenthesizedTypeSpecifier(Parser* ps) {
             if (!ps->typeIs(tt_open_parenth)) return nullptr;
             const token* t = &ps->get();
-            ps->push();
+            ps->begin();
             ps->consume();
 
             ParseNode* n = typeSpecifier(ps);
@@ -1715,7 +1358,7 @@ namespace tsn {
             ps->commit();
 
             if (!ps->typeIs(tt_close_parenth)) {
-                ps->error(pec_expected_closing_parenth, "Expected ')'");
+                ps->error(pm_expected_closing_parenth, "Expected ')'");
 
                 const token& r = skipToNextType(ps, { tt_close_parenth });
                 switch (r.tp) {
@@ -1745,7 +1388,7 @@ namespace tsn {
             if (id) return identifierTypeSpecifier(ps, id);
 
             if (ps->typeIs(tt_open_brace)) {
-                ps->push();
+                ps->begin();
                 ps->consume();
 
                 ParseNode* f = typeProperty(ps);
@@ -1756,7 +1399,7 @@ namespace tsn {
                 ps->commit();
                 
                 if (!ps->typeIs(tt_semicolon)) {
-                    ps->error(pec_expected_eos, "Expected ';' after type property");
+                    ps->error(pm_expected_eos, "Expected ';' after type property");
                     if (ps->typeIs(tt_comma)) ps->consume(); // a likely mistake
                     // attempt to continue
                 } else ps->consume();
@@ -1769,14 +1412,14 @@ namespace tsn {
                     if (!n) break;
 
                     if (!ps->typeIs(tt_semicolon)) {
-                        ps->error(pec_expected_eos, "Expected ';' after type property");
+                        ps->error(pm_expected_eos, "Expected ';' after type property");
                         if (ps->typeIs(tt_comma)) ps->consume(); // a likely mistake
                         // attempt to continue
                     } else ps->consume();
                 } while (true);
 
                 if (!ps->typeIs(tt_close_brace)) {
-                    ps->error(pec_expected_closing_brace, "Expected '}' to close object type definition");
+                    ps->error(pm_expected_closing_brace, "Expected '}' to close object type definition");
                     const token& r = skipToNextType(ps, { tt_close_brace });
                     if (r.tp != tt_close_brace) {
                         ps->freeNode(f);
@@ -1795,7 +1438,7 @@ namespace tsn {
 
             if (ps->typeIs(tt_open_parenth)) {
                 const token* t = &ps->get();
-                ps->push();
+                ps->begin();
                 ParseNode* p = maybeTypedParameterList(ps);
                 if (p) {
                     ParseNode* n = ps->newNode(nt_type_specifier, t);
@@ -1806,12 +1449,12 @@ namespace tsn {
 
                         n->data_type = typeSpecifier(ps);
                         if (!n->data_type) {
-                            ps->error(pec_expected_type_specifier, "Expected return type specifier");
+                            ps->error(pm_expected_type_specifier, "Expected return type specifier");
                             ps->freeNode(n);
                             return errorNode(ps);
                         }
                     } else {
-                        ps->error(pec_expected_symbol, "Expected '=>' to indicate return type specifier after parameter list");
+                        ps->error(pm_expected_symbol, "Expected '=>' to indicate return type specifier after parameter list");
                         ps->freeNode(n);
                         return errorNode(ps);
                     }
@@ -1831,7 +1474,7 @@ namespace tsn {
             return identifier(ps);
         }
         ParseNode* typedAssignable(Parser* ps) {
-            ps->push();
+            ps->begin();
             ParseNode* id = identifier(ps);
             if (!id) {
                 ps->revert();
@@ -1847,7 +1490,7 @@ namespace tsn {
 
             id->data_type = typeSpecifier(ps);
             if (!id->data_type) {
-                ps->error(pec_expected_type_specifier, "Expected type specifier after ':'");
+                ps->error(pm_expected_type_specifier, "Expected type specifier after ':'");
                 ps->freeNode(id);
                 id = errorNode(ps);
             }
@@ -1947,7 +1590,7 @@ namespace tsn {
         ParseNode* arrayLiteral(Parser* ps) {
             const token* tok = &ps->get();
             if (!ps->typeIs(tt_open_bracket)) return nullptr;
-            ps->push();
+            ps->begin();
             ps->consume();
 
             ParseNode* n = expressionSequence(ps);
@@ -1957,7 +1600,7 @@ namespace tsn {
             }
 
             if (!ps->typeIs(tt_close_bracket)) {
-                ps->error(pec_expected_closing_bracket, "Expected ']' to close array literal");
+                ps->error(pm_expected_closing_bracket, "Expected ']' to close array literal");
 
                 const token& r = skipToNextType(ps, { tt_close_bracket });
                 switch (r.tp) {
@@ -1978,7 +1621,7 @@ namespace tsn {
             return a;
         }
         ParseNode* objectLiteralProperty(Parser* ps, bool expected) {
-            ps->push();
+            ps->begin();
             ParseNode* n = identifier(ps);
             if (!n) {
                 ps->revert();
@@ -1987,7 +1630,7 @@ namespace tsn {
 
             if (!ps->typeIs(tt_colon)) {
                 if (expected) {
-                    ps->error(pec_expected_colon, utils::String::Format("Expected ':' after '%s'", n->str().c_str()));
+                    ps->error(pm_expected_colon, utils::String::Format("Expected ':' after '%s'", n->str().c_str()));
                 }
                 ps->revert();
                 ps->freeNode(n);
@@ -1997,7 +1640,7 @@ namespace tsn {
             n->tp = nt_object_literal_property;
             n->initializer = singleExpression(ps);
             if (!n->initializer) {
-                ps->error(pec_expected_expr, utils::String::Format("Expected expression after '%s:'", n->str().c_str()));
+                ps->error(pm_expected_expr, utils::String::Format("Expected expression after '%s:'", n->str().c_str()));
                 ps->revert();
                 ps->freeNode(n);
                 return errorNode(ps);
@@ -2009,7 +1652,7 @@ namespace tsn {
         ParseNode* objectLiteral(Parser* ps) {
             const token* tok = &ps->get();
             if (!ps->typeIs(tt_open_brace)) return nullptr;
-            ps->push();
+            ps->begin();
             ps->consume();
 
             ParseNode* f = objectLiteralProperty(ps, false);
@@ -2032,7 +1675,7 @@ namespace tsn {
                 n->next = objectLiteralProperty(ps, true);
                 n = n->next;
                 if (!n || isError(n)) {
-                    if (!n) ps->error(pec_expected_object_property, "Expected object literal property after ','");
+                    if (!n) ps->error(pm_expected_object_property, "Expected object literal property after ','");
 
                     const token& r = skipToNextType(ps, { tt_comma });
                     switch (r.tp) {
@@ -2046,7 +1689,7 @@ namespace tsn {
             }
 
             if (!ps->typeIs(tt_close_brace)) {
-                ps->error(pec_expected_closing_bracket, "Expected '}' to close object literal");
+                ps->error(pm_expected_closing_bracket, "Expected '}' to close object literal");
 
                 const token& r = skipToNextType(ps, { tt_close_brace });
                 switch (r.tp) {
@@ -2105,7 +1748,7 @@ namespace tsn {
                 ParseNode* n = ps->newNode(nt_sizeof, &ps->getPrev());
 
                 if (!ps->isSymbol("<")) {
-                    ps->error(pec_expected_symbol, "Expected single template parameter after 'sizeof'");
+                    ps->error(pm_expected_symbol, "Expected single template parameter after 'sizeof'");
                     ps->freeNode(n);
                     return errorNode(ps);
                 }
@@ -2118,7 +1761,7 @@ namespace tsn {
                 }
 
                 if (n->data_type->next) {
-                    ps->error(pec_expected_single_template_arg, "Expected single template parameter after 'sizeof'");
+                    ps->error(pm_expected_single_template_arg, "Expected single template parameter after 'sizeof'");
                 }
 
                 return n;
@@ -2146,7 +1789,7 @@ namespace tsn {
             n = identifier(ps);
             if (n) {
                 if (ps->isSymbol("<")) {
-                    ps->push();
+                    ps->begin();
                     ParseNode* args = templateArgs(ps);
                     
                     if (args && !isError(args)) {
@@ -2167,7 +1810,7 @@ namespace tsn {
         }
         ParseNode* functionExpression(Parser* ps) {
             const token* tok = &ps->get();
-            ps->push();
+            ps->begin();
             ParseNode* params = one_of(ps, { identifier, maybeParameterList });
             if (!params || isError(params)) {
                 ps->revert();
@@ -2187,7 +1830,7 @@ namespace tsn {
             n->body = one_of(ps, { block, expression });
 
             if (!n->body || isError(n->body)) {
-                if (!n->body) ps->error(pec_expected_function_body, "Expected arrow function body");
+                if (!n->body) ps->error(pm_expected_function_body, "Expected arrow function body");
                 ps->freeNode(n);
                 return errorNode(ps);
             }
@@ -2207,7 +1850,7 @@ namespace tsn {
 
                     ParseNode* r = identifier(ps);
                     if (!r) {
-                        ps->error(pec_expected_identifier, "Expected identifier after '.'");
+                        ps->error(pm_expected_identifier, "Expected identifier after '.'");
                         ps->freeNode(l);
                         return errorNode(ps);
                     }
@@ -2225,7 +1868,7 @@ namespace tsn {
                     ParseNode* r = expression(ps);
                     if (!r) {
                         ps->revert();
-                        ps->error(pec_expected_expr, "Expected expression after '['");
+                        ps->error(pm_expected_expr, "Expected expression after '['");
 
                         const token& rt = skipToNextType(ps, { tt_close_bracket });
                         switch (rt.tp) {
@@ -2242,7 +1885,7 @@ namespace tsn {
 
                     if (!ps->typeIs(tt_close_bracket)) {
                         ps->revert();
-                        ps->error(pec_expected_closing_bracket, "Expected ']'");
+                        ps->error(pm_expected_closing_bracket, "Expected ']'");
 
                         const token& rt = skipToNextType(ps, { tt_close_bracket });
                         switch (rt.tp) {
@@ -2271,7 +1914,7 @@ namespace tsn {
             return l;
         }
         ParseNode* callExpression(Parser* ps) {
-            ps->push();
+            ps->begin();
             ParseNode* callee = memberExpression(ps);
             if (!callee) {
                 ps->revert();
@@ -2310,7 +1953,7 @@ namespace tsn {
                     
                     if (!e->rvalue) {
                         ps->revert();
-                        ps->error(pec_expected_identifier, "Expected identifier after '.'");
+                        ps->error(pm_expected_identifier, "Expected identifier after '.'");
                         ps->freeNode(e);
                         return errorNode(ps);
                     }
@@ -2326,7 +1969,7 @@ namespace tsn {
                     
                     if (!e->rvalue) {
                         ps->revert();
-                        ps->error(pec_expected_expr, "Expected expression after '['");
+                        ps->error(pm_expected_expr, "Expected expression after '['");
 
                         const token& rt = skipToNextType(ps, { tt_close_bracket });
                         switch (rt.tp) {
@@ -2343,7 +1986,7 @@ namespace tsn {
 
                     if (!ps->typeIs(tt_close_bracket)) {
                         ps->revert();
-                        ps->error(pec_expected_closing_bracket, "Expected ']'");
+                        ps->error(pm_expected_closing_bracket, "Expected ']'");
 
                         const token& rt = skipToNextType(ps, { tt_close_bracket });
                         switch (rt.tp) {
@@ -2381,7 +2024,7 @@ namespace tsn {
                 o->data_type = typeSpecifier(ps);
 
                 if (!o->data_type) {
-                    ps->error(pec_expected_type_specifier, "Expected type specifier after 'as' keyword");
+                    ps->error(pm_expected_type_specifier, "Expected type specifier after 'as' keyword");
                     ps->freeNode(o);
                     return errorNode(ps);
                 }
@@ -2422,7 +2065,7 @@ namespace tsn {
                 e->lvalue = unaryExpression(ps);
                 
                 if (!e->lvalue) {
-                    ps->error(pec_expected_expr, utils::String::Format("Expected expression after '%c'", t.text[0]));
+                    ps->error(pm_expected_expr, utils::String::Format("Expected expression after '%c'", t.text[0]));
                     ps->freeNode(e);
                     return errorNode(ps);
                 }
@@ -2439,7 +2082,7 @@ namespace tsn {
                 e->lvalue = unaryExpression(ps);
                 
                 if (!e->lvalue) {
-                    ps->error(pec_expected_expr, utils::String::Format("Expected expression after '%c%c'", t.text[0], t.text[0]));
+                    ps->error(pm_expected_expr, utils::String::Format("Expected expression after '%c%c'", t.text[0], t.text[0]));
                     ps->freeNode(e);
                     return errorNode(ps);
                 }
@@ -2463,7 +2106,7 @@ namespace tsn {
                 e->rvalue = unaryExpression(ps);
                 
                 if (!e->rvalue) {
-                    ps->error(pec_expected_expr, utils::String::Format("Expected expression after '%c'", t->text[0]));
+                    ps->error(pm_expected_expr, utils::String::Format("Expected expression after '%c'", t->text[0]));
                     ps->freeNode(e);
                     return errorNode(ps);
                 }
@@ -2488,7 +2131,7 @@ namespace tsn {
                 e->rvalue = multiplicativeExpression(ps);
                 
                 if (!e->rvalue) {
-                    ps->error(pec_expected_expr, utils::String::Format("Expected expression after '%c'", t->text[0]));
+                    ps->error(pm_expected_expr, utils::String::Format("Expected expression after '%c'", t->text[0]));
                     ps->freeNode(e);
                     return errorNode(ps);
                 }
@@ -2513,7 +2156,7 @@ namespace tsn {
                 e->rvalue = additiveExpression(ps);
                 
                 if (!e->rvalue) {
-                    ps->error(pec_expected_expr, utils::String::Format("Expected expression after '%c%c'", t->text[0]));
+                    ps->error(pm_expected_expr, utils::String::Format("Expected expression after '%c%c'", t->text[0]));
                     ps->freeNode(e);
                     return errorNode(ps);
                 }
@@ -2557,7 +2200,7 @@ namespace tsn {
                 e->rvalue = shiftExpression(ps);
                 
                 if (!e->rvalue) {
-                    ps->error(pec_expected_expr, utils::String::Format("Expected expression after '%s'", sym));
+                    ps->error(pm_expected_expr, utils::String::Format("Expected expression after '%s'", sym));
                     ps->freeNode(e);
                     return errorNode(ps);
                 }
@@ -2582,7 +2225,7 @@ namespace tsn {
                 e->rvalue = relationalExpression(ps);
                 
                 if (!e->rvalue) {
-                    ps->error(pec_expected_expr, utils::String::Format("Expected expression after '%c='", t->text[0]));
+                    ps->error(pm_expected_expr, utils::String::Format("Expected expression after '%c='", t->text[0]));
                     ps->freeNode(e);
                     return errorNode(ps);
                 }
@@ -2606,7 +2249,7 @@ namespace tsn {
                 e->rvalue = equalityExpression(ps);
                 
                 if (!e->rvalue) {
-                    ps->error(pec_expected_expr, "Expected expression after '&'");
+                    ps->error(pm_expected_expr, "Expected expression after '&'");
                     ps->freeNode(e);
                     return errorNode(ps);
                 }
@@ -2629,7 +2272,7 @@ namespace tsn {
                 e->rvalue = bitwiseAndExpression(ps);
                 
                 if (!e->rvalue) {
-                    ps->error(pec_expected_expr, "Expected expression after '^'");
+                    ps->error(pm_expected_expr, "Expected expression after '^'");
                     ps->freeNode(e);
                     return errorNode(ps);
                 }
@@ -2652,7 +2295,7 @@ namespace tsn {
                 e->rvalue = XOrExpression(ps);
                 
                 if (!e->rvalue) {
-                    ps->error(pec_expected_expr, "Expected expression after '|'");
+                    ps->error(pm_expected_expr, "Expected expression after '|'");
                     ps->freeNode(e);
                     return errorNode(ps);
                 }
@@ -2675,7 +2318,7 @@ namespace tsn {
                 e->rvalue = bitwiseOrExpression(ps);
                 
                 if (!e->rvalue) {
-                    ps->error(pec_expected_expr, "Expected expression after '&&'");
+                    ps->error(pm_expected_expr, "Expected expression after '&&'");
                     ps->freeNode(e);
                     return errorNode(ps);
                 }
@@ -2698,7 +2341,7 @@ namespace tsn {
                 e->rvalue = logicalAndExpression(ps);
                 
                 if (!e->rvalue) {
-                    ps->error(pec_expected_expr, "Expected expression after '||'");
+                    ps->error(pm_expected_expr, "Expected expression after '||'");
                     ps->freeNode(e);
                     return errorNode(ps);
                 }
@@ -2720,13 +2363,13 @@ namespace tsn {
                 c->lvalue = assignmentExpression(ps);
 
                 if (!c->lvalue) {
-                    ps->error(pec_expected_expr, "Expected expression for conditional expression's truth result");
+                    ps->error(pm_expected_expr, "Expected expression for conditional expression's truth result");
                     ps->freeNode(c);
                     return errorNode(ps);
                 }
 
                 if (!ps->typeIs(tt_colon)) {
-                    ps->error(pec_expected_symbol, "Expected ':' after conditional expression's truth result");
+                    ps->error(pm_expected_symbol, "Expected ':' after conditional expression's truth result");
                     ps->freeNode(c);
                     return errorNode(ps);
                 }
@@ -2734,7 +2377,7 @@ namespace tsn {
                 c->rvalue = assignmentExpression(ps);
 
                 if (!c->rvalue) {
-                    ps->error(pec_expected_expr, "Expected expression for conditional expression's false result");
+                    ps->error(pm_expected_expr, "Expected expression for conditional expression's false result");
                     ps->freeNode(c);
                     return errorNode(ps);
                 }
@@ -2746,7 +2389,7 @@ namespace tsn {
         }
         ParseNode* assignmentExpression(Parser* ps) {
             const token* first = &ps->get();
-            ps->push();
+            ps->begin();
             ParseNode* n = leftHandSideExpression(ps);
 
             if (n) {
@@ -2761,7 +2404,7 @@ namespace tsn {
 
                         if (!rvalue) {
                             ps->freeNode(n);
-                            ps->error(pec_expected_expr, "Expected expression for rvalue");
+                            ps->error(pm_expected_expr, "Expected expression for rvalue");
                             return errorNode(ps);
                         }
 
@@ -2790,7 +2433,7 @@ namespace tsn {
 
                 b->next = assignmentExpression(ps);
                 if (!b->next || isError(b->next)) {
-                    if (!isError(b->next)) ps->error(pec_expected_expr, "Expected expression after ','");
+                    if (!isError(b->next)) ps->error(pm_expected_expr, "Expected expression after ','");
 
                     const token& r = skipToNextType(ps, { tt_comma, tt_semicolon, tt_close_parenth, tt_close_bracket });
                     switch (r.tp) {
@@ -2820,7 +2463,7 @@ namespace tsn {
                 n = n->next;
 
                 if (!n) {
-                    ps->error(pec_expected_expr, "Expected expression after ','");
+                    ps->error(pm_expected_expr, "Expected expression after ','");
                     const token& r = skipToNextType(ps, { tt_comma, tt_semicolon, tt_close_parenth });
                     switch (r.tp) {
                         case tt_comma: continue;
@@ -2836,7 +2479,7 @@ namespace tsn {
         }
         ParseNode* expressionSequenceGroup(Parser* ps) {
             if (!ps->typeIs(tt_open_parenth)) return nullptr;
-            ps->push();
+            ps->begin();
             ps->consume();
             
             ParseNode* n = expressionSequence(ps);
@@ -2848,7 +2491,7 @@ namespace tsn {
 
             ps->commit();
             if (!ps->typeIs(tt_close_parenth)) {
-                ps->error(pec_expected_closing_parenth, "Expected ')'");
+                ps->error(pm_expected_closing_parenth, "Expected ')'");
 
                 const token& r = skipToNextType(ps, { tt_close_parenth, tt_semicolon });
                 switch (r.tp) {
@@ -2882,7 +2525,7 @@ namespace tsn {
                 ps->consume();
                 decl->initializer = singleExpression(ps);
                 if (!decl->initializer || isError(decl->initializer)) {
-                    if (!isError(decl->initializer)) ps->error(pec_expected_expr, "Expected expression for variable initializer");
+                    if (!isError(decl->initializer)) ps->error(pm_expected_expr, "Expected expression for variable initializer");
                     
                     const token& r = skipToNextType(ps, { tt_semicolon });
                     switch (r.tp) {
@@ -2906,7 +2549,7 @@ namespace tsn {
 
             ParseNode* f = variableDecl(ps);
             if (!f || isError(f)) {
-                if (!isError(f)) ps->error(pec_expected_variable_decl, "Expected variable declaration");
+                if (!isError(f)) ps->error(pm_expected_variable_decl, "Expected variable declaration");
                 ps->freeNode(f);
                 return errorNode(ps);
             }
@@ -2923,7 +2566,7 @@ namespace tsn {
                 n = n->next;
 
                 if (!n) {
-                    ps->error(pec_expected_variable_decl, "Expected variable declaration");
+                    ps->error(pm_expected_variable_decl, "Expected variable declaration");
                     
                     const token& r = skipToNextType(ps, { tt_comma, tt_semicolon });
                     switch (r.tp) {
@@ -2946,7 +2589,7 @@ namespace tsn {
             const token& ft = ps->get();
 
             bool didCommit = false;
-            ps->push();
+            ps->begin();
 
             if (ps->isKeyword("public")) {
                 ps->commit();
@@ -2985,7 +2628,7 @@ namespace tsn {
             bool isCastOperator = false;
             if (!n && ps->typeIs(tt_keyword) && ps->textIs("operator")) {
                 if (isGetter || isSetter) {
-                    ps->error(pec_reserved_word, "Cannot name a getter or setter method 'operator', 'operator' is a reserved word");
+                    ps->error(pm_reserved_word, "Cannot name a getter or setter method 'operator', 'operator' is a reserved word");
                     isGetter = isSetter = false;
                 }
 
@@ -2999,7 +2642,7 @@ namespace tsn {
                 if (n->op == op_undefined) {
                     n->data_type = typeSpecifier(ps);
                     if (!n->data_type) {
-                        ps->error(pec_expected_operator_override_target, "Expected operator or type specifier after 'operator' keyword");
+                        ps->error(pm_expected_operator_override_target, "Expected operator or type specifier after 'operator' keyword");
                 
                         const token& r = skipToNextType(ps, { tt_open_brace });
                         switch (r.tp) {
@@ -3025,7 +2668,7 @@ namespace tsn {
 
             if (!n) {
                 if (isGetter) {
-                    ps->error(pec_expected_identifier, "Expected property name for getter method");
+                    ps->error(pm_expected_identifier, "Expected property name for getter method");
                     
                     const token& r = skipToNextType(ps, { tt_open_brace });
                     switch (r.tp) {
@@ -3036,7 +2679,7 @@ namespace tsn {
                         default: return errorNode(ps);
                     }
                 } else if (isSetter) {
-                    ps->error(pec_expected_identifier, "Expected property name for setter method");
+                    ps->error(pm_expected_identifier, "Expected property name for setter method");
                     
                     const token& r = skipToNextType(ps, { tt_open_brace });
                     switch (r.tp) {
@@ -3047,7 +2690,7 @@ namespace tsn {
                         default: return errorNode(ps);
                     }
                 } else if (didCommit) {
-                    ps->error(pec_expected_identifier, "Expected property or method name");
+                    ps->error(pm_expected_identifier, "Expected property or method name");
                     
                     const token& r = skipToNextType(ps, { tt_semicolon, tt_open_parenth });
                     switch (r.tp) {
@@ -3080,18 +2723,18 @@ namespace tsn {
 
             if (!isGetter && !isSetter && ps->typeIs(tt_colon)) {
                 if (isOperator) {
-                    ps->error(pec_reserved_word, "Cannot name a class property 'operator', 'operator' is a reserved word");
+                    ps->error(pm_reserved_word, "Cannot name a class property 'operator', 'operator' is a reserved word");
                 }
 
                 ps->consume();
                 n->tp = nt_property;
                 n->data_type = typeSpecifier(ps);
                 if (!n->data_type || isError(n->data_type)) {
-                    if (!isError(n->data_type)) ps->error(pec_expected_type_specifier, "Expected type specifier for class property");
+                    if (!isError(n->data_type)) ps->error(pm_expected_type_specifier, "Expected type specifier for class property");
                 }
 
                 if (!ps->typeIs(tt_semicolon)) {
-                    ps->error(pec_expected_eos, "Expected ';' after property declaration");
+                    ps->error(pm_expected_eos, "Expected ';' after property declaration");
                     
                     const token& r = skipToNextType(ps, { tt_semicolon });
                     switch (r.tp) {
@@ -3130,15 +2773,15 @@ namespace tsn {
 
                 if (ps->typeIs(tt_colon)) {
                     if (isCastOperator) {
-                        ps->error(pec_unexpected_type_specifier, "Cast operator overrides should not have return types specified");
+                        ps->error(pm_unexpected_type_specifier, "Cast operator overrides should not have return types specified");
                         // attempt to continue
                         ps->freeNode(n->data_type); // (was already allocated)
                         n->data_type = nullptr;
                     } else if (n->str() == "constructor") {
-                        ps->error(pec_unexpected_type_specifier, "Class constructors should not have return types specified");
+                        ps->error(pm_unexpected_type_specifier, "Class constructors should not have return types specified");
                         // attempt to continue
                     } else if (n->str() == "destructor") {
-                        ps->error(pec_unexpected_type_specifier, "Class destructors should not have return types specified");
+                        ps->error(pm_unexpected_type_specifier, "Class destructors should not have return types specified");
                         // attempt to continue
                     }
 
@@ -3146,7 +2789,7 @@ namespace tsn {
                     n->data_type = typeSpecifier(ps);
                     if (!n->data_type) {
                         if (!isCastOperator && n->str() != "constructor" && n->str() != "destructor") {
-                            ps->error(pec_expected_type_specifier, "Expected type specifier for return value of class method");
+                            ps->error(pm_expected_type_specifier, "Expected type specifier for return value of class method");
                         }
 
                         const token& r = skipToNextType(ps, { tt_open_brace });
@@ -3165,7 +2808,7 @@ namespace tsn {
 
                 n->body = block(ps);
                 if (!n->body) {
-                    ps->error(pec_expected_function_body, "Expected function body after class method declaration");
+                    ps->error(pm_expected_function_body, "Expected function body after class method declaration");
 
                     const token& r = skipToNextType(ps, { tt_close_brace });
                     switch (r.tp) {
@@ -3183,21 +2826,21 @@ namespace tsn {
                 return n;
             } else if (isOperator || templArgs) {
                 // Only possibility is that it was supposed to be a method
-                ps->error(pec_expected_parameter_list, "Expected parameter list for operator override or method");
+                ps->error(pm_expected_parameter_list, "Expected parameter list for operator override or method");
                 ps->freeNode(n);
                 return errorNode(ps);
             } else if (isGetter) {
-                ps->error(pec_expected_identifier, "Expected class property getter method");
+                ps->error(pm_expected_identifier, "Expected class property getter method");
                 ps->freeNode(n);
                 return errorNode(ps);
             } else if (isSetter) {
-                ps->error(pec_expected_identifier, "Expected class property setter method");
+                ps->error(pm_expected_identifier, "Expected class property setter method");
                 ps->freeNode(n);
                 return errorNode(ps);
             }
         
             ps->freeNode(n);
-            ps->error(pec_malformed_class_element, "Expected property type specifier or method parameter list after identifier");
+            ps->error(pm_malformed_class_element, "Expected property type specifier or method parameter list after identifier");
             return errorNode(ps);
         }
         ParseNode* classDef(Parser* ps) {
@@ -3207,7 +2850,7 @@ namespace tsn {
 
             ParseNode* n = identifier(ps);
             if (!n || isError(n)) {
-                if (!n) ps->error(pec_expected_identifier, "Expected identifier for class name");
+                if (!n) ps->error(pm_expected_identifier, "Expected identifier for class name");
 
                 const token& r = skipToNextKeyword(ps, "extends", { tt_open_brace });
                 switch (r.tp) {
@@ -3247,9 +2890,9 @@ namespace tsn {
                 n->inheritance = list_of(
                     ps,
                     typeSpecifier,
-                    pec_expected_type_specifier,
+                    pm_expected_type_specifier,
                     "Expected one or more type specifiers after 'extends'",
-                    pec_expected_type_specifier,
+                    pm_expected_type_specifier,
                     "Expected type specifier after ','"
                 );
                 
@@ -3267,7 +2910,7 @@ namespace tsn {
             }
 
             if (!ps->typeIs(tt_open_brace)) {
-                ps->error(pec_expected_open_brace, "Expected '{' after class name");
+                ps->error(pm_expected_open_brace, "Expected '{' after class name");
                 ps->freeNode(n);
                 return nullptr;
             }
@@ -3278,7 +2921,7 @@ namespace tsn {
             if (!n->body || isError(n->body)) {
                 if (!n->body) {
                     // no error emitted yet
-                    ps->error(pec_empty_class, "Class body cannot be empty");
+                    ps->error(pm_empty_class, "Class body cannot be empty");
                 }
 
                 const token& r = skipToNextType(ps, { tt_close_brace });
@@ -3292,7 +2935,7 @@ namespace tsn {
             }
 
             if (!ps->typeIs(tt_close_brace)) {
-                ps->error(pec_expected_open_brace, "Expected '}' after class body");
+                ps->error(pm_expected_open_brace, "Expected '}' after class body");
                 ps->freeNode(n);
                 return nullptr;
             }
@@ -3300,7 +2943,7 @@ namespace tsn {
             ps->consume();
 
             if (!ps->typeIs(tt_semicolon)) {
-                ps->error(pec_expected_eos, "Expected ';' after class definition");
+                ps->error(pm_expected_eos, "Expected ';' after class definition");
                 // attempt to continue
             } else ps->consume();
 
@@ -3314,7 +2957,7 @@ namespace tsn {
             ParseNode* n = identifier(ps);
 
             if (!n || isError(n)) {
-                if (!n) ps->error(pec_expected_identifier, "Expected identifier for type name");
+                if (!n) ps->error(pm_expected_identifier, "Expected identifier for type name");
 
                 const token& r = skipToNextType(ps, { tt_open_brace, tt_identifier });
                 switch (r.tp) {
@@ -3349,7 +2992,7 @@ namespace tsn {
             }
 
             if (!ps->isSymbol("=")) {
-                ps->error(pec_expected_symbol, utils::String::Format("Expected '=' after 'type %s'", n->str().c_str()));
+                ps->error(pm_expected_symbol, utils::String::Format("Expected '=' after 'type %s'", n->str().c_str()));
                 
                 const token& r = skipToNextType(ps, { tt_open_brace, tt_identifier });
                 switch (r.tp) {
@@ -3367,13 +3010,13 @@ namespace tsn {
             n->tok = *t;
             n->data_type = typeSpecifier(ps);
             if (!n->data_type) {
-                ps->error(pec_expected_type_specifier, utils::String::Format("Expected type specifier after 'type %s ='", n->str().c_str()));
+                ps->error(pm_expected_type_specifier, utils::String::Format("Expected type specifier after 'type %s ='", n->str().c_str()));
                 ps->freeNode(n);
                 return errorNode(ps);
             }
 
             if (!ps->typeIs(tt_semicolon)) {
-                ps->error(pec_expected_eos, "Expected ';' after type definition");
+                ps->error(pm_expected_eos, "Expected ';' after type definition");
                 // attempt to continue
             } else ps->consume();
 
@@ -3387,7 +3030,7 @@ namespace tsn {
             ParseNode* n = identifier(ps);
 
             if (!n || isError(n)) {
-                if (!n) ps->error(pec_expected_identifier, "Expected identifier after 'function'");
+                if (!n) ps->error(pm_expected_identifier, "Expected identifier after 'function'");
 
                 const token& r = skipToNextType(ps, { tt_open_parenth });
                 switch (r.tp) {
@@ -3407,7 +3050,7 @@ namespace tsn {
             n->template_parameters = templateParams(ps);
             n->parameters = parameterList(ps);
             if (!n->parameters || isError(n->parameters)) {
-                if (!n->parameters) ps->error(pec_expected_parameter_list, "Expected function parameter list");
+                if (!n->parameters) ps->error(pm_expected_parameter_list, "Expected function parameter list");
 
                 const token& r = skipToNextType(ps, { tt_open_brace, tt_semicolon });
                 switch (r.tp) {
@@ -3429,7 +3072,7 @@ namespace tsn {
             n->body = block(ps);
 
             if (!n->body) {
-                ps->error(pec_expected_eos, "Expected function body");
+                ps->error(pm_expected_eos, "Expected function body");
             }
 
             return n;
@@ -3474,14 +3117,14 @@ namespace tsn {
             ParseNode* n = ps->newNode(nt_if, &ps->getPrev());
             n->cond = expressionSequenceGroup(ps);
             if (!n->cond) {
-                ps->error(pec_expected_expgroup, "Expected '(<expression>)' after 'if'");
+                ps->error(pm_expected_expgroup, "Expected '(<expression>)' after 'if'");
                 ps->freeNode(n);
                 return nullptr;
             }
 
             n->body = statement(ps);
             if (!n->body) {
-                ps->error(pec_expected_statement, "Expected block or statement after 'if (<expression>)'");
+                ps->error(pm_expected_statement, "Expected block or statement after 'if (<expression>)'");
                 ps->freeNode(n);
                 return nullptr;
             }
@@ -3494,7 +3137,7 @@ namespace tsn {
                 ps->consume();
                 n->else_body = statement(ps);
                 if (!n->else_body) {
-                    ps->error(pec_expected_statement, "Expected block or statement after 'else'");
+                    ps->error(pm_expected_statement, "Expected block or statement after 'else'");
                     ps->freeNode(n);
                     return nullptr;
                 }
@@ -3511,7 +3154,7 @@ namespace tsn {
             ps->consume();
 
             if (!ps->typeIs(tt_semicolon)) {
-                ps->error(pec_expected_eos, "Expected ';' after 'continue'");
+                ps->error(pm_expected_eos, "Expected ';' after 'continue'");
                 // attempt to continue
             } else ps->consume();
 
@@ -3522,7 +3165,7 @@ namespace tsn {
             ps->consume();
 
             if (!ps->typeIs(tt_semicolon)) {
-                ps->error(pec_expected_eos, "Expected ';' after 'break'");
+                ps->error(pm_expected_eos, "Expected ';' after 'break'");
                 // attempt to continue
             } else ps->consume();
 
@@ -3534,13 +3177,13 @@ namespace tsn {
                 ParseNode* n = ps->newNode(nt_loop, &ps->getPrev());
                 n->body = statement(ps);
                 if (!n->body) {
-                    ps->error(pec_expected_statement, "Expected block or statement after 'do'");
+                    ps->error(pm_expected_statement, "Expected block or statement after 'do'");
                     ps->freeNode(n);
                     return nullptr;
                 }
 
                 if (!ps->isKeyword("while")) {
-                    ps->error(pec_expected_while, "Expected 'while' after 'do ...'");
+                    ps->error(pm_expected_while, "Expected 'while' after 'do ...'");
                     ps->freeNode(n);
                     return nullptr;
                 }
@@ -3548,13 +3191,13 @@ namespace tsn {
 
                 n->cond = expressionSequenceGroup(ps);
                 if (!n->cond) {
-                    ps->error(pec_expected_expgroup, "Expected '(<expression>)' after 'do ... while'");
+                    ps->error(pm_expected_expgroup, "Expected '(<expression>)' after 'do ... while'");
                     ps->freeNode(n);
                     return nullptr;
                 }
 
                 if (!ps->typeIs(tt_semicolon)) {
-                    ps->error(pec_expected_eos, "Expected ';' after 'do ... while (<expression>)'");
+                    ps->error(pm_expected_eos, "Expected ';' after 'do ... while (<expression>)'");
                     // attempt to continue
                 } else {
                     if (n->body->tp != nt_scoped_block) n->manuallySpecifyRange(ps->get());
@@ -3568,21 +3211,21 @@ namespace tsn {
                 ParseNode* n = ps->newNode(nt_loop, &ps->getPrev());
                 n->cond = expressionSequenceGroup(ps);
                 if (!n->cond) {
-                    ps->error(pec_expected_expgroup, "Expected '(<expression>)' after 'while'");
+                    ps->error(pm_expected_expgroup, "Expected '(<expression>)' after 'while'");
                     ps->freeNode(n);
                     return nullptr;
                 }
 
                 n->body = statement(ps);
                 if (!n->body) {
-                    ps->error(pec_expected_statement, "Expected block or statement after 'while (<expression>)'");
+                    ps->error(pm_expected_statement, "Expected block or statement after 'while (<expression>)'");
                     ps->freeNode(n);
                     return nullptr;
                 }
 
                 if (n->body->tp != nt_scoped_block) {
                     if (!ps->typeIs(tt_semicolon)) {
-                        ps->error(pec_expected_eos, "Expected ';' after 'while (<expression>) statement'");
+                        ps->error(pm_expected_eos, "Expected ';' after 'while (<expression>) statement'");
                         // attempt to continue
                     } else {
                         n->manuallySpecifyRange(ps->get());
@@ -3596,7 +3239,7 @@ namespace tsn {
                 ParseNode* n = ps->newNode(nt_loop, &ps->getPrev());
 
                 if (!ps->typeIs(tt_open_parenth)) {
-                    ps->error(pec_expected_open_parenth, "Expected '(' after 'for'");
+                    ps->error(pm_expected_open_parenth, "Expected '(' after 'for'");
                     ps->freeNode(n);
                     return nullptr;
                 }
@@ -3605,7 +3248,7 @@ namespace tsn {
                 n->initializer = one_of(ps, { expressionSequence, variableDeclList });
 
                 if (!ps->typeIs(tt_semicolon)) {
-                    ps->error(pec_expected_eos, "Expected ';' after 'for (...'");
+                    ps->error(pm_expected_eos, "Expected ';' after 'for (...'");
                     ps->freeNode(n);
                     return nullptr;
                 }
@@ -3614,7 +3257,7 @@ namespace tsn {
                 n->cond = expressionSequence(ps);
 
                 if (!ps->typeIs(tt_semicolon)) {
-                    ps->error(pec_expected_eos, "Expected ';' after 'for (...;...'");
+                    ps->error(pm_expected_eos, "Expected ';' after 'for (...;...'");
                     ps->freeNode(n);
                     return nullptr;
                 }
@@ -3623,7 +3266,7 @@ namespace tsn {
                 n->modifier = expressionSequence(ps);
                 
                 if (!ps->typeIs(tt_close_parenth)) {
-                    ps->error(pec_expected_closing_parenth, "Expected ')' after 'for (...;...;...'");
+                    ps->error(pm_expected_closing_parenth, "Expected ')' after 'for (...;...;...'");
                     ps->freeNode(n);
                     return nullptr;
                 }
@@ -3631,14 +3274,14 @@ namespace tsn {
 
                 n->body = statement(ps);
                 if (!n->body) {
-                    ps->error(pec_expected_statement, "Expected block or statement after 'for (...;...;...)'");
+                    ps->error(pm_expected_statement, "Expected block or statement after 'for (...;...;...)'");
                     ps->freeNode(n);
                     return nullptr;
                 }
 
                 if (n->body->tp != nt_scoped_block) {
                     if (!ps->typeIs(tt_semicolon)) {
-                        ps->error(pec_expected_eos, "Expected ';' after 'for (...;...;...) statement'");
+                        ps->error(pm_expected_eos, "Expected ';' after 'for (...;...;...) statement'");
                         // attempt to continue
                     } else {
                         n->manuallySpecifyRange(ps->get());
@@ -3659,7 +3302,7 @@ namespace tsn {
             n->body = singleExpression(ps);
 
             if (!ps->typeIs(tt_semicolon)) {
-                ps->error(pec_expected_eos, "Expected ';' after return statement");
+                ps->error(pm_expected_eos, "Expected ';' after return statement");
                 // attempt to continue
             } else ps->consume();
 
@@ -3672,13 +3315,13 @@ namespace tsn {
             ParseNode* n = ps->newNode(nt_switch_case, &ps->getPrev());
             n->cond = expressionSequence(ps);
             if (!n->cond) {
-                ps->error(pec_expected_expgroup, "Expected '(<expression>)' after 'case'");
+                ps->error(pm_expected_expgroup, "Expected '(<expression>)' after 'case'");
                 ps->freeNode(n);
                 return nullptr;
             }
             
             if (!ps->typeIs(tt_colon)) {
-                ps->error(pec_expected_colon, "Expected ':' after 'case <expression>'");
+                ps->error(pm_expected_colon, "Expected ':' after 'case <expression>'");
                 // attempt to continue
             } else ps->consume();
 
@@ -3693,13 +3336,13 @@ namespace tsn {
             ParseNode* n = ps->newNode(nt_return, &ps->getPrev());
             n->cond = expressionSequenceGroup(ps);
             if (!n->cond) {
-                ps->error(pec_expected_expgroup, "Expected '(<expression>)' after 'switch'");
+                ps->error(pm_expected_expgroup, "Expected '(<expression>)' after 'switch'");
                 ps->freeNode(n);
                 return nullptr;
             }
 
             if (!ps->typeIs(tt_open_brace)) {
-                ps->error(pec_expected_open_brace, "Expected '{' after 'switch (<expression>)'");
+                ps->error(pm_expected_open_brace, "Expected '{' after 'switch (<expression>)'");
                 // attempt to continue
             } else ps->consume();
 
@@ -3709,7 +3352,7 @@ namespace tsn {
                 ps->consume();
 
                 if (!ps->typeIs(tt_colon)) {
-                    ps->error(pec_expected_colon, "Expected ':' after 'switch (<expression>) { ... default'");
+                    ps->error(pm_expected_colon, "Expected ':' after 'switch (<expression>) { ... default'");
                     // attempt to continue
                 } else ps->consume();
 
@@ -3717,7 +3360,7 @@ namespace tsn {
             }
 
             if (!ps->typeIs(tt_close_brace)) {
-                ps->error(pec_expected_closing_brace, "Expected '}' after 'switch (<expression>) { ...'");
+                ps->error(pm_expected_closing_brace, "Expected '}' after 'switch (<expression>) { ...'");
                 // attempt to continue
             } else ps->consume();
 
@@ -3729,12 +3372,12 @@ namespace tsn {
             ps->consume();
             ParseNode* expr = singleExpression(ps);
             if (!expr) {
-                ps->error(pec_expected_expr, "Expected expression after 'throw'");
+                ps->error(pm_expected_expr, "Expected expression after 'throw'");
                 return nullptr;
             }
 
             if (!ps->typeIs(tt_semicolon)) {
-                ps->error(pec_expected_eos, "Expected ';' after 'throw <expression>'");
+                ps->error(pm_expected_eos, "Expected ';' after 'throw <expression>'");
                 // attempt to continue
             } else ps->consume();
 
@@ -3748,7 +3391,7 @@ namespace tsn {
             ps->consume();
 
             if (!ps->typeIs(tt_open_parenth)) {
-                ps->error(pec_expected_open_parenth, "Expected '(' after 'catch'");
+                ps->error(pm_expected_open_parenth, "Expected '(' after 'catch'");
                 return nullptr;
             }
             ps->consume();
@@ -3756,13 +3399,13 @@ namespace tsn {
             ParseNode* n = ps->newNode(nt_catch, t);
             n->parameters = parameter(ps);
             if (!n->parameters) {
-                ps->error(pec_expected_catch_param, "Expected 'catch' block to take exactly one parameter");
+                ps->error(pm_expected_catch_param, "Expected 'catch' block to take exactly one parameter");
                 ps->freeNode(n);
                 return nullptr;
             }
 
             if (!n->parameters->data_type) {
-                ps->error(pec_expected_catch_param_type, "Catch block parameter must be explicitly typed");
+                ps->error(pm_expected_catch_param_type, "Catch block parameter must be explicitly typed");
                 ps->freeNode(n);
                 return nullptr;
             }
@@ -3771,7 +3414,7 @@ namespace tsn {
             if (!n->body) {
                 // expect semicolon
                 if (!ps->typeIs(tt_semicolon)) {
-                    ps->error(pec_expected_eos, "Expected ';' after empty 'catch' statement");
+                    ps->error(pm_expected_eos, "Expected ';' after empty 'catch' statement");
                     // attempt to continue
                 } else ps->consume();
             }
@@ -3785,7 +3428,7 @@ namespace tsn {
 
             ParseNode* body = block(ps);
             if (!body) {
-                ps->error(pec_expected_statement, "Expected block or statement after 'try'");
+                ps->error(pm_expected_statement, "Expected block or statement after 'try'");
                 return nullptr;
             }
 
@@ -3793,7 +3436,7 @@ namespace tsn {
             n->body = body;
             n->else_body = catchBlock(ps);
             if (!n->else_body) {
-                ps->error(pec_expected_catch, "Expected at least one 'catch' block after 'try { ... }'");
+                ps->error(pm_expected_catch, "Expected at least one 'catch' block after 'try { ... }'");
                 ps->freeNode(n);
                 return nullptr;
             }
@@ -3809,7 +3452,7 @@ namespace tsn {
         ParseNode* placementNewStatement(Parser* ps) {
             if (!ps->isKeyword("new")) return nullptr;
             const token* first = &ps->get();
-            ps->push();
+            ps->begin();
             ps->consume();
 
             ParseNode* type = typeSpecifier(ps);
@@ -3843,14 +3486,14 @@ namespace tsn {
             n->lvalue = singleExpression(ps);
 
             if (!n->lvalue) {
-                ps->error(pec_expected_expr, "Expected expression for placement new target");
+                ps->error(pm_expected_expr, "Expected expression for placement new target");
                 ps->revert();
                 ps->freeNode(n);
                 return nullptr;
             }
 
             if (!ps->typeIs(tt_semicolon)) {
-                ps->error(pec_expected_eos, "Expected ';' after placement new statement");
+                ps->error(pm_expected_eos, "Expected ';' after placement new statement");
                 // attempt to continue
             } else ps->consume();
 
@@ -3869,7 +3512,7 @@ namespace tsn {
 
                 n->alias = identifier(ps);
                 if (!n->alias) {
-                    ps->error(pec_expected_identifier, "Expected identifier for symbol alias");
+                    ps->error(pm_expected_identifier, "Expected identifier for symbol alias");
                     return errorNode(ps);
                 }
             }
@@ -3896,14 +3539,14 @@ namespace tsn {
                 n->next = symbolImport(ps);
                 n = n->next;
                 if (!n) {
-                    ps->error(pec_expected_parameter, "Expected symbol to import after ','");
+                    ps->error(pm_expected_parameter, "Expected symbol to import after ','");
                     // attempt to continue
                     break;
                 }
             }
 
             if (!ps->typeIs(tt_close_brace)) {
-                ps->error(pec_expected_closing_parenth, "Expected '}' to close import list");
+                ps->error(pm_expected_closing_parenth, "Expected '}' to close import list");
 
                 const token& r = skipToNextType(ps, { tt_close_brace });
                 if (r.tp != tt_close_brace) {
@@ -3917,7 +3560,7 @@ namespace tsn {
         }
         ParseNode* importModule(Parser* ps) {
             if (!ps->typeIs(tt_open_brace)) return nullptr;
-            ps->push();
+            ps->begin();
             ps->consume();
 
             if (!ps->isSymbol("*")) {
@@ -3928,7 +3571,7 @@ namespace tsn {
             ps->commit();
 
             if (!ps->isKeyword("as")) {
-                ps->error(pec_expected_import_alias, "Expected 'as' after 'import { *'");
+                ps->error(pm_expected_import_alias, "Expected 'as' after 'import { *'");
                 
                 const token& r = skipToNextType(ps, { tt_close_brace });
                 if (r.tp == tt_close_brace) ps->consume();
@@ -3938,7 +3581,7 @@ namespace tsn {
 
             ParseNode* n = identifier(ps);
             if (!n) {
-                ps->error(pec_expected_identifier, "Expected identifier for module alias");
+                ps->error(pm_expected_identifier, "Expected identifier for module alias");
 
                 const token& r = skipToNextType(ps, { tt_close_brace });
                 if (r.tp == tt_close_brace) ps->consume();
@@ -3946,7 +3589,7 @@ namespace tsn {
             }
 
             if (!ps->typeIs(tt_close_brace)) {
-                ps->error(pec_expected_closing_parenth, "Expected '}' to close import list");
+                ps->error(pm_expected_closing_parenth, "Expected '}' to close import list");
                 const token& r = skipToNextType(ps, { tt_close_brace });
                 if (r.tp == tt_close_brace) ps->consume();
                 ps->freeNode(n);
@@ -3965,7 +3608,7 @@ namespace tsn {
             n->body = importModule(ps);
             if (!n->body) n->body = importList(ps);
             if (!n->body) {
-                ps->error(pec_expected_import_list, "Expected import list after 'import'");
+                ps->error(pm_expected_import_list, "Expected import list after 'import'");
 
                 const token& r = skipToNextKeyword(ps, "from", { tt_semicolon });
                 if (r.tp != tt_keyword) {
@@ -3976,7 +3619,7 @@ namespace tsn {
             }
 
             if (!ps->isKeyword("from")) {
-                ps->error(pec_expected_import_name, "Expected 'from'");
+                ps->error(pm_expected_import_name, "Expected 'from'");
                 ps->freeNode(n);
                 const token& r = skipToNextType(ps, { tt_semicolon });
                 return errorNode(ps);
@@ -3984,7 +3627,7 @@ namespace tsn {
             ps->consume();
 
             if (!ps->typeIs(tt_string)) {
-                ps->error(pec_expected_import_name, "Expected string literal module name or file path after 'from'");
+                ps->error(pm_expected_import_name, "Expected string literal module name or file path after 'from'");
                 ps->freeNode(n);
                 const token& r = skipToNextType(ps, { tt_semicolon });
                 return errorNode(ps);
@@ -3994,7 +3637,8 @@ namespace tsn {
 
             n->value.s = t.text.c_str();
             n->str_len = t.text.size();
-
+            n->manuallySpecifyRange(t);
+            
             return n;
         }
         ParseNode* exportStatement(Parser* ps) {
@@ -4004,7 +3648,7 @@ namespace tsn {
 
             ParseNode* decl = declaration(ps);
             if (!decl) {
-                ps->error(pec_expected_export_decl, "Expected function, class, type, or variable declaration after 'export'");
+                ps->error(pm_expected_export_decl, "Expected function, class, type, or variable declaration after 'export'");
                 return nullptr;
             }
 
@@ -4066,7 +3710,7 @@ namespace tsn {
             ParseNode* b = ps->newNode(nt_scoped_block, &ps->getPrev());
             b->body = statementList(ps);
             if (!ps->typeIs(tt_close_brace)) {
-                ps->error(pec_expected_closing_brace, "Expected '}'");
+                ps->error(pm_expected_closing_brace, "Expected '}'");
                 ps->freeNode(b);
                 return nullptr;
             }
@@ -4086,7 +3730,7 @@ namespace tsn {
             ParseNode* statements = statementList(ps);
 
             if (!ps->typeIs(tt_eof)) {
-                ps->error(pec_expected_eof, "Expected end of file");
+                ps->error(pm_expected_eof, "Expected end of file");
                 if (statements) ps->freeNode(statements);
                 return nullptr;
             }

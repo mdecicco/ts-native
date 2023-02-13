@@ -20,7 +20,7 @@ namespace tsn {
         class Compiler;
 
         struct symbol {
-            utils::Array<Value*> values;
+            Value* value;
         };
 
         class Scope {

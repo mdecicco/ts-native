@@ -7,7 +7,8 @@
 
 namespace tsn {
     namespace compiler {
-        class ParseNode;
+        class TemplateContext;
+        class Output;
     };
 
     namespace ffi {
@@ -193,6 +194,7 @@ namespace tsn {
                 friend class TemplateType;
                 friend class AliasType;
                 friend class ClassType;
+                friend class compiler::Output;
                 
                 type_id m_id;
                 data_type_instance m_itype;
@@ -227,11 +229,12 @@ namespace tsn {
             
                 virtual bool serialize(utils::Buffer* out, Context* ctx, void* extra) const;
                 virtual bool deserialize(utils::Buffer* in, Context* ctx, void* extra);
+
             protected:
                 friend class Function;
+                friend class compiler::Output;
                 void setThisType(DataType* tp);
 
-            private:
                 DataType* m_returnType;
                 utils::Array<function_argument> m_args;
         };
@@ -239,16 +242,17 @@ namespace tsn {
         class TemplateType : public DataType {
             public:
                 TemplateType();
-                TemplateType(const utils::String& name, const utils::String& fullyQualifiedName, compiler::ParseNode* baseAST);
+                TemplateType(const utils::String& name, const utils::String& fullyQualifiedName, compiler::TemplateContext* templateData);
                 virtual ~TemplateType();
 
-                compiler::ParseNode* getAST() const;
+                compiler::TemplateContext* getTemplateData() const;
             
                 virtual bool serialize(utils::Buffer* out, Context* ctx, void* extra) const;
                 virtual bool deserialize(utils::Buffer* in, Context* ctx, void* extra);
 
-            private:
-                compiler::ParseNode* m_ast;
+            protected:
+                friend class compiler::Output;
+                compiler::TemplateContext* m_data;
         };
 
         class AliasType : public DataType {
@@ -262,7 +266,8 @@ namespace tsn {
                 virtual bool serialize(utils::Buffer* out, Context* ctx, void* extra) const;
                 virtual bool deserialize(utils::Buffer* in, Context* ctx, void* extra);
 
-            private:
+            protected:
+                friend class compiler::Output;
                 DataType* m_ref;
         };
 

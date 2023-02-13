@@ -14,8 +14,8 @@ namespace tsn {
         //
 
         template <typename Cls>
-        PrimitiveTypeBinder<Cls>::PrimitiveTypeBinder(FunctionRegistry* freg, DataTypeRegistry* treg, const utils::String& name, const utils::String& fullyQualifiedName)
-        : DataTypeBinder(freg, treg, name, fullyQualifiedName, meta<Cls>()) { }
+        PrimitiveTypeBinder<Cls>::PrimitiveTypeBinder(Module* mod, FunctionRegistry* freg, DataTypeRegistry* treg, const utils::String& name, const utils::String& fullyQualifiedName)
+        : DataTypeBinder(mod, freg, treg, name, fullyQualifiedName, meta<Cls>()) { }
 
         template <typename Cls>
         PrimitiveTypeBinder<Cls>::~PrimitiveTypeBinder() {
@@ -30,7 +30,7 @@ namespace tsn {
         template <typename Cls>
         template <typename Ret, typename... Args>
         PrimitiveTypeBinder<Cls>& PrimitiveTypeBinder<Cls>::method(const utils::String& name, Ret (*method)(Cls*, Args...), access_modifier access) {
-            Function* f = bind_pseudo_method<Cls, Ret, Args...>(funcRegistry, typeRegistry, m_type->getName() + "::" + name, method, access);
+            Function* f = bind_pseudo_method<Cls, Ret, Args...>(m_mod, funcRegistry, typeRegistry, name, method, access);
             if (f) addMethod(f);
             return *this;
         }
@@ -38,7 +38,7 @@ namespace tsn {
         template <typename Cls>
         template <typename Ret, typename... Args>
         PrimitiveTypeBinder<Cls>& PrimitiveTypeBinder<Cls>::staticMethod(const utils::String& name, Ret (*method)(Args...), access_modifier access) {
-            Function* f = bind_function(funcRegistry, typeRegistry, m_type->getName() + "::" + name, method, access);
+            Function* f = bind_function(m_mod, funcRegistry, typeRegistry, name, method, access, m_type);
             if (f) addMethod(f);
             return *this;
         }
@@ -83,8 +83,8 @@ namespace tsn {
                 0,
                 tp,
                 convertPropertyMask(flags),
-                getter ? bind_function(funcRegistry, typeRegistry, m_type->getName() + "::$get_" + name, getter, private_access) : nullptr,
-                setter ? bind_function(funcRegistry, typeRegistry, m_type->getName() + "::$set_" + name, setter, private_access) : nullptr
+                getter ? bind_function(m_mod, funcRegistry, typeRegistry, "$get_" + name, getter, private_access, m_type) : nullptr,
+                setter ? bind_function(m_mod, funcRegistry, typeRegistry, "$set_" + name, setter, private_access, m_type) : nullptr
             });
 
             return *this;
@@ -108,8 +108,8 @@ namespace tsn {
                 0,
                 tp,
                 convertPropertyMask(flags),
-                getter ? bind_function(funcRegistry, typeRegistry, m_type->getName() + "::$get_" + name, getter, private_access) : nullptr,
-                setter ? bind_function(funcRegistry, typeRegistry, m_type->getName() + "::$set_" + name, setter, private_access) : nullptr
+                getter ? bind_function(m_mod, funcRegistry, typeRegistry, "$get_" + name, getter, private_access, m_type) : nullptr,
+                setter ? bind_function(m_mod, funcRegistry, typeRegistry, "$set_" + name, setter, private_access, m_type) : nullptr
             });
 
             return *this;
@@ -133,8 +133,8 @@ namespace tsn {
                 0,
                 tp,
                 convertPropertyMask(flags),
-                getter ? bind_pseudo_function<Cls, T&>(funcRegistry, typeRegistry, m_type->getName() + "::$get_" + name, getter, private_access) : nullptr,
-                setter ? bind_pseudo_function<Cls, T&, const T&>(funcRegistry, typeRegistry, m_type->getName() + "::$set_" + name, setter, private_access) : nullptr
+                getter ? bind_pseudo_function<Cls, T&>(m_mod, funcRegistry, typeRegistry, "$get_" + name, getter, private_access) : nullptr,
+                setter ? bind_pseudo_function<Cls, T&, const T&>(m_mod, funcRegistry, typeRegistry, "$set_" + name, setter, private_access) : nullptr
             });
 
             return *this;
@@ -158,8 +158,8 @@ namespace tsn {
                 0,
                 tp,
                 convertPropertyMask(flags),
-                getter ? bind_pseudo_function<Cls, T&>(funcRegistry, typeRegistry, m_type->getName() + "::$get_" + name, getter, private_access) : nullptr,
-                setter ? bind_pseudo_function<Cls, T&, T>(funcRegistry, typeRegistry, m_type->getName() + "::$set_" + name, setter, private_access) : nullptr
+                getter ? bind_pseudo_function<Cls, T&>(m_mod, funcRegistry, typeRegistry, "$get_" + name, getter, private_access) : nullptr,
+                setter ? bind_pseudo_function<Cls, T&, T>(m_mod, funcRegistry, typeRegistry, "$set_" + name, setter, private_access) : nullptr
             });
 
             return *this;
@@ -196,8 +196,8 @@ namespace tsn {
         //
 
         template <typename Cls>
-        ObjectTypeBinder<Cls>::ObjectTypeBinder(FunctionRegistry* freg, DataTypeRegistry* treg, const utils::String& name, const utils::String& fullyQualifiedName)
-        : DataTypeBinder(freg, treg, name, fullyQualifiedName, meta<Cls>()) {
+        ObjectTypeBinder<Cls>::ObjectTypeBinder(Module* mod, FunctionRegistry* freg, DataTypeRegistry* treg, const utils::String& name, const utils::String& fullyQualifiedName)
+        : DataTypeBinder(mod, freg, treg, name, fullyQualifiedName, meta<Cls>()) {
         }
 
         template <typename Cls>
@@ -213,14 +213,14 @@ namespace tsn {
         template <typename Cls>
         template <typename... Args>
         ObjectTypeBinder<Cls>& ObjectTypeBinder<Cls>::ctor(access_modifier access) {
-            Function* f = bind_constructor<Cls, Args...>(funcRegistry, typeRegistry, m_type, access);
+            Function* f = bind_constructor<Cls, Args...>(m_mod, funcRegistry, typeRegistry, m_type, access);
             if (f) addMethod(f);
             return *this;
         }
 
         template <typename Cls>
         ObjectTypeBinder<Cls>& ObjectTypeBinder<Cls>::dtor(access_modifier access) {
-            Function* f = bind_destructor<Cls>(funcRegistry, typeRegistry, m_type, access);
+            Function* f = bind_destructor<Cls>(m_mod, funcRegistry, typeRegistry, m_type, access);
             if (f) setDestructor(f);
             return *this;
         }
@@ -228,7 +228,7 @@ namespace tsn {
         template <typename Cls>
         template <typename Ret, typename... Args>
         ObjectTypeBinder<Cls>& ObjectTypeBinder<Cls>::method(const utils::String& name, Ret (Cls::*method)(Args...), access_modifier access) {
-            Function* f = bind_method(funcRegistry, typeRegistry, m_type->getName() + "::" + name, method, access);
+            Function* f = bind_method(m_mod, funcRegistry, typeRegistry, name, method, access);
             if (f) addMethod(f);
             return *this;
         }
@@ -236,7 +236,7 @@ namespace tsn {
         template <typename Cls>
         template <typename Ret, typename... Args>
         ObjectTypeBinder<Cls>& ObjectTypeBinder<Cls>::method(const utils::String& name, Ret (Cls::*method)(Args...) const, access_modifier access) {
-            Function* f = bind_method(funcRegistry, typeRegistry, m_type->getName() + "::" + name, method, access);
+            Function* f = bind_method(m_mod, funcRegistry, typeRegistry, name, method, access);
             if (f) addMethod(f);
             return *this;
         }
@@ -244,7 +244,7 @@ namespace tsn {
         template <typename Cls>
         template <typename Ret, typename... Args>
         ObjectTypeBinder<Cls>& ObjectTypeBinder<Cls>::staticMethod(const utils::String& name, Ret (*method)(Args...), access_modifier access) {
-            Function* f = bind_function(funcRegistry, typeRegistry, m_type->getName() + "::" + name, method, access);
+            Function* f = bind_function(m_mod, funcRegistry, typeRegistry, name, method, access, m_type);
             if (f) addMethod(f);
             return *this;
         }
@@ -312,8 +312,8 @@ namespace tsn {
                 0,
                 tp,
                 convertPropertyMask(flags),
-                getter ? bind_function(funcRegistry, typeRegistry, m_type->getName() + "::$get_" + name, getter, private_access) : nullptr,
-                setter ? bind_function(funcRegistry, typeRegistry, m_type->getName() + "::$set_" + name, setter, private_access) : nullptr
+                getter ? bind_function(m_mod, funcRegistry, typeRegistry, "$get_" + name, getter, private_access, m_type) : nullptr,
+                setter ? bind_function(m_mod, funcRegistry, typeRegistry, "$set_" + name, setter, private_access, m_type) : nullptr
             });
 
             return *this;
@@ -337,8 +337,8 @@ namespace tsn {
                 0,
                 tp,
                 convertPropertyMask(flags),
-                getter ? bind_function(funcRegistry, typeRegistry, m_type->getName() + "::$get_" + name, getter, private_access) : nullptr,
-                setter ? bind_function(funcRegistry, typeRegistry, m_type->getName() + "::$set_" + name, setter, private_access) : nullptr
+                getter ? bind_function(m_mod, funcRegistry, typeRegistry, "$get_" + name, getter, private_access, m_type) : nullptr,
+                setter ? bind_function(m_mod, funcRegistry, typeRegistry, "$set_" + name, setter, private_access, m_type) : nullptr
             });
 
             return *this;
@@ -362,8 +362,8 @@ namespace tsn {
                 0,
                 tp,
                 convertPropertyMask(flags),
-                getter ? bind_method(funcRegistry, typeRegistry, m_type->getName() + "::$get_" + name, getter, private_access) : nullptr,
-                setter ? bind_method(funcRegistry, typeRegistry, m_type->getName() + "::$set_" + name, setter, private_access) : nullptr
+                getter ? bind_method(m_mod, funcRegistry, typeRegistry, "$get_" + name, getter, private_access) : nullptr,
+                setter ? bind_method(m_mod, funcRegistry, typeRegistry, "$set_" + name, setter, private_access) : nullptr
             });
 
             return *this;
@@ -387,8 +387,8 @@ namespace tsn {
                 0,
                 tp,
                 convertPropertyMask(flags),
-                getter ? bind_method(funcRegistry, typeRegistry, m_type->getName() + "::$get_" + name, getter, private_access) : nullptr,
-                setter ? bind_method(funcRegistry, typeRegistry, m_type->getName() + "::$set_" + name, setter, private_access) : nullptr
+                getter ? bind_method(m_mod, funcRegistry, typeRegistry, "$get_" + name, getter, private_access) : nullptr,
+                setter ? bind_method(m_mod, funcRegistry, typeRegistry, "$set_" + name, setter, private_access) : nullptr
             });
 
             return *this;

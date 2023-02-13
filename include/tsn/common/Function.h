@@ -6,8 +6,9 @@
 
 namespace tsn {
     namespace compiler {
-        class ParseNode;
+        class TemplateContext;
         class Compiler;
+        class Output;
     };
 
     namespace ffi {
@@ -19,7 +20,7 @@ namespace tsn {
         class Function : public IPersistable {
             public:
                 Function();
-                Function(const utils::String& name, FunctionType* signature, access_modifier access, void* address, void* wrapperAddr);
+                Function(const utils::String& name, const utils::String& extraQualifiers, FunctionType* signature, access_modifier access, void* address, void* wrapperAddr);
                 virtual ~Function();
 
                 function_id getId() const;
@@ -61,19 +62,19 @@ namespace tsn {
                 virtual bool deserialize(utils::Buffer* in, Context* ctx, void* extra);
 
             protected:
+                friend class FunctionRegistry;
                 friend class compiler::Compiler;
+                friend class compiler::Output;
                 void setThisType(DataType* tp);
                 bool m_isMethod;
                 bool m_isTemplate;
                 SourceLocation m_src;
-            
-            private:
-                friend class FunctionRegistry;
                 function_id m_id;
                 u32 m_registryIndex;
                 utils::String m_name;
                 utils::String m_displayName;
                 utils::String m_fullyQualifiedName;
+                utils::String m_extraQualifiers;
                 FunctionType* m_signature;
                 access_modifier m_access;
                 void* m_address;
@@ -83,7 +84,7 @@ namespace tsn {
         class Method : public Function {
             public:
                 Method();
-                Method(const utils::String& name, FunctionType* signature, access_modifier access, void* address, void* wrapperAddr, u64 baseOffset);
+                Method(const utils::String& name, const utils::String& extraQualifiers, FunctionType* signature, access_modifier access, void* address, void* wrapperAddr, u64 baseOffset);
 
                 u64 getThisPtrOffset() const;
                 Method* clone(const utils::String& name, u64 baseOffset) const;
@@ -98,31 +99,31 @@ namespace tsn {
         class TemplateFunction : public Function {
             public:
                 TemplateFunction();
-                TemplateFunction(const utils::String& name, access_modifier access, compiler::ParseNode* ast);
+                TemplateFunction(const utils::String& name, const utils::String& extraQualifiers, access_modifier access, compiler::TemplateContext* templateData);
                 ~TemplateFunction();
 
-                compiler::ParseNode* getAST();
+                compiler::TemplateContext* getTemplateData();
 
                 virtual bool serialize(utils::Buffer* out, Context* ctx, void* extra) const;
                 virtual bool deserialize(utils::Buffer* in, Context* ctx, void* extra);
             
             private:
-                compiler::ParseNode* m_ast;
+                compiler::TemplateContext* m_data;
         };
     
         class TemplateMethod : public Method {
             public:
                 TemplateMethod();
-                TemplateMethod(const utils::String& name, access_modifier access, u64 baseOffset, compiler::ParseNode* ast);
+                TemplateMethod(const utils::String& name, const utils::String& extraQualifiers, access_modifier access, u64 baseOffset, compiler::TemplateContext* templateData);
                 ~TemplateMethod();
 
-                compiler::ParseNode* getAST();
+                compiler::TemplateContext* getTemplateData();
 
                 virtual bool serialize(utils::Buffer* out, Context* ctx, void* extra) const;
                 virtual bool deserialize(utils::Buffer* in, Context* ctx, void* extra);
             
             private:
-                compiler::ParseNode* m_ast;
+                compiler::TemplateContext* m_data;
         };
     };
 };

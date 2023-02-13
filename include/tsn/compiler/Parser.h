@@ -2,6 +2,8 @@
 #include <tsn/common/types.h>
 #include <tsn/compiler/Lexer.h>
 #include <tsn/interfaces/IPersistable.h>
+#include <tsn/interfaces/IWithLogger.h>
+#include <tsn/interfaces/ITransactional.h>
 
 #include <utils/String.h>
 #include <utils/Array.h>
@@ -127,44 +129,6 @@ namespace tsn {
             lt_false
         };
 
-        enum parse_error_code {
-            pec_none = 0,
-            pec_expected_eof,
-            pec_expected_eos,
-            pec_expected_open_brace,
-            pec_expected_open_parenth,
-            pec_expected_closing_brace,
-            pec_expected_closing_parenth,
-            pec_expected_closing_bracket,
-            pec_expected_parameter,
-            pec_expected_colon,
-            pec_expected_expr,
-            pec_expected_variable_decl,
-            pec_expected_type_specifier,
-            pec_expected_expgroup,
-            pec_expected_statement,
-            pec_expected_while,
-            pec_expected_function_body,
-            pec_expected_identifier,
-            pec_expected_type_name,
-            pec_expected_object_property,
-            pec_expected_catch,
-            pec_expected_catch_param,
-            pec_expected_catch_param_type,
-            pec_expected_import_alias,
-            pec_expected_import_list,
-            pec_expected_import_name,
-            pec_expected_export_decl,
-            pec_expected_symbol,
-            pec_expected_parameter_list,
-            pec_expected_single_template_arg,
-            pec_expected_operator_override_target,
-            pec_unexpected_type_specifier,
-            pec_malformed_class_element,
-            pec_empty_class,
-            pec_reserved_word
-        };
-
         class ParseNode : IPersistable {
             public:
                 token tok;
@@ -185,23 +149,25 @@ namespace tsn {
                 utils::String str() const;
                 void computeSourceLocationRange();
                 void manuallySpecifyRange(const token& end);
-                void json(u32 indent = 0, u32 index = 0, bool noIndentOpenBrace = true);
                 ParseNode* clone(bool copyNext = false);
 
                 virtual bool serialize(utils::Buffer* out, Context* ctx, void* extra) const;
                 virtual bool deserialize(utils::Buffer* in, Context* ctx, void* extra);
 
                 struct {
-                    unsigned is_const   : 1;
-                    unsigned is_static  : 1;
-                    unsigned is_private : 1;
-                    unsigned is_array   : 1;
-                    unsigned is_pointer : 1;
-                    unsigned is_getter  : 1;
-                    unsigned is_setter  : 1;
+                    unsigned is_const    : 1;
+                    unsigned is_static   : 1;
+                    unsigned is_private  : 1;
+                    unsigned is_array    : 1;
+                    unsigned is_pointer  : 1;
+                    unsigned is_getter   : 1;
+                    unsigned is_setter   : 1;
 
                     // for do ... while loops
-                    unsigned defer_cond : 1;
+                    unsigned defer_cond  : 1;
+
+                    // for the node itself
+                    unsigned is_detached : 1;
                 } flags;
 
                 ParseNode* data_type;
@@ -243,25 +209,14 @@ namespace tsn {
                 static void destroyDetachedAST(ParseNode* n);
         };
 
-        struct parse_error {
-            parse_error_code code;
-            utils::String text;
-            token src;
-        };
-
-        typedef bool (*recoverfn)(const token&);
-        class Parser {
+        class Parser : public IWithLogger, ITransactional {
             public:
-                Parser(Lexer* l);
+                Parser(Lexer* l, Logger* logs);
                 ~Parser();
 
-                void push();
-                void revert();
-                void commit();
-
-                void pushRecovery(recoverfn recoverFunc);
-                void popRecovery();
-                recoverfn getRecoveryFn() const;
+                virtual void begin();
+                virtual void revert();
+                virtual void commit();
 
                 void consume();
 
@@ -274,43 +229,40 @@ namespace tsn {
                 void freeNode(ParseNode* n);
                 void addType(const utils::String& name, ParseNode* n);
                 ParseNode* getType(const utils::String& name);
-                const utils::Array<parse_error>& errors() const;
 
                 // helpers
                 bool typeIs(token_type tp) const;
                 bool textIs(const char* str) const;
                 bool isKeyword(const char* str) const;
                 bool isSymbol(const char* str) const;
-                void error(parse_error_code code, const utils::String& msg);
-                void error(parse_error_code code, const utils::String& msg, const token& tok);
+                void error(log_message_code code, const utils::String& msg);
+                void error(log_message_code code, const utils::String& msg, const token& tok);
 
             private:
                 utils::Array<token> m_tokens;
                 utils::Array<u32> m_currentIdx;
-                utils::Array<u32> m_currentErrorCount;
-                utils::Array<parse_error> m_errors;
                 utils::PagedAllocator<ParseNode, utils::FixedAllocator<ParseNode>> m_nodeAlloc;
-                utils::Array<recoverfn> m_recoveryStack;
         };
     
+
 
         //
         // Helpers
         //
         typedef ParseNode* (*parsefn)(Parser*);
         ParseNode* errorNode                     (Parser* ps);
-        bool isError                            (ParseNode* n);
-        bool findRecoveryToken                  (Parser* ps, bool consumeRecoveryToken = true);
+        bool isError                             (ParseNode* n);
+        bool findRecoveryToken                   (Parser* ps, bool consumeRecoveryToken = true);
         ParseNode* array_of                      (Parser* ps, parsefn fn);
         ParseNode* list_of                       (
                                                      Parser* ps, parsefn fn,
-                                                     parse_error_code before_comma_err, const utils::String& before_comma_msg,
-                                                     parse_error_code after_comma_err, const utils::String& after_comma_msg
-                                                );
+                                                     log_message_code before_comma_err, const utils::String& before_comma_msg,
+                                                     log_message_code after_comma_err, const utils::String& after_comma_msg
+                                                 );
         ParseNode* one_of                        (Parser* ps, std::initializer_list<parsefn> rules);
         ParseNode* all_of                        (Parser* ps, std::initializer_list<parsefn> rules);
-        bool isAssignmentOperator               (Parser* ps);
-        expr_operator getOperatorType           (Parser* ps);
+        bool isAssignmentOperator                (Parser* ps);
+        expr_operator getOperatorType            (Parser* ps);
         //
         // Misc
         //

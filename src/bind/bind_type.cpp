@@ -1,5 +1,6 @@
 #include <tsn/bind/bind_type.h>
 #include <tsn/bind/bind.h>
+#include <tsn/common/Context.h>
 #include <tsn/common/DataType.h>
 #include <tsn/common/TypeRegistry.h>
 #include <tsn/common/FunctionRegistry.h>
@@ -8,11 +9,16 @@
 
 namespace tsn {
     namespace ffi {
-        DataTypeBinder::DataTypeBinder(FunctionRegistry* freg, DataTypeRegistry* treg, const utils::String& name, const utils::String& fullyQualifiedName, type_meta&& meta) {
+        DataTypeBinder::DataTypeBinder(Module* mod, FunctionRegistry* freg, DataTypeRegistry* treg, const utils::String& name, const utils::String& fullyQualifiedName, type_meta&& meta) {
             funcRegistry = freg;
             typeRegistry = treg;
+            m_mod = mod;
             m_type = new DataType(name, fullyQualifiedName, meta);
+            m_type->m_id = (type_id)std::hash<utils::String>()(m_type->getFullyQualifiedName());
             typeRegistry->addHostType(meta.host_hash, m_type);
+
+            if (mod) mod->addHostType(m_type->m_info.host_hash, m_type);
+            else typeRegistry->getContext()->getGlobal()->addHostType(m_type->m_info.host_hash, m_type);
             m_isFinal = false;
         }
 
@@ -71,7 +77,7 @@ namespace tsn {
             });
         }
 
-        DataType* DataTypeBinder::finalize(Module* mod) {
+        DataType* DataTypeBinder::finalize() {
             if (m_isFinal) {
                 throw BindException(utils::String::Format(
                     "Type definition '%s' is already finalized",
@@ -88,21 +94,15 @@ namespace tsn {
 
             m_isFinal = true;
 
-            if (mod) {
-                mod->addHostType(m_type->m_info.host_hash, m_type);
-            }
-
             if (m_type->m_destructor) {
                 funcRegistry->registerFunction(m_type->m_destructor);
-                if (mod) mod->addFunction(m_type->m_destructor);
+                if (m_mod) m_mod->addFunction(m_type->m_destructor);
             }
 
             for (u32 i = 0;i < m_type->m_methods.size();i++) {
                 funcRegistry->registerFunction(m_type->m_methods[i]);
-                if (mod) mod->addFunction(m_type->m_methods[i]);
+                if (m_mod) m_mod->addFunction(m_type->m_methods[i]);
             }
-
-            m_type->m_id = (type_id)std::hash<utils::String>()(m_type->getFullyQualifiedName());
 
             return m_type;
         }

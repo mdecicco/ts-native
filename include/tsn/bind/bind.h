@@ -35,8 +35,16 @@ namespace tsn {
         bind(Context* ctx, const utils::String& name);
 
         template <typename Cls>
+        std::enable_if_t<std::is_fundamental_v<typename remove_all<Cls>::type>, PrimitiveTypeBinder<Cls>>
+        bind(Module* mod, const utils::String& name);
+
+        template <typename Cls>
         std::enable_if_t<!std::is_fundamental_v<typename remove_all<Cls>::type>, ObjectTypeBinder<Cls>>
         bind(Context* ctx, const utils::String& name);
+
+        template <typename Cls>
+        std::enable_if_t<!std::is_fundamental_v<typename remove_all<Cls>::type>, ObjectTypeBinder<Cls>>
+        bind(Module* mod, const utils::String& name);
 
         template <typename Ret, typename... Args>
         Function* bind(Context* ctx, const utils::String& name, Ret (*func)(Args...), access_modifier access = public_access);

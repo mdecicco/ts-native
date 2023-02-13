@@ -1,11 +1,24 @@
 #include <tsn/utils/ModuleSource.h>
 #include <utils/Array.hpp>
+#include <utils/Buffer.h>
 
 namespace tsn {
     ModuleSource::ModuleSource(const utils::String& code, u64 modificationTime) {
         m_modificationTime = modificationTime;
         m_code = code;
+        init();
+    }
 
+    ModuleSource::ModuleSource(const utils::Buffer* code, u64 modificationTime) : m_code((char*)code->data(0), code->size()) {
+        m_modificationTime = modificationTime;
+        init();
+    }
+
+    ModuleSource::~ModuleSource() {
+
+    }
+
+    void ModuleSource::init() {
         u32 curLineBegin = 0;
         u32 curLineLen = 0;
         for (u32 i = 0;i < m_code.size();i++) {
@@ -38,10 +51,6 @@ namespace tsn {
                 curLineLen
             ));
         }
-    }
-
-    ModuleSource::~ModuleSource() {
-
     }
 
     u32 ModuleSource::getLineCount() const {

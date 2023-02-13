@@ -42,10 +42,12 @@ namespace tsn {
                 u32 addSymbolLifetime(const utils::String& name, ParseNode* scopeRoot, const Value& v);
 
                 const utils::Array<FunctionDef*>& getFuncs() const;
+                utils::Array<FunctionDef*>& getFuncs();
                 const utils::Array<ffi::DataType*>& getTypes() const;
                 const utils::Array<symbol_lifetime>& getSymbolLifetimeData() const;
 
                 Module* getModule();
+                Compiler* getCompiler();
 
             protected:
                 Compiler* m_comp;
