@@ -1,6 +1,6 @@
-#include <tsn/common/FunctionRegistry.h>
+#include <tsn/ffi/FunctionRegistry.h>
 #include <tsn/utils/function_match.h>
-#include <tsn/common/Function.h>
+#include <tsn/ffi/Function.h>
 
 namespace tsn {
     namespace ffi {
@@ -8,7 +8,7 @@ namespace tsn {
         FunctionRegistry::~FunctionRegistry() { }
 
         void FunctionRegistry::registerFunction(ffi::Function* fn) {
-            if (fn->m_id != -1) {
+            if (fn->m_id != 0) {
                 throw std::exception("Function already registered");
             }
 

@@ -11,6 +11,8 @@ namespace tsn {
         class ParseNode;
 
         enum log_message_code {
+            lm_generic,
+            
             IO_MESSAGES_START,
             iom_failed_to_open_file,
             iom_failed_to_cache_script,
@@ -68,6 +70,7 @@ namespace tsn {
             cm_err_too_many_template_args,
             cm_err_symbol_already_exists,
             cm_err_dtor_already_exists,
+            cm_err_expected_type_specifier,
             cm_err_expected_method_argument_type,
             cm_err_expected_function_argument_type,
             cm_err_export_not_in_root_scope,
@@ -81,6 +84,7 @@ namespace tsn {
             cm_err_property_is_static,
             cm_err_property_no_read_access,
             cm_err_property_or_method_ambiguous,
+            cm_err_no_pointer_to_getter,
             cm_err_value_not_callable_with_args,
             cm_err_method_not_found,
             cm_err_method_ambiguous,
@@ -94,6 +98,7 @@ namespace tsn {
             cm_err_function_ambiguous,
             cm_err_function_property_access,
             cm_err_function_argument_count_mismatch,
+            cm_err_function_signature_not_determined,
             cm_err_could_not_deduce_type,
             cm_err_continue_scope,
             cm_err_break_scope,
@@ -106,10 +111,12 @@ namespace tsn {
             cm_err_module_used_as_value,
             cm_err_module_data_used_as_value,
             cm_err_internal,
+            cm_err_not_trusted,
             COMPILER_MESSAGES_END
         };
 
         enum log_type {
+            lt_debug,
             lt_info,
             lt_warn,
             lt_error

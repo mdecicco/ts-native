@@ -1,8 +1,8 @@
 #pragma once
 #include <tsn/interfaces/IDataTypeHolder.h>
 #include <tsn/bind/bind.h>
-#include <tsn/common/DataType.h>
-#include <tsn/common/Object.h>
+#include <tsn/ffi/DataType.h>
+#include <tsn/ffi/Object.h>
 #include <tsn/common/types.hpp>
 #include <tsn/utils/remove_all.h>
 

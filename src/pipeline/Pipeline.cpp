@@ -2,14 +2,17 @@
 #include <tsn/common/Context.h>
 #include <tsn/common/Module.h>
 #include <tsn/common/Config.h>
-#include <tsn/common/FunctionRegistry.h>
-#include <tsn/common/TypeRegistry.h>
+#include <tsn/ffi/FunctionRegistry.h>
+#include <tsn/ffi/DataTypeRegistry.h>
 #include <tsn/compiler/Lexer.h>
 #include <tsn/compiler/Parser.h>
 #include <tsn/compiler/Compiler.h>
 #include <tsn/compiler/FunctionDef.h>
 #include <tsn/compiler/OutputBuilder.h>
 #include <tsn/compiler/Output.h>
+#include <tsn/optimize/Optimize.h>
+#include <tsn/optimize/CodeHolder.h>
+#include <tsn/optimize/OptimizationGroup.h>
 #include <tsn/interfaces/IPersistable.h>
 #include <tsn/interfaces/IOptimizationStep.h>
 #include <tsn/io/Workspace.h>
@@ -29,6 +32,7 @@ namespace tsn {
         m_lexer = nullptr;
         m_parser = nullptr;
         m_compiler = nullptr;
+        m_source = nullptr;
         m_ast = nullptr;
         m_compOutput = nullptr;
     }
@@ -50,10 +54,10 @@ namespace tsn {
         if (m_lexer) delete m_lexer;
         m_lexer = nullptr;
 
-        if (m_sources.size() > 0) {
-            m_sources.each([](ModuleSource* src) {
-                delete src;
-            });
+        if (m_source) {
+            // Source code not claimed, Pipeline still owns it
+            delete m_source;
+            m_source = nullptr;
         }
 
         if (m_logger && !m_parent) {
@@ -61,13 +65,19 @@ namespace tsn {
             m_logger = nullptr;
         }
         
-        m_optimizations.each([](IOptimizationStep* step) {
+        m_optimizations.each([](optimize::IOptimizationStep* step) {
             delete step;
         });
+        m_optimizations.clear();
+
+        optimize::OptimizationGroup* rootStep = new optimize::OptimizationGroup(m_ctx);
+        rootStep->addStep(optimize::defaultOptimizations(m_ctx));
+        m_optimizations.push(rootStep);
     }
     
-    void Pipeline::addOptimizationStep(IOptimizationStep* step) {
-        m_optimizations.push(step);
+    void Pipeline::addOptimizationStep(optimize::IOptimizationStep* step) {
+        optimize::OptimizationGroup* rootStep = ((optimize::OptimizationGroup*)m_optimizations[0]);
+        rootStep->addStep(step);
     }
 
     Module* Pipeline::buildFromSource(script_metadata* script) {
@@ -99,15 +109,10 @@ namespace tsn {
             return nullptr;
         }
 
-        u64 lastModifiedOn = std::chrono::duration_cast<std::chrono::milliseconds>(
-            std::filesystem::last_write_time(absPath).time_since_epoch()
-        ).count();
-
-        ModuleSource* src = new ModuleSource(code, lastModifiedOn);
+        ModuleSource* src = new ModuleSource(code, script);
         delete code;
 
-        if (m_root) m_root->m_sources.push(src);
-        else m_sources.push(src);
+        m_source = src;
 
         m_lexer = new compiler::Lexer(src);
         m_parser = new compiler::Parser(m_lexer, getLogger());
@@ -135,10 +140,18 @@ namespace tsn {
                 this->m_ctx->getFunctions()->registerFunction(fn);
                 this->m_compiler->getOutput()->getModule()->addFunction(fn);
 
-                CodeHolder ch = CodeHolder(fd->getCode());
-                this->m_optimizations.each([this, &ch](IOptimizationStep* step) {
-                    while (step->execute(&ch, this));
-                });
+                if (!this->m_ctx->getConfig()->disableOptimizations) {
+                    optimize::CodeHolder ch = optimize::CodeHolder(fd->getCode());
+                    ch.owner = fn;
+                    ch.rebuildAll();
+                    this->m_optimizations.each([this, &ch](optimize::IOptimizationStep* step) {
+                        for (auto& b : ch.cfg.blocks) {
+                            while (step->execute(&ch, &b, this));
+                        }
+                        
+                        while (step->execute(&ch, this));
+                    });
+                }
             });
 
             const auto& types = m_compiler->getOutput()->getTypes();
@@ -147,7 +160,7 @@ namespace tsn {
                 this->m_compiler->getOutput()->getModule()->addForeignType(tp);
             });
 
-            if (!m_ctx->getWorkspace()->getPersistor()->onScriptCompiled(script, m_compOutput)) {
+            if (!script->is_external && !m_ctx->getWorkspace()->getPersistor()->onScriptCompiled(script, m_compOutput)) {
                 m_logger->submit(
                     compiler::log_type::lt_warn,
                     compiler::iom_failed_to_cache_script,
@@ -157,7 +170,13 @@ namespace tsn {
         }
 
         m_isCompiling = false;
-        return out->getModule();
+
+        Module* mod = out->getModule();
+        if (mod) {
+            mod->setSrc(m_source);
+            m_source = nullptr;
+        }
+        return mod;
     }
 
     Module* Pipeline::buildFromCached(script_metadata* script) {
@@ -167,6 +186,27 @@ namespace tsn {
             if (m) return m;
             return nullptr;
         }
+        m_isCompiling = true;
+
+        std::filesystem::path absSourcePath = m_ctx->getConfig()->workspaceRoot;
+        absSourcePath /= script->path;
+        absSourcePath = std::filesystem::absolute(absSourcePath);
+
+        utils::Buffer* code = utils::Buffer::FromFile(absSourcePath.string());
+        if (!code) {
+            m_logger->submit(
+                compiler::log_type::lt_error,
+                compiler::iom_failed_to_open_file,
+                utils::String::Format("Failed to open source file '%s'", script->path.c_str())
+            );
+            m_isCompiling = false;
+            return nullptr;
+        }
+
+        ModuleSource* src = new ModuleSource(code, script);
+        delete code;
+
+        m_source = src;
 
         utils::String cachePath = utils::String::Format(
             "%s/%u.tsnc",
@@ -175,18 +215,31 @@ namespace tsn {
         );
 
         utils::Buffer* cache = utils::Buffer::FromFile(cachePath);
-        if (!cache) return nullptr;
+        if (!cache) {
+            m_isCompiling = false;
+            return nullptr;
+        }
 
-        m_compOutput = new compiler::Output();
-        if (!m_compOutput->deserialize(cache, m_ctx, nullptr)) {
+        m_compOutput = new compiler::Output(script, m_source);
+        if (!m_compOutput->deserialize(cache, m_ctx)) {
             delete cache;
             delete m_compOutput;
             m_compOutput = nullptr;
+            m_isCompiling = false;
             return nullptr;
         }
 
         delete cache;
-        return m_compOutput->getModule();
+        
+        Module* mod = m_compOutput->getModule();
+
+        if (mod) {
+            // source code ownership was taken by the Module in m_compOutput->deserialize()
+            m_source = nullptr;
+        }
+
+        m_isCompiling = false;
+        return mod;
     }
 
     Pipeline* Pipeline::getParent() const {

@@ -192,6 +192,37 @@ namespace utils {
         if (m_readOnly) {
             throw std::exception("Attempted to modify read-only string");
         }
+        
+        u32 slen = str.size();
+        if (slen == 0 || slen > m_len) return;
+
+        Array<u32> indices = indicesOf(str);
+        if (indices.size() == 0) return;
+
+        u32 newLength = (m_len - (indices.size() * slen)) + (indices.size() * with.m_len);
+        String tmp;
+        tmp.resize(newLength + 1);
+
+        u32 iidx = 0;
+        for (u32 i = 0;i < m_len;i++) {
+            if (iidx < indices.size() && i == indices[iidx]) {
+                for (u32 j = 0;j < with.m_len;j++) tmp.m_data[tmp.m_len++] = with.m_data[j];
+                i += (slen - 1);
+                iidx++;
+                continue;
+            }
+
+            tmp.m_data[tmp.m_len++] = m_data[i];
+        }
+
+        Allocator::Get()->free(m_data);
+        m_data = tmp.m_data;
+        m_len = tmp.m_len;
+        m_capacity = tmp.m_capacity;
+        m_data[m_len] = 0;
+
+        tmp.m_data = nullptr;
+        tmp.m_len = tmp.m_capacity = 0;
     }
 
     void String::replaceAll(const char* str, const String& with) {
@@ -229,6 +260,16 @@ namespace utils {
 
         tmp.m_data = nullptr;
         tmp.m_len = tmp.m_capacity = 0;
+    }
+
+    void String::replaceAll(char ch, char with) {
+        if (m_readOnly) {
+            throw std::exception("Attempted to modify read-only string");
+        }
+        
+        for (u32 i = 0;i < m_len;i++) {
+            if (m_data[i] == ch) m_data[i] = with;
+        }
     }
 
     String String::trim() const {
@@ -552,7 +593,7 @@ namespace utils {
         } else {
             out.m_data = const_cast<char*>(str);
             out.m_capacity = 0;
-            out.m_len = length ? length : strlen(str);
+            out.m_len = length ? length : u32(strlen(str));
             out.m_readOnly = true;
         }
         return out;

@@ -1,7 +1,7 @@
 #pragma once
-#include <tsn/common/Object.h>
+#include <tsn/ffi/Object.h>
 #include <tsn/common/Context.h>
-#include <tsn/common/DataType.h>
+#include <tsn/ffi/DataType.h>
 #include <tsn/bind/bind.h>
 #include <tsn/bind/calling.hpp>
 #include <tsn/utils/function_match.hpp>

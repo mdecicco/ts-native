@@ -1,5 +1,5 @@
 #include <tsn/interfaces/IDataTypeHolder.h>
-#include <tsn/common/DataType.h>
+#include <tsn/ffi/DataType.h>
 #include <utils/Array.hpp>
 
 namespace tsn {

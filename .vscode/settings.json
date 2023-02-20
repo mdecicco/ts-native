@@ -83,7 +83,8 @@
         "xlocinfo": "cpp",
         "xmemory": "cpp",
         "xstddef": "cpp",
-        "xtree": "cpp"
+        "xtree": "cpp",
+        "valarray": "cpp"
     },
     "cmake.configureArgs": [
         "-Wno-dev"

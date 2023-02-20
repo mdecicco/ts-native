@@ -2,10 +2,10 @@
 #include <tsn/compiler/Compiler.h>
 #include <tsn/compiler/OutputBuilder.h>
 #include <tsn/common/Context.h>
-#include <tsn/common/Function.h>
-#include <tsn/common/DataType.h>
+#include <tsn/ffi/Function.h>
+#include <tsn/ffi/DataType.h>
 #include <tsn/common/Module.h>
-#include <tsn/common/TypeRegistry.h>
+#include <tsn/ffi/DataTypeRegistry.h>
 #include <tsn/interfaces/IDataTypeHolder.hpp>
 #include <tsn/bind/ExecutionContext.h>
 
@@ -34,7 +34,9 @@ namespace tsn {
             m_implicitArgCount = 0;
         }
 
-        FunctionDef::FunctionDef(Compiler* c, const utils::String& name, DataType* methodOf) {
+        FunctionDef::FunctionDef(Compiler* c, const utils::String& name, DataType* methodOf, ParseNode* n) {
+            m_node = n;
+            m_scopeRef = nullptr;
             m_comp = c;
             m_src = c->getCurrentSrc();
             m_name = name;
@@ -61,7 +63,9 @@ namespace tsn {
             } else m_implicitArgCount = 3;
         }
         
-        FunctionDef::FunctionDef(Compiler* c, Function* func) {
+        FunctionDef::FunctionDef(Compiler* c, Function* func, ParseNode* n) {
+            m_node = n;
+            m_scopeRef = nullptr;
             m_comp = c;
             m_src = c->getCurrentSrc();
             m_name = func->getName();
@@ -95,8 +99,8 @@ namespace tsn {
             if (m_fptrArg) delete m_fptrArg;
             m_fptrArg = nullptr;
 
-            if (m_ectxArg) delete m_ectxArg;
-            m_ectxArg = nullptr;
+            if (m_retpArg) delete m_retpArg;
+            m_retpArg = nullptr;
 
             if (m_ectxArg) delete m_ectxArg;
             m_ectxArg = nullptr;
@@ -104,10 +108,8 @@ namespace tsn {
             if (m_thisArg) delete m_thisArg;
             m_thisArg = nullptr;
 
-            for (u8 a = 0;a < m_args.size();a++) {
-                delete m_args[a];
-                m_args[a] = nullptr;
-            }
+            for (u32 i = 0;i < m_args.size();i++) delete m_args[i];
+            m_args.clear();
         }
 
         InstructionRef FunctionDef::add(ir_instruction i) {
@@ -137,6 +139,7 @@ namespace tsn {
             m_retTp = tp;
             m_argInfo[1].dataType = tp;
             m_retTpSet = true;
+            if (m_retpArg) m_retpArg->setType(tp);
         }
 
         void FunctionDef::setThisType(ffi::DataType* tp) {
@@ -184,6 +187,8 @@ namespace tsn {
 
             Value& s = val(name, tp);
             s.m_flags.is_argument = 1;
+            s.m_flags.is_function = tp->getInfo().is_function;
+            s.m_regId = 0;
             s.m_imm.u = m_args.size();
             m_args.push(new Value(s));
         }
@@ -193,6 +198,8 @@ namespace tsn {
 
             Value& s = val(name, tp);
             s.m_flags.is_argument = 1;
+            s.m_flags.is_function = tp->getInfo().is_function;
+            s.m_regId = 0;
             s.m_imm.u = m_args.size();
             m_args.push(new Value(s));
         }
@@ -246,6 +253,24 @@ namespace tsn {
 
         void FunctionDef::setStackId(Value& v, alloc_id id) {
             v.m_allocId = id;
+            v.m_regId = 0;
+        }
+
+        Value& FunctionDef::promote(const Value& v, const utils::String& name) {
+            if (v.getName().size() > 0) {
+                return *m_poison;
+            }
+
+            if (v.isImm()) {
+                Value& out = val(name, v.getType());
+                out = v;
+                return out;
+            }
+
+            Value* out = new Value(v);
+            out->m_name = name;
+            m_comp->scope().add(name, out);
+            return *out;
         }
 
         Value& FunctionDef::val(const utils::String& name, DataType* tp) {
@@ -278,7 +303,7 @@ namespace tsn {
         Value FunctionDef::val(Module* m, u32 module_data_slot) {
             const module_data& info = m->getDataInfo(module_data_slot);
 
-            Value v = Value(this, info.type);
+            Value v = Value(this, info.type ? info.type : m_comp->getContext()->getTypes()->getType<void*>());
             v.m_regId = m_nextRegId++;
             v.m_flags.is_pointer = 1;
 
@@ -303,16 +328,19 @@ namespace tsn {
 
             Value& f = val("@fptr", voidp);
             f.m_flags.is_argument = 1;
+            f.m_flags.is_pointer = 1;
             f.m_imm.u = 0;
             m_fptrArg = new Value(f);
 
-            Value& r = val("@ret", voidp);
+            Value& r = val("@ret", m_retTpSet ? m_retTp : voidp);
             r.m_flags.is_argument = 1;
+            r.m_flags.is_pointer = 1;
             r.m_imm.u = 1;
             m_retpArg = new Value(r);
 
             Value& c = val("@ectx", ectx);
             c.m_flags.is_argument = 1;
+            c.m_flags.is_pointer = 1;
             c.m_imm.u = 2;
             m_ectxArg = new Value(c);
 
@@ -321,16 +349,30 @@ namespace tsn {
             if (m_thisTp) {
                 Value& t = val("this", m_thisTp);
                 t.m_flags.is_argument = 1;
-                t.m_flags.is_pointer = true;
+                t.m_flags.is_pointer = 1;
                 t.m_imm.u = 3;
                 m_thisArg = new Value(t);
             }
         }
 
         Function* FunctionDef::onExit() {
-            if (!m_retTp) setReturnType(m_comp->getContext()->getTypes()->getType<void>());
+            DataType* voidTp = m_comp->getContext()->getTypes()->getVoid();
+            if (!m_retTp) setReturnType(voidTp);
+
+            if (m_instructions.size() == 0 || m_instructions.last().op != ir_ret) {
+                if (m_retTp->isEqualTo(voidTp)) {
+                    add(ir_ret).op(val(voidTp));
+                } else {
+                    m_comp->error(
+                        cm_err_function_must_return_a_value,
+                        "Function '%s' must return a value of type '%s'",
+                        m_output->getDisplayName().c_str(),
+                        m_retTp->getName().c_str()
+                    );
+                }
+            }
+
             if (m_output) return m_output;
-            if (m_instructions.size() == 0) return nullptr;
 
             m_output = new Function(
                 m_name,
@@ -340,6 +382,11 @@ namespace tsn {
                 nullptr,
                 nullptr
             );
+
+            if (m_scopeRef) {
+                m_scopeRef->setType(m_output->getSignature());
+            }
+            
             m_comp->getOutput()->resolveFunctionDef(this, m_output);
 
             return m_output;
@@ -355,6 +402,10 @@ namespace tsn {
     
         utils::Array<Instruction>& FunctionDef::getCode() {
             return m_instructions;
+        }
+        
+        ParseNode* FunctionDef::getNode() {
+            return m_node;
         }
     };
 };

@@ -610,7 +610,7 @@ namespace utils {
             return;
         }
 
-        for (u32 i = 0;i < count && (from + i + count) < m_size;i++) {
+        for (u32 i = 0;(from + i + count) < m_size;i++) {
             m_data[from + i] = m_data[from + i + count];
         }
 

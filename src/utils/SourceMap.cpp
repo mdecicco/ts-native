@@ -30,7 +30,7 @@ namespace tsn {
         return m_fileModifiedOn;
     }
 
-    bool SourceMap::serialize(utils::Buffer* out, Context* ctx, void* extra) const {
+    bool SourceMap::serialize(utils::Buffer* out, Context* ctx) const {
         if (!out->write(m_fileModifiedOn)) return false;
         if (!out->write(m_map.size())) return false;
         
@@ -43,7 +43,7 @@ namespace tsn {
         return true;
     }
 
-    bool SourceMap::deserialize(utils::Buffer* in, Context* ctx, void* extra) {
+    bool SourceMap::deserialize(utils::Buffer* in, Context* ctx) {
         if (!in->read(m_fileModifiedOn)) return false;
 
         u32 len;

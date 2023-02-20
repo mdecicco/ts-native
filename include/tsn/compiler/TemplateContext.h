@@ -6,6 +6,8 @@
 #include <utils/String.h>
 
 namespace tsn {
+    class Module;
+
     namespace ffi {
         class Function;
         class DataType;
@@ -28,17 +30,19 @@ namespace tsn {
                 };
 
                 struct function_import {
+                    function_id id;
                     ffi::Function* fn;
                     utils::String alias;
                 };
 
                 struct datatype_import {
+                    type_id id;
                     ffi::DataType* tp;
                     utils::String alias;
                 };
 
                 TemplateContext();
-                TemplateContext(ParseNode* ast);
+                TemplateContext(ParseNode* ast, Module* module);
                 ~TemplateContext();
 
                 void addModuleDataImport(const utils::String& alias, u32 moduleId, u32 slotId);
@@ -51,9 +55,13 @@ namespace tsn {
                 const utils::Array<function_import>& getFunctionImports() const;
                 const utils::Array<datatype_import>& getTypeImports() const;
                 ParseNode* getAST();
+                Module* getOrigin();
                 
-                virtual bool serialize(utils::Buffer* out, Context* ctx, void* extra) const;
-                virtual bool deserialize(utils::Buffer* in, Context* ctx, void* extra);
+                virtual bool serialize(utils::Buffer* out, Context* ctx) const;
+                virtual bool deserialize(utils::Buffer* in, Context* ctx);
+
+                /** Resolves Function and DataType imports from ids after deserialization */
+                bool resolveReferences(Context* ctx);
             
             protected:
                 utils::Array<moduledata_import> m_moduleDataImports;
@@ -61,6 +69,7 @@ namespace tsn {
                 utils::Array<function_import> m_functionImports;
                 utils::Array<datatype_import> m_typeImports;
                 ParseNode* m_ast;
+                Module* m_originModule;
         };
     };
 };

@@ -17,8 +17,15 @@ namespace tsn {
         u32 module_id;
         size_t size;
         u64 modified_on;
+        u64 cached_on;
         bool is_trusted;
+        bool is_external;
     };
+
+    void enforceDirSeparator(std::string& path);
+    void enforceDirSeparator(utils::String& path);
+    std::string enforceDirSeparator(const std::string& _path);
+    utils::String enforceDirSeparator(const utils::String& _path);
 
     class PersistenceDatabase : public IContextual {
         public:

@@ -1,5 +1,5 @@
 #include <tsn/interfaces/IFunctionHolder.h>
-#include <tsn/common/Function.h>
+#include <tsn/ffi/Function.h>
 #include <tsn/utils/function_match.h>
 #include <utils/Array.hpp>
 
@@ -36,7 +36,7 @@ namespace tsn {
     }
 
     void IFunctionHolder::addFunction(ffi::Function* fn) {
-        if (fn->getId() == -1) {
+        if (fn->getId() == 0) {
             throw std::exception("Function has not been added to the registry");
         }
 

@@ -28,11 +28,11 @@ namespace tsn {
                 Scope(Compiler* comp, Scope* parent);
                 ~Scope();
 
-                void add(const utils::String& name, Value* v);
-                void add(const utils::String& name, ffi::DataType* t);
-                void add(const utils::String& name, FunctionDef* f);
-                void add(const utils::String& name, Module* m);
-                void add(const utils::String& name, Module* m, u32 slotId);
+                Value& add(const utils::String& name, Value* v);
+                Value& add(const utils::String& name, ffi::DataType* t);
+                Value& add(const utils::String& name, FunctionDef* f);
+                Value& add(const utils::String& name, Module* m);
+                Value& add(const utils::String& name, Module* m, u32 slotId);
                 symbol* get(const utils::String& name);
 
                 void addToStack(const Value& v);
@@ -61,11 +61,11 @@ namespace tsn {
                 Scope& get();
 
                 // Proxy functions for current scope
-                void add(const utils::String& name, Value* v);
-                void add(const utils::String& name, ffi::DataType* t);
-                void add(const utils::String& name, FunctionDef* f);
-                void add(const utils::String& name, Module* m);
-                void add(const utils::String& name, Module* m, u32 slotId);
+                Value& add(const utils::String& name, Value* v);
+                Value& add(const utils::String& name, ffi::DataType* t);
+                Value& add(const utils::String& name, FunctionDef* f);
+                Value& add(const utils::String& name, Module* m);
+                Value& add(const utils::String& name, Module* m, u32 slotId);
                 symbol* get(const utils::String& name);
 
                 void emitScopeExitInstructions(const Scope& s, const Value* save = nullptr);

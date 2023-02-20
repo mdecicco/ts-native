@@ -58,8 +58,8 @@ namespace tsn {
                 //     Will be null pointer
                 void* getWrapperAddress() const;
 
-                virtual bool serialize(utils::Buffer* out, Context* ctx, void* extra) const;
-                virtual bool deserialize(utils::Buffer* in, Context* ctx, void* extra);
+                virtual bool serialize(utils::Buffer* out, Context* ctx) const;
+                virtual bool deserialize(utils::Buffer* in, Context* ctx);
 
             protected:
                 friend class FunctionRegistry;
@@ -89,8 +89,8 @@ namespace tsn {
                 u64 getThisPtrOffset() const;
                 Method* clone(const utils::String& name, u64 baseOffset) const;
 
-                virtual bool serialize(utils::Buffer* out, Context* ctx, void* extra) const;
-                virtual bool deserialize(utils::Buffer* in, Context* ctx, void* extra);
+                virtual bool serialize(utils::Buffer* out, Context* ctx) const;
+                virtual bool deserialize(utils::Buffer* in, Context* ctx);
 
             private:
                 u64 m_baseOffset;
@@ -104,8 +104,8 @@ namespace tsn {
 
                 compiler::TemplateContext* getTemplateData();
 
-                virtual bool serialize(utils::Buffer* out, Context* ctx, void* extra) const;
-                virtual bool deserialize(utils::Buffer* in, Context* ctx, void* extra);
+                virtual bool serialize(utils::Buffer* out, Context* ctx) const;
+                virtual bool deserialize(utils::Buffer* in, Context* ctx);
             
             private:
                 compiler::TemplateContext* m_data;
@@ -119,8 +119,8 @@ namespace tsn {
 
                 compiler::TemplateContext* getTemplateData();
 
-                virtual bool serialize(utils::Buffer* out, Context* ctx, void* extra) const;
-                virtual bool deserialize(utils::Buffer* in, Context* ctx, void* extra);
+                virtual bool serialize(utils::Buffer* out, Context* ctx) const;
+                virtual bool deserialize(utils::Buffer* in, Context* ctx);
             
             private:
                 compiler::TemplateContext* m_data;

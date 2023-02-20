@@ -3,14 +3,14 @@
 #include <utils/Buffer.h>
 
 namespace tsn {
-    ModuleSource::ModuleSource(const utils::String& code, u64 modificationTime) {
-        m_modificationTime = modificationTime;
+    ModuleSource::ModuleSource(const utils::String& code, const script_metadata* meta) {
+        m_meta = meta;
         m_code = code;
         init();
     }
 
-    ModuleSource::ModuleSource(const utils::Buffer* code, u64 modificationTime) : m_code((char*)code->data(0), code->size()) {
-        m_modificationTime = modificationTime;
+    ModuleSource::ModuleSource(const utils::Buffer* code, const script_metadata* meta) : m_code((char*)code->data(0), u32(code->size())) {
+        m_meta = meta;
         init();
     }
 
@@ -57,8 +57,8 @@ namespace tsn {
         return m_lines.size();
     }
 
-    u64 ModuleSource::getModificationTime() const {
-        return m_modificationTime;
+    const script_metadata* ModuleSource::getMeta() const {
+        return m_meta;
     }
 
     const utils::String& ModuleSource::getCode() const {

@@ -9,14 +9,16 @@ namespace utils {
 };
 
 namespace tsn {
+    struct script_metadata;
+    
     class ModuleSource {
         public:
-            ModuleSource(const utils::String& code, u64 modificationTime);
-            ModuleSource(const utils::Buffer* code, u64 modificationTime);
+            ModuleSource(const utils::String& code, const script_metadata* meta);
+            ModuleSource(const utils::Buffer* code, const script_metadata* meta);
             ~ModuleSource();
 
             u32 getLineCount() const;
-            u64 getModificationTime() const;
+            const script_metadata* getMeta() const;
 
             const utils::String& getCode() const;
             const utils::Array<utils::String>& getLines() const;
@@ -25,7 +27,7 @@ namespace tsn {
         private:
             void init();
             
-            u64 m_modificationTime;
+            const script_metadata* m_meta;
             utils::String m_code;
             utils::Array<utils::String> m_lines;
     };

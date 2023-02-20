@@ -39,6 +39,55 @@ namespace tsn {
             Value* self;
         };
 
+        enum result_storage_location {
+            /** Allow code generation to decide on its own how and where to store the result */
+            rsl_auto,
+
+            /** Store the result on the stack */
+            rsl_stack,
+
+            /** Store the result in the module data */
+            rsl_module_data,
+
+            /** Store the result in the provided destination */
+            rsl_specified_dest
+        };
+
+        struct expression_context {
+            /** Where the expression result should be stored */
+            result_storage_location loc;
+
+            /** If loc == rsl_module_data, this is this is the name of the module data entry */
+            utils::String md_name;
+
+            /** If loc == rsl_module_data, this is this is the access modifier of the module data entry */
+            access_modifier md_access;
+
+            /** The type of value the destination expects to receive */
+            ffi::DataType* expectedType;
+
+            /**
+             * @brief If this is set and loc == rsl_specified_dest, the
+             * expression result will be stored here. If this is set, the
+             * value being represented should always be a pointer to allocated
+             * but uninitialized memory. The responsibility for construction
+             * is held by the expression evaluator, not the code that calls for
+             * the expression to be evaluated (nor any of the code that preceeds
+             * it).
+             * 
+             * If this field receives a value which has already been constructed
+             * then the constructed object will be overwritten without first being
+             * deconstructed.
+             */
+            Value* destination;
+
+            /** Whether or not the next call instruction should respect this. If a call occurred, this will be reset to false. */
+            bool targetNextCall;
+
+            /** Whether or not the next constructor should respect this. If a constructor occurred, this will be reset to false. */
+            bool targetNextConstructor;
+        };
+
         class Compiler : public IContextual, IWithLogger {
             public:
                 Compiler(Context* ctx, Logger* log, ParseNode* programTree, const script_metadata* meta);
@@ -47,12 +96,27 @@ namespace tsn {
                 void enterNode(ParseNode* n);
                 void exitNode();
 
+                void enterClass(ffi::DataType* n);
+                ffi::DataType* currentClass();
+                void exitClass();
+
+                expression_context* enterExpr();
+                expression_context* currentExpr();
+                void exitExpr();
+
                 void enterFunction(FunctionDef* fn);
                 ffi::Function* exitFunction();
                 FunctionDef* currentFunction() const;
                 ffi::DataType* currentClass() const;
                 ParseNode* currentNode();
                 bool inInitFunction() const;
+                bool isTrusted() const;
+                utils::String generateFullQualifierPrefix() const;
+
+                TemplateContext* createTemplateContext(ParseNode* n);
+                void pushTemplateContext(TemplateContext* tctx);
+                TemplateContext* getTemplateContext() const;
+                void popTemplateContext();
 
                 const SourceLocation& getCurrentSrc() const;
                 ScopeManager& scope();
@@ -83,6 +147,8 @@ namespace tsn {
                 friend class ScopeManager;
 
                 InstructionRef add(ir_instruction inst);
+                Value getStorageForExpr(ffi::DataType* tp);
+                Value copyValueToExprStorage(const Value& result);
                 void constructObject(const Value& dest, ffi::DataType* tp, const utils::Array<Value>& args);
                 void constructObject(const Value& dest, const utils::Array<Value>& args);
                 Value constructObject(ffi::DataType* tp, const utils::Array<Value>& args);
@@ -91,6 +157,11 @@ namespace tsn {
                 Value typeValue(ffi::DataType* tp);
                 Value moduleValue(Module* mod);
                 Value moduleData(Module* m, u32 slot);
+                Value newClosure(function_id target, Value* captures = nullptr, Value* captureTypeIds = nullptr, Value* captureCount = nullptr);
+                Value newClosureRef(const Value& closure, ffi::DataType* signature);
+                Value newClosureRef(const Value& fnImm);
+                Value newClosureRef(ffi::Function* fn);
+                Value newClosureRef(FunctionDef* fn);
                 Value generateCall(const Value& fn, const utils::String& name, ffi::DataType* retTp, const utils::Array<ffi::function_argument>& fargs, const utils::Array<Value>& params, const Value* self = nullptr);
                 Value generateCall(ffi::Function* fn, const utils::Array<Value>& args, const Value* self = nullptr);
                 Value generateCall(FunctionDef* fn, const utils::Array<Value>& args, const Value* self = nullptr);
@@ -107,6 +178,7 @@ namespace tsn {
                 ffi::DataType* resolveTypeSpecifier(ParseNode* n);
                 void importTemplateContext(TemplateContext* tctx);
                 void buildTemplateContext(ParseNode* n, TemplateContext* tctx, robin_hood::unordered_set<utils::String>& added);
+                void compileDefaultConstructor(ffi::DataType* forTp, u64 thisOffset);
                 ffi::Method* compileMethodDecl(ParseNode* n, u64 thisOffset, bool* wasDtor, bool templatesDefined = false, bool dtorExists = false);
                 void compileMethodDef(ParseNode* n, ffi::DataType* methodOf, ffi::Method* m);
                 ffi::DataType* compileType(ParseNode* n);
@@ -117,14 +189,17 @@ namespace tsn {
                 Value compileConditionalExpr(ParseNode* n);
                 Value compileMemberExpr(ParseNode* n, bool topLevel = true, member_expr_hints* hints = nullptr);
                 Value compileArrowFunction(ParseNode* n);
+                Value compileObjectLiteral(ParseNode* n);
+                Value compileArrayLiteral(ParseNode* n);
                 Value compileExpressionInner(ParseNode* n);
                 Value compileExpression(ParseNode* n);
                 void compileIfStatement(ParseNode* n);
+                void compileDeleteStatement(ParseNode* n);
                 void compileReturnStatement(ParseNode* n);
                 void compileSwitchStatement(ParseNode* n);
                 void compileTryBlock(ParseNode* n);
                 void compileThrow(ParseNode* n);
-                Value& compileVarDecl(ParseNode* n, u32* moduleSlot = nullptr);
+                Value& compileVarDecl(ParseNode* n, bool isExported = false);
                 void compileObjectDecompositor(ParseNode* n);
                 void compileLoop(ParseNode* n);
                 void compileContinue(ParseNode* n);
@@ -137,10 +212,13 @@ namespace tsn {
                 ParseNode* m_program;
                 utils::Array<ParseNode*> m_nodeStack;
                 utils::Array<FunctionDef*> m_funcStack;
-                ffi::DataType* m_curClass;
+                utils::Array<TemplateContext*> m_templateStack;
+                utils::Array<expression_context> m_exprCtx;
+                utils::Array<ffi::DataType*> m_classStack;
                 FunctionDef* m_curFunc;
                 OutputBuilder* m_output;
                 ScopeManager m_scopeMgr;
+                bool m_trustEnable;
 
                 utils::Array<loop_or_switch_context> m_lsStack;
         };

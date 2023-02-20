@@ -8,6 +8,7 @@ namespace tsn {
     class Config;
     class Workspace;
     class Pipeline;
+    struct script_metadata;
 
     namespace ffi {
         class DataTypeRegistry;
@@ -44,7 +45,7 @@ namespace tsn {
             Pipeline* getPipeline() const;
 
             Module* getGlobal() const;
-            Module* createModule(const utils::String& name, const utils::String& path);
+            Module* createModule(const utils::String& name, const utils::String& path, const script_metadata* meta);
             Module* createHostModule(const utils::String& name);
             Module* getModule(const utils::String& path, const utils::String& fromDir = utils::String());
             Module* getModule(u32 moduleId);

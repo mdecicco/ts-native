@@ -31,8 +31,8 @@ namespace tsn {
                 OutputBuilder(Compiler* c, Module* m);
                 ~OutputBuilder();
 
-                FunctionDef* newFunc(const utils::String& name, ffi::DataType* methodOf = nullptr);
-                FunctionDef* newFunc(ffi::Function* preCreated, bool retTpExplicit = true);
+                FunctionDef* newFunc(const utils::String& name, ParseNode* n, ffi::DataType* methodOf = nullptr);
+                FunctionDef* newFunc(ffi::Function* preCreated, ParseNode* n, bool retTpExplicit = true);
                 void resolveFunctionDef(FunctionDef* def, ffi::Function* fn);
                 FunctionDef* getFunctionDef(ffi::Function* fn);
                 void add(ffi::DataType* tp);

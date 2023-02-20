@@ -24,7 +24,7 @@ namespace tsn {
             public:
                 struct flags {
                     // Whether or not the value is a pointer to the data type
-                    // ...A real pointer, not a PointerType
+                    // ...A real pointer, not a Pointer<T>
                     unsigned is_pointer     : 1;
                     unsigned is_read_only   : 1;
 
@@ -42,6 +42,9 @@ namespace tsn {
 
                     // If this value refers to module data, module will be stored in m_imm.m, slot in m_slotId
                     unsigned is_module_data : 1;
+
+                    // If this value is an immediate
+                    unsigned is_immediate   : 1;
                 };
                 Value();
                 Value(const Value& o);
@@ -58,10 +61,18 @@ namespace tsn {
                     bool doError = true,
                     member_expr_hints* hints = nullptr
                 );
+                Value getPropPtr(
+                    const utils::String& name,
+                    bool excludeInherited = false,
+                    bool excludePrivate = false,
+                    bool doError = true
+                );
 
 
                 template <typename T>
                 std::enable_if_t<is_imm_v<T>, T> getImm() const;
+                template <typename T>
+                void setImm(T val);
 
                 vreg_id getRegId() const;
                 alloc_id getStackAllocId() const;
@@ -71,12 +82,23 @@ namespace tsn {
                 const flags& getFlags() const;
                 flags& getFlags();
                 Value* getSrcPtr() const;
+                Value* getSrcSelf() const;
+                
+                void setType(ffi::DataType* to);
 
+                bool isValid() const;
+                bool isArg() const;
+                
                 // Only one of these can be true
                 bool isReg() const;
                 bool isImm() const;
                 bool isStack() const;
+
+                // If any of these are true then isImm() is also true
                 bool isModuleData() const;
+                bool isType() const;
+                bool isModule() const;
+                bool isFunction() const;
 
                 Value operator +  (const Value& rhs) const;
                 Value operator += (const Value& rhs);
@@ -122,6 +144,8 @@ namespace tsn {
                 Value operator_logicalAndAssign(const Value& rhs);
                 // a ||= b
                 Value operator_logicalOrAssign(const Value& rhs);
+
+                bool isEquivalentTo(const Value& v) const;
 
                 utils::String toString() const;
             protected:

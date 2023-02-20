@@ -1,7 +1,7 @@
-#include <tsn/common/DataType.h>
-#include <tsn/common/TypeRegistry.h>
-#include <tsn/common/Function.h>
-#include <tsn/common/FunctionRegistry.h>
+#include <tsn/ffi/DataType.h>
+#include <tsn/ffi/DataTypeRegistry.h>
+#include <tsn/ffi/Function.h>
+#include <tsn/ffi/FunctionRegistry.h>
 #include <tsn/common/Context.h>
 #include <tsn/compiler/TemplateContext.h>
 #include <tsn/compiler/Parser.h>
@@ -16,13 +16,14 @@ namespace tsn {
         //
 
         DataType::DataType() {
-            m_id = -1;
+            m_id = 0;
             m_name = "";
             m_fullyQualifiedName = "";
             m_info = { 0 };
             m_destructor = nullptr;
             m_access = public_access;
             m_itype = dti_plain;
+            m_templateBase = nullptr;
         }
 
         DataType::DataType(
@@ -30,13 +31,14 @@ namespace tsn {
             const utils::String& fullyQualifiedName,
             const type_meta& info
         ) {
-            m_id = -1;
+            m_id = (type_id)std::hash<utils::String>()(fullyQualifiedName);
             m_name = name;
             m_fullyQualifiedName = fullyQualifiedName;
             m_info = info;
             m_destructor = nullptr;
             m_access = public_access;
             m_itype = dti_plain;
+            m_templateBase = nullptr;
         }
 
         DataType::DataType(
@@ -48,7 +50,7 @@ namespace tsn {
             Function* dtor,
             const utils::Array<Function*>& methods
         ) {
-            m_id = -1;
+            m_id = (type_id)std::hash<utils::String>()(fullyQualifiedName);
             m_name = name;
             m_fullyQualifiedName = fullyQualifiedName;
             m_info = info;
@@ -58,6 +60,7 @@ namespace tsn {
             m_methods = methods;
             m_access = public_access;
             m_itype = dti_plain;
+            m_templateBase = nullptr;
         }
 
         DataType::~DataType() {
@@ -136,12 +139,24 @@ namespace tsn {
             if (!to) return false;
             if (m_info.is_primitive && to->m_info.is_primitive) return true;
 
+            if (m_info.is_host) {
+                size_t data_hash = type_hash<void*>();
+                size_t null_hash = type_hash<null_t>();
+                if (m_info.host_hash == data_hash || m_info.host_hash == null_hash) {
+                    if (to->m_info.host_hash == data_hash || to->m_info.host_hash == null_hash) {
+                        return true;
+                    }
+                }
+            }
+
+            if (isEqualTo(to)) return true;
+
             const DataType* toEffective = to->getEffectiveType();
-            auto castMethods = findMethods("operator " + toEffective->getFullyQualifiedName(), toEffective, nullptr, 0, fm_skip_implicit_args);
+            auto castMethods = findMethods("operator " + toEffective->getFullyQualifiedName(), toEffective, nullptr, 0, fm_skip_implicit_args | fm_strict_return);
             if (castMethods.size() == 1) return true;
 
             const DataType* self = this->getEffectiveType();
-            auto copyCtors = to->findMethods("constructor", nullptr, &self, 1, fm_skip_implicit_args);
+            auto copyCtors = to->findMethods("constructor", nullptr, &self, 1, fm_skip_implicit_args | fm_strict_args);
             return copyCtors.size() == 1;
         }
         
@@ -206,6 +221,17 @@ namespace tsn {
             if (!to) return false;
             return getEffectiveType()->m_id == to->getEffectiveType()->m_id;
         }
+        
+        bool DataType::isConstructableWith(const utils::Array<DataType*>& args) const {
+            const DataType* self = this->getEffectiveType();
+            auto ctors = findMethods(
+                "constructor",
+                nullptr,
+                const_cast<const DataType**>(args.data()), args.size(),
+                fm_skip_implicit_args
+            );
+            return ctors.size() == 1;
+        }
 
         DataType* DataType::clone(const utils::String& name, const utils::String& fullyQualifiedName) const {
             return new DataType(name, fullyQualifiedName, m_info, m_properties, m_bases, m_destructor, m_methods);
@@ -224,8 +250,36 @@ namespace tsn {
         data_type_instance DataType::getInstanceType() const {
             return m_itype;
         }
+
+        ffi::TemplateType* DataType::getTemplateBase() const {
+            return getEffectiveType()->m_templateBase;
+        }
+
+        const utils::Array<DataType*>& DataType::getTemplateArguments() const {
+            return getEffectiveType()->m_templateArgs;
+        }
+
+        bool DataType::isInstantiationOf(ffi::TemplateType* templ) const {
+            TemplateType* templBase = getTemplateBase();
+
+            if (!templBase || !templ) return false;
+            return templBase->isEqualTo(templ);
+        }
+
+        bool DataType::isInstantiationOf(ffi::TemplateType* templ, const utils::Array<ffi::DataType*>& withArgs) const {
+            TemplateType* templBase = getTemplateBase();
+            const utils::Array<DataType*>& templArgs = getTemplateArguments();
+
+            if (!templBase || !templ) return false;
+            if (templArgs.size() != withArgs.size()) return false;
+            if (!templBase->isEqualTo(templ)) return false;
+
+            return !templArgs.some([&withArgs](const DataType* tp, u32 idx) {
+                return !tp->isEqualTo(withArgs[idx]);
+            });
+        }
             
-        bool DataType::serialize(utils::Buffer* out, Context* ctx, void* extra) const {
+        bool DataType::serialize(utils::Buffer* out, Context* ctx) const {
             auto writeFunc = [out](const Function* f) {
                 if (f) return !out->write(f->getId());
                 return !out->write(function_id(0));
@@ -266,10 +320,16 @@ namespace tsn {
             if (!out->write(m_methods.size())) return false;
             if (m_methods.some(writeFunc)) return false;
 
+            if (!out->write(m_templateBase ? m_templateBase->getId() : 0)) return false;
+            if (!out->write(m_templateArgs.size())) return false;
+            for (u32 i = 0;i < m_templateArgs.size();i++) {
+                if (!out->write(m_templateArgs[i]->getId())) return false;
+            }
+
             return true;
         }
 
-        bool DataType::deserialize(utils::Buffer* in, Context* ctx, void* extra) {
+        bool DataType::deserialize(utils::Buffer* in, Context* ctx) {
             // Types must be deserialized specially, due to circular dependance between functions and types
             return false;
         }
@@ -451,8 +511,8 @@ namespace tsn {
             m_fullyQualifiedName += ")";
         }
             
-        bool FunctionType::serialize(utils::Buffer* out, Context* ctx, void* extra) const {
-            if (!DataType::serialize(out, ctx, nullptr)) return false;
+        bool FunctionType::serialize(utils::Buffer* out, Context* ctx) const {
+            if (!DataType::serialize(out, ctx)) return false;
 
             auto writeArg = [out](const function_argument& a) {
                 if (!out->write(a.argType)) return true;
@@ -467,7 +527,7 @@ namespace tsn {
             return true;
         }
 
-        bool FunctionType::deserialize(utils::Buffer* in, Context* ctx, void* extra) {
+        bool FunctionType::deserialize(utils::Buffer* in, Context* ctx) {
             // Types must be deserialized specially, due to circular dependance between functions and types
             return false;
         }
@@ -520,13 +580,13 @@ namespace tsn {
             return m_data;
         }
             
-        bool TemplateType::serialize(utils::Buffer* out, Context* ctx, void* extra) const {
-            if (!DataType::serialize(out, ctx, nullptr)) return false;
-            if (!m_data->serialize(out, ctx, nullptr)) return false;
+        bool TemplateType::serialize(utils::Buffer* out, Context* ctx) const {
+            if (!DataType::serialize(out, ctx)) return false;
+            if (!m_data->serialize(out, ctx)) return false;
             return true;
         }
 
-        bool TemplateType::deserialize(utils::Buffer* in, Context* ctx, void* extra) {
+        bool TemplateType::deserialize(utils::Buffer* in, Context* ctx) {
             // Types must be deserialized specially, due to circular dependance between functions and types
             return false;
         }
@@ -566,13 +626,13 @@ namespace tsn {
             return m_ref;
         }
             
-        bool AliasType::serialize(utils::Buffer* out, Context* ctx, void* extra) const {
-            if (!DataType::serialize(out, ctx, nullptr)) return false;
+        bool AliasType::serialize(utils::Buffer* out, Context* ctx) const {
+            if (!DataType::serialize(out, ctx)) return false;
             if (!out->write(m_ref->getId())) return false;
             return true;
         }
 
-        bool AliasType::deserialize(utils::Buffer* in, Context* ctx, void* extra) {
+        bool AliasType::deserialize(utils::Buffer* in, Context* ctx) {
             // Types must be deserialized specially, due to circular dependance between functions and types
             return false;
         }

@@ -2,96 +2,97 @@
 #include <tsn/compiler/FunctionDef.hpp>
 #include <tsn/compiler/OutputBuilder.h>
 #include <tsn/compiler/Value.hpp>
-#include <tsn/common/Function.h>
-#include <tsn/common/FunctionRegistry.h>
+#include <tsn/common/Module.h>
+#include <tsn/ffi/Function.h>
+#include <tsn/ffi/FunctionRegistry.h>
 
 #include <utils/Array.hpp>
 #include <utils/Buffer.hpp>
 
 namespace tsn {
     namespace compiler {
-        static const ir_instruction_info opcode_info[] = {
-            // opcode name, operand count, { op[0] type, op[1] type, op[2] type }, assigns operand index
-            { "noop"          , 0, { ot_nil, ot_nil, ot_nil }, 0xFF },
-            { "label"         , 1, { ot_lbl, ot_nil, ot_nil }, 0xFF },
-            { "stack_allocate", 3, { ot_reg, ot_imm, ot_imm }, 0    },
-            { "stack_free"    , 1, { ot_imm, ot_nil, ot_nil }, 0xFF },
-            { "module_data"   , 3, { ot_reg, ot_imm, ot_imm }, 0    },
-            { "reserve"       , 1, { ot_reg, ot_nil, ot_nil }, 0    },
-            { "resolve"       , 2, { ot_reg, ot_val, ot_nil }, 0xFF },
-            { "load"          , 2, { ot_reg, ot_val, ot_nil }, 0    },
-            { "store"         , 2, { ot_val, ot_val, ot_nil }, 0xFF },
-            { "jump"          , 1, { ot_lbl, ot_nil, ot_nil }, 0xFF },
-            { "cvt"           , 3, { ot_reg, ot_val, ot_imm }, 0    },
-            { "param"         , 1, { ot_val, ot_nil, ot_nil }, 0xFF },
-            { "call"          , 2, { ot_fun, ot_val, ot_nil }, 1    },
-            { "ret"           , 1, { ot_val, ot_nil, ot_nil }, 0xFF },
-            { "branch"        , 3, { ot_reg, ot_lbl, ot_lbl }, 0xFF },
-            { "iadd"          , 3, { ot_reg, ot_val, ot_val }, 0    },
-            { "uadd"          , 3, { ot_reg, ot_val, ot_val }, 0    },
-            { "fadd"          , 3, { ot_reg, ot_val, ot_val }, 0    },
-            { "dadd"          , 3, { ot_reg, ot_val, ot_val }, 0    },
-            { "isub"          , 3, { ot_reg, ot_val, ot_val }, 0    },
-            { "usub"          , 3, { ot_reg, ot_val, ot_val }, 0    },
-            { "fsub"          , 3, { ot_reg, ot_val, ot_val }, 0    },
-            { "dsub"          , 3, { ot_reg, ot_val, ot_val }, 0    },
-            { "imul"          , 3, { ot_reg, ot_val, ot_val }, 0    },
-            { "umul"          , 3, { ot_reg, ot_val, ot_val }, 0    },
-            { "fmul"          , 3, { ot_reg, ot_val, ot_val }, 0    },
-            { "dmul"          , 3, { ot_reg, ot_val, ot_val }, 0    },
-            { "idiv"          , 3, { ot_reg, ot_val, ot_val }, 0    },
-            { "udiv"          , 3, { ot_reg, ot_val, ot_val }, 0    },
-            { "fdiv"          , 3, { ot_reg, ot_val, ot_val }, 0    },
-            { "ddiv"          , 3, { ot_reg, ot_val, ot_val }, 0    },
-            { "imod"          , 3, { ot_reg, ot_val, ot_val }, 0    },
-            { "umod"          , 3, { ot_reg, ot_val, ot_val }, 0    },
-            { "fmod"          , 3, { ot_reg, ot_val, ot_val }, 0    },
-            { "dmod"          , 3, { ot_reg, ot_val, ot_val }, 0    },
-            { "ilt"           , 3, { ot_reg, ot_val, ot_val }, 0    },
-            { "ult"           , 3, { ot_reg, ot_val, ot_val }, 0    },
-            { "flt"           , 3, { ot_reg, ot_val, ot_val }, 0    },
-            { "dlt"           , 3, { ot_reg, ot_val, ot_val }, 0    },
-            { "ilte"          , 3, { ot_reg, ot_val, ot_val }, 0    },
-            { "ulte"          , 3, { ot_reg, ot_val, ot_val }, 0    },
-            { "flte"          , 3, { ot_reg, ot_val, ot_val }, 0    },
-            { "dlte"          , 3, { ot_reg, ot_val, ot_val }, 0    },
-            { "igt"           , 3, { ot_reg, ot_val, ot_val }, 0    },
-            { "ugt"           , 3, { ot_reg, ot_val, ot_val }, 0    },
-            { "fgt"           , 3, { ot_reg, ot_val, ot_val }, 0    },
-            { "dgt"           , 3, { ot_reg, ot_val, ot_val }, 0    },
-            { "igte"          , 3, { ot_reg, ot_val, ot_val }, 0    },
-            { "ugte"          , 3, { ot_reg, ot_val, ot_val }, 0    },
-            { "fgte"          , 3, { ot_reg, ot_val, ot_val }, 0    },
-            { "dgte"          , 3, { ot_reg, ot_val, ot_val }, 0    },
-            { "ieq"           , 3, { ot_reg, ot_val, ot_val }, 0    },
-            { "ueq"           , 3, { ot_reg, ot_val, ot_val }, 0    },
-            { "feq"           , 3, { ot_reg, ot_val, ot_val }, 0    },
-            { "deq"           , 3, { ot_reg, ot_val, ot_val }, 0    },
-            { "ineq"          , 3, { ot_reg, ot_val, ot_val }, 0    },
-            { "uneq"          , 3, { ot_reg, ot_val, ot_val }, 0    },
-            { "fneq"          , 3, { ot_reg, ot_val, ot_val }, 0    },
-            { "dneq"          , 3, { ot_reg, ot_val, ot_val }, 0    },
-            { "iinc"          , 1, { ot_reg, ot_nil, ot_nil }, 0xFF },
-            { "uinc"          , 1, { ot_reg, ot_nil, ot_nil }, 0xFF },
-            { "finc"          , 1, { ot_reg, ot_nil, ot_nil }, 0xFF },
-            { "dinc"          , 1, { ot_reg, ot_nil, ot_nil }, 0xFF },
-            { "idec"          , 1, { ot_reg, ot_nil, ot_nil }, 0xFF },
-            { "udec"          , 1, { ot_reg, ot_nil, ot_nil }, 0xFF },
-            { "fdec"          , 1, { ot_reg, ot_nil, ot_nil }, 0xFF },
-            { "ddec"          , 1, { ot_reg, ot_nil, ot_nil }, 0xFF },
-            { "ineg"          , 2, { ot_reg, ot_val, ot_nil }, 0    },
-            { "fneg"          , 2, { ot_reg, ot_val, ot_nil }, 0    },
-            { "dneg"          , 2, { ot_reg, ot_val, ot_nil }, 0    },
-            { "not"           , 2, { ot_reg, ot_val, ot_nil }, 0    },
-            { "inv"           , 2, { ot_reg, ot_val, ot_nil }, 0    },
-            { "shl"           , 3, { ot_reg, ot_val, ot_val }, 0    },
-            { "shr"           , 3, { ot_reg, ot_val, ot_val }, 0    },
-            { "land"          , 3, { ot_reg, ot_val, ot_val }, 0    },
-            { "band"          , 3, { ot_reg, ot_val, ot_val }, 0    },
-            { "lor"           , 3, { ot_reg, ot_val, ot_val }, 0    },
-            { "bor"           , 3, { ot_reg, ot_val, ot_val }, 0    },
-            { "xor"           , 3, { ot_reg, ot_val, ot_val }, 0    },
-            { "assign"        , 2, { ot_reg, ot_val, ot_nil }, 0    }
+        constexpr ir_instruction_info opcode_info[] = {
+            // opcode name, operand count, { op[0] type, op[1] type, op[2] type }, assigns operand index, flags
+            { "noop"          , 0, { ot_nil, ot_nil, ot_nil }, 0xFF, 0 },
+            { "label"         , 1, { ot_lbl, ot_nil, ot_nil }, 0xFF, 0 },
+            { "stack_allocate", 3, { ot_reg, ot_imm, ot_imm }, 0   , 0 },
+            { "stack_free"    , 1, { ot_imm, ot_nil, ot_nil }, 0xFF, 0 },
+            { "module_data"   , 3, { ot_reg, ot_imm, ot_imm }, 0   , 0 },
+            { "reserve"       , 1, { ot_reg, ot_nil, ot_nil }, 0   , 0 },
+            { "resolve"       , 2, { ot_reg, ot_val, ot_nil }, 0xFF, 0 },
+            { "load"          , 2, { ot_reg, ot_reg, ot_nil }, 0   , 0 },
+            { "store"         , 2, { ot_val, ot_reg, ot_nil }, 0xFF, 0 },
+            { "jump"          , 1, { ot_lbl, ot_nil, ot_nil }, 0xFF, 0 },
+            { "cvt"           , 3, { ot_reg, ot_val, ot_imm }, 0   , 0 },
+            { "param"         , 1, { ot_val, ot_nil, ot_nil }, 0xFF, 0 },
+            { "call"          , 2, { ot_fun, ot_val, ot_nil }, 1   , 1 },
+            { "ret"           , 0, { ot_nil, ot_nil, ot_nil }, 0xFF, 0 },
+            { "branch"        , 3, { ot_reg, ot_lbl, ot_lbl }, 0xFF, 0 },
+            { "iadd"          , 3, { ot_reg, ot_val, ot_val }, 0   , 0 },
+            { "uadd"          , 3, { ot_reg, ot_val, ot_val }, 0   , 0 },
+            { "fadd"          , 3, { ot_reg, ot_val, ot_val }, 0   , 0 },
+            { "dadd"          , 3, { ot_reg, ot_val, ot_val }, 0   , 0 },
+            { "isub"          , 3, { ot_reg, ot_val, ot_val }, 0   , 0 },
+            { "usub"          , 3, { ot_reg, ot_val, ot_val }, 0   , 0 },
+            { "fsub"          , 3, { ot_reg, ot_val, ot_val }, 0   , 0 },
+            { "dsub"          , 3, { ot_reg, ot_val, ot_val }, 0   , 0 },
+            { "imul"          , 3, { ot_reg, ot_val, ot_val }, 0   , 0 },
+            { "umul"          , 3, { ot_reg, ot_val, ot_val }, 0   , 0 },
+            { "fmul"          , 3, { ot_reg, ot_val, ot_val }, 0   , 0 },
+            { "dmul"          , 3, { ot_reg, ot_val, ot_val }, 0   , 0 },
+            { "idiv"          , 3, { ot_reg, ot_val, ot_val }, 0   , 0 },
+            { "udiv"          , 3, { ot_reg, ot_val, ot_val }, 0   , 0 },
+            { "fdiv"          , 3, { ot_reg, ot_val, ot_val }, 0   , 0 },
+            { "ddiv"          , 3, { ot_reg, ot_val, ot_val }, 0   , 0 },
+            { "imod"          , 3, { ot_reg, ot_val, ot_val }, 0   , 0 },
+            { "umod"          , 3, { ot_reg, ot_val, ot_val }, 0   , 0 },
+            { "fmod"          , 3, { ot_reg, ot_val, ot_val }, 0   , 0 },
+            { "dmod"          , 3, { ot_reg, ot_val, ot_val }, 0   , 0 },
+            { "ilt"           , 3, { ot_reg, ot_val, ot_val }, 0   , 0 },
+            { "ult"           , 3, { ot_reg, ot_val, ot_val }, 0   , 0 },
+            { "flt"           , 3, { ot_reg, ot_val, ot_val }, 0   , 0 },
+            { "dlt"           , 3, { ot_reg, ot_val, ot_val }, 0   , 0 },
+            { "ilte"          , 3, { ot_reg, ot_val, ot_val }, 0   , 0 },
+            { "ulte"          , 3, { ot_reg, ot_val, ot_val }, 0   , 0 },
+            { "flte"          , 3, { ot_reg, ot_val, ot_val }, 0   , 0 },
+            { "dlte"          , 3, { ot_reg, ot_val, ot_val }, 0   , 0 },
+            { "igt"           , 3, { ot_reg, ot_val, ot_val }, 0   , 0 },
+            { "ugt"           , 3, { ot_reg, ot_val, ot_val }, 0   , 0 },
+            { "fgt"           , 3, { ot_reg, ot_val, ot_val }, 0   , 0 },
+            { "dgt"           , 3, { ot_reg, ot_val, ot_val }, 0   , 0 },
+            { "igte"          , 3, { ot_reg, ot_val, ot_val }, 0   , 0 },
+            { "ugte"          , 3, { ot_reg, ot_val, ot_val }, 0   , 0 },
+            { "fgte"          , 3, { ot_reg, ot_val, ot_val }, 0   , 0 },
+            { "dgte"          , 3, { ot_reg, ot_val, ot_val }, 0   , 0 },
+            { "ieq"           , 3, { ot_reg, ot_val, ot_val }, 0   , 0 },
+            { "ueq"           , 3, { ot_reg, ot_val, ot_val }, 0   , 0 },
+            { "feq"           , 3, { ot_reg, ot_val, ot_val }, 0   , 0 },
+            { "deq"           , 3, { ot_reg, ot_val, ot_val }, 0   , 0 },
+            { "ineq"          , 3, { ot_reg, ot_val, ot_val }, 0   , 0 },
+            { "uneq"          , 3, { ot_reg, ot_val, ot_val }, 0   , 0 },
+            { "fneq"          , 3, { ot_reg, ot_val, ot_val }, 0   , 0 },
+            { "dneq"          , 3, { ot_reg, ot_val, ot_val }, 0   , 0 },
+            { "iinc"          , 1, { ot_reg, ot_nil, ot_nil }, 0   , 0 },
+            { "uinc"          , 1, { ot_reg, ot_nil, ot_nil }, 0   , 0 },
+            { "finc"          , 1, { ot_reg, ot_nil, ot_nil }, 0   , 0 },
+            { "dinc"          , 1, { ot_reg, ot_nil, ot_nil }, 0   , 0 },
+            { "idec"          , 1, { ot_reg, ot_nil, ot_nil }, 0   , 0 },
+            { "udec"          , 1, { ot_reg, ot_nil, ot_nil }, 0   , 0 },
+            { "fdec"          , 1, { ot_reg, ot_nil, ot_nil }, 0   , 0 },
+            { "ddec"          , 1, { ot_reg, ot_nil, ot_nil }, 0   , 0 },
+            { "ineg"          , 2, { ot_reg, ot_val, ot_nil }, 0   , 0 },
+            { "fneg"          , 2, { ot_reg, ot_val, ot_nil }, 0   , 0 },
+            { "dneg"          , 2, { ot_reg, ot_val, ot_nil }, 0   , 0 },
+            { "not"           , 2, { ot_reg, ot_val, ot_nil }, 0   , 0 },
+            { "inv"           , 2, { ot_reg, ot_val, ot_nil }, 0   , 0 },
+            { "shl"           , 3, { ot_reg, ot_val, ot_val }, 0   , 0 },
+            { "shr"           , 3, { ot_reg, ot_val, ot_val }, 0   , 0 },
+            { "land"          , 3, { ot_reg, ot_val, ot_val }, 0   , 0 },
+            { "band"          , 3, { ot_reg, ot_val, ot_val }, 0   , 0 },
+            { "lor"           , 3, { ot_reg, ot_val, ot_val }, 0   , 0 },
+            { "bor"           , 3, { ot_reg, ot_val, ot_val }, 0   , 0 },
+            { "xor"           , 3, { ot_reg, ot_val, ot_val }, 0   , 0 },
+            { "assign"        , 2, { ot_reg, ot_val, ot_nil }, 0   , 0 }
         };
 
         const ir_instruction_info& instruction_info(ir_instruction op) {
@@ -122,25 +123,90 @@ namespace tsn {
             
             for (u8 i = 0;i < oCnt;i++) {
                 if (!operands[i].isReg() || operands[i].getRegId() != reg) continue;
-                if (i == info.assigns_operand_index && excludeAssignment) continue;
+                if (i == info.assigns_operand_index) {
+                    bool readsValueBeforeAssignment = info.operand_count == 1;
+                    if (!readsValueBeforeAssignment && excludeAssignment) continue;
+                }
                 return true;
             }
 
             return false;
         }
 
+        Instruction& Instruction::operator =(const Instruction& rhs) {
+            op = rhs.op;
+            operands[0].reset(rhs.operands[0]);
+            operands[1].reset(rhs.operands[1]);
+            operands[2].reset(rhs.operands[2]);
+            src = rhs.src;
+            oCnt = rhs.oCnt;
+            
+            return *this;
+        }
+
         utils::String Instruction::toString(Context* ctx) const {
             const ir_instruction_info& info = opcode_info[op];
             utils::String s = info.name;
             for (u8 o = 0;o < oCnt;o++) {
+                if (op == ir_cvt && o == 2 && operands[2].isImm()) {
+                    ffi::DataType* tp = ctx->getTypes()->getType(operands[2].getImm<type_id>());
+                    if (tp) s += utils::String::Format(" <Type %s>", tp->getFullyQualifiedName().c_str());
+                    else s += " <Invalid Type ID>";
+                    continue;
+                } else if (op == ir_module_data) {
+                    if (o == 1 && operands[1].isImm() && operands[2].isImm()) {
+                        Module* mod = ctx->getModule(operands[1].getImm<u32>());
+                        u32 slot = operands[2].getImm<u32>();
+
+                        if (mod) {
+                            auto& info = mod->getDataInfo(slot);
+                            s += utils::String::Format(" <Module %s : %s>", mod->getName().c_str(), info.name.c_str());
+                        } else s += " <Invalid Module ID>";
+
+                        break;
+                    }
+                } else if (op == ir_call && o == 1) {
+                    if (operands[1].isImm() && operands[1].getImm<u64>() == 0) {
+                        s += " -> void";
+                        continue;
+                    } else {
+                        s += " ->";
+                    }
+                } else if (op == ir_ret && operands[0].getType()->getInfo().size == 0) {
+                    // void return, don't append dummy register
+                    break;
+                }
+
                 if (info.operands[o] == ot_fun && operands[o].isImm()) {
                     FunctionDef* fd = operands[o].getImm<FunctionDef*>();
                     ffi::Function* fn = fd->getOutput();
-                    s += utils::String::Format(" <Function %s>", fn->getFullyQualifiedName().c_str());
+                    s += utils::String::Format(" <Function %s>", fn->getDisplayName().c_str());
                 } else if (info.operands[o] == ot_lbl) {
                     label_id lid = operands[o].getImm<label_id>();
                     s += utils::String::Format(" LABEL_%d", lid);
                 } else s += " " + operands[o].toString();
+            }
+
+            if (op == ir_uadd && operands[1].isReg() && operands[2].isImm() && operands[2].getType()->getInfo().is_integral && operands[1].getName().size() > 0) {
+                // Is likely a property offset
+                u32 offset = operands[2].getImm<u32>();
+                auto prop = operands[1].getType()->getProperties().find([offset](const auto& prop) {
+                    return prop.offset == offset;
+                });
+
+                if (prop) {
+                    // Yup
+                    s += " ; " + operands[1].getName() + "." + prop->name;
+                }
+            } else if ((op == ir_load || op == ir_store) && operands[1].getName().size() > 0) {
+                // loading/storing in first property
+                auto prop = operands[1].getType()->getProperties().find([](const auto& prop) {
+                    return prop.offset == 0;
+                });
+
+                if (prop) {
+                    s += " ; " + operands[1].getName() + "." + prop->name;
+                }
             }
 
             return s;

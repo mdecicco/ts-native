@@ -21,5 +21,17 @@ namespace tsn {
                 else if constexpr (std::is_same_v<T, Module*>) return m_imm.mod;
             }
         }
+
+        template <typename T>
+        void Value::setImm(T val) {
+            if constexpr (std::is_integral_v<T>) {
+                if constexpr (std::is_unsigned_v<T>) m_imm.u = val;
+                else m_imm.i = val;
+            } else {
+                if constexpr (std::is_floating_point_v<T>) m_imm.f = val;
+                else if constexpr (std::is_same_v<T, FunctionDef*>) m_imm.fn = val;
+                else if constexpr (std::is_same_v<T, Module*>) m_imm.mod = val;
+            }
+        }
     };
 };

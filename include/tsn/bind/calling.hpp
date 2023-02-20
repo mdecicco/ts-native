@@ -1,5 +1,5 @@
 #pragma once
-#include <tsn/common/Object.h>
+#include <tsn/ffi/Object.h>
 #include <tsn/bind/call_host_to_host.hpp>
 #include <tsn/bind/call_host_to_script.hpp>
 

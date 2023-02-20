@@ -9,7 +9,9 @@
 
 namespace tsn {
     class Module;
+    class ModuleSource;
     class SourceMap;
+    struct script_metadata;
 
     namespace ffi {
         class DataType;
@@ -27,7 +29,14 @@ namespace tsn {
 
         namespace output {
             struct operand {
-                bool is_imm;
+                struct {
+                    unsigned is_reg : 1;
+                    unsigned is_stack : 1;
+                    unsigned is_func : 1;
+                    unsigned is_imm : 1;
+                    unsigned _unused : 4;
+                } flags;
+
                 ffi::DataType* data_type;
 
                 union {
@@ -103,6 +112,8 @@ namespace tsn {
                 utils::Array<proto_type_prop> props;
                 utils::Array<proto_type_base> bases;
                 utils::Array<function_id> methodIds;
+                type_id templateBaseId;
+                utils::Array<type_id> templateArgIds;
 
                 // function types only
                 function_id returnTypeId;
@@ -118,14 +129,14 @@ namespace tsn {
 
         class Output : public IPersistable {
             public:
-                Output();
+                Output(const script_metadata* meta, ModuleSource* src);
                 Output(OutputBuilder* in);
                 ~Output();
 
                 Module* getModule();
 
-                virtual bool serialize(utils::Buffer* out, Context* ctx, void* extra) const;
-                virtual bool deserialize(utils::Buffer* in, Context* ctx, void* extra);
+                virtual bool serialize(utils::Buffer* out, Context* ctx) const;
+                virtual bool deserialize(utils::Buffer* in, Context* ctx);
 
             protected:
                 bool generateTypesAndFunctions(
@@ -136,6 +147,9 @@ namespace tsn {
                 );
 
                 Module* m_mod;
+                ModuleSource* m_src;
+
+                const script_metadata* m_meta;
                 utils::Array<output::function> m_funcs;
         };
     };

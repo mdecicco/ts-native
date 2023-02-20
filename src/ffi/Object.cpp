@@ -1,7 +1,6 @@
-#include <tsn/common/Object.hpp>
-#include <tsn/common/DataType.h>
+#include <tsn/ffi/Object.hpp>
+#include <tsn/ffi/DataType.h>
 #include <tsn/bind/calling.hpp>
-
 
 #include <utils/Allocator.hpp>
 #include <utils/Array.hpp>

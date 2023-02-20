@@ -2,13 +2,14 @@
 #include <tsn/compiler/OutputBuilder.h>
 #include <tsn/compiler/FunctionDef.h>
 #include <tsn/compiler/Compiler.h>
+#include <tsn/compiler/Parser.h>
 #include <tsn/compiler/IR.h>
 #include <tsn/compiler/Value.hpp>
 #include <tsn/compiler/TemplateContext.h>
 #include <tsn/common/Context.h>
-#include <tsn/common/Function.h>
-#include <tsn/common/FunctionRegistry.h>
-#include <tsn/common/TypeRegistry.h>
+#include <tsn/ffi/Function.h>
+#include <tsn/ffi/FunctionRegistry.h>
+#include <tsn/ffi/DataTypeRegistry.h>
 #include <tsn/common/Module.h>
 #include <tsn/io/Workspace.h>
 #include <tsn/utils/SourceMap.h>
@@ -22,12 +23,16 @@ namespace tsn {
     namespace compiler {
         using namespace output;
 
-        Output::Output() {
+        Output::Output(const script_metadata* meta, ModuleSource* src) {
             m_mod = nullptr;
+            m_src = src;
+            m_meta = meta;
         }
 
         Output::Output(OutputBuilder* in) {
             m_mod = in->getModule();
+            m_src = m_mod->getSource();
+            m_meta = m_mod->getInfo();
 
             const auto& funcs = in->getFuncs();
             for (u32 i = 0;i < funcs.size();i++) {
@@ -51,14 +56,17 @@ namespace tsn {
                         auto& v = inst.operands[o];
                         const auto& s = code[c].operands[o];
                         v.data_type = s.getType();
-                        v.is_imm = s.isImm();
+                        v.flags.is_reg = s.isReg();
+                        v.flags.is_stack = s.isStack();
+                        v.flags.is_func = s.isFunction();
+                        v.flags.is_imm = s.isImm();
 
-                        if (v.is_imm) {
+                        if (s.isReg()) v.value.reg_id = s.getRegId();
+                        else if (s.isStack()) v.value.alloc_id = s.getStackAllocId();
+                        else if (v.flags.is_imm) {
                             if (info.operands[o] == ot_fun) v.value.imm_u = s.getImm<FunctionDef*>()->getOutput()->getId();
                             else v.value.imm_u = s.getImm<u64>();
                         }
-                        else if (s.isReg()) v.value.reg_id = s.getRegId();
-                        else if (s.isStack()) v.value.alloc_id = s.getStackAllocId();
                     }
 
                     const SourceLocation& src = code[c].src;
@@ -80,7 +88,7 @@ namespace tsn {
             return m_mod;
         }
 
-        bool Output::serialize(utils::Buffer* out, Context* ctx, void* extra) const {
+        bool Output::serialize(utils::Buffer* out, Context* ctx) const {
             if (!out->write(m_mod->getId())) return false;
             if (!out->write(m_mod->getName())) return false;
             if (!out->write(m_mod->getPath())) return false;
@@ -89,22 +97,23 @@ namespace tsn {
             const auto funcs = m_mod->allFunctions();
             if (!out->write(funcs.size() - 1)) return false;
             for (u32 i = 1;i < funcs.size();i++) {
-                if (!funcs[i]->serialize(out, ctx, nullptr)) return false;
+                if (!funcs[i]->serialize(out, ctx)) return false;
             }
 
             const auto& types = m_mod->allTypes();
             if (!out->write(types.size())) return false;
             for (u32 i = 0;i < types.size();i++) {
-                if (!types[i]->serialize(out, ctx, nullptr)) return false;
+                if (!types[i]->serialize(out, ctx)) return false;
             }
 
             const auto& data = m_mod->getData();
             if (!out->write(data.size())) return false;
             for (u32 i = 0;i < data.size();i++) {
-                if (!out->write(data[i].type->getId())) return false;
+                if (!out->write(data[i].type ? data[i].type->getId() : 0)) return false;
+                if (!out->write(data[i].size)) return false;
                 if (!out->write(data[i].access)) return false;
                 if (!out->write(data[i].name)) return false;
-                if (!out->write(data[i].ptr, data[i].type->getInfo().size)) return false;
+                if (!out->write(data[i].ptr, data[i].size)) return false;
             }
 
             if (!out->write(m_funcs.size())) return false;
@@ -120,21 +129,22 @@ namespace tsn {
                     if (!out->write(inst.op)) return false;
 
                     for (u8 o = 0;o < info.operand_count;o++) {
+                        if (!out->write(inst.operands[o].flags)) return false;
                         if (!out->write(inst.operands[o].data_type->getId())) return false;
-                        if (!out->write(inst.operands[o].is_imm)) return false;
                         if (!out->write(inst.operands[o].value)) return false;
                     }
                 }
 
-                if (!f.map->serialize(out, ctx, extra)) return false;
+                if (!f.map->serialize(out, ctx)) return false;
             }
 
             return true;
         }
 
-        bool Output::deserialize(utils::Buffer* in, Context* ctx, void* extra) {
+        bool Output::deserialize(utils::Buffer* in, Context* ctx) {
             utils::Array<proto_function> proto_funcs;
             utils::Array<proto_type> proto_types;
+            utils::Array<TemplateContext*> tcontexts;
             ffi::FunctionRegistry* freg = ctx->getFunctions();
             ffi::DataTypeRegistry* treg = ctx->getTypes();
 
@@ -145,8 +155,9 @@ namespace tsn {
             utils::String path = in->readStr();
             if (path.size() == 0) return false;
             
-            m_mod = ctx->createModule(name, path);
+            m_mod = ctx->createModule(name, path, m_meta);
             if (m_mod->getId() != mid) return false;
+            m_mod->setSrc(m_src);
 
             u32 count;
             // read functions
@@ -161,15 +172,13 @@ namespace tsn {
                 pf.name = in->readStr();
                 if (pf.name.size() == 0) return false;
                 pf.displayName = in->readStr();
-                if (pf.displayName.size() == 0) return false;
                 pf.fullyQualifiedName = in->readStr();
-                if (pf.fullyQualifiedName.size() == 0) return false;
 
                 if (!in->read(pf.access)) return false;
                 if (!in->read(pf.signatureTypeId)) return false;
                 if (!in->read(pf.isTemplate)) return false;
                 if (!in->read(pf.isMethod)) return false;
-                if (!pf.src.deserialize(in, ctx, nullptr)) return false;
+                if (!pf.src.deserialize(in, ctx)) return false;
                 
                 if (pf.isMethod) {
                     if (!in->read(pf.baseOffset)) return false;
@@ -177,11 +186,14 @@ namespace tsn {
 
                 if (pf.isTemplate) {
                     pf.tctx = new TemplateContext();
-                    if (!pf.tctx->deserialize(in, ctx, nullptr)) {
+                    if (!pf.tctx->deserialize(in, ctx)) {
                         delete pf.tctx;
                         pf.tctx = nullptr;
                         return false;
                     }
+
+                    tcontexts.push(pf.tctx);
+                    pf.tctx->getAST()->rehydrateSourceRefs(pf.tctx->getOrigin()->getSource());
                 }
             }
 
@@ -224,12 +236,28 @@ namespace tsn {
                 u32 bcount;
                 if (!in->read(bcount)) return false;
                 pt.bases.reserve(bcount);
-                if (!in->read(pt.bases.data(), bcount * sizeof(proto_type_base))) return false;
+                for (u32 i = 0;i < bcount;i++) {
+                    pt.bases.push(proto_type_base());
+                    if (!in->read(pt.bases.last())) return false;
+                }
 
                 u32 mcount;
                 if (!in->read(mcount)) return false;
                 pt.methodIds.reserve(mcount);
-                if (!in->read(pt.methodIds.data(), mcount * sizeof(function_id))) return false;
+                for (u32 i = 0;i < mcount;i++) {
+                    function_id mid;
+                    if (!in->read(mid)) return false;
+                    pt.methodIds.push(mid);
+                }
+
+                if (!in->read(pt.templateBaseId)) return false;
+                u32 tacount;
+                if (!in->read(tacount)) return false;
+                for (u32 i = 0;i < tacount;i++) {
+                    type_id tid;
+                    if (!in->read(tid)) return false;
+                    pt.templateArgIds.push(tid);
+                }
 
                 switch (pt.itype) {
                     case ffi::dti_plain: break;
@@ -247,11 +275,14 @@ namespace tsn {
                     }
                     case ffi::dti_template: {
                         pt.tctx = new TemplateContext();
-                        if (!pt.tctx->deserialize(in, ctx, nullptr)) {
+                        if (!pt.tctx->deserialize(in, ctx)) {
                             delete pt.tctx;
                             pt.tctx = nullptr;
                             return false;
                         }
+                    
+                        tcontexts.push(pt.tctx);
+                        pt.tctx->getAST()->rehydrateSourceRefs(m_mod->getSource());
                         break;
                     }
                     case ffi::dti_alias: {
@@ -262,7 +293,12 @@ namespace tsn {
                 }
             }
 
-            generateTypesAndFunctions(proto_funcs, proto_types, freg, treg);
+            if (!generateTypesAndFunctions(proto_funcs, proto_types, freg, treg)) return false;
+
+            // resolve template context data
+            for (u32 i = 0;i < tcontexts.size();i++) {
+                if (!tcontexts[i]->resolveReferences(ctx)) return false;
+            }
 
             // read data
             if (!in->read(count)) return false;
@@ -270,15 +306,17 @@ namespace tsn {
                 module_data md;
                 type_id tid;
                 if (!in->read(tid)) return false;
-                md.type = treg->getType(tid);
+                md.type = tid == 0 ? nullptr : treg->getType(tid);
 
+                if (!in->read(md.size)) return false;
                 if (!in->read(md.access)) return false;
                 md.name = in->readStr();
                 if (md.name.size() == 0) return false;
 
-                m_mod->addData(md.name, md.type, md.access);
+                if (md.type) m_mod->addData(md.name, md.type, md.access);
+                else m_mod->addData(md.name, md.size);
                 
-                if (!in->read(m_mod->m_data[i].ptr, md.type->getInfo().size)) return false;
+                if (!in->read(m_mod->m_data[i].ptr, md.size)) return false;
             }
 
             if (!in->read(count)) return false;
@@ -295,16 +333,26 @@ namespace tsn {
                 for (u32 c = 0;c < f.icount;c++) {
                     auto& inst = f.code[c];
                     inst.operands[0].data_type = nullptr;
-                    inst.operands[0].is_imm = false;
                     inst.operands[0].value.imm_u = 0;
-
-                    const auto& info = instruction_info(inst.op);
+                    inst.operands[0].flags = { 0 };
+                    inst.operands[1].data_type = nullptr;
+                    inst.operands[1].value.imm_u = 0;
+                    inst.operands[1].flags = { 0 };
+                    inst.operands[2].data_type = nullptr;
+                    inst.operands[2].value.imm_u = 0;
+                    inst.operands[2].flags = { 0 };
                     if (!in->read(inst.op)) {
                         delete [] f.code;
                         return false;
                     }
 
+                    const auto& info = instruction_info(inst.op);
                     for (u8 o = 0;o < info.operand_count;o++) {
+                        if (!in->read(inst.operands[o].flags)) {
+                            delete [] f.code;
+                            return false;
+                        }
+
                         type_id tid;
                         if (!in->read(tid)) {
                             delete [] f.code;
@@ -317,11 +365,6 @@ namespace tsn {
                             return false;
                         }
 
-                        if (!in->read(inst.operands[o].is_imm)) {
-                            delete [] f.code;
-                            return false;
-                        }
-
                         if (!in->read(inst.operands[o].value)) {
                             delete [] f.code;
                             return false;
@@ -330,7 +373,7 @@ namespace tsn {
                 }
             
                 f.map = new SourceMap();
-                if (!f.map->deserialize(in, ctx, extra)) {
+                if (!f.map->deserialize(in, ctx)) {
                     delete [] f.code;
                     delete f.map;
                     return false;
@@ -369,7 +412,7 @@ namespace tsn {
                 m_mod->addFunction(f);
             }
 
-            // Generate types without properties or bases
+            // Generate types without properties, bases, template info, or derived info
             for (auto& pt : types) {
                 ffi::DataType* tp = nullptr;
                 switch (pt.itype) {
@@ -404,7 +447,7 @@ namespace tsn {
                 f->m_signature = pf.signatureTypeId == 0 ? nullptr : (ffi::FunctionType*)treg->getType(pf.signatureTypeId);
             }
 
-            // Add properties, bases, derived info to types
+            // Add properties, bases, template info, derived info to types
             for (u32 i = 0;i < types.size();i++) {
                 proto_type& pt = types[i];
                 ffi::DataType* tp = otypes[i];
@@ -431,6 +474,14 @@ namespace tsn {
                     base.access = pb.access;
                     base.offset = pb.offset;
                     base.type = treg->getType(pb.typeId);
+                }
+
+                if (pt.templateBaseId != 0) {
+                    tp->m_templateBase = (ffi::TemplateType*)treg->getType(pt.templateBaseId);
+                }
+
+                for (u32 a = 0;a < pt.templateArgIds.size();a++) {
+                    tp->m_templateArgs.push(treg->getType(pt.templateArgIds[a]));
                 }
 
                 switch (pt.itype) {

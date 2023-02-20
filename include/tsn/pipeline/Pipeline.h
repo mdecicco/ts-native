@@ -14,11 +14,14 @@ namespace tsn {
         class ParseNode;
         class Output;
     };
+
+    namespace optimize {
+        class IOptimizationStep;
+    };
     
     struct script_metadata;
     class ModuleSource;
     class Module;
-    class IOptimizationStep;
 
     class Pipeline : public IContextual {
         public:
@@ -26,7 +29,7 @@ namespace tsn {
             ~Pipeline();
 
             void reset();
-            void addOptimizationStep(IOptimizationStep* step);
+            void addOptimizationStep(optimize::IOptimizationStep* step);
 
             Module* buildFromSource(script_metadata* script);
             Module* buildFromCached(script_metadata* script);
@@ -45,13 +48,13 @@ namespace tsn {
             Pipeline* m_parent;
             Pipeline* m_root;
             compiler::Logger* m_logger;
-            utils::Array<ModuleSource*> m_sources;
+            ModuleSource* m_source;
             compiler::Lexer* m_lexer;
             compiler::Parser* m_parser;
             compiler::Compiler* m_compiler;
 
             compiler::ParseNode* m_ast;
             compiler::Output* m_compOutput;
-            utils::Array<IOptimizationStep*> m_optimizations;
+            utils::Array<optimize::IOptimizationStep*> m_optimizations;
     };
 };

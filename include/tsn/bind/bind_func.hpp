@@ -2,10 +2,10 @@
 #include <tsn/bind/bind.h>
 #include <tsn/bind/bind_func.h>
 #include <tsn/bind/ExecutionContext.h>
-#include <tsn/common/DataType.h>
-#include <tsn/common/FunctionRegistry.h>
-#include <tsn/common/TypeRegistry.h>
-#include <tsn/common/Function.h>
+#include <tsn/ffi/DataType.h>
+#include <tsn/ffi/FunctionRegistry.h>
+#include <tsn/ffi/DataTypeRegistry.h>
+#include <tsn/ffi/Function.h>
 #include <tsn/utils/remove_all.h>
 
 #include <utils/String.h>
@@ -62,6 +62,9 @@ namespace tsn {
                 constexpr bool argIsPtr[] = { (std::is_reference_v<Args> || std::is_pointer_v<Args>)... };
                 constexpr bool argNeedsPtr[] = { !std::is_fundamental_v<Args>... };
 
+                DataType* voidt = reg->getType<void>();
+                DataType* voidp = reg->getType<void*>();
+
                 for (u8 a = 0;a < argc;a++) {
                     if (!argTypes[a]) {
                         throw BindException(utils::String::Format(
@@ -78,9 +81,14 @@ namespace tsn {
                         ));
                     }
 
+                    bool isVoidPtr = false;
+                    if (argIsPtr[a] && argTypes[a]->getId() == voidt->getId()) {
+                        isVoidPtr = true;
+                    }
+
                     args.push({
-                        (argNeedsPtr[a] || argIsPtr[a]) ? arg_type::pointer : arg_type::value,
-                        argTypes[a]
+                        (!isVoidPtr && (argNeedsPtr[a] || argIsPtr[a])) ? arg_type::pointer : arg_type::value,
+                        isVoidPtr ? voidp : argTypes[a]
                     });
                 }
             }

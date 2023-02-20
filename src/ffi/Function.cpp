@@ -1,6 +1,6 @@
-#include <tsn/common/Function.h>
-#include <tsn/common/DataType.h>
-#include <tsn/common/TypeRegistry.h>
+#include <tsn/ffi/Function.h>
+#include <tsn/ffi/DataType.h>
+#include <tsn/ffi/DataTypeRegistry.h>
 #include <tsn/common/Context.h>
 #include <tsn/compiler/TemplateContext.h>
 #include <utils/Buffer.hpp>
@@ -12,7 +12,7 @@ namespace tsn {
         // Function
         //
         Function::Function() {
-            m_id = -1;
+            m_id = 0;
             m_registryIndex = -1;
             m_access = public_access;
             m_signature = nullptr;
@@ -25,9 +25,9 @@ namespace tsn {
         Function::Function(const utils::String& name, const utils::String& extraQualifiers, FunctionType* signature, access_modifier access, void* address, void* wrapperAddr) {
             m_extraQualifiers = extraQualifiers;
             m_fullyQualifiedName = signature ? signature->generateFullyQualifiedFunctionName(extraQualifiers + name) : "";
-            m_displayName = signature ? signature->generateFunctionDisplayName(name) : "";
-            m_id = -1;
-            m_registryIndex = -1;
+            m_displayName = signature ? signature->generateFunctionDisplayName(extraQualifiers + name) : "";
+            m_id = 0;
+            m_registryIndex = 0xFFFFFFFF;
             m_name = name;
             m_signature = signature;
             m_access = access;
@@ -95,7 +95,7 @@ namespace tsn {
             return m_wrapperAddress;
         }
 
-        bool Function::serialize(utils::Buffer* out, Context* ctx, void* extra) const {
+        bool Function::serialize(utils::Buffer* out, Context* ctx) const {
             if (!out->write(m_id)) return false;
             if (!out->write(m_name)) return false;
             if (!out->write(m_displayName)) return false;
@@ -104,12 +104,12 @@ namespace tsn {
             if (!out->write(m_signature ? m_signature->getId() : type_id(0))) return false;
             if (!out->write(m_isTemplate)) return false;
             if (!out->write(m_isMethod)) return false;
-            if (!m_src.serialize(out, ctx, nullptr)) return false;
+            if (!m_src.serialize(out, ctx)) return false;
 
             return true;
         }
 
-        bool Function::deserialize(utils::Buffer* in, Context* ctx, void* extra) {
+        bool Function::deserialize(utils::Buffer* in, Context* ctx) {
             // Functions must be deserialized specially, due to circular dependance between functions and types
             return false;
         }
@@ -147,13 +147,13 @@ namespace tsn {
             return new Method(name, m_extraQualifiers, getSignature(), getAccessModifier(), getAddress(), getWrapperAddress(), baseOffset);
         }
 
-        bool Method::serialize(utils::Buffer* out, Context* ctx, void* extra) const {
-            if (!Function::serialize(out, ctx, nullptr)) return false;
+        bool Method::serialize(utils::Buffer* out, Context* ctx) const {
+            if (!Function::serialize(out, ctx)) return false;
             if (!out->write(m_baseOffset)) return false;
             return true;
         }
 
-        bool Method::deserialize(utils::Buffer* in, Context* ctx, void* extra) {
+        bool Method::deserialize(utils::Buffer* in, Context* ctx) {
             // Functions must be deserialized specially, due to circular dependance between functions and types
             return false;
         }
@@ -183,13 +183,13 @@ namespace tsn {
             return m_data;
         }
 
-        bool TemplateFunction::serialize(utils::Buffer* out, Context* ctx, void* extra) const {
-            if (!Function::serialize(out, ctx, nullptr)) return false;
-            if (!m_data->serialize(out, ctx, nullptr)) return false;
+        bool TemplateFunction::serialize(utils::Buffer* out, Context* ctx) const {
+            if (!Function::serialize(out, ctx)) return false;
+            if (!m_data->serialize(out, ctx)) return false;
             return true;
         }
 
-        bool TemplateFunction::deserialize(utils::Buffer* in, Context* ctx, void* extra) {
+        bool TemplateFunction::deserialize(utils::Buffer* in, Context* ctx) {
             // Functions must be deserialized specially, due to circular dependance between functions and types
             return false;
         }
@@ -219,13 +219,13 @@ namespace tsn {
             return m_data;
         }
 
-        bool TemplateMethod::serialize(utils::Buffer* out, Context* ctx, void* extra) const {
-            if (!Method::serialize(out, ctx, nullptr)) return false;
-            if (!m_data->serialize(out, ctx, nullptr)) return false;
+        bool TemplateMethod::serialize(utils::Buffer* out, Context* ctx) const {
+            if (!Method::serialize(out, ctx)) return false;
+            if (!m_data->serialize(out, ctx)) return false;
             return true;
         }
 
-        bool TemplateMethod::deserialize(utils::Buffer* in, Context* ctx, void* extra) {
+        bool TemplateMethod::deserialize(utils::Buffer* in, Context* ctx) {
             // Functions must be deserialized specially, due to circular dependance between functions and types
             return false;
         }

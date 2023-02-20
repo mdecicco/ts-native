@@ -1,8 +1,8 @@
 #pragma once
 #include <tsn/bind/bind_type.h>
 #include <tsn/bind/bind.h>
-#include <tsn/common/DataType.h>
-#include <tsn/common/TypeRegistry.h>
+#include <tsn/ffi/DataType.h>
+#include <tsn/ffi/DataTypeRegistry.h>
 #include <tsn/interfaces/IDataTypeHolder.hpp>
 
 #include <utils/Array.hpp>

@@ -9,10 +9,12 @@ namespace tsn {
     namespace compiler {
         class TemplateContext;
         class Output;
+        class Compiler;
     };
 
     namespace ffi {
         class DataType;
+        class TemplateType;
         class Function;
         class Method;
         class DataTypeRegistry;
@@ -161,6 +163,13 @@ namespace tsn {
                  */
                 bool isEqualTo(const DataType* to) const;
 
+                /**
+                 * @brief Checks if this type is able to be constructed with the provided argument types
+                 * 
+                 * @return Returns true if this type is constructable with the provided argument types
+                 */
+                bool isConstructableWith(const utils::Array<DataType*>& args) const;
+
                 DataType* clone(const utils::String& name, const utils::String& fullyQualifiedName) const;
 
                 /**
@@ -183,9 +192,55 @@ namespace tsn {
                  * @brief Get which type of data type this is
                  */
                 data_type_instance getInstanceType() const;
+
+                /**
+                 * @brief Get the template type that this type's effective type is an instantiation
+                 *        of, if this type's effective type is an instantiation of a template type.
+                 * 
+                 * @return The template type that this type's effective type was instantiated from,
+                 *         or nullptr if this type's effective type is not a template instantiation.
+                 */
+                ffi::TemplateType* getTemplateBase() const;
+
+                /**
+                 * @brief Get the template arguments that were used to instantiate this type's
+                 *        effective type, if this type's effective type is an instantiation
+                 *        of a template type.
+                 * 
+                 * @return Array of ffi::DataType* that were used as arguments to instantiate the
+                 *         template. If this is not a template instantiation, it will be an empty
+                 *         array.
+                 */
+                const utils::Array<DataType*>& getTemplateArguments() const;
+
+                /**
+                 * @brief Checks if this type's effective type is an instantiation of the specified
+                 *        template type
+                 * 
+                 * @param templ The template type to check if this type is an instantiation of
+                 * 
+                 * @return true if this type's effective type is an instantiation of the specified
+                 *         type, otherwise false
+                 */
+                bool isInstantiationOf(ffi::TemplateType* templ) const;
+                
+                /**
+                 * @brief Checks if this type's effective type is an instantiation of the specified
+                 *        template type with the provided template arguments
+                 * 
+                 * @param templ    The template type to check if this type is an instantiation of
+                 * @param withArgs An array of template arguments to check against any template
+                 *                 arguments that may have been used to instantiate this type
+                 *                 from a template.
+                 * 
+                 * @return true if this type's effective type is an instantiation of the specified
+                 *         type which was instantiated using the specified template arguments,
+                 *         otherwise false
+                 */
+                bool isInstantiationOf(ffi::TemplateType* templ, const utils::Array<ffi::DataType*>& withArgs) const;
             
-                virtual bool serialize(utils::Buffer* out, Context* ctx, void* extra) const;
-                virtual bool deserialize(utils::Buffer* in, Context* ctx, void* extra);
+                virtual bool serialize(utils::Buffer* out, Context* ctx) const;
+                virtual bool deserialize(utils::Buffer* in, Context* ctx);
             
             protected:
                 friend class DataTypeBinder;
@@ -195,6 +250,7 @@ namespace tsn {
                 friend class AliasType;
                 friend class ClassType;
                 friend class compiler::Output;
+                friend class compiler::Compiler;
                 
                 type_id m_id;
                 data_type_instance m_itype;
@@ -204,6 +260,8 @@ namespace tsn {
                 access_modifier m_access;
                 utils::Array<type_property> m_properties;
                 utils::Array<type_base> m_bases;
+                ffi::TemplateType* m_templateBase;
+                utils::Array<ffi::DataType*> m_templateArgs;
 
                 Function* m_destructor;
                 utils::Array<Function*> m_methods;
@@ -227,8 +285,8 @@ namespace tsn {
                 const utils::Array<function_argument>& getArguments() const;
                 virtual bool isEquivalentTo(DataType* to) const;
             
-                virtual bool serialize(utils::Buffer* out, Context* ctx, void* extra) const;
-                virtual bool deserialize(utils::Buffer* in, Context* ctx, void* extra);
+                virtual bool serialize(utils::Buffer* out, Context* ctx) const;
+                virtual bool deserialize(utils::Buffer* in, Context* ctx);
 
             protected:
                 friend class Function;
@@ -247,8 +305,8 @@ namespace tsn {
 
                 compiler::TemplateContext* getTemplateData() const;
             
-                virtual bool serialize(utils::Buffer* out, Context* ctx, void* extra) const;
-                virtual bool deserialize(utils::Buffer* in, Context* ctx, void* extra);
+                virtual bool serialize(utils::Buffer* out, Context* ctx) const;
+                virtual bool deserialize(utils::Buffer* in, Context* ctx);
 
             protected:
                 friend class compiler::Output;
@@ -263,8 +321,8 @@ namespace tsn {
 
                 DataType* getRefType() const;
             
-                virtual bool serialize(utils::Buffer* out, Context* ctx, void* extra) const;
-                virtual bool deserialize(utils::Buffer* in, Context* ctx, void* extra);
+                virtual bool serialize(utils::Buffer* out, Context* ctx) const;
+                virtual bool deserialize(utils::Buffer* in, Context* ctx);
 
             protected:
                 friend class compiler::Output;

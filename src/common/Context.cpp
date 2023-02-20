@@ -1,6 +1,6 @@
 #include <tsn/common/Context.h>
-#include <tsn/common/FunctionRegistry.h>
-#include <tsn/common/TypeRegistry.h>
+#include <tsn/ffi/FunctionRegistry.h>
+#include <tsn/ffi/DataTypeRegistry.h>
 #include <tsn/common/Module.h>
 #include <tsn/common/Config.h>
 #include <tsn/pipeline/Pipeline.h>
@@ -10,7 +10,7 @@
 
 namespace tsn {
     Context::Context(u32 apiVersion, Config* cfg) {
-        m_builtinApiVersion = 1;
+        m_builtinApiVersion = 2;
         m_userApiVersion = apiVersion;
 
         if (cfg) m_cfg = new Config(*cfg);
@@ -23,6 +23,9 @@ namespace tsn {
         m_global = createHostModule("global");
 
         AddBuiltInBindings(this);
+
+        // Must be called _AFTER_ builtin bindings
+        m_types->updateCachedTypes();
     }
 
     Context::~Context() {
@@ -66,28 +69,40 @@ namespace tsn {
         return m_global;
     }
 
-    Module* Context::createModule(const utils::String& name, const utils::String& path) {
+    Module* Context::createModule(const utils::String& name, const utils::String& _path, const script_metadata* meta) {
+        utils::String path = _path;
+        enforceDirSeparator(path);
+
         if (m_modules.count(path) != 0) {
             return nullptr;
         }
 
-        Module* m = new Module(this, name, path);
+        Module* m = new Module(this, name, path, meta);
         m_modules[path] = m;
         m_modulesById[m->getId()] = m;
         return m;
     }
     
     Module* Context::createHostModule(const utils::String& name) {
-        return createModule(name, "<host>/" + name + ".tsn");
+        return createModule(name, "<host>/" + name + ".tsn", nullptr);
     }
 
-    Module* Context::getModule(const utils::String& path, const utils::String& fromDir) {
+    Module* Context::getModule(const utils::String& _path, const utils::String& fromDir) {
+        utils::String path = _path;
+        enforceDirSeparator(path);
+        
         auto it = m_modules.find(path);
         if (it == m_modules.end()) {
             // Maybe it's a host module
             it = m_modules.find("<host>/" + path + ".tsn");
             if (it == m_modules.end()) {
-                return m_workspace->getModule(path, fromDir);
+                Module* m = m_workspace->getModule(path, fromDir);
+                if (m) {
+                    m_modules[path] = m;
+                    m_modulesById[m->getId()] = m;
+                }
+
+                return m;
             }
             return it->second;
         }

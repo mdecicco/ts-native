@@ -1,7 +1,7 @@
 #pragma once
 #include <tsn/bind/call_common.hpp>
 #include <tsn/bind/ffi_argument.hpp>
-#include <tsn/common/Function.h>
+#include <tsn/ffi/Function.h>
 #include <tsn/bind/ExecutionContext.h>
 
 namespace tsn {

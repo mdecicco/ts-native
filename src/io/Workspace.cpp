@@ -13,6 +13,36 @@
 namespace tsn {
     constexpr u32 PTSN_MAGIC = 0x4E535450; /* Hex for "PTSN" */
 
+    void enforceDirSeparator(std::string& path) {
+        size_t pos = 0;
+        while ((pos = path.find_first_of('\\')) != std::string::npos) {
+            path[pos] = '/';
+        }
+    }
+
+    void enforceDirSeparator(utils::String& path) {
+        path.replaceAll("\\", "/");
+    }
+
+    std::string enforceDirSeparator(const std::string& _path) {
+        std::string path = _path;
+
+        size_t pos = 0;
+        while ((pos = path.find_first_of('\\')) != std::string::npos) {
+            path[pos] = '/';
+        }
+
+        return path;
+    }
+
+    utils::String enforceDirSeparator(const utils::String& _path) {
+        utils::String path = _path;
+
+        path.replaceAll("\\", "/");
+
+        return path;
+    }
+
     //
     // PersistenceDatabase
     //
@@ -64,7 +94,9 @@ namespace tsn {
 
                 if (!in->read(m->size)) throw false;
                 if (!in->read(m->modified_on)) throw false;
+                if (!in->read(m->cached_on)) throw false;
                 if (!in->read(m->is_trusted)) throw false;
+                m->is_external = false;
 
                 m->module_id = (u32)std::hash<utils::String>()(m->path);
 
@@ -92,15 +124,16 @@ namespace tsn {
         out.write(m_ctx->getBuiltinApiVersion());
         out.write(m_ctx->getExtendedApiVersion());
         out.write((u16)m_ctx->getConfig()->workspaceRoot.length());
-        out.write(m_ctx->getConfig()->workspaceRoot);
+        out.write(m_ctx->getConfig()->workspaceRoot.c_str(), m_ctx->getConfig()->workspaceRoot.length());
         out.write((u32)m_scripts.size());
         
         for (auto it : m_scripts) {
             script_metadata* m = it.second;
             out.write((u16)m->path.length());
-            out.write(m->path);
+            out.write(m->path.c_str(), m->path.length());
             out.write(m->size);
             out.write(m->modified_on);
+            out.write(m->cached_on);
             out.write(m->is_trusted);
         }
 
@@ -123,7 +156,9 @@ namespace tsn {
             (u32)std::hash<utils::String>()(path),
             size,
             modifiedTimestamp,
-            trusted
+            0,
+            trusted,
+            false
         });
     }
 
@@ -134,12 +169,16 @@ namespace tsn {
     
     bool PersistenceDatabase::onScriptCompiled(script_metadata* script, compiler::Output* output) {
         utils::Buffer cached;
-        if (!output->serialize(&cached, m_ctx, nullptr)) return false;
+        if (!output->serialize(&cached, m_ctx)) return false;
 
         std::filesystem::path p = m_ctx->getConfig()->supportDir;
         p /= utils::String::Format("%u.tsnc", script->module_id).c_str();
 
         if (!cached.save(p.string())) return false;
+
+        script->cached_on = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::filesystem::last_write_time(p).time_since_epoch()
+        ).count();
 
         return true;
     }
@@ -218,7 +257,7 @@ namespace tsn {
 
     Module* Workspace::loadModule(const std::string& path) {
         std::filesystem::path relpath = std::filesystem::relative(path, m_ctx->getConfig()->workspaceRoot);
-        script_metadata* meta = m_db->getScript(relpath.string());
+        script_metadata* meta = m_db->getScript(enforceDirSeparator(relpath.string()));
 
         if (meta) {
             // find out if it's cached, and if the cache is still valid
@@ -226,7 +265,7 @@ namespace tsn {
                 std::filesystem::last_write_time(path).time_since_epoch()
             ).count();
 
-            if (lastModifiedOn == meta->modified_on) {
+            if (lastModifiedOn < meta->cached_on) {
                 Module* mod = loadCached(meta);
                 if (mod) return mod;
 
@@ -271,7 +310,7 @@ namespace tsn {
                 if (ext != ".tsn") continue;
 
                 processScript(
-                    std::filesystem::relative(entry.path(), root).string(),
+                    enforceDirSeparator(std::filesystem::relative(entry.path(), root).string()),
                     entry.file_size(),
                     std::chrono::duration_cast<std::chrono::milliseconds>(entry.last_write_time().time_since_epoch()).count(),
                     trusted
@@ -280,7 +319,9 @@ namespace tsn {
         }
     }
 
-    void Workspace::processScript(const std::string& path, size_t size, u64 modifiedTimestamp, bool trusted) {
+    void Workspace::processScript(const std::string& _path, size_t size, u64 modifiedTimestamp, bool trusted) {
+        std::string path = enforceDirSeparator(_path);
+        
         auto script = m_db->getScript(path);
         if (!script) {
             m_db->onFileDiscovered(path, size, modifiedTimestamp, trusted);

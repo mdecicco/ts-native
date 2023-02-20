@@ -18,7 +18,7 @@ namespace tsn {
             // import, export, from, as, operator, static,
             // const, get, set, null, return, switch, case,
             // default, true, false, this, function, let
-            // new, sizeof
+            // new, sizeof, delete
             tt_keyword,
 
             // + , - , *  , / , ~  , ! , % , ^ , < , > , = , & , && , | , || ,
@@ -48,6 +48,7 @@ namespace tsn {
 
         struct token {
             token_type tp;
+            u16 len;
 
             // View of ModuleSource::m_rawCode, read only, unless tp == tt_string | tt_template_string
             utils::String text;

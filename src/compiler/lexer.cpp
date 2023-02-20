@@ -23,6 +23,7 @@ namespace tsn {
             if (!m_curSrc.isValid()) {
                 out.push({
                     tt_eof,
+                    0,
                     utils::String::View(m_curSrc.getPointer(), 0),
                     m_curSrc
                 });
@@ -117,19 +118,29 @@ namespace tsn {
                             break;
                         }
                         case 'd': {
-                            // do, default
+                            // do, default, delete
                             n = *tmp++;
                             if (n == 'o') {
                                 // tp is already tt_keyword
                             } else if (n == 'e') {
-                                if (
-                                    *tmp++ != 'f' ||
-                                    *tmp++ != 'a' ||
-                                    *tmp++ != 'u' ||
-                                    *tmp++ != 'l' ||
-                                    *tmp++ != 't'
-                                ) {
-                                    tp = tt_identifier;
+                                n = *tmp++;
+                                if (n == 'l') {
+                                    if (
+                                        *tmp++ != 'e' ||
+                                        *tmp++ != 't' ||
+                                        *tmp++ != 'e'
+                                    ) {
+                                        tp = tt_identifier;
+                                    }
+                                } else if (n == 'f') {
+                                    if (
+                                        *tmp++ != 'a' ||
+                                        *tmp++ != 'u' ||
+                                        *tmp++ != 'l' ||
+                                        *tmp++ != 't'
+                                    ) {
+                                        tp = tt_identifier;
+                                    }
                                 }
                             } else tp = tt_identifier;
                             break;
@@ -433,6 +444,7 @@ namespace tsn {
 
                     out.push({
                         tt_number,
+                        u16(end - begin),
                         utils::String::View(begin, u32(end - begin)),
                         tokBegin
                     });
@@ -444,6 +456,7 @@ namespace tsn {
                     if (n == 'f' || n == 'b' || n == 's') {
                         out.push({
                             tt_number_suffix,
+                            1,
                             utils::String::View(m_curSrc.getPointer(), 1),
                             m_curSrc
                         });
@@ -453,6 +466,7 @@ namespace tsn {
                         if (::tolower(*(begin + 1) == 'l')) {
                             out.push({
                                 tt_number_suffix,
+                                2,
                                 utils::String::View(m_curSrc.getPointer(), 2),
                                 m_curSrc
                             });
@@ -465,6 +479,7 @@ namespace tsn {
                         if (n == 's' || n == 'b') {
                             out.push({
                                 tt_number_suffix,
+                                2,
                                 utils::String::View(m_curSrc.getPointer(), 2),
                                 m_curSrc
                             });
@@ -476,6 +491,7 @@ namespace tsn {
 
                             out.push({
                                 tt_number_suffix,
+                                u16(n == 'l' ? 3 : 2),
                                 utils::String::View(m_curSrc.getPointer(), n == 'l' ? 3 : 2),
                                 m_curSrc
                             });
@@ -523,6 +539,7 @@ namespace tsn {
                             at_end = !m_curSrc++;
                             out.push({
                                 q == '`' ? tt_template_string : tt_string,
+                                u16(str.size()),
                                 str,
                                 tokBegin
                             });
@@ -838,9 +855,11 @@ namespace tsn {
                 }
             
                 if (begin != end && tp != tt_comment) {
+                    u32 len = u32(end - begin);
                     out.push({
                         tp,
-                        utils::String::View(begin, u32(end - begin)),
+                        u16(len),
+                        utils::String::View(begin, len),
                         tokBegin
                     });
                 }
@@ -848,6 +867,7 @@ namespace tsn {
 
             out.push({
                 tt_eof,
+                0,
                 utils::String::View(m_curSrc.getPointer(), 0),
                 m_curSrc
             });

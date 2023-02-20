@@ -13,8 +13,8 @@ namespace tsn {
     typedef float       f32;
     typedef double      f64;
 
-    typedef i32         type_id;
-    typedef i32         function_id;
+    typedef u32         type_id;
+    typedef u32         function_id;
     
     typedef struct { u8 dummy; }    poison_t;
     typedef struct { u64 dummy; }   null_t;

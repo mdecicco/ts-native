@@ -2,7 +2,7 @@
 #include <tsn/bind/bind.h>
 #include <tsn/utils/function_match.h>
 #include <tsn/utils/remove_all.h>
-#include <tsn/common/TypeRegistry.h>
+#include <tsn/ffi/DataTypeRegistry.h>
 #include <tsn/interfaces/IDataTypeHolder.hpp>
 
 namespace tsn {

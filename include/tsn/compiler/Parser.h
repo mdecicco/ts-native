@@ -26,8 +26,10 @@ namespace tsn {
             nt_catch,
             nt_class,
             nt_continue,
+            nt_delete,
             nt_export,
             nt_expression,
+            nt_expression_sequence,
             nt_function_type,
             nt_function,
             nt_identifier,
@@ -96,6 +98,7 @@ namespace tsn {
             op_preDec,
             op_postDec,
             op_negate,
+            op_dereference,
             op_index,
             op_conditional,
             op_member,
@@ -131,6 +134,8 @@ namespace tsn {
 
         class ParseNode : IPersistable {
             public:
+                ParseNode();
+
                 token tok;
                 node_type tp;
                 literal_type value_tp;
@@ -149,10 +154,11 @@ namespace tsn {
                 utils::String str() const;
                 void computeSourceLocationRange();
                 void manuallySpecifyRange(const token& end);
+                void rehydrateSourceRefs(ModuleSource* src);
                 ParseNode* clone(bool copyNext = false);
 
-                virtual bool serialize(utils::Buffer* out, Context* ctx, void* extra) const;
-                virtual bool deserialize(utils::Buffer* in, Context* ctx, void* extra);
+                virtual bool serialize(utils::Buffer* out, Context* ctx) const;
+                virtual bool deserialize(utils::Buffer* in, Context* ctx);
 
                 struct {
                     unsigned is_const    : 1;
@@ -350,6 +356,7 @@ namespace tsn {
         ParseNode* continueStatement             (Parser* ps);
         ParseNode* breakStatement                (Parser* ps);
         ParseNode* iterationStatement            (Parser* ps);
+        ParseNode* deleteStatement               (Parser* ps);
         ParseNode* returnStatement               (Parser* ps);
         ParseNode* switchCase                    (Parser* ps);
         ParseNode* switchStatement               (Parser* ps);

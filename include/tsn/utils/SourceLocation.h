@@ -14,9 +14,11 @@ namespace tsn {
     class SourceLocation : public IPersistable {
         public:
             SourceLocation();
+            SourceLocation(const SourceLocation& o);
             SourceLocation(ModuleSource* src, u32 line, u32 col);
             ~SourceLocation();
 
+            void setSource(ModuleSource* src);
             ModuleSource* getSource() const;
             utils::String getLineText() const;
             const char* getPointer() const;
@@ -29,9 +31,10 @@ namespace tsn {
 
             bool operator++(int);
             char operator*() const;
+            SourceLocation& operator=(const SourceLocation& rhs);
 
-            virtual bool serialize(utils::Buffer* out, Context* ctx, void* extra) const;
-            virtual bool deserialize(utils::Buffer* in, Context* ctx, void* extra);
+            virtual bool serialize(utils::Buffer* out, Context* ctx) const;
+            virtual bool deserialize(utils::Buffer* in, Context* ctx);
         
         protected:
             friend class compiler::ParseNode;
@@ -45,6 +48,7 @@ namespace tsn {
             u32 m_line;
             u32 m_lineLen;
             u32 m_col;
+            u32 m_offset;
     };
     
     class SourceException : public std::exception {

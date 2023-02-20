@@ -12,5 +12,7 @@ namespace tsn {
             std::string supportDir;
             bool scanForChanges;
             u32 scanIntervalMS;
+            bool debugLogging;
+            bool disableOptimizations;
     };
 };

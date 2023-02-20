@@ -2,9 +2,9 @@
 
 #include <tsn/common/Context.h>
 #include <tsn/common/Module.h>
-#include <tsn/common/Function.h>
-#include <tsn/common/DataType.h>
-#include <tsn/common/TypeRegistry.h>
+#include <tsn/ffi/Function.h>
+#include <tsn/ffi/DataType.h>
+#include <tsn/ffi/DataTypeRegistry.h>
 #include <tsn/compiler/Logger.h>
 #include <tsn/compiler/Compiler.h>
 #include <tsn/compiler/OutputBuilder.h>
@@ -13,6 +13,7 @@
 #include <tsn/compiler/TemplateContext.h>
 #include <tsn/utils/SourceLocation.h>
 #include <tsn/utils/ModuleSource.h>
+#include <tsn/io/Workspace.h>
 
 #include <utils/String.h>
 #include <utils/Array.hpp>
@@ -64,14 +65,18 @@ json toJson(const SourceLocation& src) {
     out["line_txt"] = ln.c_str() + wsc;
     out["line_und"] = indxStr.c_str();
 
+    if (src.getSource()) out["file"] = src.getSource()->getMeta()->path;
+    else out["file"] = json(nullptr);
+
     return out;
 }
 
 json toJson(const log_message& log) {
-    constexpr const char* logTps[] = { "info", "warning", "error" };
+    constexpr const char* logTps[] = { "debug", "info", "warning", "error" };
     json out;
     char prefix = 'U';
-    if (log.code > IO_MESSAGES_START && log.code < IO_MESSAGES_END) prefix = 'I';
+    if (log.code < IO_MESSAGES_START) prefix = 'G';
+    else if (log.code > IO_MESSAGES_START && log.code < IO_MESSAGES_END) prefix = 'I';
     else if (log.code > PARSE_MESSAGES_START && log.code < PARSE_MESSAGES_END) prefix = 'P';
     else if (log.code > COMPILER_MESSAGES_START && log.code < COMPILER_MESSAGES_END) prefix = 'C';
 
@@ -79,7 +84,7 @@ json toJson(const log_message& log) {
     out["type"] = logTps[log.type];
     out["message"] = std::string(log.msg.c_str(), log.msg.size());
     out["src"] = toJson(log.src);
-    out["ast"] = toJson(log.node);
+    // out["ast"] = toJson(log.node);
 
     return out;
 }
@@ -108,8 +113,10 @@ json toJson(const ParseNode* n, bool isArrayElem) {
         "catch",
         "class",
         "continue",
+        "delete",
         "export",
         "expression",
+        "expression_sequence",
         "function_type",
         "function",
         "identifier",
@@ -177,6 +184,7 @@ json toJson(const ParseNode* n, bool isArrayElem) {
         "preDec",
         "postDec",
         "negate",
+        "dereference",
         "index",
         "conditional",
         "member",
@@ -291,13 +299,18 @@ json toJson(const symbol_lifetime& s) {
     const char* type = "value";
 
     String detail = "";
-    if (s.sym->getFlags().is_function) {
+    if (s.sym->isFunction()) {
         type = "function";
-        FunctionDef* fn = s.sym->getImm<FunctionDef*>();
-        if (fn->getOutput()) detail = fn->getOutput()->getFullyQualifiedName();
-        else detail = fn->getName();
+        if (s.sym->isImm()) {
+            FunctionDef* fn = s.sym->getImm<FunctionDef*>();
+            if (fn->getOutput()) detail = fn->getOutput()->getFullyQualifiedName();
+            else detail = fn->getName();
+        } else {
+            detail = s.sym->getType()->getFullyQualifiedName();
+        }
     } else if (s.sym->getFlags().is_module) {
         type = "module";
+        detail = s.sym->getImm<Module*>()->getName();
     } else if (s.sym->getFlags().is_type) {
         type = "type";
         detail = s.sym->getType()->getFullyQualifiedName();
@@ -409,6 +422,7 @@ json toJson(const Function* f, bool brief, FunctionDef* fd) {
 
     out["id"] = f->getId();
     out["name"] = f->getName().c_str();
+    out["display_name"] = f->getDisplayName().c_str();
     out["fully_qualified_name"] = f->getFullyQualifiedName().c_str();
     if (brief) return out;
 
@@ -512,6 +526,7 @@ json toJson(u32 index, const function_argument& a, FunctionDef* fd) {
         } else {
             loc = fd->getArg(index - fd->getImplicitArgCount()).toString().c_str();
         }
+        out["location"] = loc;
     } else out["location"] = json(nullptr);
 
     return out;

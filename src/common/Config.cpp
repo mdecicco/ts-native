@@ -6,6 +6,8 @@ namespace tsn {
         supportDir = "./.tsn";
         scanForChanges = true;
         scanIntervalMS = 2500;
+        debugLogging = false;
+        disableOptimizations = false;
     }
 
     Config::~Config() {

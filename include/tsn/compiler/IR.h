@@ -71,13 +71,13 @@ namespace tsn {
             // Load value from address
             //
             // Operand 0 will be vreg which will receive the loaded value
-            // Operand 1 will be val which holds the address to load from
+            // Operand 1 will be vreg which holds the address to load from
             ir_load,
 
             // Store value at address
             //
             // Operand 0 will be val which holds value to store
-            // Operand 1 will be val which holds address to store value in
+            // Operand 1 will be vreg which holds address to store value in
             ir_store,
 
             // Copies value from one val to another
@@ -113,8 +113,8 @@ namespace tsn {
 
             // Returns from the current function
             //
-            // Operand 0 will be val which will be returned by the function, if the
-            // function does not return void, otherwise it will be unset
+            // All functions return via output parameters, so this instruction
+            // needs no operand
             ir_ret,
 
             // Branches to one of two labels based on the value of a vreg
@@ -216,6 +216,7 @@ namespace tsn {
             u8 operand_count;
             operand_type operands[3];
             u8 assigns_operand_index;
+            unsigned has_side_effects : 1;
         };
 
         const ir_instruction_info& instruction_info(ir_instruction op);
@@ -246,6 +247,8 @@ namespace tsn {
                  * @return Whether or not the specified vreg ID is involved 
                  */
                 bool involves(vreg_id reg, bool excludeAssignment = false) const;
+
+                Instruction& operator =(const Instruction& rhs);
 
                 utils::String toString(Context* ctx) const;
         };

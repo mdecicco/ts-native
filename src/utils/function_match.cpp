@@ -1,6 +1,6 @@
 #include <tsn/utils/function_match.h>
-#include <tsn/common/DataType.h>
-#include <tsn/common/Function.h>
+#include <tsn/ffi/DataType.h>
+#include <tsn/ffi/Function.h>
 
 #include <utils/String.h>
 #include <utils/Array.hpp>
@@ -18,6 +18,7 @@ namespace tsn {
         if ((flags & fm_exclude_private) && fn->getAccessModifier() == private_access) return false;
 
         ffi::FunctionType* sig = fn->getSignature();
+        if (!sig) return false;
 
         // strict return check
         if (retTp && (flags & fm_strict_return) && !retTp->isEqualTo(sig->getReturnType())) return false;
@@ -65,7 +66,7 @@ namespace tsn {
             u8 argIdx = 0;
             bool argsMatch = !args.some([argTps, argCount, flags, &argIdx](const ffi::function_argument& a) {
                 if ((flags & fm_skip_implicit_args) && a.isImplicit()) return false;
-                if (!a.dataType->isConvertibleTo(argTps[argIdx++])) return true;
+                if (!argTps[argIdx++]->isConvertibleTo(a.dataType)) return true;
                 return false;
             });
 

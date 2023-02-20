@@ -1,5 +1,5 @@
 #pragma once
-#include <tsn/common/FunctionRegistry.h>
+#include <tsn/ffi/FunctionRegistry.h>
 #include <tsn/common/Context.h>
 #include <tsn/utils/function_match.hpp>
 

@@ -21,8 +21,8 @@ namespace tsn {
             const source_range& get(u32 idx) const;
             u64 getModificationTime() const;
 
-            virtual bool serialize(utils::Buffer* out, Context* ctx, void* extra) const;
-            virtual bool deserialize(utils::Buffer* in, Context* ctx, void* extra);
+            virtual bool serialize(utils::Buffer* out, Context* ctx) const;
+            virtual bool deserialize(utils::Buffer* in, Context* ctx);
 
         protected:
             u64 m_fileModifiedOn;

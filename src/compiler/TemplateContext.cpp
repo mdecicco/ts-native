@@ -1,10 +1,11 @@
 #include <tsn/compiler/TemplateContext.h>
 #include <tsn/compiler/Parser.h>
 #include <tsn/common/Context.h>
-#include <tsn/common/DataType.h>
-#include <tsn/common/Function.h>
-#include <tsn/common/TypeRegistry.h>
-#include <tsn/common/FunctionRegistry.h>
+#include <tsn/common/Module.h>
+#include <tsn/ffi/DataType.h>
+#include <tsn/ffi/Function.h>
+#include <tsn/ffi/DataTypeRegistry.h>
+#include <tsn/ffi/FunctionRegistry.h>
 
 #include <utils/Array.hpp>
 #include <utils/Buffer.hpp>
@@ -15,8 +16,9 @@ namespace tsn {
             m_ast = nullptr;
         }
 
-        TemplateContext::TemplateContext(ParseNode* ast) {
+        TemplateContext::TemplateContext(ParseNode* ast, Module* module) {
             m_ast = ast->clone();
+            m_originModule = module;
         }
 
         TemplateContext::~TemplateContext() {
@@ -33,13 +35,13 @@ namespace tsn {
         }
 
         void TemplateContext::addFunctionImport(const utils::String& alias, ffi::Function* fn) {
-            m_functionImports.push({ fn, alias });
+            m_functionImports.push({ fn->getId(), fn, alias });
         }
 
         void TemplateContext::addTypeImport(const utils::String& alias, ffi::DataType* tp) {
-            m_typeImports.push({ tp, alias });
+            m_typeImports.push({ tp->getId(), tp, alias });
         }
-        
+
         const utils::Array<TemplateContext::moduledata_import>& TemplateContext::getModuleDataImports() const {
             return m_moduleDataImports;
         }
@@ -59,8 +61,14 @@ namespace tsn {
         ParseNode* TemplateContext::getAST() {
             return m_ast;
         }
-                
-        bool TemplateContext::serialize(utils::Buffer* out, Context* ctx, void* extra) const {
+
+        Module* TemplateContext::getOrigin() {
+            return m_originModule;
+        }
+
+        bool TemplateContext::serialize(utils::Buffer* out, Context* ctx) const {
+            if (!out->write(m_originModule->getId())) return false;
+
             if (!out->write(m_moduleDataImports.size())) return false;
             for (u32 i = 0;i < m_moduleDataImports.size();i++) {
                 if (!out->write(m_moduleDataImports[i].module_id)) return false;
@@ -76,22 +84,27 @@ namespace tsn {
 
             if (!out->write(m_functionImports.size())) return false;
             for (u32 i = 0;i < m_functionImports.size();i++) {
-                if (!out->write(m_functionImports[i].fn->getId())) return false;
+                if (!out->write(m_functionImports[i].id)) return false;
                 if (!out->write(m_functionImports[i].alias)) return false;
             }
 
             if (!out->write(m_typeImports.size())) return false;
             for (u32 i = 0;i < m_typeImports.size();i++) {
-                if (!out->write(m_typeImports[i].tp->getId())) return false;
+                if (!out->write(m_typeImports[i].id)) return false;
                 if (!out->write(m_typeImports[i].alias)) return false;
             }
 
-            if (!m_ast->serialize(out, ctx, nullptr)) return false;
+            if (!m_ast->serialize(out, ctx)) return false;
 
             return true;
         }
 
-        bool TemplateContext::deserialize(utils::Buffer* in, Context* ctx, void* extra) {
+        bool TemplateContext::deserialize(utils::Buffer* in, Context* ctx) {
+            u32 mid;
+            if (!in->read(mid)) return false;
+            m_originModule = ctx->getModule(mid);
+            if (!m_originModule) return false;
+
             u32 count;
             if (!in->read(count)) return false;
             for (u32 i = 0;i < count;i++) {
@@ -120,10 +133,8 @@ namespace tsn {
             for (u32 i = 0;i < count;i++) {
                 function_import import;
 
-                function_id fid;
-                if (!in->read(fid)) return false;
-                import.fn = ctx->getFunctions()->getFunction(fid);
-                if (!import.fn) return false;
+                if (!in->read(import.id)) return false;
+                import.fn = nullptr;
                 
                 import.alias = in->readStr();
                 if (import.alias.size() == 0) return false;
@@ -135,10 +146,8 @@ namespace tsn {
             for (u32 i = 0;i < count;i++) {
                 datatype_import import;
                 
-                type_id tid;
-                if (!in->read(tid)) return false;
-                import.tp = ctx->getTypes()->getType(tid);
-                if (!import.tp) return false;
+                if (!in->read(import.id)) return false;
+                import.tp = nullptr;
                 
                 import.alias = in->readStr();
                 if (import.alias.size() == 0) return false;
@@ -147,10 +156,30 @@ namespace tsn {
             }
 
             m_ast = new ParseNode();
-            if (!m_ast->deserialize(in, ctx, nullptr)) {
+            if (!m_ast->deserialize(in, ctx)) {
                 delete m_ast;
                 m_ast = nullptr;
                 return false;
+            }
+
+            return true;
+        }
+        
+        bool TemplateContext::resolveReferences(Context* ctx) {
+            ffi::FunctionRegistry* freg = ctx->getFunctions();
+            for (u32 i = 0;i < m_functionImports.size();i++) {
+                auto& im = m_functionImports[i];
+                if (im.fn) continue;
+                im.fn = freg->getFunction(im.id);
+                if (!im.fn) return false;
+            }
+            
+            ffi::DataTypeRegistry* treg = ctx->getTypes();
+            for (u32 i = 0;i < m_typeImports.size();i++) {
+                auto& im = m_typeImports[i];
+                if (im.tp) continue;
+                im.tp = treg->getType(im.id);
+                if (!im.tp) return false;
             }
 
             return true;

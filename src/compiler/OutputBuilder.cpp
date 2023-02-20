@@ -4,10 +4,10 @@
 #include <tsn/compiler/Parser.h>
 #include <tsn/common/Context.h>
 #include <tsn/common/Module.h>
-#include <tsn/common/Function.h>
-#include <tsn/common/DataType.h>
-#include <tsn/common/TypeRegistry.h>
-#include <tsn/common/FunctionRegistry.h>
+#include <tsn/ffi/Function.h>
+#include <tsn/ffi/DataType.h>
+#include <tsn/ffi/DataTypeRegistry.h>
+#include <tsn/ffi/FunctionRegistry.h>
 #include <tsn/compiler/Value.hpp>
 #include <tsn/interfaces/IDataTypeHolder.hpp>
 #include <tsn/utils/function_match.h>
@@ -43,10 +43,13 @@ namespace tsn {
             // Types are someone else's responsibility now
         }
 
-        FunctionDef* OutputBuilder::newFunc(const utils::String& name, ffi::DataType* methodOf) {
-            FunctionDef* fn = new FunctionDef(m_comp, name, methodOf);
+        FunctionDef* OutputBuilder::newFunc(const utils::String& name, ParseNode* n, ffi::DataType* methodOf) {
+            FunctionDef* fn = new FunctionDef(m_comp, name, methodOf, n);
+            
             // Don't add __init__ function to scope
-            if (m_funcs.size() > 0) m_comp->scope().add(name, fn);
+            if (m_funcs.size() > 0) {
+                fn->m_scopeRef = &m_comp->scope().add(name, fn);
+            }
             m_funcs.push(fn);
             m_allFuncDefs.push(fn);
             
@@ -55,10 +58,10 @@ namespace tsn {
             return fn;
         }
         
-        FunctionDef* OutputBuilder::newFunc(ffi::Function* preCreated, bool retTpExplicit) {
-            FunctionDef* fn = new FunctionDef(m_comp, preCreated);
+        FunctionDef* OutputBuilder::newFunc(ffi::Function* preCreated, ParseNode* n, bool retTpExplicit) {
+            FunctionDef* fn = new FunctionDef(m_comp, preCreated, n);
             fn->m_retTpSet = retTpExplicit;
-            m_comp->scope().add(preCreated->getName(), fn);
+            fn->m_scopeRef = &m_comp->scope().add(preCreated->getName(), fn);
             m_funcs.push(fn);
             m_funcDefs[preCreated] = m_allFuncDefs.size();
             m_allFuncDefs.push(fn);
@@ -74,7 +77,7 @@ namespace tsn {
             auto it = m_funcDefs.find(fn);
             if (it != m_funcDefs.end()) return m_allFuncDefs[it->second];
 
-            FunctionDef* def = new FunctionDef(m_comp, fn);
+            FunctionDef* def = new FunctionDef(m_comp, fn, nullptr);
             m_funcDefs[fn] = m_allFuncDefs.size();
             m_allFuncDefs.push(def);
             return def;
@@ -86,7 +89,7 @@ namespace tsn {
         }
         
         FunctionDef* OutputBuilder::import(Function* fn, const utils::String& as) {
-            FunctionDef* f = new FunctionDef(m_comp, fn);
+            FunctionDef* f = new FunctionDef(m_comp, fn, nullptr);
             m_comp->scope().add(as, f);
             m_funcDefs[fn] = m_allFuncDefs.size();
             m_allFuncDefs.push(f);

@@ -1,7 +1,9 @@
 #include <tsn/compiler/FunctionDef.h>
 #include <tsn/compiler/Compiler.h>
+#include <tsn/compiler/Logger.h>
 #include <tsn/common/Context.h>
-#include <tsn/common/TypeRegistry.h>
+#include <tsn/ffi/DataTypeRegistry.h>
+#include <tsn/ffi/Function.h>
 #include <tsn/interfaces/IDataTypeHolder.hpp>
 
 namespace tsn {
@@ -23,12 +25,22 @@ namespace tsn {
                 return Value(this, value);
             } else if constexpr (std::is_same_v<T, Module*>) {
                 return Value(this, value);
-            } else if constexpr (std::is_unsigned_v<T>) {
-                return Value(this, (u64)value);
-            } else if constexpr (std::is_floating_point_v<T>) {
-                return Value(this, (f64)value);
             } else {
-                return Value(this, (i64)value);
+                ffi::DataType* tp = m_comp->getContext()->getTypes()->getType<T>();
+
+                if constexpr (std::is_unsigned_v<T>) {
+                    Value ret = Value(this, (u64)value);
+                    ret.setType(tp);
+                    return ret;
+                } else if constexpr (std::is_floating_point_v<T>) {
+                    Value ret = Value(this, (f64)value);
+                    ret.setType(tp);
+                    return ret;
+                }
+                
+                Value ret = Value(this, (i64)value);
+                ret.setType(tp);
+                return ret;
             }
         }
     };

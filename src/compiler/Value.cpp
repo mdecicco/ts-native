@@ -3,11 +3,11 @@
 #include <tsn/compiler/OutputBuilder.h>
 #include <tsn/compiler/FunctionDef.h>
 #include <tsn/common/Context.h>
-#include <tsn/common/TypeRegistry.h>
-#include <tsn/common/FunctionRegistry.h>
+#include <tsn/ffi/DataTypeRegistry.h>
+#include <tsn/ffi/FunctionRegistry.h>
 #include <tsn/interfaces/IDataTypeHolder.hpp>
-#include <tsn/common/Function.h>
-#include <tsn/common/DataType.h>
+#include <tsn/ffi/Function.h>
+#include <tsn/ffi/DataType.h>
 #include <tsn/common/Module.h>
 
 #include <utils/Buffer.hpp>
@@ -31,6 +31,7 @@ namespace tsn {
             m_flags.is_module = 0;
             m_flags.is_function = 0;
             m_flags.is_module_data = 0;
+            m_flags.is_immediate = 0;
             m_slotId = 0;
             m_imm.u = 0;
         }
@@ -54,11 +55,12 @@ namespace tsn {
             m_flags.is_module = 0;
             m_flags.is_function = 0;
             m_flags.is_module_data = 0;
+            m_flags.is_immediate = 0;
             m_slotId = 0;
             m_imm.u = 0;
         }
 
-        Value::Value(FunctionDef* o, u64 imm) : ITypedObject(o->getContext()->getTypes()->getType<u64>()) {
+        Value::Value(FunctionDef* o, u64 imm) : ITypedObject(o->getContext()->getTypes()->getUInt64()) {
             m_func = o;
             m_src = o->getCompiler()->getCurrentSrc();
             m_regId = 0;
@@ -73,6 +75,7 @@ namespace tsn {
             m_flags.is_module = 0;
             m_flags.is_function = 0;
             m_flags.is_module_data = 0;
+            m_flags.is_immediate = 1;
             m_slotId = 0;
             m_imm.u = imm;
         }
@@ -92,6 +95,7 @@ namespace tsn {
             m_flags.is_module = 0;
             m_flags.is_function = 0;
             m_flags.is_module_data = 0;
+            m_flags.is_immediate = 1;
             m_slotId = 0;
             m_imm.i = imm;
         }
@@ -111,6 +115,7 @@ namespace tsn {
             m_flags.is_module = 0;
             m_flags.is_function = 0;
             m_flags.is_module_data = 0;
+            m_flags.is_immediate = 1;
             m_slotId = 0;
             m_imm.f = imm;
         }
@@ -130,6 +135,7 @@ namespace tsn {
             m_flags.is_module = 0;
             m_flags.is_function = 1;
             m_flags.is_module_data = 0;
+            m_flags.is_immediate = 1;
             m_slotId = 0;
             m_imm.fn = imm;
         }
@@ -149,6 +155,7 @@ namespace tsn {
             m_flags.is_module = 0;
             m_flags.is_function = 0;
             m_flags.is_module_data = 0;
+            m_flags.is_immediate = 1;
             m_slotId = 0;
         }
         
@@ -167,6 +174,7 @@ namespace tsn {
             m_flags.is_module = 1;
             m_flags.is_function = 0;
             m_flags.is_module_data = 0;
+            m_flags.is_immediate = 1;
             m_slotId = 0;
             m_imm.mod = imm;
         }
@@ -186,6 +194,7 @@ namespace tsn {
             m_flags.is_module = 0;
             m_flags.is_function = 0;
             m_flags.is_module_data = 1;
+            m_flags.is_immediate = 1;
             m_slotId = slotId;
             m_imm.mod = imm;
         }
@@ -226,15 +235,148 @@ namespace tsn {
                 return m_func->getPoison();
             }
 
+            if (tp->isEqualTo(m_type)) {
+                return *this;
+            }
+
+            DataType* voidp = m_func->getContext()->getTypes()->getType<void*>();
+            if (m_type->isEqualTo(voidp) || tp->isEqualTo(voidp)) {
+                // This is necessary to enable trusted scripts to work with
+                // _real_ pointers. Writers of trusted scripts should know
+                // what they are doing when working with pointers / casting
+                Value ret = Value(*this);
+                ret.m_type = tp;
+                return ret;
+            }
+
             if (m_type->getInfo().is_primitive && tp->getInfo().is_primitive) {
-                Value ret = m_func->val(tp);
-                
                 if (m_flags.is_pointer) {
-                    m_func->add(ir_cvt).op(ret).op(**this).op(m_func->imm(tp->getId()));
-                } else {
-                    m_func->add(ir_cvt).op(ret).op(*this).op(m_func->imm(tp->getId()));
+                    Value ret = m_func->val(tp);
+                    Value v = **this;
+                    m_func->add(ir_cvt).op(ret).op(v).op(m_func->imm(tp->getId()));
+                    return ret;
+                } else if (m_flags.is_immediate) {
+                    const auto& ai = m_type->getInfo();
+                    const auto& bi = tp->getInfo();
+
+                    if (ai.is_floating_point) {
+                        if (bi.is_floating_point) return *this;
+                        if (bi.is_unsigned) {
+                            Value ret;
+
+                            switch (bi.size) {
+                                case sizeof(u64): ret.reset(Value(m_func, u64(m_imm.f)));
+                                case sizeof(u32): ret.reset(Value(m_func, u64(u32(m_imm.f))));
+                                case sizeof(u16): ret.reset(Value(m_func, u64(u16(m_imm.f))));
+                                case sizeof(u8) : ret.reset(Value(m_func, u64(u8(m_imm.f))));
+                                default: ret.reset(Value(m_func, u64(m_imm.f)));
+                            }
+
+                            ret.setType(tp);
+                            return ret;
+                        }
+
+                        Value ret;
+
+                        switch (bi.size) {
+                            case sizeof(i64): ret.reset(Value(m_func, i64(m_imm.f)));
+                            case sizeof(i32): ret.reset(Value(m_func, i64(i32(m_imm.f))));
+                            case sizeof(i16): ret.reset(Value(m_func, i64(i16(m_imm.f))));
+                            case sizeof(i8) : ret.reset(Value(m_func, i64(i8(m_imm.f))));
+                            default: ret.reset(Value(m_func, i64(m_imm.f)));
+                        }
+
+                        ret.setType(tp);
+                        return ret;
+                    } else {
+                        if (bi.is_floating_point) {
+                            if (ai.is_unsigned) {
+                                Value ret;
+
+                                switch (bi.size) {
+                                    case sizeof(f64): ret.reset(Value(m_func, f64(m_imm.u)));
+                                    case sizeof(f32): ret.reset(Value(m_func, f64(f32(m_imm.u))));
+                                    default: ret.reset(Value(m_func, f64(m_imm.u)));
+                                }
+
+                                ret.setType(tp);
+                                return ret;
+                            }
+
+                            Value ret;
+
+                            switch (bi.size) {
+                                case sizeof(f64): ret.reset(Value(m_func, f64(m_imm.i)));
+                                case sizeof(f32): ret.reset(Value(m_func, f64(f32(m_imm.i))));
+                                default: ret.reset(Value(m_func, f64(m_imm.i)));
+                            }
+
+                            ret.setType(tp);
+                            return ret;
+                        } else {
+                            if (ai.is_unsigned) {
+                                if (bi.is_unsigned) {
+                                    Value ret;
+
+                                    switch (bi.size) {
+                                        case sizeof(u64): ret.reset(Value(m_func, u64(m_imm.u)));
+                                        case sizeof(u32): ret.reset(Value(m_func, u64(u32(m_imm.u))));
+                                        case sizeof(u16): ret.reset(Value(m_func, u64(u16(m_imm.u))));
+                                        case sizeof(u8) : ret.reset(Value(m_func, u64(u8(m_imm.u))));
+                                        default: ret.reset(Value(m_func, u64(m_imm.u)));
+                                    }
+
+                                    ret.setType(tp);
+                                    return ret;
+                                }
+
+                                Value ret;
+
+                                switch (bi.size) {
+                                    case sizeof(i64): ret.reset(Value(m_func, i64(m_imm.u)));
+                                    case sizeof(i32): ret.reset(Value(m_func, i64(i32(m_imm.u))));
+                                    case sizeof(i16): ret.reset(Value(m_func, i64(i16(m_imm.u))));
+                                    case sizeof(i8) : ret.reset(Value(m_func, i64(i8(m_imm.u))));
+                                    default: ret.reset(Value(m_func, i64(m_imm.u)));
+                                }
+
+                                ret.setType(tp);
+                                return ret;
+                            }
+
+                            if (bi.is_unsigned) {
+                                Value ret;
+
+                                switch (bi.size) {
+                                    case sizeof(u64): ret.reset(Value(m_func, u64(m_imm.i)));
+                                    case sizeof(u32): ret.reset(Value(m_func, u64(u32(m_imm.i))));
+                                    case sizeof(u16): ret.reset(Value(m_func, u64(u16(m_imm.i))));
+                                    case sizeof(u8) : ret.reset(Value(m_func, u64(u8(m_imm.i))));
+                                    default: ret.reset(Value(m_func, u64(m_imm.i)));
+                                }
+
+                                ret.setType(tp);
+                                return ret;
+                            }
+
+                            Value ret;
+
+                            switch (bi.size) {
+                                case sizeof(i64): ret.reset(Value(m_func, i64(m_imm.i)));
+                                case sizeof(i32): ret.reset(Value(m_func, i64(i32(m_imm.i))));
+                                case sizeof(i16): ret.reset(Value(m_func, i64(i16(m_imm.i))));
+                                case sizeof(i8) : ret.reset(Value(m_func, i64(i8(m_imm.i))));
+                                default: ret.reset(Value(m_func, i64(m_imm.i)));
+                            }
+
+                            ret.setType(tp);
+                            return ret;
+                        }
+                    }
                 }
 
+                Value ret = m_func->val(tp);
+                m_func->add(ir_cvt).op(ret).op(*this).op(m_func->imm(tp->getId()));
                 return ret;
             } else {
                 // search for cast operators
@@ -246,7 +388,7 @@ namespace tsn {
                         tp,
                         nullptr,
                         0,
-                        fm_ignore_args | ((!curClass || !curClass->isEqualTo(m_type)) ? fm_exclude_private : 0)
+                        fm_ignore_args | fm_strict_return | ((!curClass || !curClass->isEqualTo(m_type)) ? fm_exclude_private : 0)
                     );
 
                     if (methods.size() == 1) {
@@ -285,14 +427,14 @@ namespace tsn {
             
                 // search for copy constructor
                 {
-                    String name = String::Format("constructor", tp->getFullyQualifiedName().c_str());
+                    String name = "constructor";
                     DataType* curClass = m_func->getCompiler()->currentClass();
                     const auto& methods = tp->findMethods(
-                        name,
+                        "constructor",
                         nullptr,
                         const_cast<const DataType**>(&m_type),
                         1,
-                        fm_ignore_args | ((!curClass || !curClass->isEqualTo(m_type)) ? fm_exclude_private : 0)
+                        fm_skip_implicit_args | fm_strict_args | ((!curClass || !curClass->isEqualTo(m_type)) ? fm_exclude_private : 0)
                     );
 
                     if (methods.size() == 1) {
@@ -301,9 +443,9 @@ namespace tsn {
                         m_func->getCompiler()->valueError(
                             *this,
                             cm_err_ambiguous_constructor,
-                            "Constructor '%s' of type '%s' is ambiguous",
-                            name.c_str(),
-                            m_type->getName().c_str()
+                            "Construction of type '%s' with arguments '%s' is ambiguous",
+                            tp->getName().c_str(),
+                            argListStr({ m_type }).c_str()
                         );
 
                         for (u32 i = 0;i < methods.size();i++) {
@@ -410,7 +552,9 @@ namespace tsn {
                             return m_func->getPoison();
                         }
 
-                        return m_func->getCompiler()->functionValue(methods[0]);
+                        Value ret = m_func->getCompiler()->functionValue(methods[0]);
+                        if (!m_flags.is_type) ret.m_srcSelf = new Value(*this);
+                        return ret;
                     } else if (methods.size() > 1) {
                         if (doError) {
                             m_func->getCompiler()->valueError(
@@ -454,35 +598,36 @@ namespace tsn {
             const type_property* prop = m_type->getProp(name, excludeInherited, excludePrivate);
             if (!prop) {
                 if (doError) {
-                    if (excludeMethods) {
-                        m_func->getCompiler()->valueError(
-                            *this,
-                            cm_err_property_not_found,
-                            "Type '%s' has no property or method named '%s'",
-                            m_type->getName().c_str(),
-                            name.c_str()
-                        );
-                    } else {
-                        m_func->getCompiler()->valueError(
-                            *this,
-                            cm_err_property_not_found,
-                            "Type '%s' has no property or method named '%s'",
-                            m_type->getName().c_str(),
-                            name.c_str()
-                        );
-                    }
+                    m_func->getCompiler()->valueError(
+                        *this,
+                        cm_err_property_not_found,
+                        "Type '%s' has no property or method named '%s'",
+                        m_type->getName().c_str(),
+                        name.c_str()
+                    );
                 }
 
                 return m_func->getPoison();
             }
 
             DataType* curClass = m_func->getCompiler()->currentClass();
-            if (prop->access == private_access && (!curClass || !curClass->isEqualTo(m_type))) {
+            if (prop->access == private_access && (!curClass || !curClass->isEqualTo(m_type)) && excludePrivate) {
                 if (doError) {
                     m_func->getCompiler()->valueError(
                         *this,
                         cm_err_property_is_private,
                         "Property '%s' of type '%s' is private",
+                        name.c_str(),
+                        m_type->getName().c_str()
+                    );
+                }
+                return m_func->getPoison();
+            } else if (prop->access == trusted_access && !m_func->getCompiler()->isTrusted()) {
+                if (doError) {
+                    m_func->getCompiler()->valueError(
+                        *this,
+                        cm_err_not_trusted,
+                        "Property '%s' of type '%s' is only accessible to trusted scripts",
                         name.c_str(),
                         m_type->getName().c_str()
                     );
@@ -554,6 +699,110 @@ namespace tsn {
             return out;
         }
 
+        Value Value::getPropPtr(
+            const String& name,
+            bool excludeInherited,
+            bool excludePrivate,
+            bool doError
+        ) {
+            const type_property* prop = m_type->getProp(name, excludeInherited, excludePrivate);
+            if (!prop) {
+                if (doError) {
+                    m_func->getCompiler()->valueError(
+                        *this,
+                        cm_err_property_not_found,
+                        "Type '%s' has no property or method named '%s'",
+                        m_type->getName().c_str(),
+                        name.c_str()
+                    );
+                }
+
+                return m_func->getPoison();
+            }
+
+            DataType* curClass = m_func->getCompiler()->currentClass();
+            if (prop->access == private_access && (!curClass || !curClass->isEqualTo(m_type)) && excludePrivate) {
+                if (doError) {
+                    m_func->getCompiler()->valueError(
+                        *this,
+                        cm_err_property_is_private,
+                        "Property '%s' of type '%s' is private",
+                        name.c_str(),
+                        m_type->getName().c_str()
+                    );
+                }
+                return m_func->getPoison();
+            } else if (prop->access == trusted_access && !m_func->getCompiler()->isTrusted()) {
+                if (doError) {
+                    m_func->getCompiler()->valueError(
+                        *this,
+                        cm_err_not_trusted,
+                        "Property '%s' of type '%s' is only accessible to trusted scripts",
+                        name.c_str(),
+                        m_type->getName().c_str()
+                    );
+                }
+                return m_func->getPoison();
+            }
+
+            if (m_flags.is_type && !prop->flags.is_static) {
+                m_func->getCompiler()->valueError(
+                    *this,
+                    cm_err_property_not_static,
+                    "Property '%s' of type '%s' is not static",
+                    name.c_str(),
+                    m_type->getName().c_str()
+                );
+                return m_func->getPoison();
+            } else if (!m_flags.is_type && prop->flags.is_static) {
+                m_func->getCompiler()->valueError(
+                    *this,
+                    cm_err_property_is_static,
+                    "Property '%s' of type '%s' is static",
+                    name.c_str(),
+                    m_type->getName().c_str()
+                );
+                return m_func->getPoison();
+            }
+
+            if (!prop->flags.can_read) {
+                if (doError) {
+                    m_func->getCompiler()->valueError(
+                        *this,
+                        cm_err_property_no_read_access,
+                        "Property '%s' of '%s' does not give read access",
+                        name.c_str(),
+                        m_type->getName().c_str()
+                    );
+                }
+                return m_func->getPoison();
+            }
+
+            if (prop->getter) {
+                if (doError) {
+                    m_func->getCompiler()->valueError(
+                        *this,
+                        cm_err_no_pointer_to_getter,
+                        "Cannot get pointer to property accessor '%s' of '%s'",
+                        name.c_str(),
+                        m_type->getName().c_str()
+                    );
+                }
+                return m_func->getPoison();
+            }
+
+            Value ptr = m_func->val(prop->type);
+            ptr.m_flags.is_pointer = 1;
+            m_func->add(ir_uadd).op(ptr).op(*this).op(m_func->imm(prop->offset));
+
+            if (prop->flags.is_pointer) {
+                // Load pointer to object or primitive
+                m_func->add(ir_load).op(ptr).op(ptr);
+            }
+
+            return ptr;
+        }
+
         vreg_id Value::getRegId() const {
             return m_regId;
         }
@@ -585,13 +834,31 @@ namespace tsn {
         Value* Value::getSrcPtr() const {
             return m_srcPtr;
         }
+        
+        Value* Value::getSrcSelf() const {
+            return m_srcSelf;
+        }
+
+        void Value::setType(ffi::DataType* to) {
+            m_type = to;
+        }
+
+        bool Value::isValid() const {
+            return m_regId > 0 || m_allocId > 0 || m_flags.is_module_data ||
+                   m_flags.is_module || m_flags.is_function || m_flags.is_type ||
+                   m_flags.is_immediate;
+        }
+        
+        bool Value::isArg() const {
+            return m_flags.is_argument == 1;
+        }
 
         bool Value::isReg() const {
             return m_regId > 0;
         }
 
         bool Value::isImm() const {
-            return m_regId == 0 && m_allocId == 0 && m_func;
+            return m_flags.is_immediate;
         }
 
         bool Value::isStack() const {
@@ -600,6 +867,18 @@ namespace tsn {
 
         bool Value::isModuleData() const {
             return m_flags.is_module_data;
+        }
+
+        bool Value::isType() const {
+            return m_flags.is_type;
+        }
+
+        bool Value::isModule() const {
+            return m_flags.is_module;
+        }
+
+        bool Value::isFunction() const {
+            return m_flags.is_function;
         }
 
         Value Value::genBinaryOp(
@@ -633,7 +912,7 @@ namespace tsn {
             const auto& i = selfTp->getInfo();
 
             if (i.is_primitive) {
-                Value out = fn->val(selfTp);
+                Value out;
 
                 ir_instruction inst = ir_noop;
                 if (i.is_integral) {
@@ -644,10 +923,24 @@ namespace tsn {
                     else inst = _f;
                 }
 
+                Value _rhs = rhs.convertedTo(selfTp);
                 if (self->m_flags.is_pointer) {
-                    fn->add(inst).op(out).op(**self).op(rhs.convertedTo(selfTp));
+                    if (inst == ir_assign) {
+                        // Assignment will happen via ir_store instruction a few blocks below here
+                        out.reset(_rhs);
+                    } else {
+                        out.reset(fn->val(selfTp));
+                        Value val = **self;
+                        fn->add(inst).op(out).op(val).op(_rhs);
+                    }
                 } else {
-                    fn->add(inst).op(out).op(*self).op(rhs.convertedTo(selfTp));
+                    if (inst == ir_assign) {
+                        fn->add(inst).op(*self).op(_rhs);
+                        out.reset(*self);
+                    } else {
+                        out.reset(fn->val(selfTp));
+                        fn->add(inst).op(out).op(*self).op(_rhs);
+                    }
                 }
 
                 if (assignmentOp) {
@@ -1028,10 +1321,10 @@ namespace tsn {
             });
 
             if (m_flags.is_function) {
-                return m_func->getCompiler()->generateCall(m_imm.fn, _args, self);
-            }
+                if (m_flags.is_immediate) {
+                    return m_func->getCompiler()->generateCall(m_imm.fn, _args, self);
+                }
 
-            if (m_type->getInfo().is_function) {
                 return m_func->getCompiler()->generateCall(*this, _args, self);
             }
 
@@ -1137,7 +1430,7 @@ namespace tsn {
                 return m_func->getPoison();
             }
             
-            if (!m_flags.is_pointer) {
+            if (!m_flags.is_pointer && !m_type->isEqualTo(m_func->getContext()->getTypes()->getType<void*>())) {
                 m_func->getCompiler()->valueError(
                     *this,
                     cm_err_internal,
@@ -1157,6 +1450,8 @@ namespace tsn {
             }
 
             Value v = m_func->val(m_type);
+            v.m_srcPtr = new Value(*this);
+            v.m_flags.is_read_only = m_flags.is_read_only;
             m_func->add(ir_load).op(v).op(*this);
             return v;
         }
@@ -1169,19 +1464,73 @@ namespace tsn {
             return genBinaryOp(m_func, this, rhs, ir_lor, ir_lor, ir_lor, ir_lor, "operator ||=", true);
         }
 
+        bool Value::isEquivalentTo(const Value& v) const {
+            if (isReg()) {
+                if (!v.isReg()) return false;
+                return m_regId == v.m_regId;
+            } else if (isStack()) {
+                if (!v.isStack()) return false;
+                return m_allocId == v.m_allocId;
+            } else if (m_flags.is_module) {
+                if (!v.m_flags.is_module) return false;
+                return m_imm.mod == v.m_imm.mod;
+            } else if (m_flags.is_module_data) {
+                if (!v.m_flags.is_module_data) return false;
+                return m_imm.mod == v.m_imm.mod && m_slotId == v.m_slotId;
+            } else if (isType()) {
+                if (!v.isType()) return false;
+                return m_type->isEqualTo(v.m_type);
+            } else if (m_flags.is_function) {
+                if (!v.m_flags.is_function) return false;
+                return m_imm.fn == v.m_imm.fn;
+            } else if (m_flags.is_immediate) {
+                if (!v.m_flags.is_immediate) return false;
+                ffi::DataType* atp = m_type;
+                const type_meta& ainfo = atp->getInfo();
+                ffi::DataType* btp = v.m_type;
+                const type_meta& binfo = btp->getInfo();
+                ffi::DataType* nullTp = m_func->getContext()->getTypes()->getNull();
+                bool aIsNull = atp->isEqualTo(nullTp);
+                if (aIsNull != btp->isEqualTo(nullTp)) return false;
+                else if (aIsNull) return true;
+
+                if (ainfo.is_floating_point) {
+                    if (!binfo.is_floating_point || ainfo.size != binfo.size) return false;
+
+                    if (m_imm.f != v.m_imm.f) return false;
+                } else {
+                    if (binfo.is_floating_point || ainfo.is_unsigned != binfo.is_unsigned) return false;
+
+                    if (ainfo.is_unsigned) {
+                        if (m_imm.u != v.m_imm.u) return false;
+                    } else {
+                        if (m_imm.i != v.m_imm.i) return false;
+                    }
+                }
+            }
+
+            return true;
+        }
+
         String Value::toString() const {
             String s;
             if (m_flags.is_argument) {
-                if (m_type->getInfo().is_floating_point) s = String::Format("$FPA%d", m_regId);
-                else s = String::Format("$GPA%d", m_regId);
+                if (m_type->getInfo().is_floating_point) s = String::Format("$FPA%d", m_imm.u);
+                else s = String::Format("$GPA%d", m_imm.u);
             } else if (m_flags.is_function) {
-                ffi::Function* fn = m_imm.fn->getOutput();
-                if (fn) s = String::Format("<Function %s>", fn->getDisplayName().c_str());
-                else s = String::Format("<Function %s>", m_imm.fn->getName().c_str());
+                if (m_flags.is_immediate) {
+                    ffi::Function* fn = m_imm.fn->getOutput();
+                    if (fn) s = String::Format("<Function %s>", fn->getDisplayName().c_str());
+                    else s = String::Format("<Function %s>", m_imm.fn->getName().c_str());
+                } else {
+                    s = String::Format("<Closure %s>", m_type->getName().c_str());
+                }
             } else if (m_flags.is_module) {
                 s = String::Format("<Module %s>", m_imm.mod->getName().c_str());
             } else if (m_flags.is_type) {
                 s = String::Format("<Type %s>", m_type->getName().c_str());
+            } else if (m_flags.is_module_data) {
+                s = String::Format("<Module %s : %s>", m_imm.mod->getName().c_str(), m_imm.mod->getDataInfo(m_slotId).name.c_str());
             } else if (m_type->getInfo().is_primitive) {
                 if (isReg()) {
                     if (m_type->getInfo().is_floating_point) s = String::Format("$FP%d", m_regId);
@@ -1196,6 +1545,8 @@ namespace tsn {
                         else s = String::Format("%lli", m_imm.i);
                     }
                 }
+            } else if (m_type->isEqualTo(m_func->getContext()->getTypes()->getNull())) {
+                s = "null";
             } else {
                 if (isReg()) {
                     s = String::Format("$GP%d", m_regId);
@@ -1206,7 +1557,9 @@ namespace tsn {
                 }
             }
 
-            if (m_name.size() > 0) s += "(" + m_name + ")";
+            if (m_name.size() > 0) {
+                s += "(" + m_name + ")";
+            }
 
             return s;
         }

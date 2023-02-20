@@ -1,6 +1,6 @@
 #pragma once
 #include <tsn/common/types.h>
-#include <tsn/common/DataType.h>
+#include <tsn/ffi/DataType.h>
 #include <tsn/compiler/IR.h>
 
 #include <utils/String.h>
@@ -51,7 +51,8 @@ namespace tsn {
 
                 alloc_id reserveStackId();
                 void setStackId(Value& v, alloc_id id);
-                
+
+                Value& promote(const Value& val, const utils::String& name);
                 Value& val(const utils::String& name, ffi::DataType* tp);
                 Value& val(const utils::String& name, u32 module_data_slot);
                 Value& val(const utils::String& name, Module* m, u32 module_data_slot);
@@ -76,15 +77,18 @@ namespace tsn {
                 ffi::Function* getOutput();
                 const utils::Array<Instruction>& getCode() const;
                 utils::Array<Instruction>& getCode();
+                ParseNode* getNode();
 
             private:
                 friend class OutputBuilder;
                 friend class InstructionRef;
 
                 FunctionDef();
-                FunctionDef(Compiler* c, const utils::String& name, ffi::DataType* methodOf);
-                FunctionDef(Compiler* c, ffi::Function* func);
+                FunctionDef(Compiler* c, const utils::String& name, ffi::DataType* methodOf, ParseNode* n);
+                FunctionDef(Compiler* c, ffi::Function* func, ParseNode* n);
 
+                ParseNode* m_node;
+                Value* m_scopeRef;
                 SourceLocation m_src;
                 Compiler* m_comp;
                 utils::String m_name;

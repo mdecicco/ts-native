@@ -54,6 +54,7 @@ namespace utils {
 
             void replaceAll(const String& str, const String& with);
             void replaceAll(const char* str, const String& with);
+            void replaceAll(char ch, char with);
 
             String trim() const;
             String clone() const;

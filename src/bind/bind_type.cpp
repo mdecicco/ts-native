@@ -1,9 +1,9 @@
 #include <tsn/bind/bind_type.h>
 #include <tsn/bind/bind.h>
 #include <tsn/common/Context.h>
-#include <tsn/common/DataType.h>
-#include <tsn/common/TypeRegistry.h>
-#include <tsn/common/FunctionRegistry.h>
+#include <tsn/ffi/DataType.h>
+#include <tsn/ffi/DataTypeRegistry.h>
+#include <tsn/ffi/FunctionRegistry.h>
 #include <tsn/common/Module.h>
 #include <utils/Array.hpp>
 

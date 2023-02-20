@@ -3,7 +3,10 @@
 #include <tsn/compiler/Compiler.h>
 #include <tsn/compiler/OutputBuilder.h>
 #include <tsn/compiler/FunctionDef.h>
-#include <tsn/common/DataType.h>
+#include <tsn/common/Context.h>
+#include <tsn/ffi/DataType.h>
+#include <tsn/ffi/DataTypeRegistry.h>
+#include <tsn/ffi/Function.h>
 
 #include <utils/Array.hpp>
 
@@ -22,29 +25,32 @@ namespace tsn {
             });
         }
 
-        void Scope::add(const utils::String& name, Value* v) {
+        Value& Scope::add(const utils::String& name, Value* v) {
             auto it = m_symbols.find(name);
-            if (it != m_symbols.end()) return;
+            if (it != m_symbols.end()) {
+                return *it->second.value;
+            }
 
             m_symbols[name] = { v };
             m_namedVars.push(v);
             m_comp->getOutput()->addSymbolLifetime(name, m_scopeOriginNode, *v);
+            return *v;
         }
 
-        void Scope::add(const utils::String& name, ffi::DataType* t) {
-            add(name, new Value(m_comp->getOutput()->getFuncs()[0], t, true));
+        Value& Scope::add(const utils::String& name, ffi::DataType* t) {
+            return add(name, new Value(m_comp->getOutput()->getFuncs()[0], t, true));
         }
 
-        void Scope::add(const utils::String& name, FunctionDef* f) {
-            add(name, new Value(m_comp->getOutput()->getFuncs()[0], f));
+        Value& Scope::add(const utils::String& name, FunctionDef* f) {
+            return add(name, new Value(m_comp->getOutput()->getFuncs()[0], f));
         }
 
-        void Scope::add(const utils::String& name, Module* m) {
-            add(name, new Value(m_comp->getOutput()->getFuncs()[0], m));
+        Value& Scope::add(const utils::String& name, Module* m) {
+            return add(name, new Value(m_comp->getOutput()->getFuncs()[0], m));
         }
 
-        void Scope::add(const utils::String& name, Module* m, u32 slotId) {
-            add(name, new Value(m_comp->getOutput()->getFuncs()[0], m, slotId));
+        Value& Scope::add(const utils::String& name, Module* m, u32 slotId) {
+            return add(name, new Value(m_comp->getOutput()->getFuncs()[0], m, slotId));
         }
 
         symbol* Scope::get(const utils::String& name) {
@@ -90,24 +96,24 @@ namespace tsn {
             return m_scopes[m_scopes.size() - 1];
         }
 
-        void ScopeManager::add(const utils::String& name, Value* v) {
-            m_scopes[m_scopes.size() - 1].add(name, v);
+        Value& ScopeManager::add(const utils::String& name, Value* v) {
+            return m_scopes[m_scopes.size() - 1].add(name, v);
         }
 
-        void ScopeManager::add(const utils::String& name, ffi::DataType* t) {
-            m_scopes[m_scopes.size() - 1].add(name, t);
+        Value& ScopeManager::add(const utils::String& name, ffi::DataType* t) {
+            return m_scopes[m_scopes.size() - 1].add(name, t);
         }
 
-        void ScopeManager::add(const utils::String& name, FunctionDef* f) {
-            m_scopes[m_scopes.size() - 1].add(name, f);
+        Value& ScopeManager::add(const utils::String& name, FunctionDef* f) {
+            return m_scopes[m_scopes.size() - 1].add(name, f);
         }
 
-        void ScopeManager::add(const utils::String& name, Module* m) {
-            m_scopes[m_scopes.size() - 1].add(name, m);
+        Value& ScopeManager::add(const utils::String& name, Module* m) {
+            return m_scopes[m_scopes.size() - 1].add(name, m);
         }
 
-        void ScopeManager::add(const utils::String& name, Module* m, u32 slotId) {
-            m_scopes[m_scopes.size() - 1].add(name, m, slotId);
+        Value& ScopeManager::add(const utils::String& name, Module* m, u32 slotId) {
+            return m_scopes[m_scopes.size() - 1].add(name, m, slotId);
         }
 
         symbol* ScopeManager::get(const utils::String& name) {
@@ -125,14 +131,23 @@ namespace tsn {
             // statement in a loop. The break exits the loop scope, but the current scope is
             // the if statement body. All scopes inside of scope `s` must also be handled.
 
+            ffi::Function* crefDtor = m_comp->getContext()->getTypes()->getClosureRef()->getDestructor();
+
             for (i64 i = m_scopes.size() - 1;i >= 0;i--) {
                 Scope& cur = m_scopes[(u32)i];
 
-                for (const Value& v : cur.m_stackObjs) {
-                    if (save && v.isReg() && v.getRegId() == save->getRegId()) continue;
+                for (i32 i = cur.m_stackObjs.size() - 1;i >= 0;i--) {
+                    const Value& v = cur.m_stackObjs[i];
+                    if (save && v.getStackAllocId() == save->getStackAllocId()) continue;
 
-                    ffi::Function* dtor = v.getType()->getDestructor();
-                    if (dtor) m_comp->generateCall(dtor, {}, &v);
+                    if (v.isFunction()) {
+                        // runtime function references are actually of type 'ClosureRef'
+                        m_comp->generateCall(crefDtor, {}, &v);
+                    } else {
+                        ffi::Function* dtor = v.getType()->getDestructor();
+                        if (dtor) m_comp->generateCall(dtor, {}, &v);
+                    }
+
                     m_comp->add(ir_stack_free).op(cf->imm(v.m_allocId));
                 }
                 

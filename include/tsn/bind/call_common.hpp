@@ -1,8 +1,8 @@
 #pragma once
 #include <ffi.h>
 #include <tsn/utils/remove_all.h>
-#include <tsn/common/Object.h>
-#include <tsn/common/DataType.h>
+#include <tsn/ffi/Object.h>
+#include <tsn/ffi/DataType.h>
 #include <tsn/bind/bind.h>
 
 namespace tsn {
