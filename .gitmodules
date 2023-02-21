@@ -1,15 +1,4 @@
-[submodule "playground/deps/glfw"]
-	path = playground/deps/glfw
-	url = https://github.com/glfw/glfw.git
-[submodule "playground/deps/imgui"]
-	path = playground/deps/imgui
-	url = https://github.com/ocornut/imgui.git
-[submodule "deps/asmjit"]
-	path = deps/asmjit
-	url = https://github.com/asmjit/asmjit.git
-[submodule "examples/deps/glfw"]
-	path = examples/deps/glfw
-	url = https://github.com/glfw/glfw.git
-[submodule "examples/deps/imgui"]
-	path = examples/deps/imgui
-	url = https://github.com/ocornut/imgui.git
+[submodule "_deps/libffi"]
+	path = _deps/libffi
+	url = https://github.com/mdecicco/libffi
+	branch = feature/cmake-build-configs

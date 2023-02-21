@@ -1,1 +1,0 @@
-int dynload_plain_testfunc() { return 5; }
