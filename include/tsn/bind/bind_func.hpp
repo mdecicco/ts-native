@@ -106,6 +106,13 @@ namespace tsn {
                 ));
             }
 
+            if constexpr (std::is_pointer_v<Ret> && std::is_pointer_v<std::remove_pointer_t<Ret>>) {
+                throw BindException(utils::String::Format(
+                    "Return type of function '%s' is a pointer to a pointer, which is not supported at this time",
+                    name
+                ));
+            }
+
             DataType* ptrTp = treg->getType<void*>();
 
             utils::Array<function_argument> args;
@@ -116,7 +123,7 @@ namespace tsn {
                 return nullptr;
             }
 
-            FunctionType tmp(retTp, args);
+            FunctionType tmp(retTp, args, std::is_pointer_v<Ret> && !std::is_same_v<Ret, void*>);
             FunctionType* sig = (FunctionType*)treg->getType(tmp.getId());
             if (!sig) {
                 sig = new FunctionType(tmp);
@@ -157,6 +164,13 @@ namespace tsn {
                 ));
             }
 
+            if constexpr (std::is_pointer_v<Ret> && std::is_pointer_v<std::remove_pointer_t<Ret>>) {
+                throw BindException(utils::String::Format(
+                    "Return type of pseudo-class method '%s::%s' is a pointer to a pointer, which is not supported at this time",
+                    selfTp->getName().c_str(), name.c_str()
+                ));
+            }
+
             DataType* ptrTp = treg->getType<void*>();
 
             utils::Array<function_argument> args;
@@ -168,7 +182,7 @@ namespace tsn {
                 return nullptr;
             }
 
-            FunctionType tmp(retTp, args);
+            FunctionType tmp(retTp, args, std::is_pointer_v<Ret> && !std::is_same_v<Ret, void*>);
             FunctionType* sig = (FunctionType*)treg->getType(tmp.getId());
             if (!sig) {
                 sig = new FunctionType(tmp);
@@ -205,6 +219,13 @@ namespace tsn {
                 ));
             }
 
+            if constexpr (std::is_pointer_v<Ret> && std::is_pointer_v<std::remove_pointer_t<Ret>>) {
+                throw BindException(utils::String::Format(
+                    "Return type of class method '%s::%s' is a pointer to a pointer, which is not supported at this time",
+                    selfTp->getName().c_str(), name.c_str()
+                ));
+            }
+
             DataType* ptrTp = treg->getType<void*>();
 
             utils::Array<function_argument> args;
@@ -214,7 +235,7 @@ namespace tsn {
             args.push({ arg_type::this_ptr, selfTp });
             validateAndGetArgs<Args...>(treg, args, name);
 
-            FunctionType tmp(retTp, args);
+            FunctionType tmp(retTp, args, std::is_pointer_v<Ret> && !std::is_same_v<Ret, void*>);
             FunctionType* sig = (FunctionType*)treg->getType(tmp.getId());
             if (!sig) {
                 sig = new FunctionType(tmp);
@@ -252,6 +273,13 @@ namespace tsn {
                 ));
             }
 
+            if constexpr (std::is_pointer_v<Ret> && std::is_pointer_v<std::remove_pointer_t<Ret>>) {
+                throw BindException(utils::String::Format(
+                    "Return type of class method '%s::%s' is a pointer to a pointer, which is not supported at this time",
+                    selfTp->getName().c_str(), name.c_str()
+                ));
+            }
+
             DataType* ptrTp = treg->getType<void*>();
 
             utils::Array<function_argument> args;
@@ -261,7 +289,7 @@ namespace tsn {
             args.push({ arg_type::this_ptr, selfTp });
             validateAndGetArgs<Args...>(treg, args, name);
 
-            FunctionType tmp(retTp, args);
+            FunctionType tmp(retTp, args, std::is_pointer_v<Ret> && !std::is_same_v<Ret, void*>);
             FunctionType* sig = (FunctionType*)treg->getType(tmp.getId());
             if (!sig) {
                 sig = new FunctionType(tmp);
@@ -306,7 +334,7 @@ namespace tsn {
                 return nullptr;
             }
 
-            FunctionType tmp(voidTp, args);
+            FunctionType tmp(voidTp, args, false);
             FunctionType* sig = (FunctionType*)treg->getType(tmp.getId());
             if (!sig) {
                 sig = new FunctionType(tmp);
@@ -347,7 +375,7 @@ namespace tsn {
             args.push({ arg_type::context_ptr, ptrTp });
             args.push({ arg_type::this_ptr, selfTp });
             
-            FunctionType tmp(voidTp, args);
+            FunctionType tmp(voidTp, args, false);
             FunctionType* sig = (FunctionType*)treg->getType(tmp.getId());
             if (!sig) {
                 sig = new FunctionType(tmp);

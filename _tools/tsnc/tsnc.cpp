@@ -194,7 +194,7 @@ i32 parse_args(i32 argc, const char** argv, tsnc_config* conf, Config* ctxConf) 
     conf->mode = om_all;
     conf->pretty_print = true;
     conf->trusted = false;
-    conf->debugLogging = ctxConf->debugLogging;
+    conf->debugLogging = true; //ctxConf->debugLogging;
     conf->disableOptimizations = ctxConf->disableOptimizations;
 
     try {

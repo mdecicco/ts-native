@@ -8,11 +8,10 @@ namespace tsn {
         FunctionRegistry::~FunctionRegistry() { }
 
         void FunctionRegistry::registerFunction(ffi::Function* fn) {
-            if (fn->m_id != 0) {
+            if (fn->m_registryIndex != u32(-1)) {
                 throw std::exception("Function already registered");
             }
 
-            fn->m_id = (function_id)std::hash<utils::String>()(fn->m_fullyQualifiedName);
             fn->m_registryIndex = allFunctions().size();
             addFunction(fn);
         }

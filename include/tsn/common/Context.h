@@ -15,6 +15,10 @@ namespace tsn {
         class FunctionRegistry;
     };
 
+    namespace backend {
+        class IBackend;
+    };
+
     class Context {
         public:
             /**
@@ -43,19 +47,21 @@ namespace tsn {
             ffi::FunctionRegistry* getFunctions() const;
             Workspace* getWorkspace() const;
             Pipeline* getPipeline() const;
+            backend::IBackend* getBackend() const;
 
             Module* getGlobal() const;
             Module* createModule(const utils::String& name, const utils::String& path, const script_metadata* meta);
             Module* createHostModule(const utils::String& name);
             Module* getModule(const utils::String& path, const utils::String& fromDir = utils::String());
             Module* getModule(u32 moduleId);
-        
+
         protected:
             Workspace* m_workspace;
             Pipeline* m_pipeline;
 
             ffi::DataTypeRegistry* m_types;
             ffi::FunctionRegistry* m_funcs;
+            backend::IBackend* m_backend;
             Module* m_global;
             Config* m_cfg;
             robin_hood::unordered_map<utils::String, Module*> m_modules;

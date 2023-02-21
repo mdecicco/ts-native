@@ -350,10 +350,11 @@ namespace tsn {
         //
         FunctionType::FunctionType() {
             m_returnType = nullptr;
+            m_returnsPointer = false;
             m_itype = dti_function;
         }
 
-        FunctionType::FunctionType(DataType* returnType, const utils::Array<function_argument>& args) {
+        FunctionType::FunctionType(DataType* returnType, const utils::Array<function_argument>& args, bool returnsPointer) {
             m_itype = dti_function;
             m_name = returnType->m_name + "(";
             m_fullyQualifiedName = returnType->m_fullyQualifiedName + "(";
@@ -406,6 +407,7 @@ namespace tsn {
             };
 
             m_returnType = returnType;
+            m_returnsPointer = returnsPointer;
             m_args = args;
         }
 
@@ -453,6 +455,15 @@ namespace tsn {
         DataType* FunctionType::getReturnType() const {
             return m_returnType;
         }
+        DataType* FunctionType::getThisType() const {
+            for (u32 i = 0;i < m_args.size();i++) {
+                if (m_args[i].argType == arg_type::this_ptr) return m_args[i].dataType;
+            }
+            return nullptr;
+        }
+        bool FunctionType::returnsPointer() const {
+            return m_returnsPointer;
+        }
 
         const utils::Array<function_argument>& FunctionType::getArguments() const {
             return m_args;
@@ -464,51 +475,13 @@ namespace tsn {
             
             if (m_args.size() != s->m_args.size()) return false;
             if (!m_returnType->isEquivalentTo(s->m_returnType)) return false;
+            if (!m_returnsPointer != s->m_returnsPointer) return false;
             for (u32 i = 0;i < m_args.size();i++) {
                 if (m_args[i].argType != s->m_args[i].argType) return false;
                 if (!m_args[i].dataType->isEquivalentTo(s->m_args[i].dataType)) return false;
             }
 
             return true;
-        }
-
-        void FunctionType::setThisType(DataType* tp) {
-            if (m_args.size() < 4 || m_args[3].argType != arg_type::this_ptr) {
-                throw std::exception("Attempted to set 'this' type for function that is not a non-static class method");
-            }
-
-            m_args[3].dataType = tp;
-
-            m_name = m_returnType->m_name + "(";
-            m_fullyQualifiedName = m_returnType->m_fullyQualifiedName + "(";
-            m_args.each([this](const function_argument& arg, u32 idx) {
-                if (idx > 0) {
-                    m_name += ",";
-                    m_fullyQualifiedName += ",";
-                }
-
-                bool is_implicit = arg.argType == arg_type::func_ptr;
-                is_implicit = is_implicit || arg.argType == arg_type::ret_ptr;
-                is_implicit = is_implicit || arg.argType == arg_type::context_ptr;
-                is_implicit = is_implicit || arg.argType == arg_type::this_ptr;
-                bool is_ptr = is_implicit || arg.argType == arg_type::pointer;
-
-                if (is_implicit) {
-                    m_name += "$";
-                    m_fullyQualifiedName += "$";
-                }
-
-                m_name += arg.dataType->m_name;
-                m_fullyQualifiedName += arg.dataType->m_fullyQualifiedName;
-
-                if (is_ptr) {
-                    m_name += "*";
-                    m_fullyQualifiedName += "*";
-                }
-            });
-
-            m_name += ")";
-            m_fullyQualifiedName += ")";
         }
             
         bool FunctionType::serialize(utils::Buffer* out, Context* ctx) const {
@@ -521,6 +494,7 @@ namespace tsn {
             };
 
             if (!out->write(m_returnType ? m_returnType->getId() : type_id(0))) return false;
+            if (!out->write(m_returnsPointer)) return false;
             if (!out->write(m_args.size())) return false;
             if (m_args.some(writeArg)) return false;
 

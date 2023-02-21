@@ -85,6 +85,8 @@ namespace tsn {
                 Value* getSrcSelf() const;
                 
                 void setType(ffi::DataType* to);
+                void setRegId(vreg_id reg);
+                void setStackAllocId(alloc_id id);
 
                 bool isValid() const;
                 bool isArg() const;

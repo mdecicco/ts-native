@@ -74,6 +74,9 @@ namespace utils {
             const_iterator begin() const;
             iterator end();
             const_iterator end() const;
+            
+            T& back();
+            const T& back() const;
 
             void push(const T& v);
             void insert(Node at, const T& v);

@@ -65,7 +65,8 @@ namespace tsn {
                 friend class FunctionRegistry;
                 friend class compiler::Compiler;
                 friend class compiler::Output;
-                void setThisType(DataType* tp);
+                void setThisType(DataType* tp, DataTypeRegistry* treg);
+                void setRetType(DataType* tp, bool returnsPointer, DataTypeRegistry* treg);
                 bool m_isMethod;
                 bool m_isTemplate;
                 SourceLocation m_src;

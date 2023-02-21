@@ -15,6 +15,7 @@
 #include <tsn/optimize/OptimizationGroup.h>
 #include <tsn/interfaces/IPersistable.h>
 #include <tsn/interfaces/IOptimizationStep.h>
+#include <tsn/interfaces/IBackend.h>
 #include <tsn/io/Workspace.h>
 #include <tsn/utils/ModuleSource.h>
 
@@ -90,8 +91,10 @@ namespace tsn {
         m_isCompiling = true;
 
         reset();
-
         if (!m_logger) m_logger = new compiler::Logger();
+
+        backend::IBackend* be = m_ctx->getBackend();
+        if (be) be->beforeCompile(this);
 
 
         std::filesystem::path absPath = m_ctx->getConfig()->workspaceRoot;
@@ -174,8 +177,12 @@ namespace tsn {
         Module* mod = out->getModule();
         if (mod) {
             mod->setSrc(m_source);
+            // source code ownership was taken by the Module
             m_source = nullptr;
         }
+
+        if (be) be->generate(this);
+
         return mod;
     }
 
@@ -186,7 +193,12 @@ namespace tsn {
             if (m) return m;
             return nullptr;
         }
-        m_isCompiling = true;
+
+        reset();
+        if (!m_logger) m_logger = new compiler::Logger();
+        
+        backend::IBackend* be = m_ctx->getBackend();
+        if (be) be->beforeCompile(this);
 
         std::filesystem::path absSourcePath = m_ctx->getConfig()->workspaceRoot;
         absSourcePath /= script->path;
@@ -239,6 +251,9 @@ namespace tsn {
         }
 
         m_isCompiling = false;
+
+        if (be) be->generate(this);
+
         return mod;
     }
 

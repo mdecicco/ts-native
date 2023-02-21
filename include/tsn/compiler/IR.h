@@ -101,14 +101,13 @@ namespace tsn {
             // Multiple parameters will be specified in left to right order
             //
             // Operand 0 will be val representing the parameter to pass
+            // Operand 1 will be imm arg_type (debug purposes)
             ir_param,
 
             // Calls a function
             //
             // Operand 0 will either be imm pointer to the FunctionDef being called
             // or a vreg which holds a pointer to the function or closure being called
-            // Operand 1 will be a vreg which will receive the function return value,
-            // if the function returns non-void. Otherwise it will be imm(0)
             ir_call,
 
             // Returns from the current function
@@ -207,7 +206,7 @@ namespace tsn {
             /** register or immediate */
             ot_val,
 
-            /** function (immediate function id or function pointer in virtual register) */
+            /** function (immediate function id or ClosureRef pointer in vreg) */
             ot_fun
         };
 

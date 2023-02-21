@@ -843,6 +843,14 @@ namespace tsn {
             m_type = to;
         }
 
+        void Value::setRegId(vreg_id reg) {
+            m_regId = reg;
+        }
+
+        void Value::setStackAllocId(alloc_id id) {
+            m_allocId = id;
+        }
+
         bool Value::isValid() const {
             return m_regId > 0 || m_allocId > 0 || m_flags.is_module_data ||
                    m_flags.is_module || m_flags.is_function || m_flags.is_type ||

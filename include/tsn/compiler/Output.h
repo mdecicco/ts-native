@@ -117,6 +117,7 @@ namespace tsn {
 
                 // function types only
                 function_id returnTypeId;
+                bool returnsPointer;
                 utils::Array<proto_type_arg> args;
 
                 // template types only

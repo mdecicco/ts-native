@@ -8,6 +8,8 @@
 #include <tsn/builtin/Builtin.h>
 #include <tsn/io/Workspace.h>
 
+#include <tsn/vm/VMBackend.h>
+
 namespace tsn {
     Context::Context(u32 apiVersion, Config* cfg) {
         m_builtinApiVersion = 2;
@@ -16,6 +18,7 @@ namespace tsn {
         if (cfg) m_cfg = new Config(*cfg);
         else m_cfg = new Config();
 
+        m_backend = new vm::Backend(this);
         m_pipeline = new Pipeline(this, nullptr, nullptr);
         m_workspace = new Workspace(this);
         m_types = new ffi::DataTypeRegistry(this);
@@ -34,6 +37,7 @@ namespace tsn {
         if (m_types) delete m_types;
         if (m_workspace) delete m_workspace;
         if (m_pipeline) delete m_pipeline;
+        if (m_backend) delete m_backend;
         if (m_cfg) delete m_cfg;
     }
 
@@ -63,6 +67,10 @@ namespace tsn {
 
     Pipeline* Context::getPipeline() const {
         return m_pipeline;
+    }
+
+    backend::IBackend* Context::getBackend() const {
+        return m_backend;
     }
 
     Module* Context::getGlobal() const {

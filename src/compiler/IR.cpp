@@ -24,8 +24,8 @@ namespace tsn {
             { "store"         , 2, { ot_val, ot_reg, ot_nil }, 0xFF, 0 },
             { "jump"          , 1, { ot_lbl, ot_nil, ot_nil }, 0xFF, 0 },
             { "cvt"           , 3, { ot_reg, ot_val, ot_imm }, 0   , 0 },
-            { "param"         , 1, { ot_val, ot_nil, ot_nil }, 0xFF, 0 },
-            { "call"          , 2, { ot_fun, ot_val, ot_nil }, 1   , 1 },
+            { "param"         , 2, { ot_val, ot_imm, ot_nil }, 0xFF, 0 },
+            { "call"          , 1, { ot_fun, ot_nil, ot_nil }, 0xFF, 1 },
             { "ret"           , 0, { ot_nil, ot_nil, ot_nil }, 0xFF, 0 },
             { "branch"        , 3, { ot_reg, ot_lbl, ot_lbl }, 0xFF, 0 },
             { "iadd"          , 3, { ot_reg, ot_val, ot_val }, 0   , 0 },
@@ -175,6 +175,8 @@ namespace tsn {
                 } else if (op == ir_ret && operands[0].getType()->getInfo().size == 0) {
                     // void return, don't append dummy register
                     break;
+                } else if (op == ir_param && o == 1) {
+                    break;
                 }
 
                 if (info.operands[o] == ot_fun && operands[o].isImm()) {
@@ -206,6 +208,15 @@ namespace tsn {
 
                 if (prop) {
                     s += " ; " + operands[1].getName() + "." + prop->name;
+                }
+            } else if (op == ir_param) {
+                arg_type at = arg_type(operands[1].getImm<u8>());
+                switch (at) {
+                    case arg_type::context_ptr: { s += " ; context_ptr"; break; }
+                    case arg_type::func_ptr: { s += " ; func_ptr"; break; }
+                    case arg_type::ret_ptr: { s += " ; ret_ptr"; break; }
+                    case arg_type::this_ptr: { s += " ; this_ptr"; break; }
+                    default: break;
                 }
             }
 

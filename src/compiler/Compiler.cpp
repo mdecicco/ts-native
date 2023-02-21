@@ -248,10 +248,6 @@ namespace tsn {
             return m_output;
         }
         
-        void Compiler::updateMethod(DataType* classTp, Method* m) {
-            m->setThisType(classTp);
-        }
-        
         static log_message null_msg = {
             lt_error,
             (log_message_code)0,
@@ -916,8 +912,13 @@ namespace tsn {
             return newClosureRef(closure, sig);
         }
 
-        Value Compiler::generateCall(const Value& fn, const utils::String& name, ffi::DataType* retTp, const utils::Array<function_argument>& fargs, const utils::Array<Value>& params, const Value* self) {
+        Value Compiler::generateCall(const Value& fn, const utils::String& name, bool returnsPointer, ffi::DataType* retTp, const utils::Array<function_argument>& fargs, const utils::Array<Value>& params, const Value* self) {
             FunctionDef* cf = currentFunction();
+
+            ffi::DataType* origRetTp = retTp;
+            if (returnsPointer) {
+                retTp = getPointerType(retTp);
+            }
 
             if (fn.isImm()) {
                 FunctionDef* vfd = fn.getImm<FunctionDef*>();
@@ -942,9 +943,10 @@ namespace tsn {
                         retTp,
                         params,
                         cm_err_function_argument_count_mismatch,
-                        "Function '%s' expects %d arguments, but %d %s provided",
+                        "Function '%s' expects %d argument%s, but %d %s provided",
                         name.c_str(),
                         argc,
+                        argc == 1 ? "" : "s",
                         params.size(),
                         params.size() == 1 ? "was" : "were"
                     );
@@ -954,8 +956,9 @@ namespace tsn {
                         retTp,
                         params,
                         cm_err_function_argument_count_mismatch,
-                        "Function expects %d arguments, but %d %s provided",
+                        "Function expects %d argument%s, but %d %s provided",
                         argc,
+                        argc == 1 ? "" : "s",
                         params.size(),
                         params.size() == 1 ? "was" : "were"
                     );
@@ -1003,8 +1006,6 @@ namespace tsn {
                 aidx++;
             }
             
-            Value result;
-            
             auto* exp = currentExpr();
             bool resultShouldBeHandledInternally = !exp || exp->loc == rsl_auto || !exp->targetNextCall;
             bool resultHandledInternally = resultShouldBeHandledInternally;
@@ -1015,83 +1016,177 @@ namespace tsn {
                 }
             }
 
-            if (resultHandledInternally) {
-                result.reset(cf->val(retTp));
-                if (!retTp->getInfo().is_primitive && retTp->getInfo().size != 0) {
-                    alloc_id stackId = cf->reserveStackId();
+            Value resultPtr;
+            
+            if (resultHandledInternally && retTp->getInfo().size != 0) {
+                resultPtr.reset(cf->val(retTp));
+                
+                alloc_id stackId = cf->reserveStackId();
 
-                    cf->setStackId(result, stackId);
-                    cf->add(ir_stack_allocate).op(result).op(cf->imm(retTp->getInfo().size)).op(cf->imm(stackId));
-                    scope().get().addToStack(result);
+                cf->setStackId(resultPtr, stackId);
+                add(ir_stack_allocate).op(resultPtr).op(cf->imm(retTp->getInfo().size)).op(cf->imm(stackId));
+
+                if (returnsPointer) {
+                    // retTp is a Pointer<T>. Construct it manually, setting '_external' property to true
+                    Value tmp = Value(resultPtr);
+                    tmp.setType(m_ctx->getTypes()->getVoidPtr());
+                    add(ir_store).op(cf->getNull()).op(tmp);
+                    add(ir_uadd).op(tmp).op(tmp).op(cf->imm<u64>(sizeof(void*)));
+                    add(ir_store).op(cf->getNull()).op(tmp);
+                    add(ir_uadd).op(tmp).op(tmp).op(cf->imm<u64>(sizeof(void*)));
+                    add(ir_store).op(cf->imm<bool>(true)).op(tmp);
+
+                    // first property of Pointer<T> is _data, meaning resultPtr is _already_ a pointer to that pointer.
+                    // Function will store a pointer in resultType, ie: Pointer<T>._data = ret
                 }
             } else if (retTp->getInfo().size != 0) {
-                exp->targetNextCall = false;
-                exp->targetNextConstructor = false;
-                result.reset(getStorageForExpr(retTp));
+                resultPtr.reset(getStorageForExpr(retTp));
+
+                if (returnsPointer) {
+                    // retTp is a Pointer<T>. Construct it manually, setting '_external' property to true
+                    Value tmp = cf->val(m_ctx->getTypes()->getVoidPtr());
+                    add(ir_assign).op(tmp).op(resultPtr);
+                    add(ir_store).op(cf->getNull()).op(tmp);
+                    add(ir_uadd).op(tmp).op(tmp).op(cf->imm<u64>(sizeof(void*)));
+                    add(ir_store).op(cf->getNull()).op(tmp);
+                    add(ir_uadd).op(tmp).op(tmp).op(cf->imm<u64>(sizeof(void*)));
+                    add(ir_store).op(cf->imm<bool>(true)).op(tmp);
+
+                    // first property of Pointer<T> is _data, meaning resultPtr is _already_ a pointer to that pointer.
+                    // Function will store a pointer in resultType, ie: Pointer<T>._data = ret
+                }
             } else {
                 // void return
-                result.reset(cf->val(retTp));
+                resultPtr.reset(cf->getNull());
             }
 
             aidx = 0;
             for (u8 a = 0;a < fargs.size();a++) {
                 const auto& arg = fargs[a];
                 if (arg.isImplicit()) {
-                    if (arg.argType == arg_type::context_ptr) cf->add(ir_param).op(cf->getECtx());
-                    else if (arg.argType == arg_type::func_ptr) cf->add(ir_param).op(cf->imm<u64>(0));
-                    else if (arg.argType == arg_type::ret_ptr) cf->add(ir_param).op(result);
+                    if (arg.argType == arg_type::context_ptr) add(ir_param).op(cf->getECtx()).op(cf->imm<u8>(u8(arg.argType)));
+                    else if (arg.argType == arg_type::func_ptr) add(ir_param).op(cf->imm<u64>(0)).op(cf->imm<u8>(u8(arg.argType)));
+                    else if (arg.argType == arg_type::ret_ptr) add(ir_param).op(resultPtr).op(cf->imm<u8>(u8(arg.argType)));
                     else if (arg.argType == arg_type::this_ptr) {
                         if (!self) {
                             // TODO
                             // this may be bound already (think obj.method.bind(obj) in JS)
-                            cf->add(ir_param).op(cf->imm<u64>(0));
-                        } else cf->add(ir_param).op(*self);
+                            add(ir_param).op(cf->imm<u64>(0)).op(cf->imm<u8>(u8(arg.argType)));
+                        } else add(ir_param).op(*self).op(cf->imm<u8>(u8(arg.argType)));
                     }
                     continue;
                 }
-                cf->add(ir_param).op(params[aidx++]);
+                add(ir_param).op(params[aidx++]).op(cf->imm<u8>(u8(arg.argType)));
             }
 
-            auto call = cf->add(ir_call).op(fn);
-            if (retTp->getInfo().is_primitive && retTp->getInfo().size != 0) {
-                call.op(result);
+            auto call = add(ir_call).op(fn);
 
-                if (resultHandledInternally && !resultShouldBeHandledInternally) {
-                    exp->targetNextCall = false;
-                    exp->targetNextConstructor = false;
-                    return copyValueToExprStorage(result);
-                }
+            Value result;
 
-                return result;
-            } else if (retTp->getInfo().size != 0) {
-                // stack return
-                call.op(cf->imm<u64>(0));
-
-                if (resultHandledInternally && !resultShouldBeHandledInternally) {
-                    exp->targetNextCall = false;
-                    exp->targetNextConstructor = false;
-                    return copyValueToExprStorage(result);
-                }
-
-                return result;
+            if (retTp->getInfo().size == 0) {
+                result.reset(cf->val(m_ctx->getTypes()->getVoid()));
             } else {
-                call.op(cf->imm<u64>(0));
+                if (resultHandledInternally && !resultShouldBeHandledInternally) {
+                    // Result needs to be moved to expression result storage
+
+                    if (returnsPointer) {
+                        // resultPtr = Pointer<origRetTp>
+
+                        result.reset(copyValueToExprStorage(resultPtr));
+
+                        // resultPtr should be freed, the value was copy constructed elsewhere
+                        add(ir_stack_free).op(cf->imm(resultPtr.getStackAllocId()));
+                    } else if (retTp->getInfo().is_primitive) {
+                        // resultPtr = retTp*
+
+                        // value must be loaded from resultPtr
+                        Value tmp = Value(resultPtr);
+                        tmp.setType(m_ctx->getTypes()->getVoidPtr());
+                        result.reset(cf->val(retTp));
+                        add(ir_load).op(result).op(tmp);
+
+                        result.reset(copyValueToExprStorage(result));
+
+                        // resultPtr should be freed, the value now exists elsewhere
+                        add(ir_stack_free).op(cf->imm(resultPtr.getStackAllocId()));
+                    } else {
+                        // resultPtr = retTp* (non-primitive)
+
+                        result.reset(copyValueToExprStorage(resultPtr));
+                        
+                        // resultPtr should be freed, the value was copy constructed elsewhere
+                        add(ir_stack_free).op(cf->imm(resultPtr.getStackAllocId()));
+                    }
+                } else if (resultShouldBeHandledInternally) {
+                    // Default behavior
+
+                    if (returnsPointer) {
+                        // resultPtr = Pointer<origRetTp>
+                        result.reset(resultPtr);
+
+                        // resultPtr will be destroyed at the end of the scope
+                        scope().get().addToStack(resultPtr);
+                    } else if (retTp->getInfo().is_primitive) {
+                        // resultPtr = retTp*
+                        result.reset(cf->val(retTp));
+
+                        // value must be loaded from resultPtr
+                        Value tmp = Value(resultPtr);
+                        tmp.setType(m_ctx->getTypes()->getVoidPtr());
+                        add(ir_load).op(result).op(tmp);
+
+                        // resultPtr should be freed, the value now exists elsewhere
+                        add(ir_stack_free).op(cf->imm(resultPtr.getStackAllocId()));
+                    } else {
+                        // resultPtr = retTp* (non-primitive)
+
+                        result.reset(resultPtr);
+
+                        // resultPtr will be destroyed at the end of the scope
+                        scope().get().addToStack(resultPtr);
+                    }
+                } else {
+                    // Result pointer came nicely from getStorageForExpr
+
+                    if (returnsPointer) {
+                        // resultPtr = Pointer<origRetTp>
+                        result.reset(resultPtr);
+                    } else if (retTp->getInfo().is_primitive) {
+                        // resultPtr = retTp*
+                        result.reset(cf->val(retTp));
+
+                        // value must be loaded from resultPtr
+                        Value tmp = Value(resultPtr);
+                        tmp.setType(m_ctx->getTypes()->getVoidPtr());
+                        add(ir_load).op(result).op(tmp);
+                    } else {
+                        // resultPtr = retTp* (non-primitive)
+
+                        result.reset(resultPtr);
+                    }
+                }
             }
 
-            // void return
-            return cf->val(retTp);
+            if (exp) {
+                exp->targetNextCall = false;
+                exp->targetNextConstructor = false;
+            }
+
+            return result;
         }
         
         Value Compiler::generateCall(Function* fn, const utils::Array<Value>& args, const Value* self) {
             FunctionType* sig = fn->getSignature();
-            return generateCall(functionValue(fn), fn->getDisplayName(), sig->getReturnType(), sig->getArguments(), args, self);
+            return generateCall(functionValue(fn), fn->getDisplayName(), sig->returnsPointer(), sig->getReturnType(), sig->getArguments(), args, self);
         }
 
         Value Compiler::generateCall(FunctionDef* fn, const utils::Array<Value>& args, const Value* self) {
             utils::String name;
+            Function* ofn = fn->getOutput();
             
-            if (fn->getOutput()) name = fn->getOutput()->getDisplayName();
-            else {
+            if (ofn) {
+                return generateCall(ofn, args, self);
+            } else {
                 if (fn->getReturnType() && fn->isReturnTypeExplicit()) {
                     name = fn->getReturnType()->getName() + " ";
                 }
@@ -1099,17 +1194,20 @@ namespace tsn {
                 name = fn->getName();
             }
 
-            return generateCall(functionValue(fn), name, fn->getReturnType(), fn->getArgs(), args, self);
+            return generateCall(functionValue(fn), name, false, fn->getReturnType(), fn->getArgs(), args, self);
         }
 
         Value Compiler::generateCall(const Value& fn, const utils::Array<Value>& args, const Value* self) {
             if (fn.isFunction() && fn.isImm()) {
                 FunctionDef* fd = fn.getImm<FunctionDef*>();
-                return generateCall(functionValue(fd), fd->getName(), fd->getReturnType(), fd->getArgs(), args, self);
+                Function* ofn = fd->getOutput();
+                if (ofn) return generateCall(ofn, args, self);
+
+                return generateCall(functionValue(fd), fd->getName(), false, fd->getReturnType(), fd->getArgs(), args, self);
             }
 
             FunctionType* sig = (FunctionType*)fn.getType();
-            return generateCall(fn, fn.getName(), sig->getReturnType(), sig->getArguments(), args, self);
+            return generateCall(fn, fn.getName(), sig->returnsPointer(), sig->getReturnType(), sig->getArguments(), args, self);
         }
 
         //
@@ -1274,10 +1372,12 @@ namespace tsn {
                     typeError(
                         type,
                         cm_err_too_few_template_args,
-                        "Type '%s' expects %d template arguments but only %d were provided",
+                        "Type '%s' expects %d template argument%s, but %d %s provided",
                         type->getName().c_str(),
                         ec,
-                        pc
+                        ec == 1 ? "" : "s",
+                        pc,
+                        pc == 1 ? "was" : "were"
                     );
 
                     scope().exit();
@@ -1301,10 +1401,12 @@ namespace tsn {
                 typeError(
                     type,
                     cm_err_too_few_template_args,
-                    "Type '%s' only expects %d template arguments but %d were provided",
+                    "Type '%s' expects %d template argument%s, but %d %s provided",
                     type->getName().c_str(),
                     ec,
-                    pc
+                    ec == 1 ? "" : "s",
+                    pc,
+                    pc == 1 ? "was" : "were"
                 );
                 scope().exit();
                 exitNode();
@@ -1453,7 +1555,7 @@ namespace tsn {
                 a = a->next;
             }
 
-            DataType* tp = new FunctionType(retTp, args);
+            DataType* tp = new FunctionType(retTp, args, false);
             
             // function types are always public
             tp->setAccessModifier(public_access);
@@ -1614,7 +1716,7 @@ namespace tsn {
             args.push({ arg_type::context_ptr, ptrTp });
             args.push({ arg_type::this_ptr, forTp });
             
-            FunctionType* sig = new FunctionType(voidTp, args);
+            FunctionType* sig = new FunctionType(voidTp, args, false);
             // function types are always public
             sig->setAccessModifier(public_access);
 
@@ -1658,7 +1760,6 @@ namespace tsn {
                 nullptr,
                 thisOffset
             );
-            updateMethod(forTp, m);
 
             m_output->newFunc(m, nullptr, true);
             enterFunction(m_output->getFunctionDef(m));
@@ -1685,6 +1786,11 @@ namespace tsn {
             } else {
                 tp = resolveTypeSpecifier(n->data_type);
 
+                if (tp->m_info.size == 0) {
+                    // No 0-byte structures allowed, add padding
+                    tp->m_info.size = 1;
+                }
+
                 if (tp) {
                     compileDefaultConstructor(tp, 0);
                     tp = new AliasType(name, generateFullQualifierPrefix() + name, tp);
@@ -1697,7 +1803,7 @@ namespace tsn {
             return tp;
         }
         void Compiler::compileMethodDef(ParseNode* n, DataType* methodOf, Method* m) {
-            updateMethod(methodOf, m);
+            m->setThisType(methodOf, m_ctx->getTypes());
             
             FunctionType* sig = m->getSignature();
             const auto& args = sig->getArguments();
@@ -1715,6 +1821,8 @@ namespace tsn {
             }
 
             compileBlock(n->body);
+
+            m->setRetType(def->getReturnType(), false, m_ctx->getTypes());
 
             exitFunction();
             exitNode();
@@ -1853,7 +1961,7 @@ namespace tsn {
                 a++;
             }
 
-            FunctionType* sig = new FunctionType(ret, args);
+            FunctionType* sig = new FunctionType(ret, args, false);
             
             // function types are always public
             sig->setAccessModifier(public_access);
@@ -1981,6 +2089,11 @@ namespace tsn {
                 );
 
                 prop = prop->next;
+            }
+
+            if (tp->m_info.size == 0) {
+                // No 0-byte structures allowed, add padding
+                tp->m_info.size = 1;
             }
 
             ParseNode* meth = n->body;
@@ -2429,6 +2542,11 @@ namespace tsn {
                 p = p->next;
             }
             exitExpr();
+
+            if (info.size == 0) {
+                // No 0-byte structures allowed, add padding
+                info.size = 1;
+            }
 
             String name = String::Format("$anon_%d", getContext()->getTypes()->getNextAnonTypeIndex());
             DataType* tp = new DataType(
@@ -3255,14 +3373,17 @@ namespace tsn {
                     if (exp) exp->targetNextCall = true;
 
                     if (callee.isFunction() && !callee.isImm() && !h.self) {
-                        // Get 'self' argument from ClosureRef
-                        FunctionDef* cf = currentFunction();
-                        Value self = cf->val(m_ctx->getTypes()->getVoidPtr());
-                        add(ir_uadd).op(self).op(callee).op(cf->imm<u64>(offsetof(ClosureRef, m_ref)));
-                        add(ir_load).op(self).op(self);
-                        add(ir_uadd).op(self).op(self).op(cf->imm<u64>(offsetof(Closure, m_self)));
-                        add(ir_load).op(self).op(self);
-                        h.self = new Value(self);
+                        DataType* selfTp = ((FunctionType*)callee.getType())->getThisType();
+                        if (selfTp) {
+                            // Get 'self' argument from ClosureRef
+                            FunctionDef* cf = currentFunction();
+                            Value self = cf->val(selfTp);
+                            add(ir_uadd).op(self).op(callee).op(cf->imm<u64>(offsetof(ClosureRef, m_ref)));
+                            add(ir_load).op(self).op(self);
+                            add(ir_uadd).op(self).op(self).op(cf->imm<u64>(offsetof(Closure, m_self)));
+                            add(ir_load).op(self).op(self);
+                            h.self = new Value(self);
+                        }
                     }
 
                     Value ret = callee(h.args, h.self);

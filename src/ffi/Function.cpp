@@ -13,7 +13,7 @@ namespace tsn {
         //
         Function::Function() {
             m_id = 0;
-            m_registryIndex = -1;
+            m_registryIndex = u32(-1);
             m_access = public_access;
             m_signature = nullptr;
             m_address = nullptr;
@@ -26,8 +26,8 @@ namespace tsn {
             m_extraQualifiers = extraQualifiers;
             m_fullyQualifiedName = signature ? signature->generateFullyQualifiedFunctionName(extraQualifiers + name) : "";
             m_displayName = signature ? signature->generateFunctionDisplayName(extraQualifiers + name) : "";
-            m_id = 0;
-            m_registryIndex = 0xFFFFFFFF;
+            m_id = (function_id)std::hash<utils::String>()(m_fullyQualifiedName);
+            m_registryIndex = u32(-1);
             m_name = name;
             m_signature = signature;
             m_access = access;
@@ -114,11 +114,84 @@ namespace tsn {
             return false;
         }
 
-        void Function::setThisType(DataType* tp) {
-            FunctionType* sig = getSignature();
-            sig->setThisType(tp);
-            m_fullyQualifiedName = sig->generateFullyQualifiedFunctionName(m_extraQualifiers + tp->getName() + "::" + m_name);
-            m_displayName = sig->generateFunctionDisplayName(m_extraQualifiers + tp->getName() + "::" + m_name);
+        void Function::setThisType(DataType* tp, DataTypeRegistry* treg) {
+            if (m_registryIndex != u32(-1)) {
+                throw std::exception("Function already added to registry, it cannot be changed.");
+            }
+
+            DataType* current = m_signature->getThisType();
+            if (!current) {
+                throw std::exception("Attempted to set 'this' type for function that is not a non-static class method");
+            }
+
+            if (current->getId() == tp->getId()) return;
+
+            utils::Array<function_argument> args = m_signature->getArguments();
+
+            // The exception above not occurring proves this function will not return nullptr.
+            args.find([](const function_argument& a) {
+                return a.argType == arg_type::this_ptr;
+            })->dataType = tp;
+
+            FunctionType* newSig = new FunctionType(m_signature->getReturnType(), args, m_signature->returnsPointer());
+
+            const auto& types = treg->allTypes();
+            for (auto* t : types) {
+                const auto& info = t->getInfo();
+                if (!info.is_function) continue;
+                if (newSig->isEquivalentTo(t)) {
+                    delete newSig;
+                    newSig = (FunctionType*)t;
+                    break;
+                }
+            }
+
+            m_signature = newSig;
+
+            m_fullyQualifiedName = m_signature->generateFullyQualifiedFunctionName(m_extraQualifiers + tp->getName() + "::" + m_name);
+            m_displayName = m_signature->generateFunctionDisplayName(m_extraQualifiers + tp->getName() + "::" + m_name);
+            m_id = (function_id)std::hash<utils::String>()(m_fullyQualifiedName);
+        }
+        
+        void Function::setRetType(DataType* tp, bool returnsPointer, DataTypeRegistry* treg) {
+            if (m_registryIndex != u32(-1)) {
+                throw std::exception("Function already added to registry, it cannot be changed.");
+            }
+
+            if (m_signature->getReturnType()->getId() == tp->getId()) return;
+
+            utils::Array<function_argument> args = m_signature->getArguments();
+            
+            DataType* selfTp = nullptr;
+            for (u32 a = 0;a < args.size();a++) {
+                if (args[a].argType == arg_type::ret_ptr) {
+                    args[a].dataType = tp;
+                } else if (args[a].argType == arg_type::this_ptr) {
+                    selfTp = args[a].dataType;
+                } else if (args[a].isImplicit()) break;
+            }
+
+            FunctionType* newSig = new FunctionType(tp, args, returnsPointer);
+
+            const auto& types = treg->allTypes();
+            for (auto* t : types) {
+                const auto& info = t->getInfo();
+                if (!info.is_function) continue;
+                if (newSig->isEquivalentTo(t)) {
+                    delete newSig;
+                    newSig = (FunctionType*)t;
+                    break;
+                }
+            }
+
+            m_signature = newSig;
+
+            utils::String moreQualifiers;
+            if (selfTp) moreQualifiers = selfTp->getName() + "::";
+
+            m_fullyQualifiedName = m_signature->generateFullyQualifiedFunctionName(m_extraQualifiers + moreQualifiers + m_name);
+            m_displayName = m_signature->generateFunctionDisplayName(m_extraQualifiers + moreQualifiers + m_name);
+            m_id = (function_id)std::hash<utils::String>()(m_fullyQualifiedName);
         }
 
 

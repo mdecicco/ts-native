@@ -276,12 +276,14 @@ namespace tsn {
         class FunctionType : public DataType {
             public:
                 FunctionType();
-                FunctionType(DataType* returnType, const utils::Array<function_argument>& args);
+                FunctionType(DataType* returnType, const utils::Array<function_argument>& args, bool returnsPointer);
                 virtual ~FunctionType();
 
                 utils::String generateFullyQualifiedFunctionName(const utils::String& funcName);
                 utils::String generateFunctionDisplayName(const utils::String& funcName);
                 DataType* getReturnType() const;
+                DataType* getThisType() const;
+                bool returnsPointer() const;
                 const utils::Array<function_argument>& getArguments() const;
                 virtual bool isEquivalentTo(DataType* to) const;
             
@@ -291,9 +293,9 @@ namespace tsn {
             protected:
                 friend class Function;
                 friend class compiler::Output;
-                void setThisType(DataType* tp);
 
                 DataType* m_returnType;
+                bool m_returnsPointer;
                 utils::Array<function_argument> m_args;
         };
 

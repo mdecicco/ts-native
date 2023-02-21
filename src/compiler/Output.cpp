@@ -263,6 +263,7 @@ namespace tsn {
                     case ffi::dti_plain: break;
                     case ffi::dti_function: {
                         if (!in->read(pt.returnTypeId)) return false;
+                        if (!in->read(pt.returnsPointer)) return false;
                         u32 acount;
                         if (!in->read(acount)) return false;
                         for (u32 a = 0;a < acount;a++) {
@@ -407,6 +408,7 @@ namespace tsn {
 
                 f->m_fullyQualifiedName = pf.fullyQualifiedName;
                 f->m_displayName = pf.displayName;
+                f->m_id = pf.id;
                 ofuncs.push(f);
                 freg->registerFunction(f);
                 m_mod->addFunction(f);
@@ -489,6 +491,7 @@ namespace tsn {
                     case ffi::dti_function: {
                         ffi::FunctionType* ft = (ffi::FunctionType*)tp;
                         ft->m_returnType = pt.returnTypeId == 0 ? nullptr : treg->getType(pt.returnTypeId);
+                        ft->m_returnsPointer = pt.returnsPointer;
                         
                         for (u32 a = 0;a < pt.args.size();a++) {
                             proto_type_arg& parg = pt.args[a];

@@ -135,6 +135,16 @@ namespace utils {
     }
 
     template <typename T>
+    T& BidirectionalList<T>::back() {
+        return m_back->value;
+    }
+
+    template <typename T>
+    const T& BidirectionalList<T>::back() const {
+        return m_back->value;
+    }
+
+    template <typename T>
     void BidirectionalList<T>::push(const T& v) {
         Node n = m_allocator.alloc(1);
         n->value = v;

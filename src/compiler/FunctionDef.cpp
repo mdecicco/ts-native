@@ -377,7 +377,7 @@ namespace tsn {
             m_output = new Function(
                 m_name,
                 m_comp->getOutput()->getModule()->getName() + "::",
-                new FunctionType(m_retTp, m_argInfo),
+                new FunctionType(m_retTp, m_argInfo, false),
                 private_access,
                 nullptr,
                 nullptr

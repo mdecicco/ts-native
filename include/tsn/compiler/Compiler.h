@@ -125,8 +125,6 @@ namespace tsn {
                 OutputBuilder* getOutput();
                 OutputBuilder* compile();
 
-                void updateMethod(ffi::DataType* classTp, ffi::Method* m);
-
                 log_message& typeError(ffi::DataType* tp, log_message_code code, const char* msg, ...);
                 log_message& typeError(ParseNode* node, ffi::DataType* tp, log_message_code code, const char* msg, ...);
                 log_message& valueError(const Value& val, log_message_code code, const char* msg, ...);
@@ -162,7 +160,7 @@ namespace tsn {
                 Value newClosureRef(const Value& fnImm);
                 Value newClosureRef(ffi::Function* fn);
                 Value newClosureRef(FunctionDef* fn);
-                Value generateCall(const Value& fn, const utils::String& name, ffi::DataType* retTp, const utils::Array<ffi::function_argument>& fargs, const utils::Array<Value>& params, const Value* self = nullptr);
+                Value generateCall(const Value& fn, const utils::String& name, bool returnsPointer, ffi::DataType* retTp, const utils::Array<ffi::function_argument>& fargs, const utils::Array<Value>& params, const Value* self = nullptr);
                 Value generateCall(ffi::Function* fn, const utils::Array<Value>& args, const Value* self = nullptr);
                 Value generateCall(FunctionDef* fn, const utils::Array<Value>& args, const Value* self = nullptr);
                 Value generateCall(const Value& fn, const utils::Array<Value>& args, const Value* self = nullptr);
