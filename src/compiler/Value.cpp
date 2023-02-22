@@ -845,10 +845,12 @@ namespace tsn {
 
         void Value::setRegId(vreg_id reg) {
             m_regId = reg;
+            m_allocId = 0;
         }
 
         void Value::setStackAllocId(alloc_id id) {
             m_allocId = id;
+            m_regId = 0;
         }
 
         bool Value::isValid() const {
