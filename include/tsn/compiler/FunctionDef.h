@@ -58,6 +58,7 @@ namespace tsn {
                 Value& val(const utils::String& name, Module* m, u32 module_data_slot);
                 Value val(Module* m, u32 module_data_slot);
                 Value val(ffi::DataType* tp);
+                Value stack(ffi::DataType* tp, bool unscoped = false);
                 
                 template <typename T>
                 Value& val(const utils::String& name);

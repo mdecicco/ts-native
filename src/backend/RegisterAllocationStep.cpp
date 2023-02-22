@@ -7,6 +7,7 @@
 #include <tsn/optimize/LabelMap.h>
 #include <tsn/ffi/Function.h>
 #include <tsn/ffi/DataType.h>
+#include <tsn/ffi/DataTypeRegistry.h>
 #include <tsn/pipeline/Pipeline.h>
 #include <tsn/common/Context.h>
 #include <tsn/common/Config.h>
@@ -21,87 +22,6 @@ namespace tsn {
         using namespace compiler;
         using namespace optimize;
         using op = ir_instruction;
-
-        StackManager::StackManager() {
-
-        }
-
-        StackManager::~StackManager() {
-
-        }
-
-        void StackManager::reset() {
-            m_slots.clear();
-        }
-
-        u32 StackManager::alloc(u32 sz) {
-            // look for unused slot
-            for (auto i = m_slots.begin();i != m_slots.end();i++) {
-                if (i->in_use) continue;
-                u64 s_sz = i->end - i->start;
-                if (s_sz > sz) {
-                    // split the slot
-                    slot n = { i->start + sz, i->end, false };
-                    i->end = i->start + sz;
-                    i->in_use = true;
-                    m_slots.insert(std::next(i), n);
-                    return i->start;
-                } else if (s_sz == sz) {
-                    i->in_use = true;
-                    return i->start;
-                }
-            }
-
-            // create a new slot
-            u32 out = (u32)m_slots.size() == 0 ? 0 : m_slots.back().end;
-            m_slots.push_back({ out, out + sz, true });
-            return out;
-        }
-
-        void StackManager::free(u32 addr) {
-            for (auto i = m_slots.begin();i != m_slots.end();i++) {
-                if (i->start == addr) {
-                    i->in_use = false;
-                    if (std::next(i) == m_slots.end()) {
-                        if (i != m_slots.begin()) {
-                            auto p = std::prev(i);
-                            if (!p->in_use) {
-                                m_slots.erase(i);
-                                m_slots.erase(p);
-                                return;
-                            }
-                        }
-                        m_slots.erase(i);
-                        return;
-                    }
-
-                    auto n = std::next(i);
-                    if (!n->in_use) {
-                        i->end = n->end;
-                        m_slots.erase(n);
-                    }
-
-                    if (i != m_slots.begin()) {
-                        auto p = std::prev(i);
-                        if (!p->in_use) {
-                            p->end = i->end;
-                            m_slots.erase(i);
-                        }
-                    }
-
-                    return;
-                }
-            }
-
-            assert(false);
-        }
-
-        u32 StackManager::size() const {
-            return m_slots.size() == 0 ? 0 : m_slots.back().end;
-        }
-
-
-
 
         bool RegisterAllocatonStep::lifetime::isConcurrent(const RegisterAllocatonStep::lifetime& o) const {
             return (begin >= o.begin && begin <= o.end) || (o.begin >= begin && o.begin <= end);
@@ -133,8 +53,6 @@ namespace tsn {
                 );
             }
 
-            m_stack.reset();
-            
             m_ch = ch;
             calcLifetimes();
 
@@ -270,7 +188,25 @@ namespace tsn {
             for (u32 r = 0;r < k;r++) free_regs.insert(free_regs.begin(), r + 1);
             std::vector<lifetime*> active;
             std::vector<u32> to_free;
-            u32 stack_off = 0;
+
+            u32 nextStackId = 0;
+            for (u32 i = 0;i < m_ch->code.size();i++) {
+                if (m_ch->code[i].op == ir_stack_allocate) {
+                    alloc_id id = m_ch->code[i].operands[1].getImm<alloc_id>();
+                    if (id > nextStackId) nextStackId = id;
+                }
+            }
+            nextStackId++;
+
+            struct spill_instrs {
+                address begin;
+                address end;
+                vreg_id reg_id;
+                u32 size;
+                alloc_id slot_id;
+            };
+            utils::Array<spill_instrs> spills;
+
             for (u32 l = 0;l < live.size();l++) {
                 to_free.clear();
                 // Free old regs
@@ -288,19 +224,35 @@ namespace tsn {
                     lifetime* spill = active.back();
                     if (spill->end > live[l].end) {
                         live[l].new_id = spill->new_id;
-                        ffi::DataType* tp = m_ch->code[spill->begin].operands[0].getType();
+                        ffi::DataType* tp = m_ch->code[spill->begin].assigns()->getType();
                         const auto& ti = tp->getInfo();
-                        spill->stack_loc = m_stack.alloc(ti.is_primitive ? ti.size : sizeof(void*));
+                        alloc_id loc = nextStackId++;
+                        spills.push({
+                            spill->begin,
+                            spill->end,
+                            spill->reg_id,
+                            ti.is_primitive ? u32(ti.size) : u32(sizeof(void*)),
+                            loc
+                        });
+                        spill->stack_loc = loc;
                         active.pop_back();
                         active.push_back(&live[l]);
                         std::sort(active.begin(), active.end(), [](lifetime* a, lifetime* b) {
                             return a->end < b->end;
                         });
-                    }
-                    else {
-                        ffi::DataType* tp = m_ch->code[live[l].begin].operands[0].getType();
+                    } else {
+                        ffi::DataType* tp = m_ch->code[live[l].begin].assigns()->getType();
                         const auto& ti = tp->getInfo();
-                        live[l].stack_loc = m_stack.alloc(ti.is_primitive ? ti.size : sizeof(void*));
+
+                        alloc_id loc = nextStackId++;
+                        spills.push({
+                            live[l].begin,
+                            live[l].end,
+                            live[l].reg_id,
+                            ti.is_primitive ? u32(ti.size) : u32(sizeof(void*)),
+                            loc
+                        });
+                        live[l].stack_loc = loc;
                     }
                 } else {
                     live[l].new_id = free_regs.back();
@@ -361,6 +313,74 @@ namespace tsn {
                             )
                         );
                     }
+                }
+            }
+
+            // Insert spill instructions ordered by insert addresses (descending)
+            std::sort(spills.begin(), spills.end(), [](const spill_instrs& a, const spill_instrs& b) {
+                return a.begin > b.begin;
+            });
+
+            ffi::DataType* u32t = m_ctx->getTypes()->getUInt32();
+            for (u32 i = 0;i < spills.size();i++) {
+                const auto& s = spills[i];
+                // Insert spill instruction
+                m_ch->code.insert(s.begin, Instruction());
+                auto& instr = m_ch->code[s.begin];
+                instr.op = ir_stack_allocate;
+                instr.operands[0].setImm<u32>(s.size);
+                instr.operands[0].setType(u32t);
+                instr.operands[0].getFlags().is_immediate = 1;
+                instr.operands[1].setImm<alloc_id>(s.slot_id);
+                instr.operands[1].setType(u32t);
+                instr.operands[1].getFlags().is_immediate = 1;
+                instr.oCnt = 2;
+
+                // update spill end locations (begin locations unchanged since spills is sorted)
+                for (u32 j = 0;j < spills.size();j++) {
+                    auto& s1 = spills[j];
+                    if (s1.end > s.begin) s1.end++;
+                }
+
+                if (doDebug) {
+                    log->submit(
+                        lt_debug,
+                        lm_generic,
+                        utils::String::Format(
+                            "Spill: [%lu] %s",
+                            s.begin,
+                            instr.toString(m_ctx).c_str()
+                        )
+                    );
+                }
+            }
+
+            // Insert stack_free instructions ordered by insert addresses (descending)
+            std::sort(spills.begin(), spills.end(), [](const spill_instrs& a, const spill_instrs& b) {
+                return a.end > b.end;
+            });
+
+            for (u32 i = 0;i < spills.size();i++) {
+                const auto& s = spills[i];
+                // Insert stack_free instruction
+                m_ch->code.insert(s.end, Instruction());
+                auto& instr = m_ch->code[s.end];
+                instr.op = ir_stack_free;
+                instr.operands[0].setImm<alloc_id>(s.slot_id);
+                instr.operands[0].setType(u32t);
+                instr.operands[0].getFlags().is_immediate = 1;
+                instr.oCnt = 1;
+
+                if (doDebug) {
+                    log->submit(
+                        lt_debug,
+                        lm_generic,
+                        utils::String::Format(
+                            "Spill: [%lu] %s (free stack slot used by spill)",
+                            s.end,
+                            instr.toString(m_ctx).c_str()
+                        )
+                    );
                 }
             }
 

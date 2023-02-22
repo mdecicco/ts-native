@@ -1,5 +1,6 @@
 #include <tsn/compiler/FunctionDef.hpp>
 #include <tsn/compiler/Compiler.h>
+#include <tsn/compiler/Scope.h>
 #include <tsn/compiler/OutputBuilder.h>
 #include <tsn/common/Context.h>
 #include <tsn/ffi/Function.h>
@@ -314,6 +315,17 @@ namespace tsn {
         Value FunctionDef::val(DataType* tp) {
             Value v = Value(this, tp);
             v.m_regId = m_nextRegId++;
+            return v;
+        }
+
+        Value FunctionDef::stack(DataType* tp, bool unscoped) {
+            Value v = Value(this, tp);
+
+            alloc_id stackId = reserveStackId();
+            v.setStackAllocId(stackId);
+            add(ir_stack_allocate).op(imm(tp->getInfo().size)).op(imm(stackId));
+            if (!unscoped) m_comp->scope().get().addToStack(v);
+
             return v;
         }
 

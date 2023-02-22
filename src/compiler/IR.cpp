@@ -12,10 +12,10 @@
 namespace tsn {
     namespace compiler {
         constexpr ir_instruction_info opcode_info[] = {
-            // opcode name, operand count, { op[0] type, op[1] type, op[2] type }, assigns operand index, flags
+            // opcode name, operand count, { op[0] type, op[1] type, op[2] type }, assigns operand index, has side effects
             { "noop"          , 0, { ot_nil, ot_nil, ot_nil }, 0xFF, 0 },
             { "label"         , 1, { ot_lbl, ot_nil, ot_nil }, 0xFF, 0 },
-            { "stack_allocate", 3, { ot_reg, ot_imm, ot_imm }, 0   , 0 },
+            { "stack_allocate", 2, { ot_imm, ot_imm, ot_nil }, 0xFF, 0 },
             { "stack_free"    , 1, { ot_imm, ot_nil, ot_nil }, 0xFF, 0 },
             { "module_data"   , 3, { ot_reg, ot_imm, ot_imm }, 0   , 0 },
             { "reserve"       , 1, { ot_reg, ot_nil, ot_nil }, 0   , 0 },
@@ -165,18 +165,6 @@ namespace tsn {
 
                         break;
                     }
-                } else if (op == ir_call && o == 1) {
-                    if (operands[1].isImm() && operands[1].getImm<u64>() == 0) {
-                        s += " -> void";
-                        continue;
-                    } else {
-                        s += " ->";
-                    }
-                } else if (op == ir_ret && operands[0].getType()->getInfo().size == 0) {
-                    // void return, don't append dummy register
-                    break;
-                } else if (op == ir_param && o == 1) {
-                    break;
                 }
 
                 if (info.operands[o] == ot_fun && operands[o].isImm()) {

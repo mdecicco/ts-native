@@ -34,9 +34,8 @@ namespace tsn {
 
             // Allocates space on the stack
             //
-            // Operand 0 will be vreg which will receive a pointer to allocated space
-            // Operand 1 will be u32 imm for allocation size in bytes
-            // Operand 2 will be u32 imm for allocation ID
+            // Operand 0 will be u32 imm for allocation size in bytes
+            // Operand 1 will be u32 imm for allocation ID
             ir_stack_allocate,
 
             // Frees space that was allocated on the stack
