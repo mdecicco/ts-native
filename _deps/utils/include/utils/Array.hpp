@@ -537,7 +537,8 @@ namespace utils {
         if (m_size + 1 >= m_capacity) expand();
 
         for (u32 i = m_size;i > at;i--) {
-            m_data[i] = m_data[i - 1];
+            if (i >= m_size) new (&m_data[i]) T(m_data[i - 1]);
+            else m_data[i] = m_data[i - 1];
         }
 
         m_data[at] = v;
@@ -551,7 +552,8 @@ namespace utils {
         if (m_size + v.m_size >= m_capacity) expand(v.m_size);
 
         for (u32 i = m_size + v.m_size - 1;i >= (at + v.m_size);i--) {
-            m_data[i] = m_data[i - v.m_size];
+            if (i >= m_size) new (&m_data[i]) T(m_data[i - v.m_size]);
+            else m_data[i] = m_data[i - v.m_size];
         }
 
         for (u32 i = 0;i < v.m_size;i++) m_data[at + i] = v.m_data[i];
@@ -567,7 +569,8 @@ namespace utils {
         if (m_size + sz >= m_capacity) expand(sz);
 
         for (u32 i = m_size + sz - 1;i >= (at + sz);i--) {
-            m_data[i] = m_data[i - sz];
+            if (i >= m_size) new (&m_data[i]) T(m_data[i - sz]);
+            else m_data[i] = m_data[i - sz];
         }
 
         u32 i = 0;
