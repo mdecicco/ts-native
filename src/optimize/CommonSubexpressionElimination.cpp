@@ -1,5 +1,5 @@
 #include <tsn/optimize/CommonSubexpressionElimination.h>
-#include <tsn/optimize/CodeHolder.h>
+#include <tsn/compiler/CodeHolder.h>
 #include <tsn/optimize/OptimizationGroup.h>
 #include <tsn/compiler/IR.h>
 #include <tsn/compiler/Value.hpp>
@@ -24,7 +24,7 @@ namespace tsn {
         CommonSubexpressionEliminationStep::~CommonSubexpressionEliminationStep() {
         }
 
-        bool CommonSubexpressionEliminationStep::execute(CodeHolder* ch, basic_block* b, Pipeline* pipeline) {
+        bool CommonSubexpressionEliminationStep::execute(compiler::CodeHolder* ch, basic_block* b, Pipeline* pipeline) {
             Logger* log = pipeline->getLogger();
             bool doDebug = m_ctx->getConfig()->debugLogging;
 

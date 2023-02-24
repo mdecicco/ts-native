@@ -3,16 +3,18 @@
 
 namespace tsn {
     class Pipeline;
+
+    namespace compiler {
+        class CodeHolder;
+    };
     
     namespace optimize {
-        class CodeHolder;
-
         class CopyPropagationStep : public IOptimizationStep {
             public:
                 CopyPropagationStep(Context* ctx);
                 virtual ~CopyPropagationStep();
 
-                virtual bool execute(CodeHolder* code, basic_block* block, Pipeline* pipeline);
+                virtual bool execute(compiler::CodeHolder* code, basic_block* block, Pipeline* pipeline);
         };
     };
 };

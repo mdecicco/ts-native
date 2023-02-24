@@ -1,10 +1,9 @@
 #pragma once
 #include <tsn/common/types.h>
-#include <tsn/compiler/types.h>
 #include <list>
 
 namespace tsn {
-    namespace compiler {
+    namespace backend {
         class StackManager {
             public:
                 struct slot {
@@ -17,7 +16,7 @@ namespace tsn {
                 ~StackManager();
 
                 void reset();
-                alloc_id alloc(u32 sz);
+                u32 alloc(u32 sz);
                 void free(u32 addr);
                 u32 size() const;
 

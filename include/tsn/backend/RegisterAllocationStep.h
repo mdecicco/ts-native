@@ -11,6 +11,10 @@ namespace utils {
 };
 
 namespace tsn {
+    namespace compiler {
+        class CodeHolder;
+    };
+
     namespace backend {
         /**
          * @brief
@@ -47,7 +51,7 @@ namespace tsn {
                 RegisterAllocatonStep(Context* ctx, u32 numGP, u32 numFP);
                 virtual ~RegisterAllocatonStep();
 
-                virtual bool execute(optimize::CodeHolder* code, Pipeline* pipeline);
+                virtual bool execute(compiler::CodeHolder* code, Pipeline* pipeline);
             
             protected:
                 void getLive(u32 at, utils::Array<lifetime>& live);
@@ -57,7 +61,7 @@ namespace tsn {
                 u32 m_numGP;
                 u32 m_numFP;
 
-                optimize::CodeHolder* m_ch;
+                compiler::CodeHolder* m_ch;
                 utils::Array<lifetime> m_gpLf;
                 utils::Array<lifetime> m_fpLf;
         };

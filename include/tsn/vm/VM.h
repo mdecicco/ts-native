@@ -22,16 +22,19 @@ namespace tsn {
                 VM(Context* ctx, u32 stackSize);
                 ~VM();
 
-                void execute(const utils::Array<Instruction>& code, address entry, bool nested);
-
                 bool isExecuting() const;
+
+                void prepareState();
+                void execute(const utils::Array<Instruction>& code, address entry);
 
                 State state;
 
             protected:
+                void executeInternal(const utils::Array<Instruction>& code, address entry);
                 void call_external(ffi::Function* fn);
                 
                 u32 m_stackSize;
+                u32 m_executionNestLevel;
         };
     };
 };

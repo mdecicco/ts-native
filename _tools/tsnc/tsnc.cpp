@@ -7,6 +7,9 @@
 #include <tsn/compiler/Output.h>
 #include <tsn/compiler/FunctionDef.h>
 #include <tsn/pipeline/Pipeline.h>
+#include <tsn/vm/VMBackend.h>
+#include <tsn/vm/Instruction.h>
+#include <tsn/ffi/Function.h>
 
 #include <utils/Array.hpp>
 #include <utils/Buffer.hpp>
@@ -39,13 +42,21 @@ enum output_mode {
     om_funcs,
     om_types,
     om_logs,
-    om_code
+    om_code,
+    om_backend,
+    om_exec
+};
+
+enum backend_type {
+    bt_none,
+    bt_vm
 };
 
 struct tsnc_config {
     const char* script_path;
     const char* config_path;
     output_mode mode;
+    backend_type backend;
     bool pretty_print;
     bool trusted;
     bool debugLogging;
@@ -58,7 +69,7 @@ bool getBoolArg(i32 argc, const char** argv, const char* code);
 i32 parse_args(i32 argc, const char** argv, tsnc_config* conf, Config* ctxConf);
 char* loadText(const char* filename, bool required, const tsnc_config& conf);
 i32 processConfig(const json& configIn, Config& configOut, const tsnc_config& tsncConf);
-i32 handleResult(Context* ctx, const script_metadata& meta, const tsnc_config& conf);
+i32 handleResult(Context* ctx, Module* mod, const script_metadata& meta, const tsnc_config& conf);
 void initError(const char* err, const tsnc_config& conf);
 
 i32 main (i32 argc, const char** argv) {
@@ -122,8 +133,8 @@ i32 main (i32 argc, const char** argv) {
 
     {
         Context ctx = Context(1, &contextCfg);
-        ctx.getPipeline()->buildFromSource(&meta);
-        status = handleResult(&ctx, meta, conf);
+        Module* mod = ctx.getPipeline()->buildFromSource(&meta);
+        status = handleResult(&ctx, mod, meta, conf);
     }
 
     utils::Mem::Destroy();
@@ -133,7 +144,7 @@ i32 main (i32 argc, const char** argv) {
 }
 
 void print_help() {
-    printf("TSN Compiler version 0.0.1\n");
+    printf("TSN Compiler version 0.0.2\n");
     printf("Info:\n");
     printf("    This tool is used to compile and/or validate TSN scripts. It will attempt to\n");
     printf("    compile the provided script, and subsequently output metadata about the script\n");
@@ -146,6 +157,9 @@ void print_help() {
     printf("    -t                  Compiles the specified script in trusted mode\n");
     printf("    -d                  Enables debug log messages (overrides configuration file)\n");
     printf("    -u                  Disables optimization (overrides configuration file)\n");
+    printf("    -b <backend>        Specifies the backend to use for running compiled code.\n");
+    printf("                            none     Does not run code (default)\n");
+    printf("                            vm       Uses a register-based VM to run code\n");
     printf("    -o <mode>           Specifies the output mode. See list below for available modes.\n");
     printf("                            all      Outputs all available compilation output (default)\n");
     printf("                            ast      Outputs only the abstract syntax tree.\n");
@@ -153,6 +167,8 @@ void print_help() {
     printf("                            types    Outputs only list of types.\n");
     printf("                            code     Outputs only the IR code.\n");
     printf("                            logs     Outputs only the logs.\n");
+    printf("                            backend  Outputs only backend data.\n");
+    printf("                            exec     Outputs only what the script itself outputs.\n");
     printf("    -h                  Prints this information.\n");
 }
 
@@ -194,8 +210,9 @@ i32 parse_args(i32 argc, const char** argv, tsnc_config* conf, Config* ctxConf) 
     conf->mode = om_all;
     conf->pretty_print = true;
     conf->trusted = false;
-    conf->debugLogging = true; //ctxConf->debugLogging;
+    conf->debugLogging = ctxConf->debugLogging;
     conf->disableOptimizations = ctxConf->disableOptimizations;
+    conf->backend = bt_vm;
 
     try {
         const char* tmp = nullptr;
@@ -206,6 +223,17 @@ i32 parse_args(i32 argc, const char** argv, tsnc_config* conf, Config* ctxConf) 
         tmp = getStringArg(argc, argv, "c");
         if (tmp) conf->config_path = tmp;
 
+        tmp = getStringArg(argc, argv, "b");
+        if (tmp) {
+            if (strcmp(tmp, "none") == 0) conf->backend = bt_none;
+            else if (strcmp(tmp, "vm") == 0) conf->backend = bt_vm;
+            else {
+                printf("Invalid backend option '%s'.\n", tmp);
+                print_help();
+                return ARGUMENT_ERROR;
+            }
+        }
+
         tmp = getStringArg(argc, argv, "o");
         if (tmp) {
             if (strcmp(tmp, "all") == 0) conf->mode = om_all;
@@ -213,9 +241,23 @@ i32 parse_args(i32 argc, const char** argv, tsnc_config* conf, Config* ctxConf) 
             else if (strcmp(tmp, "funcs") == 0) conf->mode = om_funcs;
             else if (strcmp(tmp, "types") == 0) conf->mode = om_types;
             else if (strcmp(tmp, "code") == 0) conf->mode = om_code;
+            else if (strcmp(tmp, "backend") == 0) conf->mode = om_backend;
             else if (strcmp(tmp, "logs") == 0) conf->mode = om_logs;
+            else if (strcmp(tmp, "exec") == 0) conf->mode = om_exec;
             else {
                 printf("Invalid output option '%s'.\n", tmp);
+                print_help();
+                return ARGUMENT_ERROR;
+            }
+
+            if (conf->mode == om_backend && conf->backend == bt_none) {
+                printf("Cannot output backend data when no backend is selected. Please use -b option to specify backend.\n");
+                print_help();
+                return ARGUMENT_ERROR;
+            }
+
+            if (conf->mode == om_exec && conf->backend == bt_none) {
+                printf("Cannot output execution output when no backend is selected. Please use -b option to specify backend.\n");
                 print_help();
                 return ARGUMENT_ERROR;
             }
@@ -355,11 +397,17 @@ void initError(const char* err, const tsnc_config& conf) {
     else printf(j.dump().c_str());
 }
 
-i32 handleResult(Context* ctx, const script_metadata& meta, const tsnc_config& conf) {
+i32 handleResult(Context* ctx, Module* mod, const script_metadata& meta, const tsnc_config& conf) {
+    bool hadErrors = ctx->getPipeline()->getLogger()->hasErrors();
+
+    if (mod && !hadErrors && conf.mode == om_exec) {
+        // The module already ran and output anything it was going to output
+        return COMPILATION_SUCCESS;
+    }
+
     static const char* access[] = { "public", "private", "trusted" };
     const auto& logs = ctx->getPipeline()->getLogger()->getMessages();
     auto c = ctx->getPipeline()->getCompiler();
-    bool hadErrors = ctx->getPipeline()->getLogger()->hasErrors();
 
     json out;
     switch (conf.mode) {
@@ -369,6 +417,7 @@ i32 handleResult(Context* ctx, const script_metadata& meta, const tsnc_config& c
             out["types"] = json::array();
             out["functions"] = json::array();
             out["globals"] = json::array();
+            out["backend"] = json(nullptr);
             out["ast"] = json(nullptr);
             break;
         }
@@ -394,6 +443,11 @@ i32 handleResult(Context* ctx, const script_metadata& meta, const tsnc_config& c
         }
         case om_logs: {
             out["logs"] = json::array();
+            break;
+        }
+        case om_backend: {
+            out["logs"] = json::array();
+            out["backend"] = json(nullptr);
             break;
         }
     }
@@ -451,6 +505,57 @@ i32 handleResult(Context* ctx, const script_metadata& meta, const tsnc_config& c
 
                 o.push_back(func);
             }
+        }
+    
+        if (out.contains("backend")) {
+            json backend;
+            switch (conf.backend) {
+                case bt_none: {
+                    backend["type"] = "none";
+                    break;
+                }
+                case bt_vm: {
+                    vm::Backend* be = (vm::Backend*)ctx->getBackend();
+
+                    const auto& funcs = be->allFunctions();
+                    const auto& instrs = be->getCode();
+                    json out_funcs = json::array();
+
+                    for (u32 f = 0;f < funcs.size();f++) {
+                        const auto* range = be->getFunctionData(funcs[f]);
+                        if (range) {
+                            FunctionDef* fd = nullptr;
+                            const auto& funcDefs = ctx->getPipeline()->getCompiler()->getOutput()->getFuncs();
+                            for (u32 of = 0;of < funcDefs.size();of++) {
+                                if (funcDefs[of]->getOutput() == funcs[f]) {
+                                    fd = funcDefs[of];
+                                    break;
+                                }
+                            }
+
+                            json code = json::array();
+                            for (u32 i = range->begin;i < range->end;i++) {
+                                FunctionDef* fn = c->getOutput()->getFuncs().find([i](FunctionDef* f){
+                                    return reinterpret_cast<u64>(f->getOutput()->getAddress()) == u64(i);
+                                });
+                                
+                                code.push_back(utils::String::Format("[0x%03x] %s", i, instrs[i].toString(ctx).c_str()).c_str());
+                            }
+                            
+                            json func = toJson(funcs[f], true, fd);
+                            func["code"] = code;
+                            out_funcs.push_back(func);
+                        }
+                    }
+
+
+                    backend["type"] = "vm";
+                    backend["functions"] = out_funcs;
+                    break;
+                }
+            }
+
+            out["backend"] = backend;
         }
     }
 

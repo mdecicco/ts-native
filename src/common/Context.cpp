@@ -18,7 +18,7 @@ namespace tsn {
         if (cfg) m_cfg = new Config(*cfg);
         else m_cfg = new Config();
 
-        m_backend = new vm::Backend(this);
+        m_backend = new vm::Backend(this, 16384);
         m_pipeline = new Pipeline(this, nullptr, nullptr);
         m_workspace = new Workspace(this);
         m_types = new ffi::DataTypeRegistry(this);

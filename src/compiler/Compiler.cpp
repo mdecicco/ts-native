@@ -1780,7 +1780,12 @@ namespace tsn {
             return tp;
         }
         void Compiler::compileMethodDef(ParseNode* n, DataType* methodOf, Method* m) {
+            type_id prevSigId = m->getSignature()->getId();
             m->setThisType(methodOf, m_ctx->getTypes());
+            if (m->getSignature()->getId() != prevSigId) {
+                prevSigId = m->getSignature()->getId();
+                m_output->add(m->getSignature());
+            }
             
             FunctionType* sig = m->getSignature();
             const auto& args = sig->getArguments();
@@ -1793,13 +1798,16 @@ namespace tsn {
             enterFunction(def);
 
             while (p && p->tp != nt_empty) {
-                def->addDeferredArg(p->str(), resolveTypeSpecifier(p->data_type));
+                def->addDeferredArg(p->str());
                 p = p->next;
             }
 
             compileBlock(n->body);
 
             m->setRetType(def->getReturnType(), false, m_ctx->getTypes());
+            if (m->getSignature()->getId() != prevSigId) {
+                m_output->add(m->getSignature());
+            }
 
             exitFunction();
             exitNode();
@@ -1904,7 +1912,6 @@ namespace tsn {
                 ret = resolveTypeSpecifier(n->data_type);
             }
 
-            bool sigExisted = false;
             utils::Array<function_argument> args;
             args.push({ arg_type::func_ptr, ptrTp });
             args.push({ arg_type::ret_ptr, ret });
@@ -1943,6 +1950,7 @@ namespace tsn {
             // function types are always public
             sig->setAccessModifier(public_access);
 
+            bool sigExisted = false;
             const auto& types = m_output->getTypes();
             for (auto* t : types) {
                 const auto& info = t->getInfo();
@@ -2240,6 +2248,8 @@ namespace tsn {
                 exitNode();
                 return;
             }
+
+            m_output->addDependency(m);
 
             if (n->body->tp == nt_import_module) {
                 scope().add(n->body->str(), m);
@@ -3273,7 +3283,7 @@ namespace tsn {
                                 tp,
                                 cm_err_expected_type_specifier,
                                 "Expected type specifier after 'new', got '%s'",
-                                tp.toString().c_str()
+                                tp.toString(m_ctx).c_str()
                             );
                             return currentFunction()->getPoison();
                         }

@@ -4,10 +4,11 @@
 #include <utils/String.h>
 
 namespace tsn {
+    class Context;
+
     namespace vm {
         enum class vm_instruction;
         enum class vm_register;
-        class VM;
 
         /*
         * Anatomy of an encoded instruction
@@ -57,7 +58,7 @@ namespace tsn {
                 f64            imm_f() const { return *(f64*)&m_imm; }
                 bool      immIsFloat() const { return ((m_code | flag_mask) ^ flag_mask) & op_3_is_float; }
 
-                utils::String toString(VM* vm) const;
+                utils::String toString(Context* ctx) const;
             protected:
                 u32 m_code;
                 u64 m_imm;

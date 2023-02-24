@@ -105,8 +105,18 @@ namespace tsn {
 
             // Calls a function
             //
-            // Operand 0 will either be imm pointer to the FunctionDef being called
-            // or a vreg which holds a pointer to the function or closure being called
+            // Pre-optimization and during optimization
+            //     Operand 0 will either be imm pointer to the FunctionDef being
+            //     called or a vreg which holds a pointer to the ClosureRef being
+            //     called
+            //
+            // Post-optimization
+            //     Operand 0 will either be imm function_id of the function being
+            //     called or a vreg which holds a pointer to the ClosureRef being
+            //     called
+            //
+            // In all cases, the data type of operand 0 will be the function
+            // signature
             ir_call,
 
             // Returns from the current function

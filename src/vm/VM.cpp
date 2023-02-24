@@ -1,6 +1,7 @@
 #include <tsn/vm/VM.h>
 #include <tsn/vm/State.h>
 #include <tsn/vm/Instruction.h>
+#include <tsn/vm/VMBackend.h>
 #include <tsn/common/Context.h>
 #include <tsn/common/Module.h>
 #include <tsn/ffi/Function.h>
@@ -37,23 +38,43 @@ namespace tsn {
 
         #define STACK_PADDING_SIZE 8
 
-        VM::VM(Context* ctx, u32 stackSize) : IContextual(ctx), m_stackSize(stackSize), state(stackSize) {
+        VM::VM(Context* ctx, u32 stackSize) : IContextual(ctx), state(stackSize) {
+            m_stackSize = stackSize;
+            m_executionNestLevel = 0;
         }
 
         VM::~VM() {
         }
 
-        void VM::execute(const utils::Array<Instruction>& code, address entry, bool nested) {
-            struct {
-                u64 ip, ra;
-            } prev = { 0, 0 };
+        bool VM::isExecuting() const {
+            return m_executionNestLevel > 0;
+        }
 
-            if (nested) {
-                prev = { GR64(vmr::ip), GR64(vmr::ra) };
-            } else {
-                GR64(vmr::sp) = reinterpret_cast<u64>(state.stackBase);
+        void VM::prepareState() {
+            if (m_executionNestLevel == 0) {
+                state.registers[(u8)vmr::sp] = reinterpret_cast<u64>(state.stackBase);
+                state.registers[(u8)vmr::ip] = 0;
+                state.registers[(u8)vmr::ra] = 0;
             }
 
+            state.push(vmr::ip);
+            state.push(vmr::ra);
+        }
+
+        void VM::execute(const utils::Array<Instruction>& code, address entry) {
+            m_executionNestLevel++;
+
+            try {
+                executeInternal(code, entry);
+            } catch (const std::exception& e) {
+                m_executionNestLevel--;
+                throw e;
+            }
+
+            m_executionNestLevel--;
+        }
+
+        void VM::executeInternal(const utils::Array<Instruction>& code, address entry) {
             GR64(vmr::ip) = entry;
             GR64(vmr::ra) = 0;
             GR64(vmr::zero) = 0;
@@ -77,7 +98,7 @@ namespace tsn {
                     // lastLoggedLn = ref.line;
                 }
                 if (logInstrs) {
-                    printf("0x%2.2llx: %s\n", *ip, i.toString(this).c_str());
+                    printf("0x%2.2llx: %s\n", *ip, i.toString(m_ctx).c_str());
                 }
 
                 vmi instr = i.instr();
@@ -670,11 +691,13 @@ namespace tsn {
                         function_id id = (function_id)_O1ui64;
                         ffi::Function* fn = m_ctx->getFunctions()->getFunction(id);
                         if (!fn) throw std::exception("VM: jal instruction provided invalid function ID");
-                        if (((u64)fn->getAddress()) > code.size()) {
+                        if (fn->getAddress()) {
                             call_external(fn);
                         } else {
+                            Backend* be = (Backend*)m_ctx->getBackend();
+                            const auto* fd = be->getFunctionData(fn);
                             GRx(vmr::ra, u64) = (*ip) + 1;
-                            *ip = ((u64)fn->getAddress()) - 1;
+                            *ip = ((u64)fd->begin) - 1;
                             iptr = code.data() + *ip;
                         }
                         break;
@@ -705,8 +728,8 @@ namespace tsn {
                 iptr++;
             }
 
-            GR64(vmr::ip) = prev.ip;
-            GR64(vmr::ra) = prev.ra;
+            state.pop(vmr::ra);
+            state.pop(vmr::ip);
         }
 
         void VM::call_external(ffi::Function* fn) {

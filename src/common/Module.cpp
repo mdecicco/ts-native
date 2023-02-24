@@ -10,6 +10,7 @@ namespace tsn {
         m_id = (u32)std::hash<utils::String>()(path);
         m_meta = meta;
         m_src = nullptr;
+        m_didInit = false;
     }
 
     Module::~Module() {
@@ -25,6 +26,16 @@ namespace tsn {
         }
     }
 
+    void Module::init() {
+        if (m_didInit) return;
+
+        auto initfunc = findFunctions("__init__", nullptr, nullptr, 0, fm_ignore_args);
+        if (initfunc.size() == 1) {
+            ffi::call(m_ctx, initfunc[0]);
+        }
+        
+        m_didInit = true;
+    }
     
     u32 Module::getId() const {
         return m_id;

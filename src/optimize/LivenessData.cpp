@@ -1,6 +1,6 @@
 #include <tsn/optimize/LivenessData.h>
 #include <tsn/optimize/LabelMap.h>
-#include <tsn/optimize/CodeHolder.h>
+#include <tsn/compiler/CodeHolder.h>
 #include <tsn/compiler/Value.h>
 #include <tsn/compiler/IR.h>
 #include <tsn/ffi/DataType.h>
@@ -15,11 +15,11 @@ namespace tsn {
 
         LivenessData::LivenessData() {}
         
-        LivenessData::LivenessData(CodeHolder* ch) {
+        LivenessData::LivenessData(compiler::CodeHolder* ch) {
             rebuild(ch);
         }
         
-        void LivenessData::rebuild(CodeHolder* ch) {
+        void LivenessData::rebuild(compiler::CodeHolder* ch) {
             lifetimes.clear();
             regLifetimeMap.clear();
 

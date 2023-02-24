@@ -1,5 +1,5 @@
 #include <tsn/optimize/ControlFlowGraph.h>
-#include <tsn/optimize/CodeHolder.h>
+#include <tsn/compiler/CodeHolder.h>
 #include <tsn/optimize/LabelMap.h>
 #include <tsn/compiler/IR.h>
 #include <tsn/interfaces/IOptimizationStep.h>
@@ -40,11 +40,11 @@ namespace tsn {
 
         ControlFlowGraph::ControlFlowGraph() {}
 
-        ControlFlowGraph::ControlFlowGraph(CodeHolder* ch) {
+        ControlFlowGraph::ControlFlowGraph(compiler::CodeHolder* ch) {
             rebuild(ch);
         }
 
-        void ControlFlowGraph::rebuild(CodeHolder* ch) {
+        void ControlFlowGraph::rebuild(compiler::CodeHolder* ch) {
             blocks.clear();
 
             if (ch->code.size() == 0) return;

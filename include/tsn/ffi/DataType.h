@@ -279,8 +279,8 @@ namespace tsn {
                 FunctionType(DataType* returnType, const utils::Array<function_argument>& args, bool returnsPointer);
                 virtual ~FunctionType();
 
-                utils::String generateFullyQualifiedFunctionName(const utils::String& funcName);
-                utils::String generateFunctionDisplayName(const utils::String& funcName);
+                utils::String generateFullyQualifiedFunctionName(const utils::String& funcName, const utils::String& extraQualifiers);
+                utils::String generateFunctionDisplayName(const utils::String& funcName, const utils::String& extraQualifiers);
                 DataType* getReturnType() const;
                 DataType* getThisType() const;
                 bool returnsPointer() const;

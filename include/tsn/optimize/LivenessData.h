@@ -9,10 +9,10 @@
 namespace tsn {
     namespace compiler {
         class Value;
+        class CodeHolder;
     };
 
     namespace optimize {
-        class CodeHolder;
         
         struct reg_lifetime {
             compiler::vreg_id reg_id;
@@ -27,8 +27,8 @@ namespace tsn {
         class LivenessData {
             public:
                 LivenessData();
-                LivenessData(CodeHolder* ch);
-                void rebuild(CodeHolder* ch);
+                LivenessData(compiler::CodeHolder* ch);
+                void rebuild(compiler::CodeHolder* ch);
 
                 utils::Array<reg_lifetime*> rangesOf(const compiler::Value& v);
                 utils::Array<reg_lifetime*> rangesOf(u32 reg_id);

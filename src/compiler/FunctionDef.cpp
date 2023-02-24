@@ -190,18 +190,22 @@ namespace tsn {
             s.m_flags.is_argument = 1;
             s.m_flags.is_function = tp->getInfo().is_function;
             s.m_regId = 0;
-            s.m_imm.u = m_args.size();
+            s.m_imm.u = m_argInfo.size() - 1;
             m_args.push(new Value(s));
         }
+        
+        void FunctionDef::addDeferredArg(const utils::String& name) {
+            u32 idx = m_implicitArgCount + m_args.size();
+            if (idx >= m_argInfo.size()) {
+                m_comp->error(cm_err_internal, "Attempted to add deferred argument that is out of range");
+                return;
+            }
 
-        void FunctionDef::addDeferredArg(const utils::String& name, DataType* tp) {
-            m_argNames.push(name);
-
-            Value& s = val(name, tp);
+            Value& s = val(name, m_argInfo[idx].dataType);
             s.m_flags.is_argument = 1;
-            s.m_flags.is_function = tp->getInfo().is_function;
+            s.m_flags.is_function = m_argInfo[idx].dataType->getInfo().is_function;
             s.m_regId = 0;
-            s.m_imm.u = m_args.size();
+            s.m_imm.u = idx;
             m_args.push(new Value(s));
         }
         
@@ -341,18 +345,21 @@ namespace tsn {
             Value& f = val("@fptr", voidp);
             f.m_flags.is_argument = 1;
             f.m_flags.is_pointer = 1;
+            f.m_regId = 0;
             f.m_imm.u = 0;
             m_fptrArg = new Value(f);
 
             Value& r = val("@ret", m_retTpSet ? m_retTp : voidp);
             r.m_flags.is_argument = 1;
             r.m_flags.is_pointer = 1;
+            r.m_regId = 0;
             r.m_imm.u = 1;
             m_retpArg = new Value(r);
 
             Value& c = val("@ectx", ectx);
             c.m_flags.is_argument = 1;
             c.m_flags.is_pointer = 1;
+            c.m_regId = 0;
             c.m_imm.u = 2;
             m_ectxArg = new Value(c);
 
@@ -362,6 +369,7 @@ namespace tsn {
                 Value& t = val("this", m_thisTp);
                 t.m_flags.is_argument = 1;
                 t.m_flags.is_pointer = 1;
+                t.m_regId = 0;
                 t.m_imm.u = 3;
                 m_thisArg = new Value(t);
             }
@@ -386,10 +394,44 @@ namespace tsn {
 
             if (m_output) return m_output;
 
+            ffi::FunctionType* sig = new FunctionType(m_retTp, m_argInfo, false);
+            
+            bool sigExisted = false;
+            const auto& types = m_comp->getOutput()->getTypes();
+            for (auto* t : types) {
+                const auto& info = t->getInfo();
+                if (!info.is_function) continue;
+                if (sig->isEquivalentTo(t)) {
+                    delete sig;
+                    sig = (FunctionType*)t;
+                    sigExisted = true;
+                    break;
+                }
+            }
+
+            if (!sigExisted) {
+                const auto& types =  m_comp->getContext()->getTypes()->allTypes();
+                for (auto* t : types) {
+                    const auto& info = t->getInfo();
+                    if (!info.is_function) continue;
+                    if (sig->isEquivalentTo(t)) {
+                        delete sig;
+                        sig = (FunctionType*)t;
+                        sigExisted = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!sigExisted) {
+                m_comp->getOutput()->add(sig);
+            }
+
+
             m_output = new Function(
                 m_name,
                 m_comp->getOutput()->getModule()->getName() + "::",
-                new FunctionType(m_retTp, m_argInfo, false),
+                sig,
                 private_access,
                 nullptr,
                 nullptr

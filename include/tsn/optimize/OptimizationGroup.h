@@ -4,9 +4,11 @@
 #include <utils/Array.h>
 
 namespace tsn {
-    namespace optimize {
+    namespace compiler {
         class CodeHolder;
-
+    };
+    
+    namespace optimize {
         /**
          * @brief Contains a series of optimization steps. Steps are executed in the order they are added in.
          *        If the group should be executed multiple times, one or more of the added steps should call
@@ -28,7 +30,7 @@ namespace tsn {
                  */
                 void addStep(IOptimizationStep* step);
 
-                virtual bool execute(CodeHolder* code, Pipeline* pipeline);
+                virtual bool execute(compiler::CodeHolder* code, Pipeline* pipeline);
             
             protected:
                 bool m_doRepeat;

@@ -1,9 +1,9 @@
-#include <tsn/compiler/StackManager.h>
+#include <tsn/backend/StackManager.h>
 
 #include <assert.h>
 
 namespace tsn {
-    namespace compiler {
+    namespace backend {
         StackManager::StackManager() {
         }
 
@@ -14,7 +14,7 @@ namespace tsn {
             m_slots.clear();
         }
 
-        alloc_id StackManager::alloc(u32 sz) {
+        u32 StackManager::alloc(u32 sz) {
             // look for unused slot
             for (auto i = m_slots.begin();i != m_slots.end();i++) {
                 if (i->in_use) continue;

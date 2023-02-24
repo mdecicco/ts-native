@@ -113,9 +113,21 @@ namespace tsn {
 
             return m_symbolLifetimes.size() - 1;
         }
+
+        void OutputBuilder::addDependency(Module* mod) {
+            for (u32 i = 0;i < m_dependencies.size();i++) {
+                if (mod->getId() == m_dependencies[i]->getId()) return;
+            }
+
+            m_dependencies.push(mod);
+        }
         
         const utils::Array<symbol_lifetime>& OutputBuilder::getSymbolLifetimeData() const {
             return m_symbolLifetimes;
+        }
+        
+        const utils::Array<Module*>& OutputBuilder::getDependencies() const {
+            return m_dependencies;
         }
 
         const utils::Array<FunctionDef*>& OutputBuilder::getFuncs() const {

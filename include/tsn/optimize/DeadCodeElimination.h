@@ -3,7 +3,10 @@
 
 namespace tsn {
     class Pipeline;
-    class CodeHolder;
+
+    namespace compiler {
+        class CodeHolder;
+    };
 
     namespace optimize {
         class DeadCodeEliminationStep : public IOptimizationStep {
@@ -11,7 +14,7 @@ namespace tsn {
                 DeadCodeEliminationStep(Context* ctx);
                 virtual ~DeadCodeEliminationStep();
 
-                virtual bool execute(CodeHolder* code, Pipeline* pipeline);
+                virtual bool execute(compiler::CodeHolder* code, Pipeline* pipeline);
         };
     };
 };

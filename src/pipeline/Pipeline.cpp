@@ -2,6 +2,7 @@
 #include <tsn/common/Context.h>
 #include <tsn/common/Module.h>
 #include <tsn/common/Config.h>
+#include <tsn/ffi/Function.h>
 #include <tsn/ffi/FunctionRegistry.h>
 #include <tsn/ffi/DataTypeRegistry.h>
 #include <tsn/compiler/Lexer.h>
@@ -11,7 +12,7 @@
 #include <tsn/compiler/OutputBuilder.h>
 #include <tsn/compiler/Output.h>
 #include <tsn/optimize/Optimize.h>
-#include <tsn/optimize/CodeHolder.h>
+#include <tsn/compiler/CodeHolder.h>
 #include <tsn/optimize/OptimizationGroup.h>
 #include <tsn/interfaces/IPersistable.h>
 #include <tsn/interfaces/IOptimizationStep.h>
@@ -134,26 +135,40 @@ namespace tsn {
             return nullptr;
         }
 
+        bool didError = m_logger->hasErrors();
+
         m_compOutput = new compiler::Output(out);
-        if (!m_logger->hasErrors()) {
-            auto& funcs = out->getFuncs();
-            funcs.each([this](compiler::FunctionDef* fd) {
-                ffi::Function* fn = fd->getOutput();
+        if (!didError) {
+            auto& funcs = m_compOutput->getCode();
+            funcs.each([this](compiler::CodeHolder* ch) {
+                ffi::Function* fn = ch->owner;
                 if (!fn) return;
+                ch->rebuildAll();
+
                 this->m_ctx->getFunctions()->registerFunction(fn);
                 this->m_compiler->getOutput()->getModule()->addFunction(fn);
 
                 if (!this->m_ctx->getConfig()->disableOptimizations) {
-                    optimize::CodeHolder ch = optimize::CodeHolder(fd->getCode());
-                    ch.owner = fn;
-                    ch.rebuildAll();
-                    this->m_optimizations.each([this, &ch](optimize::IOptimizationStep* step) {
-                        for (auto& b : ch.cfg.blocks) {
-                            while (step->execute(&ch, &b, this));
+                    this->m_optimizations.each([this, ch](optimize::IOptimizationStep* step) {
+                        for (auto& b : ch->cfg.blocks) {
+                            while (step->execute(ch, &b, this));
                         }
                         
-                        while (step->execute(&ch, this));
+                        while (step->execute(ch, this));
                     });
+                }
+
+                // Update call instruction operands to make imm FunctionDef operands imm function_ids
+                // ...Also update types, in case the signature was not defined at the time that the
+                // call instruction was emitted...
+                auto& code = ch->code;
+                for (u32 i = 0;i < code.size();i++) {
+                    if (code[i].op == compiler::ir_call && code[i].operands[0].isImm()) {
+                        compiler::FunctionDef* callee = code[i].operands[0].getImm<compiler::FunctionDef*>();
+                        code[i].operands[0].setImm<function_id>(callee->getOutput()->getId());
+                        code[i].operands[0].setType(callee->getOutput()->getSignature());
+                        code[i].operands[0].getFlags().is_function_id = 1;
+                    }
                 }
             });
 
@@ -163,6 +178,7 @@ namespace tsn {
                 this->m_compiler->getOutput()->getModule()->addForeignType(tp);
             });
 
+            m_compOutput->processInput();
             if (!script->is_external && !m_ctx->getWorkspace()->getPersistor()->onScriptCompiled(script, m_compOutput)) {
                 m_logger->submit(
                     compiler::log_type::lt_warn,
@@ -181,7 +197,11 @@ namespace tsn {
             m_source = nullptr;
         }
 
-        if (be) be->generate(this);
+        if (!didError && be) {
+            be->generate(this);
+        }
+
+        if (mod && be) mod->init();
 
         return mod;
     }
@@ -252,7 +272,9 @@ namespace tsn {
 
         m_isCompiling = false;
 
-        if (be) be->generate(this);
+        if (!m_logger->hasErrors() && be) be->generate(this);
+
+        if (mod && be) mod->init();
 
         return mod;
     }

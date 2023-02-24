@@ -2,6 +2,7 @@
 #include <tsn/vm/VM.h>
 #include <tsn/vm/types.h>
 #include <tsn/vm/macros.h>
+#include <tsn/vm/VMBackend.h>
 
 #include <tsn/common/Context.h>
 #include <tsn/ffi/Function.h>
@@ -349,8 +350,9 @@ namespace tsn {
             "sp"
         };
 
-        utils::String Instruction::toString(VM* vm) const {
-            Context* ctx = vm->getContext();
+        utils::String Instruction::toString(Context* ctx) const {
+            Backend* be = (Backend*)ctx->getBackend();
+            VM* vm = be->getVM();
             State* state = &vm->state;
 
             std::string out;

@@ -3,7 +3,7 @@
 #include <tsn/compiler/IR.h>
 #include <tsn/compiler/Value.hpp>
 #include <tsn/compiler/Logger.h>
-#include <tsn/optimize/CodeHolder.h>
+#include <tsn/compiler/CodeHolder.h>
 #include <tsn/optimize/LabelMap.h>
 #include <tsn/ffi/Function.h>
 #include <tsn/ffi/DataType.h>
@@ -41,7 +41,7 @@ namespace tsn {
         RegisterAllocatonStep::~RegisterAllocatonStep() {
         }
 
-        bool RegisterAllocatonStep::execute(CodeHolder* ch, Pipeline* pipeline) {
+        bool RegisterAllocatonStep::execute(compiler::CodeHolder* ch, Pipeline* pipeline) {
             Logger* log = pipeline->getLogger();
             bool doDebug = m_ctx->getConfig()->debugLogging;
 
@@ -292,8 +292,8 @@ namespace tsn {
                                 "Reallocate: [%lu] %s | %s -> %s",
                                 changes[i].addr,
                                 instr.toString(m_ctx).c_str(),
-                                before.toString().c_str(),
-                                instr.operands[changes[i].operand].toString().c_str()
+                                before.toString(m_ctx).c_str(),
+                                instr.operands[changes[i].operand].toString(m_ctx).c_str()
                             )
                         );
                     }
@@ -308,8 +308,8 @@ namespace tsn {
                                 "Reallocate: [%lu] %s | %s -> %s",
                                 changes[i].addr,
                                 instr.toString(m_ctx).c_str(),
-                                before.toString().c_str(),
-                                instr.operands[changes[i].operand].toString().c_str()
+                                before.toString(m_ctx).c_str(),
+                                instr.operands[changes[i].operand].toString(m_ctx).c_str()
                             )
                         );
                     }
@@ -363,8 +363,9 @@ namespace tsn {
             for (u32 i = 0;i < spills.size();i++) {
                 const auto& s = spills[i];
                 // Insert stack_free instruction
-                m_ch->code.insert(s.end, Instruction());
-                auto& instr = m_ch->code[s.end];
+                if ((s.end + 1) >= m_ch->code.size()) m_ch->code.push(Instruction());
+                else m_ch->code.insert(s.end + 1, Instruction());
+                auto& instr = m_ch->code[s.end + 1];
                 instr.op = ir_stack_free;
                 instr.operands[0].setImm<alloc_id>(s.slot_id);
                 instr.operands[0].setType(u32t);

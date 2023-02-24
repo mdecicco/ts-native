@@ -38,7 +38,7 @@ namespace tsn {
                 u32 getArgCount() const;
                 u32 getImplicitArgCount() const;
                 void addArg(const utils::String& name, ffi::DataType* tp);
-                void addDeferredArg(const utils::String& name, ffi::DataType* tp);
+                void addDeferredArg(const utils::String& name);
                 const ffi::function_argument& getArgInfo(u32 argIdx) const;
                 const utils::Array<ffi::function_argument>& getArgs() const;
                 Value& getArg(u32 argIdx);

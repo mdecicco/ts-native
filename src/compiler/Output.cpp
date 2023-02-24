@@ -6,6 +6,7 @@
 #include <tsn/compiler/IR.h>
 #include <tsn/compiler/Value.hpp>
 #include <tsn/compiler/TemplateContext.h>
+#include <tsn/compiler/CodeHolder.h>
 #include <tsn/common/Context.h>
 #include <tsn/ffi/Function.h>
 #include <tsn/ffi/FunctionRegistry.h>
@@ -33,18 +34,38 @@ namespace tsn {
             m_mod = in->getModule();
             m_src = m_mod->getSource();
             m_meta = m_mod->getInfo();
+            m_dependencies = in->getDependencies();
 
             const auto& funcs = in->getFuncs();
             for (u32 i = 0;i < funcs.size();i++) {
                 if (!funcs[i]->getOutput()) continue;
                 if (funcs[i]->getOutput()->isTemplate()) continue;
-                
-                const auto& code = funcs[i]->getCode();
+
+                CodeHolder* ch = new CodeHolder(funcs[i]->getCode());
+                ch->owner = funcs[i]->getOutput();
+                m_output.push(ch);
+            }
+        }
+
+        Output::~Output() {
+            m_funcs.each([](output::function* f) {
+                delete f->map;
+                delete [] f->code;
+            });
+
+            m_output.each([](CodeHolder* ch) {
+                delete ch;
+            });
+        }
+
+        void Output::processInput() {
+            for (u32 i = 0;i < m_output.size();i++) {
+                const auto& code = m_output[i]->code;
 
                 output::function f;
-                f.func = funcs[i]->getOutput();
+                f.func = m_output[i]->owner;
                 f.icount = code.size();
-                f.map = new SourceMap(in->getCompiler()->getScriptInfo()->modified_on);
+                f.map = new SourceMap(m_mod->getInfo()->modified_on);
                 f.code = new output::instruction[code.size()];
                 
                 for (u32 c = 0;c < code.size();c++) {
@@ -56,16 +77,20 @@ namespace tsn {
                         auto& v = inst.operands[o];
                         const auto& s = code[c].operands[o];
                         v.data_type = s.getType();
-                        v.flags.is_reg = s.isReg();
-                        v.flags.is_stack = s.isStack();
-                        v.flags.is_func = s.isFunction();
-                        v.flags.is_imm = s.isImm();
+                        v.flags.is_reg = s.isReg() ? 1 : 0;
+                        v.flags.is_stack = s.isStack() ? 1 : 0;
+                        v.flags.is_func = s.isFunction() ? 1 : 0;
+                        v.flags.is_imm = s.isImm() ? 1 : 0;
+                        v.flags.is_arg = s.isArg() ? 1 : 0;
 
                         if (s.isReg()) v.value.reg_id = s.getRegId();
+                        else if (s.isArg()) v.value.arg_idx = s.getImm<u32>();
                         else if (s.isStack()) v.value.alloc_id = s.getStackAllocId();
                         else if (v.flags.is_imm) {
-                            if (info.operands[o] == ot_fun) v.value.imm_u = s.getImm<FunctionDef*>()->getOutput()->getId();
-                            else v.value.imm_u = s.getImm<u64>();
+                            if (info.operands[o] == ot_fun) {
+                                if (s.isFunctionID()) v.value.imm_u = s.getImm<function_id>();
+                                else v.value.imm_u = s.getImm<FunctionDef*>()->getOutput()->getId();
+                            } else v.value.imm_u = s.getImm<u64>();
                         }
                     }
 
@@ -77,21 +102,23 @@ namespace tsn {
             }
         }
 
-        Output::~Output() {
-            m_funcs.each([](output::function* f) {
-                delete f->map;
-                delete [] f->code;
-            });
-        }
-
         Module* Output::getModule() {
             return m_mod;
+        }
+        
+        const utils::Array<compiler::CodeHolder*>& Output::getCode() const {
+            return m_output;
         }
 
         bool Output::serialize(utils::Buffer* out, Context* ctx) const {
             if (!out->write(m_mod->getId())) return false;
             if (!out->write(m_mod->getName())) return false;
             if (!out->write(m_mod->getPath())) return false;
+
+            if (!out->write(m_dependencies.size())) return false;
+            for (u32 i = 0;i < m_dependencies.size();i++) {
+                if (!out->write(m_dependencies[i]->getPath())) return false;
+            }
 
             // Minus one because first function in IFunctionHolder is always null
             const auto funcs = m_mod->allFunctions();
@@ -160,6 +187,17 @@ namespace tsn {
             m_mod->setSrc(m_src);
 
             u32 count;
+            if (!in->read(count)) return false;
+            for (u32 i = 0;i < count;i++) {
+                utils::String path = in->readStr();
+                if (path.size() == 0) return false;
+
+                Module* mod = ctx->getModule(path);
+                if (!mod) return false;
+
+                m_dependencies.push(mod);
+            }
+
             // read functions
             if (!in->read(count)) return false;
             for (u32 i = 0;i < count;i++) {
@@ -381,6 +419,44 @@ namespace tsn {
                 }
 
                 m_funcs.push(f);
+            }
+
+            // reconstruct output
+            for (u32 f = 0;f < m_funcs.size();f++) {
+                const auto& fn = m_funcs[f];
+
+                CodeHolder* ch = new CodeHolder({});
+                ch->owner = fn.func;
+                ch->code.reserve(fn.icount);
+
+                for (u32 c = 0;c < fn.icount;c++) {
+                    auto& ii = fn.code[c];
+                    auto& info = instruction_info(ii.op);
+                    ch->code.push(Instruction());
+                    Instruction& i = ch->code[c];
+                    i.op = ii.op;
+                    i.oCnt = info.operand_count;
+
+                    for (u8 o = 0;o < info.operand_count;o++) {
+                        auto& vi = ii.operands[o];
+                        auto& v = i.operands[o];
+                        
+                        auto& flags = v.getFlags();
+                        flags.is_argument = vi.flags.is_arg;
+                        flags.is_immediate = vi.flags.is_imm;
+                        flags.is_function = vi.flags.is_func;
+                        if (flags.is_function) flags.is_function_id = 1;
+
+                        v.setType(vi.data_type);
+                        if (vi.flags.is_imm) v.setImm(vi.value.imm_u);
+                        else if (vi.flags.is_arg) v.setImm(vi.value.arg_idx);
+                        else if (vi.flags.is_reg) v.setRegId(vi.value.reg_id);
+                        else if (vi.flags.is_stack) v.setStackAllocId(vi.value.alloc_id);
+                    }
+                }
+
+                ch->rebuildAll();
+                m_output.push(ch);
             }
 
             return true;

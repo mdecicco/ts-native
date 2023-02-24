@@ -1,7 +1,7 @@
 #include <tsn/optimize/DeadCodeElimination.h>
 #include <tsn/optimize/LabelMap.h>
 #include <tsn/optimize/LivenessData.h>
-#include <tsn/optimize/CodeHolder.h>
+#include <tsn/compiler/CodeHolder.h>
 #include <tsn/compiler/IR.h>
 #include <tsn/compiler/Value.h>
 #include <tsn/compiler/Logger.h>
@@ -23,7 +23,7 @@ namespace tsn {
         DeadCodeEliminationStep::~DeadCodeEliminationStep() {
         }
 
-        bool DeadCodeEliminationStep::execute(CodeHolder* ch, Pipeline* pipeline) {
+        bool DeadCodeEliminationStep::execute(compiler::CodeHolder* ch, Pipeline* pipeline) {
             Logger* log = pipeline->getLogger();
             bool doDebug = m_ctx->getConfig()->debugLogging;
 
@@ -37,7 +37,7 @@ namespace tsn {
 
             utils::Array<u32> deadAddrs;
             for (auto& r : ch->liveness.lifetimes) {
-                if (r.usage_count == 0 && ch->code[r.begin].op != op::ir_call) {
+                if (r.usage_count == 0) {
                     if (doDebug) {
                         log->submit(
                             lt_debug,

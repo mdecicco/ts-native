@@ -168,13 +168,18 @@ namespace tsn {
                 }
 
                 if (info.operands[o] == ot_fun && operands[o].isImm()) {
-                    FunctionDef* fd = operands[o].getImm<FunctionDef*>();
-                    ffi::Function* fn = fd->getOutput();
+                    ffi::Function* fn = nullptr;
+                    if (operands[o].isFunctionID()) {
+                        fn = ctx->getFunctions()->getFunction(operands[o].getImm<function_id>());
+                    } else {
+                        FunctionDef* fd = operands[o].getImm<FunctionDef*>();
+                        fn = fd->getOutput();
+                    }
                     s += utils::String::Format(" <Function %s>", fn->getDisplayName().c_str());
                 } else if (info.operands[o] == ot_lbl) {
                     label_id lid = operands[o].getImm<label_id>();
                     s += utils::String::Format(" LABEL_%d", lid);
-                } else s += " " + operands[o].toString();
+                } else s += " " + operands[o].toString(ctx);
             }
 
             if (op == ir_uadd && operands[1].isReg() && operands[2].isImm() && operands[2].getType()->getInfo().is_integral && operands[1].getName().size() > 0) {

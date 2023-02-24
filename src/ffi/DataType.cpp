@@ -414,8 +414,13 @@ namespace tsn {
         FunctionType::~FunctionType() {
         }
 
-        utils::String FunctionType::generateFullyQualifiedFunctionName(const utils::String& funcName) {
-            utils::String name = m_returnType->m_fullyQualifiedName + " " + funcName + "(";
+        utils::String FunctionType::generateFullyQualifiedFunctionName(const utils::String& funcName, const utils::String& extraQualifiers) {
+            utils::String name = m_returnType->m_fullyQualifiedName + " " + extraQualifiers;
+            
+            ffi::DataType* selfTp = getThisType();
+            if (selfTp) name += selfTp->getName() + "::";
+            name += funcName + "(";
+
             m_args.each([&name](const function_argument& arg, u32 idx) {
                 if (idx > 0) name += ",";
 
@@ -434,8 +439,13 @@ namespace tsn {
             return name;
         }
 
-        utils::String FunctionType::generateFunctionDisplayName(const utils::String& funcName) {
-            utils::String name = m_returnType->m_name + " " + funcName + "(";
+        utils::String FunctionType::generateFunctionDisplayName(const utils::String& funcName, const utils::String& extraQualifiers) {
+            utils::String name = m_returnType->m_name + " " + extraQualifiers;
+            
+            ffi::DataType* selfTp = getThisType();
+            if (selfTp) name += selfTp->getName() + "::";
+            name += funcName + "(";
+            
             u32 aidx = 0;
             m_args.each([&name, &aidx](const function_argument& arg, u32 idx) {
                 if (arg.isImplicit()) return;
