@@ -48,6 +48,8 @@ namespace tsn {
             Module(Context* ctx, const utils::String& name, const utils::String& path, const script_metadata* meta);
             ~Module();
             
+            void init();
+            
             u32 addData(const utils::String& name, ffi::DataType* tp, access_modifier access);
             u32 addData(const utils::String& name, u32 size);
             void setSrc(ModuleSource* src);
@@ -58,5 +60,6 @@ namespace tsn {
             u32 m_id;
             ModuleSource* m_src;
             const script_metadata* m_meta;
+            bool m_didInit;
     };
 };

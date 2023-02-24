@@ -1,5 +1,5 @@
 #include <tsn/optimize/CommonSubexpressionElimination.h>
-#include <tsn/optimize/CodeHolder.h>
+#include <tsn/compiler/CodeHolder.h>
 #include <tsn/optimize/OptimizationGroup.h>
 #include <tsn/compiler/IR.h>
 #include <tsn/compiler/Value.hpp>
@@ -24,7 +24,7 @@ namespace tsn {
         CommonSubexpressionEliminationStep::~CommonSubexpressionEliminationStep() {
         }
 
-        bool CommonSubexpressionEliminationStep::execute(CodeHolder* ch, basic_block* b, Pipeline* pipeline) {
+        bool CommonSubexpressionEliminationStep::execute(compiler::CodeHolder* ch, basic_block* b, Pipeline* pipeline) {
             Logger* log = pipeline->getLogger();
             bool doDebug = m_ctx->getConfig()->debugLogging;
 
@@ -40,9 +40,6 @@ namespace tsn {
             utils::Array<Instruction*> assignments;
             utils::Array<address> assignmentAddrs;
             for (address i = b->begin;i < b->end;i++) {
-                // if the var is assigned externally (no rvalue) then do nothing
-                if (ch->code[i].op == op::ir_stack_allocate || ch->code[i].op == op::ir_call) continue;
-
                 // If the var is being loaded from an address then do nothing...
                 // Todo: if no instructions with side effects occur between two identical load instructions,
                 //       they produce the same result
@@ -56,14 +53,16 @@ namespace tsn {
 
                 for (u32 a = 0;a < assignments.size();a++) {
                     const Instruction& expr = *assignments[a];
-                    if (expr.op != ch->code[i].op || expr.operands[0].getRegId() == ch->code[i].operands[0].getRegId()) continue;
+                    const auto& einfo = instruction_info(expr.op);
+                    u8 aidx = einfo.assigns_operand_index;
+                    if (expr.op != ch->code[i].op || expr.operands[aidx].isEquivalentTo(ch->code[i].operands[aidx])) continue;
             
                     bool sameArgs = true;
-                    for (u8 o = 1;o < expr.oCnt;o++) {
+                    for (u8 o = 0;o < expr.oCnt;o++) {
+                        if (o == aidx) continue;
                         const Value& expOp = expr.operands[o];
                         const Value& thisOp = ch->code[i].operands[o];
-                        if (!expOp.isValid()) break;
-                        if (!expOp.isEquivalentTo(thisOp)) {
+                        if (expOp.isValid() != thisOp.isValid() || !expOp.isEquivalentTo(thisOp)) {
                             sameArgs = false;
                             break;
                         }

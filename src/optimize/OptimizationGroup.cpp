@@ -1,5 +1,5 @@
 #include <tsn/optimize/OptimizationGroup.h>
-#include <tsn/optimize/CodeHolder.h>
+#include <tsn/compiler/CodeHolder.h>
 #include <utils/Array.hpp>
 
 namespace tsn {
@@ -28,7 +28,7 @@ namespace tsn {
             step->setGroup(this);
         }
 
-        bool OptimizationGroup::execute(CodeHolder* code, Pipeline* pipeline) {
+        bool OptimizationGroup::execute(compiler::CodeHolder* code, Pipeline* pipeline) {
             m_doRepeat = false;
 
             m_steps.each([code, pipeline](IOptimizationStep* step) {

@@ -84,6 +84,7 @@ namespace tsn {
         function_match_flags flags
     ) {
         return funcs.filter([&name, retTp, argTps, argCount, flags](ffi::Function* fn) {
+            if (!fn) return false;
             return func_match_filter(name, retTp, argTps, argCount, flags, fn);
         });
     }
@@ -97,6 +98,7 @@ namespace tsn {
         function_match_flags flags
     ) {
         return funcs.filter([&name, retTp, argTps, argCount, flags](ffi::Method* fn) {
+            if (!fn) return false;
             return func_match_filter(name, retTp, argTps, argCount, flags, fn);
         });
     }

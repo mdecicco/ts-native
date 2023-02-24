@@ -7,7 +7,7 @@ namespace tsn {
         class State {
             public:
                 State(u32 stackSize);
-                ~State() { }
+                ~State();
 
                 // push the value of a register onto stored value stack
                 void push(vm_register reg);

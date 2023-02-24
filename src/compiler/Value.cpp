@@ -30,6 +30,7 @@ namespace tsn {
             m_flags.is_type = 0;
             m_flags.is_module = 0;
             m_flags.is_function = 0;
+            m_flags.is_function_id = 0;
             m_flags.is_module_data = 0;
             m_flags.is_immediate = 0;
             m_slotId = 0;
@@ -54,6 +55,7 @@ namespace tsn {
             m_flags.is_type = 0;
             m_flags.is_module = 0;
             m_flags.is_function = 0;
+            m_flags.is_function_id = 0;
             m_flags.is_module_data = 0;
             m_flags.is_immediate = 0;
             m_slotId = 0;
@@ -74,6 +76,7 @@ namespace tsn {
             m_flags.is_type = 0;
             m_flags.is_module = 0;
             m_flags.is_function = 0;
+            m_flags.is_function_id = 0;
             m_flags.is_module_data = 0;
             m_flags.is_immediate = 1;
             m_slotId = 0;
@@ -94,6 +97,7 @@ namespace tsn {
             m_flags.is_type = 0;
             m_flags.is_module = 0;
             m_flags.is_function = 0;
+            m_flags.is_function_id = 0;
             m_flags.is_module_data = 0;
             m_flags.is_immediate = 1;
             m_slotId = 0;
@@ -114,6 +118,7 @@ namespace tsn {
             m_flags.is_type = 0;
             m_flags.is_module = 0;
             m_flags.is_function = 0;
+            m_flags.is_function_id = 0;
             m_flags.is_module_data = 0;
             m_flags.is_immediate = 1;
             m_slotId = 0;
@@ -134,6 +139,7 @@ namespace tsn {
             m_flags.is_type = 0;
             m_flags.is_module = 0;
             m_flags.is_function = 1;
+            m_flags.is_function_id = 0;
             m_flags.is_module_data = 0;
             m_flags.is_immediate = 1;
             m_slotId = 0;
@@ -154,6 +160,7 @@ namespace tsn {
             m_flags.is_type = 1;
             m_flags.is_module = 0;
             m_flags.is_function = 0;
+            m_flags.is_function_id = 0;
             m_flags.is_module_data = 0;
             m_flags.is_immediate = 1;
             m_slotId = 0;
@@ -173,6 +180,7 @@ namespace tsn {
             m_flags.is_type = 0;
             m_flags.is_module = 1;
             m_flags.is_function = 0;
+            m_flags.is_function_id = 0;
             m_flags.is_module_data = 0;
             m_flags.is_immediate = 1;
             m_slotId = 0;
@@ -193,6 +201,7 @@ namespace tsn {
             m_flags.is_type = 0;
             m_flags.is_module = 0;
             m_flags.is_function = 0;
+            m_flags.is_function_id = 0;
             m_flags.is_module_data = 1;
             m_flags.is_immediate = 1;
             m_slotId = slotId;
@@ -845,16 +854,18 @@ namespace tsn {
 
         void Value::setRegId(vreg_id reg) {
             m_regId = reg;
+            m_allocId = 0;
         }
 
         void Value::setStackAllocId(alloc_id id) {
             m_allocId = id;
+            m_regId = 0;
         }
 
         bool Value::isValid() const {
             return m_regId > 0 || m_allocId > 0 || m_flags.is_module_data ||
                    m_flags.is_module || m_flags.is_function || m_flags.is_type ||
-                   m_flags.is_immediate;
+                   m_flags.is_immediate || m_flags.is_argument;
         }
         
         bool Value::isArg() const {
@@ -887,6 +898,10 @@ namespace tsn {
 
         bool Value::isFunction() const {
             return m_flags.is_function;
+        }
+
+        bool Value::isFunctionID() const {
+            return m_flags.is_function && m_flags.is_function_id;
         }
 
         Value Value::genBinaryOp(
@@ -1479,6 +1494,9 @@ namespace tsn {
             } else if (isStack()) {
                 if (!v.isStack()) return false;
                 return m_allocId == v.m_allocId;
+            } else if (isArg()) {
+                if (!v.isArg()) return false;
+                return m_imm.u == v.m_imm.u;
             } else if (m_flags.is_module) {
                 if (!v.m_flags.is_module) return false;
                 return m_imm.mod == v.m_imm.mod;
@@ -1520,14 +1538,18 @@ namespace tsn {
             return true;
         }
 
-        String Value::toString() const {
+        String Value::toString(Context* ctx) const {
             String s;
             if (m_flags.is_argument) {
                 if (m_type->getInfo().is_floating_point) s = String::Format("$FPA%d", m_imm.u);
                 else s = String::Format("$GPA%d", m_imm.u);
             } else if (m_flags.is_function) {
                 if (m_flags.is_immediate) {
-                    ffi::Function* fn = m_imm.fn->getOutput();
+                    ffi::Function* fn = nullptr;
+                    
+                    if (m_flags.is_function_id) fn = ctx->getFunctions()->getFunction(getImm<function_id>());
+                    else fn = m_imm.fn->getOutput();
+
                     if (fn) s = String::Format("<Function %s>", fn->getDisplayName().c_str());
                     else s = String::Format("<Function %s>", m_imm.fn->getName().c_str());
                 } else {
@@ -1553,7 +1575,7 @@ namespace tsn {
                         else s = String::Format("%lli", m_imm.i);
                     }
                 }
-            } else if (m_type->isEqualTo(m_func->getContext()->getTypes()->getNull())) {
+            } else if (m_type->isEqualTo(ctx->getTypes()->getNull())) {
                 s = "null";
             } else {
                 if (isReg()) {

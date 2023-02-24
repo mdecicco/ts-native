@@ -34,9 +34,8 @@ namespace tsn {
 
             // Allocates space on the stack
             //
-            // Operand 0 will be vreg which will receive a pointer to allocated space
-            // Operand 1 will be u32 imm for allocation size in bytes
-            // Operand 2 will be u32 imm for allocation ID
+            // Operand 0 will be u32 imm for allocation size in bytes
+            // Operand 1 will be u32 imm for allocation ID
             ir_stack_allocate,
 
             // Frees space that was allocated on the stack
@@ -106,8 +105,18 @@ namespace tsn {
 
             // Calls a function
             //
-            // Operand 0 will either be imm pointer to the FunctionDef being called
-            // or a vreg which holds a pointer to the function or closure being called
+            // Pre-optimization and during optimization
+            //     Operand 0 will either be imm pointer to the FunctionDef being
+            //     called or a vreg which holds a pointer to the ClosureRef being
+            //     called
+            //
+            // Post-optimization
+            //     Operand 0 will either be imm function_id of the function being
+            //     called or a vreg which holds a pointer to the ClosureRef being
+            //     called
+            //
+            // In all cases, the data type of operand 0 will be the function
+            // signature
             ir_call,
 
             // Returns from the current function

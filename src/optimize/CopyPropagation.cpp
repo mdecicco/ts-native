@@ -1,6 +1,6 @@
 #include <tsn/optimize/CopyPropagation.h>
 #include <tsn/optimize/types.h>
-#include <tsn/optimize/CodeHolder.h>
+#include <tsn/compiler/CodeHolder.h>
 #include <tsn/optimize/OptimizationGroup.h>
 #include <tsn/compiler/IR.h>
 #include <tsn/compiler/Value.hpp>
@@ -23,7 +23,7 @@ namespace tsn {
         CopyPropagationStep::~CopyPropagationStep() {
         }
 
-        bool CopyPropagationStep::execute(CodeHolder* ch, basic_block* b, Pipeline* pipeline) {
+        bool CopyPropagationStep::execute(compiler::CodeHolder* ch, basic_block* b, Pipeline* pipeline) {
             Logger* log = pipeline->getLogger();
             bool doDebug = m_ctx->getConfig()->debugLogging;
 

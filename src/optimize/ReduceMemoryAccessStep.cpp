@@ -1,5 +1,5 @@
 #include <tsn/optimize/ReduceMemoryAccessStep.h>
-#include <tsn/optimize/CodeHolder.h>
+#include <tsn/compiler/CodeHolder.h>
 #include <tsn/optimize/OptimizationGroup.h>
 #include <tsn/compiler/IR.h>
 #include <tsn/compiler/Value.hpp>
@@ -21,7 +21,7 @@ namespace tsn {
         ReduceMemoryAccessStep::~ReduceMemoryAccessStep() {
         }
 
-        bool ReduceMemoryAccessStep::execute(CodeHolder* ch, Pipeline* pipeline) {
+        bool ReduceMemoryAccessStep::execute(compiler::CodeHolder* ch, Pipeline* pipeline) {
             // TODO:
             // if function is not pure then ONLY look for and optimize these patterns:
             //

@@ -3,7 +3,10 @@
 
 namespace tsn {
     class Pipeline;
-    class CodeHolder;
+    
+    namespace compiler {
+        class CodeHolder;
+    };
     
     namespace optimize {
         class ConstantFoldingStep : public IOptimizationStep {
@@ -11,7 +14,7 @@ namespace tsn {
                 ConstantFoldingStep(Context* ctx);
                 virtual ~ConstantFoldingStep();
 
-                virtual bool execute(CodeHolder* code, Pipeline* pipeline);
+                virtual bool execute(compiler::CodeHolder* code, Pipeline* pipeline);
         };
     };
 };

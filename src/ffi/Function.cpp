@@ -24,8 +24,8 @@ namespace tsn {
 
         Function::Function(const utils::String& name, const utils::String& extraQualifiers, FunctionType* signature, access_modifier access, void* address, void* wrapperAddr) {
             m_extraQualifiers = extraQualifiers;
-            m_fullyQualifiedName = signature ? signature->generateFullyQualifiedFunctionName(extraQualifiers + name) : "";
-            m_displayName = signature ? signature->generateFunctionDisplayName(extraQualifiers + name) : "";
+            m_fullyQualifiedName = signature ? signature->generateFullyQualifiedFunctionName(name, m_extraQualifiers) : "";
+            m_displayName = signature ? signature->generateFunctionDisplayName(name, m_extraQualifiers) : "";
             m_id = (function_id)std::hash<utils::String>()(m_fullyQualifiedName);
             m_registryIndex = u32(-1);
             m_name = name;
@@ -148,8 +148,8 @@ namespace tsn {
 
             m_signature = newSig;
 
-            m_fullyQualifiedName = m_signature->generateFullyQualifiedFunctionName(m_extraQualifiers + tp->getName() + "::" + m_name);
-            m_displayName = m_signature->generateFunctionDisplayName(m_extraQualifiers + tp->getName() + "::" + m_name);
+            m_fullyQualifiedName = m_signature->generateFullyQualifiedFunctionName(m_name, m_extraQualifiers);
+            m_displayName = m_signature->generateFunctionDisplayName(m_name, m_extraQualifiers);
             m_id = (function_id)std::hash<utils::String>()(m_fullyQualifiedName);
         }
         
@@ -168,7 +168,7 @@ namespace tsn {
                     args[a].dataType = tp;
                 } else if (args[a].argType == arg_type::this_ptr) {
                     selfTp = args[a].dataType;
-                } else if (args[a].isImplicit()) break;
+                } else if (!args[a].isImplicit()) break;
             }
 
             FunctionType* newSig = new FunctionType(tp, args, returnsPointer);
@@ -186,11 +186,8 @@ namespace tsn {
 
             m_signature = newSig;
 
-            utils::String moreQualifiers;
-            if (selfTp) moreQualifiers = selfTp->getName() + "::";
-
-            m_fullyQualifiedName = m_signature->generateFullyQualifiedFunctionName(m_extraQualifiers + moreQualifiers + m_name);
-            m_displayName = m_signature->generateFunctionDisplayName(m_extraQualifiers + moreQualifiers + m_name);
+            m_fullyQualifiedName = m_signature->generateFullyQualifiedFunctionName(m_name, m_extraQualifiers);
+            m_displayName = m_signature->generateFunctionDisplayName(m_name, m_extraQualifiers);
             m_id = (function_id)std::hash<utils::String>()(m_fullyQualifiedName);
         }
 

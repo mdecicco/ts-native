@@ -12,10 +12,10 @@
 namespace tsn {
     namespace compiler {
         constexpr ir_instruction_info opcode_info[] = {
-            // opcode name, operand count, { op[0] type, op[1] type, op[2] type }, assigns operand index, flags
+            // opcode name, operand count, { op[0] type, op[1] type, op[2] type }, assigns operand index, has side effects
             { "noop"          , 0, { ot_nil, ot_nil, ot_nil }, 0xFF, 0 },
             { "label"         , 1, { ot_lbl, ot_nil, ot_nil }, 0xFF, 0 },
-            { "stack_allocate", 3, { ot_reg, ot_imm, ot_imm }, 0   , 0 },
+            { "stack_allocate", 2, { ot_imm, ot_imm, ot_nil }, 0xFF, 0 },
             { "stack_free"    , 1, { ot_imm, ot_nil, ot_nil }, 0xFF, 0 },
             { "module_data"   , 3, { ot_reg, ot_imm, ot_imm }, 0   , 0 },
             { "reserve"       , 1, { ot_reg, ot_nil, ot_nil }, 0   , 0 },
@@ -165,28 +165,21 @@ namespace tsn {
 
                         break;
                     }
-                } else if (op == ir_call && o == 1) {
-                    if (operands[1].isImm() && operands[1].getImm<u64>() == 0) {
-                        s += " -> void";
-                        continue;
-                    } else {
-                        s += " ->";
-                    }
-                } else if (op == ir_ret && operands[0].getType()->getInfo().size == 0) {
-                    // void return, don't append dummy register
-                    break;
-                } else if (op == ir_param && o == 1) {
-                    break;
                 }
 
                 if (info.operands[o] == ot_fun && operands[o].isImm()) {
-                    FunctionDef* fd = operands[o].getImm<FunctionDef*>();
-                    ffi::Function* fn = fd->getOutput();
+                    ffi::Function* fn = nullptr;
+                    if (operands[o].isFunctionID()) {
+                        fn = ctx->getFunctions()->getFunction(operands[o].getImm<function_id>());
+                    } else {
+                        FunctionDef* fd = operands[o].getImm<FunctionDef*>();
+                        fn = fd->getOutput();
+                    }
                     s += utils::String::Format(" <Function %s>", fn->getDisplayName().c_str());
                 } else if (info.operands[o] == ot_lbl) {
                     label_id lid = operands[o].getImm<label_id>();
                     s += utils::String::Format(" LABEL_%d", lid);
-                } else s += " " + operands[o].toString();
+                } else s += " " + operands[o].toString(ctx);
             }
 
             if (op == ir_uadd && operands[1].isReg() && operands[2].isImm() && operands[2].getType()->getInfo().is_integral && operands[1].getName().size() > 0) {

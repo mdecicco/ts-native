@@ -17,11 +17,11 @@ namespace tsn {
             return m_group;
         }
 
-        bool IOptimizationStep::execute(CodeHolder* code, Pipeline* pipeline) {
+        bool IOptimizationStep::execute(compiler::CodeHolder* code, Pipeline* pipeline) {
             return false;
         }
         
-        bool IOptimizationStep::execute(CodeHolder* code, basic_block* block, Pipeline* pipeline) {
+        bool IOptimizationStep::execute(compiler::CodeHolder* code, basic_block* block, Pipeline* pipeline) {
             return false;
         }
     };

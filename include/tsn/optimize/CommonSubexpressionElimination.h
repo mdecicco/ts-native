@@ -3,15 +3,18 @@
 
 namespace tsn {
     class Pipeline;
+
+    namespace compiler {
+        class CodeHolder;
+    };
     
     namespace optimize {
-        class CodeHolder;
         class CommonSubexpressionEliminationStep : public IOptimizationStep {
             public:
                 CommonSubexpressionEliminationStep(Context* ctx);
                 virtual ~CommonSubexpressionEliminationStep();
 
-                virtual bool execute(CodeHolder* code, basic_block* block, Pipeline* pipeline);
+                virtual bool execute(compiler::CodeHolder* code, basic_block* block, Pipeline* pipeline);
         };
     };
 };

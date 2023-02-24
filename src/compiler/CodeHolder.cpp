@@ -1,8 +1,11 @@
-#include <tsn/optimize/CodeHolder.h>
+#include <tsn/compiler/CodeHolder.h>
+#include <tsn/compiler/IR.h>
+
+#include <utils/Array.hpp>
 
 namespace tsn {
-    namespace optimize {
-        CodeHolder::CodeHolder(utils::Array<compiler::Instruction>& _code) : code(_code) {
+    namespace compiler {
+        CodeHolder::CodeHolder(const utils::Array<compiler::Instruction>& _code) : code(_code) {
         }
 
         void CodeHolder::rebuildAll() {

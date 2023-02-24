@@ -5,8 +5,11 @@
 #include <utils/Array.h>
 
 namespace tsn {
-    namespace optimize {
+    namespace compiler {
         class CodeHolder;
+    };
+
+    namespace optimize {
         class ControlFlowGraph;
 
         struct basic_block {
@@ -23,9 +26,9 @@ namespace tsn {
         class ControlFlowGraph {
             public:
                 ControlFlowGraph();
-                ControlFlowGraph(CodeHolder* ch);
+                ControlFlowGraph(compiler::CodeHolder* ch);
 
-                void rebuild(CodeHolder* ch);
+                void rebuild(compiler::CodeHolder* ch);
                 basic_block* blockAtAddr(address a);
                 u32 blockIdxAtAddr(address a);
 

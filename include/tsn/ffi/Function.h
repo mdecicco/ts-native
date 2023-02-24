@@ -45,8 +45,7 @@ namespace tsn {
                 //     If function was JIT compiled:
                 //         Same as host function signature
                 //     If function runs in a VM:
-                //         Not a function pointer, but an index into the instruction buffer
-                //         The VM handles translating arguments to this function
+                //         Will be null pointer
                 void* getAddress() const;
 
                 // Signature:

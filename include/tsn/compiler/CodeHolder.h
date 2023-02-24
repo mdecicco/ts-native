@@ -15,10 +15,10 @@ namespace tsn {
         class Function;
     };
 
-    namespace optimize {
+    namespace compiler {
         class CodeHolder {
             public:
-                CodeHolder(utils::Array<compiler::Instruction>& code);
+                CodeHolder(const utils::Array<compiler::Instruction>& code);
 
                 void rebuildAll();
                 void rebuildLabels();
@@ -27,10 +27,10 @@ namespace tsn {
 
                 ffi::Function* owner;
 
-                LabelMap labels;
-                ControlFlowGraph cfg;
-                LivenessData liveness;
-                utils::Array<compiler::Instruction>& code;
+                optimize::LabelMap labels;
+                optimize::ControlFlowGraph cfg;
+                optimize::LivenessData liveness;
+                utils::Array<compiler::Instruction> code;
         };
     };
 };

@@ -570,23 +570,9 @@ namespace tsn {
             auto* exp = currentExpr();
             if (!exp || exp->loc == rsl_auto) {
                 if (tp->getInfo().is_primitive || tp->getInfo().size == 0) return currentFunction()->val(tp);
-                else {
-                    alloc_id stackId = cf->reserveStackId();
-
-                    Value out = currentFunction()->val(tp);
-                    cf->setStackId(out, stackId);
-                    cf->add(ir_stack_allocate).op(out).op(cf->imm(tp->getInfo().size)).op(cf->imm(stackId));
-                    scope().get().addToStack(out);
-                    return out;
-                }
+                else return cf->stack(tp);
             } else if (exp->loc == rsl_stack) {
-                alloc_id stackId = cf->reserveStackId();
-
-                Value out = currentFunction()->val(tp);
-                cf->setStackId(out, stackId);
-                cf->add(ir_stack_allocate).op(out).op(cf->imm(tp->getInfo().size)).op(cf->imm(stackId));
-                scope().get().addToStack(out);
-                return out;
+                return cf->stack(tp);
             } else if (exp->loc == rsl_module_data) {
                 u32 slot = m_output->getModule()->addData(exp->md_name, tp, exp->md_access);
                 return cf->val(m_output->getModule(), slot);
@@ -760,13 +746,8 @@ namespace tsn {
             }
 
             FunctionDef* cf = currentFunction();
-            alloc_id stackId = cf->reserveStackId();
 
-            Value out = currentFunction()->val(tp);
-            cf->setStackId(out, stackId);
-            cf->add(ir_stack_allocate).op(out).op(cf->imm(tp->getInfo().size)).op(cf->imm(stackId));
-            scope().get().addToStack(out);
-
+            Value out = cf->stack(tp);
             constructObject(out, out.getType(), args);
 
             if (resultHandledInternally && !resultShouldBeHandledInternally) {
@@ -1019,12 +1000,8 @@ namespace tsn {
             Value resultPtr;
             
             if (resultHandledInternally && retTp->getInfo().size != 0) {
-                resultPtr.reset(cf->val(retTp));
-                
-                alloc_id stackId = cf->reserveStackId();
-
-                cf->setStackId(resultPtr, stackId);
-                add(ir_stack_allocate).op(resultPtr).op(cf->imm(retTp->getInfo().size)).op(cf->imm(stackId));
+                // unscoped because it will either be freed or added to the scope later
+                resultPtr.reset(cf->stack(retTp, true));
 
                 if (returnsPointer) {
                     // retTp is a Pointer<T>. Construct it manually, setting '_external' property to true
@@ -1803,7 +1780,12 @@ namespace tsn {
             return tp;
         }
         void Compiler::compileMethodDef(ParseNode* n, DataType* methodOf, Method* m) {
+            type_id prevSigId = m->getSignature()->getId();
             m->setThisType(methodOf, m_ctx->getTypes());
+            if (m->getSignature()->getId() != prevSigId) {
+                prevSigId = m->getSignature()->getId();
+                m_output->add(m->getSignature());
+            }
             
             FunctionType* sig = m->getSignature();
             const auto& args = sig->getArguments();
@@ -1816,13 +1798,16 @@ namespace tsn {
             enterFunction(def);
 
             while (p && p->tp != nt_empty) {
-                def->addDeferredArg(p->str(), resolveTypeSpecifier(p->data_type));
+                def->addDeferredArg(p->str());
                 p = p->next;
             }
 
             compileBlock(n->body);
 
             m->setRetType(def->getReturnType(), false, m_ctx->getTypes());
+            if (m->getSignature()->getId() != prevSigId) {
+                m_output->add(m->getSignature());
+            }
 
             exitFunction();
             exitNode();
@@ -1927,7 +1912,6 @@ namespace tsn {
                 ret = resolveTypeSpecifier(n->data_type);
             }
 
-            bool sigExisted = false;
             utils::Array<function_argument> args;
             args.push({ arg_type::func_ptr, ptrTp });
             args.push({ arg_type::ret_ptr, ret });
@@ -1966,6 +1950,7 @@ namespace tsn {
             // function types are always public
             sig->setAccessModifier(public_access);
 
+            bool sigExisted = false;
             const auto& types = m_output->getTypes();
             for (auto* t : types) {
                 const auto& info = t->getInfo();
@@ -2264,6 +2249,8 @@ namespace tsn {
                 return;
             }
 
+            m_output->addDependency(m);
+
             if (n->body->tp == nt_import_module) {
                 scope().add(n->body->str(), m);
             } else if (n->body->tp == nt_import_symbol) {
@@ -2412,7 +2399,7 @@ namespace tsn {
             // this so this is not contingent upon the condition being
             // evaluated to true
             DataType* tp = lvalue.getType();
-            Value out = cf->val(tp);
+            Value out;
 
             if (!tp->getInfo().is_primitive) {
                 // If the result is not a primitive type then the output
@@ -2426,14 +2413,12 @@ namespace tsn {
                 // The stack id must be set now (prior to any uses of
                 // result), but it must be added to the parent block's
                 // stack
-                alloc_id stackId = cf->reserveStackId();
-                cf->setStackId(out, stackId);
-                reserve.instr(ir_stack_allocate).op(out).op(cf->imm(tp->getInfo().size)).op(cf->imm(stackId));
-                scope().get().addToStack(out);
+                out.reset(cf->stack(tp));
 
                 constructObject(out, { lvalue });
                 scope().exit(out);
             } else {
+                out.reset(cf->val(tp));
                 reserve.op(out);
                 add(ir_resolve).op(out).op(lvalue);
                 scope().exit();
@@ -2591,13 +2576,7 @@ namespace tsn {
             }
 
             if (resultHandledInternally) {
-                FunctionDef* cf = currentFunction();
-                alloc_id stackId = cf->reserveStackId();
-
-                out.reset(currentFunction()->val(tp));
-                cf->setStackId(out, stackId);
-                cf->add(ir_stack_allocate).op(out).op(cf->imm(tp->getInfo().size)).op(cf->imm(stackId));
-                scope().get().addToStack(out);
+                out.reset(cf->stack(tp));
             } else {
                 out.reset(getStorageForExpr(tp));
             }
@@ -3304,7 +3283,7 @@ namespace tsn {
                                 tp,
                                 cm_err_expected_type_specifier,
                                 "Expected type specifier after 'new', got '%s'",
-                                tp.toString().c_str()
+                                tp.toString(m_ctx).c_str()
                             );
                             return currentFunction()->getPoison();
                         }

@@ -11,6 +11,8 @@
 
 namespace tsn {
     class Module;
+    class Context;
+    
     namespace ffi {
         class DataType;
     };
@@ -39,6 +41,9 @@ namespace tsn {
 
                     // If this value refers to a function
                     unsigned is_function    : 1;
+
+                    // If this value refers to a function_id (is_function will also be true)
+                    unsigned is_function_id : 1;
 
                     // If this value refers to module data, module will be stored in m_imm.m, slot in m_slotId
                     unsigned is_module_data : 1;
@@ -102,6 +107,9 @@ namespace tsn {
                 bool isModule() const;
                 bool isFunction() const;
 
+                // if this is true, then isFunction() is also true
+                bool isFunctionID() const;
+
                 Value operator +  (const Value& rhs) const;
                 Value operator += (const Value& rhs);
                 Value operator -  (const Value& rhs) const;
@@ -149,7 +157,7 @@ namespace tsn {
 
                 bool isEquivalentTo(const Value& v) const;
 
-                utils::String toString() const;
+                utils::String toString(Context* ctx) const;
             protected:
                 friend class Scope;
                 friend class ScopeManager;

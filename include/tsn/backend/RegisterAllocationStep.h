@@ -11,27 +11,11 @@ namespace utils {
 };
 
 namespace tsn {
+    namespace compiler {
+        class CodeHolder;
+    };
+
     namespace backend {
-        class StackManager {
-            public:
-                struct slot {
-                    u32 start;
-                    u32 end;
-                    bool in_use;
-                };
-
-                StackManager();
-                ~StackManager();
-
-                void reset();
-                compiler::alloc_id alloc(u32 sz);
-                void free(u32 addr);
-                u32 size() const;
-
-            protected:
-                std::list<slot> m_slots;
-        };
-
         /**
          * @brief
          * Modifies the IR code to only use a specific amount of
@@ -67,19 +51,17 @@ namespace tsn {
                 RegisterAllocatonStep(Context* ctx, u32 numGP, u32 numFP);
                 virtual ~RegisterAllocatonStep();
 
-                virtual bool execute(optimize::CodeHolder* code, Pipeline* pipeline);
+                virtual bool execute(compiler::CodeHolder* code, Pipeline* pipeline);
             
             protected:
                 void getLive(u32 at, utils::Array<lifetime>& live);
                 void calcLifetimes();
                 bool allocateRegisters(utils::Array<lifetime>& live, u16 k, Pipeline* pipeline);
 
-                StackManager m_stack;
-
                 u32 m_numGP;
                 u32 m_numFP;
 
-                optimize::CodeHolder* m_ch;
+                compiler::CodeHolder* m_ch;
                 utils::Array<lifetime> m_gpLf;
                 utils::Array<lifetime> m_fpLf;
         };

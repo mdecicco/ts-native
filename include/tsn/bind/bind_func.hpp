@@ -193,7 +193,7 @@ namespace tsn {
 
             return new Function(
                 name,
-                utils::String(mod ? mod->getName() + "::" : "") + selfTp->getName() + "::",
+                utils::String(mod ? mod->getName() + "::" : ""),
                 sig,
                 access,
                 *reinterpret_cast<void**>(&func),
@@ -246,7 +246,7 @@ namespace tsn {
 
             return new Method(
                 name,
-                utils::String(mod ? mod->getName() + "::" : "") + selfTp->getName() + "::",
+                utils::String(mod ? mod->getName() + "::" : ""),
                 sig,
                 access,
                 *reinterpret_cast<void**>(&func),
@@ -300,7 +300,7 @@ namespace tsn {
 
             return new Method(
                 name,
-                utils::String(mod ? mod->getName() + "::" : "") + selfTp->getName() + "::",
+                utils::String(mod ? mod->getName() + "::" : ""),
                 sig,
                 access,
                 *reinterpret_cast<void**>(&func),
@@ -346,7 +346,7 @@ namespace tsn {
 
             return new Function(
                 name,
-                utils::String(mod ? mod->getName() + "::" : "") + forType->getName() + "::",
+                utils::String(mod ? mod->getName() + "::" : ""),
                 sig,
                 access,
                 *reinterpret_cast<void**>(&func),
@@ -387,7 +387,7 @@ namespace tsn {
 
             return new Function(
                 name,
-                utils::String(mod ? mod->getName() + "::" : "") + forType->getName() + "::",
+                utils::String(mod ? mod->getName() + "::" : ""),
                 sig,
                 access,
                 *reinterpret_cast<void**>(&func),

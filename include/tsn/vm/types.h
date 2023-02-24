@@ -96,15 +96,15 @@ namespace tsn {
             // in them between integer and floating point before/after moving from/to a gp register
 
             // memory moving
-            ld8             ,    // load 1 byte from memory into register               ld8     (dest)   (src)       0      dest = *((u8*)(src + 0))
-            ld16            ,    // load 2 bytes from memory into register              ld16    (dest)   (src)       0      dest = *((u16*)(src + 0))
-            ld32            ,    // load 4 bytes from memory into register              ld32    (dest)   (src)       0      dest = *((u32*)(src + 0))
-            ld64            ,    // load 8 bytes from memory into register              ld64    (dest)   (src)       0      dest = *((u64*)(src + 0))
-            st8             ,    // store 1 byte in memory from register                store   (src)    (dest)      0xa    *dest = *((u8*)(src + 0xa))
-            st16            ,    // store 2 bytes in memory from register               store   (src)    (dest)      0xa    *dest = *((u16*)(src + 0xa))
-            st32            ,    // store 4 bytes in memory from register               store   (src)    (dest)      0xa    *dest = *((u32*)(src + 0xa))
-            st64            ,    // store 8 bytes in memory from register               store   (src)    (dest)      0xa    *dest = *((u64*)(src + 0xa))
-            mptr            ,    // store address of module data in register            mptr    (dest)               0xf    dest = modules[$v3] + 0xf    ($v3 must be module id)
+            ld8             ,    // load 1 byte from memory into register               ld8     (dest)   (src)       i_off  dest = *((u8*)(src + i_off))
+            ld16            ,    // load 2 bytes from memory into register              ld16    (dest)   (src)       i_off  dest = *((u16*)(src + i_off))
+            ld32            ,    // load 4 bytes from memory into register              ld32    (dest)   (src)       i_off  dest = *((u32*)(src + i_off))
+            ld64            ,    // load 8 bytes from memory into register              ld64    (dest)   (src)       i_off  dest = *((u64*)(src + i_off))
+            st8             ,    // store 1 byte in memory from register                store   (src)    (dest)      i_off  *((u8*)(dest + i_off)) = src
+            st16            ,    // store 2 bytes in memory from register               store   (src)    (dest)      i_off  *((u16*)(dest + i_off)) = src
+            st32            ,    // store 4 bytes in memory from register               store   (src)    (dest)      i_off  *((u32*)(dest + i_off)) = src
+            st64            ,    // store 8 bytes in memory from register               store   (src)    (dest)      i_off  *((u64*)(dest + i_off)) = src
+            mptr            ,    // store address of module data in register            mptr    (dest)               i_off  dest = modules[$v3] + 0xf    ($v3 must be module id)
             mtfp            ,    // move from general register to float register        mtfp    (a)      (b)                b = a                        (a must be gp, b must be fp)
             mffp            ,    // move from float register to general register        mffp    (a)      (b)                b = a                        (a must be fp, b must be gp)
 

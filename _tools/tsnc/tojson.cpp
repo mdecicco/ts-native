@@ -514,17 +514,17 @@ json toJson(u32 index, const function_argument& a, FunctionDef* fd) {
     if (fd) {
         json loc;
         if (a.argType == arg_type::context_ptr) {
-            loc = fd->getECtx().toString().c_str();
+            loc = fd->getECtx().toString(fd->getContext()).c_str();
         } else if (a.argType == arg_type::func_ptr) {
-            loc = fd->getFPtr().toString().c_str();
+            loc = fd->getFPtr().toString(fd->getContext()).c_str();
         } else if (a.argType == arg_type::ret_ptr) {
             if (fd->getReturnType()->isEqualTo(fd->getContext()->getTypes()->getType<void>())) loc = json(nullptr);
-            else loc = fd->getRetPtr().toString().c_str();
+            else loc = fd->getRetPtr().toString(fd->getContext()).c_str();
         } else if (a.argType == arg_type::this_ptr) {
             if (fd->getThisType()->isEqualTo(fd->getContext()->getTypes()->getType<void>())) loc = json(nullptr);
-            else loc = fd->getThis().toString().c_str();
+            else loc = fd->getThis().toString(fd->getContext()).c_str();
         } else {
-            loc = fd->getArg(index - fd->getImplicitArgCount()).toString().c_str();
+            loc = fd->getArg(index - fd->getImplicitArgCount()).toString(fd->getContext()).c_str();
         }
         out["location"] = loc;
     } else out["location"] = json(nullptr);

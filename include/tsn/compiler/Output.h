@@ -22,8 +22,10 @@ namespace tsn {
     };
 
     namespace compiler {
+        class Instruction;
         class OutputBuilder;
         class TemplateContext;
+        class CodeHolder;
         enum ir_instruction;
         enum operand_type : u8;
 
@@ -33,13 +35,15 @@ namespace tsn {
                     unsigned is_reg : 1;
                     unsigned is_stack : 1;
                     unsigned is_func : 1;
+                    unsigned is_arg : 1;
                     unsigned is_imm : 1;
-                    unsigned _unused : 4;
+                    unsigned _unused : 3;
                 } flags;
 
                 ffi::DataType* data_type;
 
                 union {
+                    u32 arg_idx;
                     vreg_id reg_id;
                     alloc_id alloc_id;
                     function_id func_id;
@@ -134,7 +138,10 @@ namespace tsn {
                 Output(OutputBuilder* in);
                 ~Output();
 
+                void processInput();
+
                 Module* getModule();
+                const utils::Array<compiler::CodeHolder*>& getCode() const;
 
                 virtual bool serialize(utils::Buffer* out, Context* ctx) const;
                 virtual bool deserialize(utils::Buffer* in, Context* ctx);
@@ -152,6 +159,8 @@ namespace tsn {
 
                 const script_metadata* m_meta;
                 utils::Array<output::function> m_funcs;
+                utils::Array<compiler::CodeHolder*> m_output;
+                utils::Array<Module*> m_dependencies;
         };
     };
 };

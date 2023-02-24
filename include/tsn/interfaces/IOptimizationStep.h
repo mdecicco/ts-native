@@ -6,6 +6,7 @@
 namespace tsn {
     namespace compiler {
         class Instruction;
+        class CodeHolder;
     };
 
     namespace ffi {
@@ -16,7 +17,6 @@ namespace tsn {
 
     namespace optimize {
         class OptimizationGroup;
-        class CodeHolder;
         struct basic_block;
 
         /**
@@ -44,7 +44,7 @@ namespace tsn {
                  * 
                  * @return Returns true if the pass should be executed again immediately
                  */
-                virtual bool execute(CodeHolder* code, Pipeline* pipeline);
+                virtual bool execute(compiler::CodeHolder* code, Pipeline* pipeline);
 
                 /**
                  * @brief Executes the optimization pass on a basic block. This is called
@@ -56,7 +56,7 @@ namespace tsn {
                  * 
                  * @return Returns true if the pass should be executed again immediately
                  */
-                virtual bool execute(CodeHolder* code, basic_block* block, Pipeline* pipeline);
+                virtual bool execute(compiler::CodeHolder* code, basic_block* block, Pipeline* pipeline);
             
             private:
                 OptimizationGroup* m_group;
