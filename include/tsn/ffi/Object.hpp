@@ -15,7 +15,7 @@ namespace tsn {
         ffi::Function* ctor = nullptr;
 
         constexpr int argc = std::tuple_size_v<std::tuple<Args...>>;
-        ffi::DataType* argTps[argc + 1] = { m_ctx->getTypes()->getType<Args>(std::forward<Args>(args))..., nullptr };
+        const ffi::DataType* argTps[argc + 1] = { m_ctx->getTypes()->getType<Args>(std::forward<Args>(args))..., nullptr };
 
         utils::Array<ffi::Function*> ctors = function_match(
             tp->getName() + "::constructor",
@@ -103,7 +103,7 @@ namespace tsn {
     template <typename... Args>
     Object Object::call(const utils::String& funcName, Args&&... args) {
         constexpr int argc = std::tuple_size_v<std::tuple<Args...>>;
-        ffi::DataType* argTps[argc + 1] = { m_ctx->getTypes()->getType<Args>(std::forward<Args>(args))..., nullptr };
+        const ffi::DataType* argTps[argc + 1] = { m_ctx->getTypes()->getType<Args>(std::forward<Args>(args))..., nullptr };
 
         utils::Array<ffi::Function*> matches = function_match(
             m_type->getName() + "::" + funcName,
