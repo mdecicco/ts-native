@@ -17,14 +17,7 @@ namespace tsn {
         constexpr int argc = std::tuple_size_v<std::tuple<Args...>>;
         const ffi::DataType* argTps[argc + 1] = { m_ctx->getTypes()->getType<Args>(std::forward<Args>(args))..., nullptr };
 
-        utils::Array<ffi::Function*> ctors = function_match(
-            tp->getName() + "::constructor",
-            nullptr,
-            argTps,
-            argc,
-            tp->getMethods(),
-            fm_skip_implicit_args | fm_strict
-        );
+        utils::Array<ffi::Function*> ctors = tp->findMethods("constructor", nullptr, argTps, argc, fm_skip_implicit_args | fm_strict);
 
         if (ctors.size() == 1) {
             ctor = ctors[0];

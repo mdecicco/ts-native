@@ -15,8 +15,8 @@ x64/
 *.exe
 *.ilk
 *.pdb
-_lib
-_bin
+lib
+bin
 deps/*.rar
 w64/
 imgui.ini
