@@ -38,6 +38,12 @@ namespace tsn {
             // Operand 1 will be u32 imm for allocation ID
             ir_stack_allocate,
 
+            // Gets pointer to stack allocation by ID
+            //
+            // Operand 0 will be vreg which will receive the pointer
+            // Operand 1 will be u32 imm for allocation ID
+            ir_stack_ptr,
+
             // Frees space that was allocated on the stack
             //
             // Operand 0 will be u32 imm for allocation ID

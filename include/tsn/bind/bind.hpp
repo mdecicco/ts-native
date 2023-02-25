@@ -35,7 +35,9 @@ namespace tsn {
 
         template <typename Ret, typename... Args>
         Function* bind(Context* ctx, const utils::String& name, Ret (*func)(Args...), access_modifier access) {
-            return bind_function(nullptr, ctx->getFunctions(), ctx->getTypes(), name, func, access, nullptr);
+            Function* fn = bind_function(nullptr, ctx->getFunctions(), ctx->getTypes(), name, func, access, nullptr);
+            if (fn) ctx->getGlobal()->addFunction(fn);
+            return fn;
         }
 
         template <typename Ret, typename... Args>

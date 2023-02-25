@@ -21,6 +21,10 @@ namespace tsn {
         class CodeHolder;
     };
 
+    namespace ffi {
+        class FunctionType;
+    };
+
     namespace vm {
         class Instruction;
         class VM;
@@ -50,6 +54,7 @@ namespace tsn {
                 VM* getVM();
                 const utils::Array<Instruction>& getCode() const;
                 const function_data* getFunctionData(ffi::Function* func) const;
+                const SourceMap& getSourceMap() const;
             
             protected:
                 void calcArgLifetimesAndBackupRegs(
@@ -64,5 +69,7 @@ namespace tsn {
                 robin_hood::unordered_map<ffi::Function*, function_data> m_funcData;
                 SourceMap m_map;
         };
+
+        void getArgRegisters(ffi::FunctionType* sig, utils::Array<arg_location>& out);
     };
 };

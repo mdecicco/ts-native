@@ -328,7 +328,14 @@ namespace tsn {
             alloc_id stackId = reserveStackId();
             v.setStackAllocId(stackId);
             add(ir_stack_allocate).op(imm(tp->getInfo().size)).op(imm(stackId));
-            if (!unscoped) m_comp->scope().get().addToStack(v);
+            if (!unscoped) {
+                m_comp->scope().get().addToStack(v);
+                Value out = val(tp);
+                add(ir_stack_ptr).op(out).op(imm(stackId));
+                out.m_flags.is_pointer = 1;
+                out.m_srcSelf = new Value(v);
+                return out;
+            }
 
             return v;
         }

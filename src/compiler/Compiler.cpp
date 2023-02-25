@@ -997,11 +997,14 @@ namespace tsn {
                 }
             }
 
+            Value resultStack;
             Value resultPtr;
             
             if (resultHandledInternally && retTp->getInfo().size != 0) {
                 // unscoped because it will either be freed or added to the scope later
-                resultPtr.reset(cf->stack(retTp, true));
+                resultStack.reset(cf->stack(retTp, true));
+                resultPtr.reset(cf->val(retTp));
+                add(ir_stack_ptr).op(resultPtr).op(cf->imm(resultStack.getStackAllocId()));
 
                 if (returnsPointer) {
                     // retTp is a Pointer<T>. Construct it manually, setting '_external' property to true
@@ -1037,29 +1040,55 @@ namespace tsn {
                 resultPtr.reset(cf->getNull());
             }
 
+            utils::Array<Value> tempStackArgs(fargs.size() + 1);
+            utils::Array<Value> finalParams(fargs.size() + 1);
             aidx = 0;
             for (u8 a = 0;a < fargs.size();a++) {
                 const auto& arg = fargs[a];
                 if (arg.isImplicit()) {
-                    if (arg.argType == arg_type::context_ptr) add(ir_param).op(cf->getECtx()).op(cf->imm<u8>(u8(arg.argType)));
-                    else if (arg.argType == arg_type::func_ptr) add(ir_param).op(cf->imm<u64>(0)).op(cf->imm<u8>(u8(arg.argType)));
-                    else if (arg.argType == arg_type::ret_ptr) add(ir_param).op(resultPtr).op(cf->imm<u8>(u8(arg.argType)));
+                    if (arg.argType == arg_type::context_ptr) finalParams.push(cf->getECtx());
+                    else if (arg.argType == arg_type::func_ptr) finalParams.push(cf->imm<u64>(0));
+                    else if (arg.argType == arg_type::ret_ptr) finalParams.push(resultPtr);
                     else if (arg.argType == arg_type::this_ptr) {
                         if (!self) {
                             // TODO
-                            // this may be bound already (think obj.method.bind(obj) in JS)
-                            add(ir_param).op(cf->imm<u64>(0)).op(cf->imm<u8>(u8(arg.argType)));
-                        } else add(ir_param).op(*self).op(cf->imm<u8>(u8(arg.argType)));
+                            // error
+                            finalParams.push(cf->imm<u64>(0));
+                        } else finalParams.push(*self);
                     }
                     continue;
                 }
-                add(ir_param).op(params[aidx++]).op(cf->imm<u8>(u8(arg.argType)));
+
+                const Value& p = params[aidx++];
+                if (arg.argType == arg_type::value && !arg.dataType->isEqualTo(m_ctx->getTypes()->getVoidPtr())) {
+                    if (p.getFlags().is_pointer) finalParams.push(*p);
+                    else finalParams.push(p);
+                } else {
+                    if (p.getFlags().is_pointer || !p.getType()->getInfo().is_primitive) finalParams.push(p);
+                    else {
+                        Value s = cf->stack(p.getType(), true);
+                        add(ir_assign).op(s).op(p);
+                        tempStackArgs.push(s);
+
+                        Value a = cf->val(p.getType());
+                        add(ir_stack_ptr).op(a).op(cf->imm<alloc_id>(s.getStackAllocId()));
+                        finalParams.push(a);
+                    }
+                }
+            }
+
+            for (u8 a = 0;a < fargs.size();a++) {
+                const auto& arg = fargs[a];
+                add(ir_param).op(finalParams[a]).op(cf->imm<u8>(u8(arg.argType)));
             }
 
             auto call = add(ir_call).op(fn);
 
-            Value result;
+            for (u32 i = 0;i < tempStackArgs.size();i++) {
+                add(ir_stack_free).op(cf->imm<alloc_id>(tempStackArgs[i].getStackAllocId()));
+            }
 
+            Value result;
             if (retTp->getInfo().size == 0) {
                 result.reset(cf->val(m_ctx->getTypes()->getVoid()));
             } else {
@@ -1071,8 +1100,8 @@ namespace tsn {
 
                         result.reset(copyValueToExprStorage(resultPtr));
 
-                        // resultPtr should be freed, the value was copy constructed elsewhere
-                        add(ir_stack_free).op(cf->imm(resultPtr.getStackAllocId()));
+                        // resultStack should be freed, the value was copy constructed elsewhere
+                        add(ir_stack_free).op(cf->imm(resultStack.getStackAllocId()));
                     } else if (retTp->getInfo().is_primitive) {
                         // resultPtr = retTp*
 
@@ -1084,15 +1113,15 @@ namespace tsn {
 
                         result.reset(copyValueToExprStorage(result));
 
-                        // resultPtr should be freed, the value now exists elsewhere
-                        add(ir_stack_free).op(cf->imm(resultPtr.getStackAllocId()));
+                        // resultStack should be freed, the value now exists elsewhere
+                        add(ir_stack_free).op(cf->imm(resultStack.getStackAllocId()));
                     } else {
                         // resultPtr = retTp* (non-primitive)
 
                         result.reset(copyValueToExprStorage(resultPtr));
                         
-                        // resultPtr should be freed, the value was copy constructed elsewhere
-                        add(ir_stack_free).op(cf->imm(resultPtr.getStackAllocId()));
+                        // resultStack should be freed, the value was copy constructed elsewhere
+                        add(ir_stack_free).op(cf->imm(resultStack.getStackAllocId()));
                     }
                 } else if (resultShouldBeHandledInternally) {
                     // Default behavior
@@ -1101,8 +1130,8 @@ namespace tsn {
                         // resultPtr = Pointer<origRetTp>
                         result.reset(resultPtr);
 
-                        // resultPtr will be destroyed at the end of the scope
-                        scope().get().addToStack(resultPtr);
+                        // resultStack will be destroyed at the end of the scope
+                        scope().get().addToStack(resultStack);
                     } else if (retTp->getInfo().is_primitive) {
                         // resultPtr = retTp*
                         result.reset(cf->val(retTp));
@@ -1112,15 +1141,15 @@ namespace tsn {
                         tmp.setType(m_ctx->getTypes()->getVoidPtr());
                         add(ir_load).op(result).op(tmp);
 
-                        // resultPtr should be freed, the value now exists elsewhere
-                        add(ir_stack_free).op(cf->imm(resultPtr.getStackAllocId()));
+                        // resultStack should be freed, the value now exists elsewhere
+                        add(ir_stack_free).op(cf->imm(resultStack.getStackAllocId()));
                     } else {
                         // resultPtr = retTp* (non-primitive)
 
                         result.reset(resultPtr);
 
-                        // resultPtr will be destroyed at the end of the scope
-                        scope().get().addToStack(resultPtr);
+                        // resultStack will be destroyed at the end of the scope
+                        scope().get().addToStack(resultStack);
                     }
                 } else {
                     // Result pointer came nicely from getStorageForExpr

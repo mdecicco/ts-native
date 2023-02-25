@@ -134,6 +134,13 @@ namespace tsn {
             m_isCompiling = false;
             return nullptr;
         }
+        
+        Module* mod = out->getModule();
+        if (mod) {
+            mod->setSrc(m_source);
+            // source code ownership was taken by the Module
+            m_source = nullptr;
+        }
 
         bool didError = m_logger->hasErrors();
 
@@ -189,13 +196,6 @@ namespace tsn {
         }
 
         m_isCompiling = false;
-
-        Module* mod = out->getModule();
-        if (mod) {
-            mod->setSrc(m_source);
-            // source code ownership was taken by the Module
-            m_source = nullptr;
-        }
 
         if (!didError && be) {
             be->generate(this);

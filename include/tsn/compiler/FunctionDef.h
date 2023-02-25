@@ -58,6 +58,12 @@ namespace tsn {
                 Value& val(const utils::String& name, Module* m, u32 module_data_slot);
                 Value val(Module* m, u32 module_data_slot);
                 Value val(ffi::DataType* tp);
+
+                // If 'true' is passed for 'unscoped' then the raw stack value
+                // is returned (not pointer to the stack space), and the value
+                // is not added to the scope. The stack slot will not be freed
+                // by the end of the scope (unless it is added to the scope or
+                // freed manually)
                 Value stack(ffi::DataType* tp, bool unscoped = false);
                 
                 template <typename T>

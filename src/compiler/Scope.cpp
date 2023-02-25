@@ -81,11 +81,16 @@ namespace tsn {
             m_scopes.pop();
         }
 
-        void ScopeManager::exit(const Value& save) {
-            emitScopeExitInstructions(m_scopes[m_scopes.size() - 1], &save);
+        void ScopeManager::exit(const Value& _save) {
+            const Value* save = &_save;
+            if (save && !save->isStack() && save->getSrcSelf() && save->getSrcSelf()->isStack()) {
+                save = save->getSrcSelf();
+            }
+
+            emitScopeExitInstructions(m_scopes[m_scopes.size() - 1], save);
             m_scopes.pop();
             
-            if (save.isStack()) m_scopes[m_scopes.size() - 1].addToStack(save);
+            if (save && save->isStack()) m_scopes[m_scopes.size() - 1].addToStack(*save);
         }
         
         Scope& ScopeManager::getBase() {
@@ -126,6 +131,10 @@ namespace tsn {
         }
         
         void ScopeManager::emitScopeExitInstructions(const Scope& s, const Value* save) {
+            if (save && !save->isStack() && save->getSrcSelf() && save->getSrcSelf()->isStack()) {
+                save = save->getSrcSelf();
+            }
+
             FunctionDef* cf = m_comp->currentFunction();
             // Scope `s` may not be the deepest scope. For example, a break statement in an if
             // statement in a loop. The break exits the loop scope, but the current scope is
@@ -142,10 +151,16 @@ namespace tsn {
 
                     if (v.isFunction()) {
                         // runtime function references are actually of type 'ClosureRef'
-                        m_comp->generateCall(crefDtor, {}, &v);
+                        Value ptr = cf->val(v.getType());
+                        m_comp->add(ir_stack_ptr).op(ptr).op(cf->imm(v.getStackAllocId()));
+                        m_comp->generateCall(crefDtor, {}, &ptr);
                     } else {
                         ffi::Function* dtor = v.getType()->getDestructor();
-                        if (dtor) m_comp->generateCall(dtor, {}, &v);
+                        if (dtor) {
+                            Value ptr = cf->val(v.getType());
+                            m_comp->add(ir_stack_ptr).op(ptr).op(cf->imm(v.getStackAllocId()));
+                            m_comp->generateCall(dtor, {}, &ptr);
+                        }
                     }
 
                     m_comp->add(ir_stack_free).op(cf->imm(v.m_allocId));

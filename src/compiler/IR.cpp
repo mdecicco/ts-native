@@ -16,6 +16,7 @@ namespace tsn {
             { "noop"          , 0, { ot_nil, ot_nil, ot_nil }, 0xFF, 0 },
             { "label"         , 1, { ot_lbl, ot_nil, ot_nil }, 0xFF, 0 },
             { "stack_allocate", 2, { ot_imm, ot_imm, ot_nil }, 0xFF, 0 },
+            { "stack_ptr"     , 2, { ot_reg, ot_imm, ot_nil }, 0   , 0 },
             { "stack_free"    , 1, { ot_imm, ot_nil, ot_nil }, 0xFF, 0 },
             { "module_data"   , 3, { ot_reg, ot_imm, ot_imm }, 0   , 0 },
             { "reserve"       , 1, { ot_reg, ot_nil, ot_nil }, 0   , 0 },

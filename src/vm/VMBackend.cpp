@@ -77,7 +77,6 @@ namespace tsn {
                 return new VM(ctx, stackSize);
             });
             
-
             m_instructions.push(encode(vmi::term));
             m_map.add(0, 0, 0);
         }
@@ -90,10 +89,12 @@ namespace tsn {
         }
 
         void Backend::generate(Pipeline* input) {
+            m_map.setSource(input->getCompilerOutput()->getModule()->getSource());
             auto& functions = input->getCompilerOutput()->getCode();
             for (u32 i = 0;i < functions.size();i++) {
                 generate(functions[i]);
             }
+            m_map.setSource(nullptr);
         }
 
         void Backend::calcArgLifetimesAndBackupRegs(
@@ -247,8 +248,7 @@ namespace tsn {
                             if (t3->getInfo().is_unsigned) m_instructions.push(encode(ri).operand(r1).operand(r2).operand(o3.getImm<u64>()));
                             else m_instructions.push(encode(ri).operand(r1).operand(r2).operand(o3.getImm<i64>()));
                         }
-                    }
-                    else if (o2.isImm()) {
+                    } else if (o2.isImm()) {
                         if (t2->getInfo().is_floating_point) {
                             if (t2->getInfo().size == sizeof(f64)) m_instructions.push(encode(ir).operand(r1).operand(r3).operand(o2.getImm<f64>()));
                             else m_instructions.push(encode(ir).operand(r1).operand(r3).operand(o2.getImm<f32>()));
@@ -449,6 +449,12 @@ namespace tsn {
                     case op::ir_stack_allocate: {
                         u64 addr = stack.alloc(o1.getImm<u32>());
                         stack_addrs[o2.getImm<alloc_id>()] = addr;
+                        break;
+                    }
+                    case op::ir_stack_ptr: {
+                        u64 addr = stack_addrs[o2.getImm<alloc_id>()];
+                        m_instructions.push(encode(vmi::addui).operand(r1).operand(vmr::sp).operand(addr));
+                        m_map.add(i.src.getLine(), i.src.getCol(), i.src.getLength());
                         break;
                     }
                     case op::ir_stack_free: {
@@ -807,8 +813,8 @@ namespace tsn {
                                             reg = argLocs[params[p1].getImm<u32>()].reg_id;
                                             if (reg == vmr::sp) continue;
                                         } else {
-                                            if (params[p1].getType()->getInfo().is_floating_point) reg = vmr(u32(vmr::f0) + params[p1].getRegId());
-                                            else reg = vmr(u32(vmr::s0) + params[p1].getRegId());
+                                            if (params[p1].getType()->getInfo().is_floating_point) reg = vmr(u32(vmr::f0) + (params[p1].getRegId() - 1));
+                                            else reg = vmr(u32(vmr::s0) + (params[p1].getRegId() - 1));
                                         }
                                         will_overwrite = calleeArgLoc.reg_id == reg;
                                     }
@@ -890,8 +896,8 @@ namespace tsn {
                                     } else {
                                         vmr reg;
 
-                                        if (params[p].getType()->getInfo().is_floating_point) reg = vmr(u32(vmr::f0) + params[p].getRegId());
-                                        else reg = vmr(u32(vmr::s0) + params[p].getRegId());
+                                        if (params[p].getType()->getInfo().is_floating_point) reg = vmr(u32(vmr::f0) + (params[p].getRegId() - 1));
+                                        else reg = vmr(u32(vmr::s0) + (params[p].getRegId() - 1));
 
                                         if (tp->getInfo().is_floating_point) {
                                             if (tp->getInfo().size == sizeof(f64)) m_instructions.push(encode(vmi::dadd).operand(destReg).operand(vmr::zero).operand(reg));
@@ -1370,6 +1376,10 @@ namespace tsn {
             if (it == m_funcData.end()) return nullptr;
 
             return &it->second;
+        }
+        
+        const SourceMap& Backend::getSourceMap() const {
+            return m_map;
         }
     };
 };

@@ -66,6 +66,42 @@ namespace tsn {
                             }
                         }
                     } else return &ffi_type_pointer;
+                } else if constexpr (std::is_same_v<DataType, typename remove_all<T>::type>) {
+                    DataType* tp = nullptr;
+                    if constexpr (std::is_pointer_v<T>) tp = val;
+                    else if constexpr (std::is_reference_v<T>) {
+                        if constexpr (std::is_pointer_v<std::remove_reference_t<T>>) tp = val;
+                        else tp = &val;
+                    } else if constexpr (std::is_same_v<Object, T>) tp = &val;
+                    else {
+                        throw BindException("ffi_type* getType(T&& val): Failed to get type. T is some form of 'ffi::DataType' that is unsupported");
+                    }
+
+                    const type_meta& t = val->getInfo();
+                    if (t.size == 0) {
+                        return &ffi_type_void;
+                    } else if (t.is_primitive) {
+                        if (t.is_floating_point) {
+                            if (t.size == sizeof(f32)) return &ffi_type_float;
+                            else return &ffi_type_double;
+                        } else if (t.is_integral) {
+                            if (t.is_unsigned) {
+                                switch (t.size) {
+                                    case 1: return &ffi_type_uint8;
+                                    case 2: return &ffi_type_uint16;
+                                    case 4: return &ffi_type_uint32;
+                                    case 8: return &ffi_type_uint64;
+                                }
+                            } else {
+                                switch (t.size) {
+                                    case 1: return &ffi_type_sint8;
+                                    case 2: return &ffi_type_sint16;
+                                    case 4: return &ffi_type_sint32;
+                                    case 8: return &ffi_type_sint64;
+                                }
+                            }
+                        }
+                    } else return &ffi_type_pointer;
                 }
 
                 return &ffi_type_pointer;

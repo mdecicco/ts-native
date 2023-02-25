@@ -14,6 +14,10 @@ namespace tsn {
         b.finalize();
     }
 
+    i32 print(const utils::String& str) {
+        return printf(str.c_str());
+    }
+
     void BindString(Context* ctx) {
         auto b = bind<utils::String>(ctx, "string");
 
@@ -65,6 +69,8 @@ namespace tsn {
 
         BindString(ctx);
         BindMemory(ctx);
+
+        bind(ctx, "print", print);
 
         // pointer compilation needs the above
         ctx->getTypes()->updateCachedTypes();

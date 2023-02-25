@@ -66,6 +66,7 @@ namespace tsn {
                 f.func = m_output[i]->owner;
                 f.icount = code.size();
                 f.map = new SourceMap(m_mod->getInfo()->modified_on);
+                f.map->setSource(m_src);
                 f.code = new output::instruction[code.size()];
                 
                 for (u32 c = 0;c < code.size();c++) {
@@ -412,6 +413,7 @@ namespace tsn {
                 }
             
                 f.map = new SourceMap();
+                f.map->setSource(m_src);
                 if (!f.map->deserialize(in, ctx)) {
                     delete [] f.code;
                     delete f.map;

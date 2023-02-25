@@ -5,9 +5,13 @@
 #include <tsn/common/Context.h>
 #include <tsn/common/Module.h>
 #include <tsn/ffi/Function.h>
+#include <tsn/ffi/DataType.h>
 #include <tsn/ffi/Closure.h>
 #include <tsn/ffi/FunctionRegistry.h>
+#include <tsn/bind/call_common.hpp>
+#include <tsn/utils/ModuleSource.h>
 
+#include <ffi.h>
 #include <utils/Array.hpp>
 
 namespace tsn {
@@ -87,18 +91,23 @@ namespace tsn {
             bool term = false;
             const Instruction* iptr = code.data();
             iptr += *ip;
-            bool logInstrs = false; //m_ctx->log_instructions();
-            bool logLines = false; //m_ctx->log_lines();
+            constexpr bool debug = true;
             u32 lastLoggedLn = -1;
+
             while ((*ip) <= cs && !term) {
                 const Instruction& i = *iptr;
-                if (logLines) {
-                    // source_ref ref = m_ctx->map()->get(*ip);
-                    // if (ref.line != lastLoggedLn) printf("\n\n%s\n", ref.line_text.c_str());
-                    // lastLoggedLn = ref.line;
-                }
-                if (logInstrs) {
+
+                if constexpr (debug) {
+                    Backend* be = (Backend*)m_ctx->getBackend();
+                    const auto& map = be->getSourceMap();
+                    const auto& ref = map.get((u32)*ip);
+                    if (ref.line != lastLoggedLn) {
+                        printf("\n\n%s\n", ref.src->getLine(ref.line).clone().c_str());
+                    }
+                    lastLoggedLn = ref.line;
+                    
                     printf("0x%2.2llx: %s\n", *ip, i.toString(m_ctx).c_str());
+                    _flushall();
                 }
 
                 vmi instr = i.instr();
@@ -733,6 +742,55 @@ namespace tsn {
         }
 
         void VM::call_external(ffi::Function* fn) {
+            // Actual signature:
+            // If method of class
+            //     RetTp (RetTp (ThisTp::*)(ArgTypes...), RetTp*, ExecutionContext*, ThisTp*, ArgsTypes...)
+            // If normal function
+            //     RetTp (RetTp (*)(ArgTypes...), RetTp*, ExecutionContext*, ArgsTypes...)
+            void* callPtr = fn->getWrapperAddress();
+            void* funcPtr = fn->getAddress();
+
+            // callPtr must be called with arguments:
+            // callPtr(funcPtr, retPtr, ectx, ...)
+
+            static void* argSpace[64];
+            ffi_type* argTypeSpace[64];
+
+            utils::Array<arg_location> argLocs;
+            const auto& argInfo = fn->getSignature()->getArguments();
+            getArgRegisters(fn->getSignature(), argLocs);
+            for (u32 i = 0;i < argLocs.size();i++) {
+                const auto& info = argInfo[i];
+                // only parameter that must be explicitly handled is func_ptr, because
+                // until now it was undefined in the code. IR code as well as VM code
+                // just pass an undefined value as a placeholder to make life easier
+                // when handling function signatures.
+                if (info.argType == arg_type::func_ptr) {
+                    argSpace[i] = &funcPtr;
+                    argTypeSpace[i] = &ffi_type_pointer;
+                    continue;
+                }
+                
+                arg_location& loc = argLocs[i];
+                void* src = nullptr;
+                if (loc.reg_id == vmr::sp) src = (void*)(state.registers[(u8)vmr::sp] + loc.stack_offset);
+                else src = (void*)&state.registers[(u8)loc.reg_id];
+
+                if (info.isImplicit() || info.argType == arg_type::pointer) {
+                    argSpace[i] = src;
+                    argTypeSpace[i] = &ffi_type_pointer;
+                } else {
+                    argSpace[i] = src;
+                    argTypeSpace[i] = getType(info.dataType);
+                }
+            }
+
+            ffi_cif cif;
+            if (ffi_prep_cif(&cif, FFI_DEFAULT_ABI, argLocs.size(), &ffi_type_void, argTypeSpace) != FFI_OK) {
+                return;
+            }
+
+            ffi_call(&cif, reinterpret_cast<void (*)()>(callPtr), nullptr, argSpace);
         }
     };
 };
