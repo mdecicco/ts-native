@@ -6,6 +6,7 @@
 #include <tsn/ffi/FunctionRegistry.h>
 #include <tsn/ffi/DataTypeRegistry.h>
 #include <tsn/ffi/Function.h>
+#include <tsn/common/Module.h>
 #include <tsn/utils/remove_all.h>
 
 #include <utils/String.h>
