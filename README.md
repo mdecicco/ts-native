@@ -18,8 +18,8 @@ of a few things that I feel TypeScript needs, and a few things that are necessit
 ### Roadmap
 - ☑️ Reimplement the VM backend
 - ☑️ Fix any bugs that arise in the implementation/testing phase of the VM
-- 🕑 Clean up directory structure
-- Integrate memory management utilities better (currently require manual initialization)
+- ☑️ Clean up directory structure
+- 🕑 Integrate memory management utilities better (currently require manual initialization)
 - Implement project management tools for working in this repo (possibly using TSN)
 - Design some kind of structure for unit tests... I don't want tests and test data intermingled too much
 - Update existing unit tests, including for the 'utils' dependency

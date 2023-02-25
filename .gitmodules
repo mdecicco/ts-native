@@ -1,8 +1,8 @@
 [submodule "deps/libffi"]
 	path = deps/libffi
-	url = https://github.com/mdecicco/libffi
+	url = https://github.com/mdecicco/libffi.git
 	branch = feature/cmake-build-configs
 [submodule "deps/utils"]
 	path = deps/utils
-	url = https://github.com/mdecicco/utils
+	url = https://github.com/mdecicco/utils.git
 	branch = master

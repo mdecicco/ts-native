@@ -10,12 +10,12 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(
     tsn_include_dirs
     ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/_deps/utils/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/build/_deps/libffi/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/deps/utils/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/build/deps/libffi/include
 )
 set(
     tsn_library_dirs
-    ${CMAKE_CURRENT_SOURCE_DIR}/_bin/Debug
+    ${CMAKE_CURRENT_SOURCE_DIR}/bin/Debug
 )
 
 set (all_sources "")
@@ -52,9 +52,9 @@ add_sources("src/pipeline"   "pipeline")
 add_sources("src/interfaces" "interfaces")
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/_bin)
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/_bin)
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/_bin)
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/bin)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/bin)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/bin)
 
 
 include_directories(${tsn_include_dirs})
@@ -66,20 +66,15 @@ target_link_libraries(tsn
     ffi_shared
 )
 
-add_subdirectory("./_deps")
+add_subdirectory("./deps")
 
 set(TSN_BUILD_TESTS TRUE CACHE BOOL "Build tsn test targets")
-set(TSN_BUILD_PLAYGROUND TRUE CACHE BOOL "Build tsn playground")
 set(TSN_BUILD_TOOLS TRUE CACHE BOOL "Build tsn tools")
 
 if (TSN_BUILD_TESTS)
-    add_subdirectory("./_tests")
-endif ()
-
-if (TSN_BUILD_PLAYGROUND)
-    add_subdirectory("./_playground")
+    add_subdirectory("./tests")
 endif ()
 
 if (TSN_BUILD_TOOLS)
-    add_subdirectory("./_tools")
+    add_subdirectory("./tools")
 endif ()
