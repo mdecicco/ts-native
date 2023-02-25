@@ -16,9 +16,9 @@ If you do, keep in mind that the syntax has changed somewhat significantly. Now 
 of a few things that I feel TypeScript needs, and a few things that are necessities for working with raw memory in trusted scripts.
 
 ### Roadmap
-- Reimplement the VM backend
-- Fix any bugs that arise in the implementation/testing phase of the VM
-- Clean up directory structure
+- ☑️ Reimplement the VM backend
+- ☑️ Fix any bugs that arise in the implementation/testing phase of the VM
+- 🕑 Clean up directory structure
 - Integrate memory management utilities better (currently require manual initialization)
 - Implement project management tools for working in this repo (possibly using TSN)
 - Design some kind of structure for unit tests... I don't want tests and test data intermingled too much
