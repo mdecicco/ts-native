@@ -1,5 +1,16 @@
 #include <catch2/catch_test_macros.hpp>
+#include <utils/Allocator.hpp>
+
+using namespace tsn;
+using namespace compiler;
+using namespace utils;
 
 TEST_CASE("Insert test case here", "[test namespace here]") {
-    return 0;
+    Mem::Create();
+
+    SECTION("Some section") {
+        
+    }
+
+    Mem::Destroy();
 }

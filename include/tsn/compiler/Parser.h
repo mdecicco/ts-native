@@ -259,7 +259,6 @@ namespace tsn {
         typedef ParseNode* (*parsefn)(Parser*);
         ParseNode* errorNode                     (Parser* ps);
         bool isError                             (ParseNode* n);
-        bool findRecoveryToken                   (Parser* ps, bool consumeRecoveryToken = true);
         ParseNode* array_of                      (Parser* ps, parsefn fn);
         ParseNode* list_of                       (
                                                      Parser* ps, parsefn fn,

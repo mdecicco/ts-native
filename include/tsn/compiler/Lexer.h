@@ -18,7 +18,7 @@ namespace tsn {
             // import, export, from, as, operator, static,
             // const, get, set, null, return, switch, case,
             // default, true, false, this, function, let
-            // new, sizeof, delete
+            // new, try, throw, catch, sizeof, delete
             tt_keyword,
 
             // + , - , *  , / , ~  , ! , % , ^ , < , > , = , & , && , | , || ,

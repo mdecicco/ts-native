@@ -546,6 +546,7 @@ namespace tsn {
             return ps->newNode(nt_error, &ps->getPrev());
         }
         bool isError(ParseNode* n) {
+            if (!n) return false;
             return n->tp == nt_error;
         }
         ParseNode* array_of(Parser* ps, parsefn fn) {
@@ -574,6 +575,7 @@ namespace tsn {
             if (!f) {
                 if (before_comma_err != pm_none) {
                     ps->error(before_comma_err, before_comma_msg);
+                    return errorNode(ps);
                 }
 
                 return nullptr;
@@ -618,7 +620,10 @@ namespace tsn {
         ParseNode* all_of(Parser* ps, std::initializer_list<parsefn> rules) {
             ParseNode* f = nullptr;
             ParseNode* n = nullptr;
+            ps->begin();
+
             for (auto fn : rules) {
+
                 if (!f) f = n = fn(ps);
                 else {
                     n->next = fn(ps);
@@ -627,12 +632,15 @@ namespace tsn {
 
                 if (!n || isError(n)) {
                     if (f) ps->freeNode(f);
+                    ps->revert();
                     return nullptr;
                 }
             }
 
+            ps->commit();
             return f;
         }
+        
         bool isAssignmentOperator(Parser* ps) {
             const token& op = ps->get();
             if (op.tp != tt_symbol) return false;
@@ -961,7 +969,7 @@ namespace tsn {
                 n->next = objectDecompositorProperty(ps);
                 n = n->next;
                 if (!n || isError(n)) {
-                    ps->error(pm_expected_parameter, "Expected property after ','");
+                    ps->error(pm_expected_object_property, "Expected property after ','");
                     const token& r = skipToNextType(ps, { tt_comma, tt_close_brace, tt_semicolon });
                     switch (r.tp) {
                         case tt_comma: continue;

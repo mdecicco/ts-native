@@ -22,7 +22,7 @@ of a few things that I feel TypeScript needs, and a few things that are necessit
 - ☑️ Integrate memory management utilities better (currently require manual initialization)
 - ❌ Implement project management tools for working in this repo (possibly using TSN)
 - 🕑 Design some kind of structure for unit tests... I don't want tests and test data intermingled too much
-- Update existing unit tests, including for the 'utils' dependency
+- 🕑 Update existing unit tests, including for the 'utils' dependency
 - Write/update documentation for all functions, classes, structures, enums, etc (Also including the 'utils' dependency)
   - (Implementing unit tests as I go)
 - Write external documentation for TSN syntax and builtin language features
