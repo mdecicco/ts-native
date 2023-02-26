@@ -1,6 +1,5 @@
+#include <tsn/tsn.h>
 #include <tsn/common/Context.h>
-#include <tsn/common/Config.h>
-#include <tsn/common/Module.h>
 #include <tsn/io/Workspace.h>
 #include <tsn/compiler/Compiler.h>
 #include <tsn/compiler/OutputBuilder.h>
@@ -9,11 +8,11 @@
 #include <tsn/pipeline/Pipeline.h>
 #include <tsn/vm/VMBackend.h>
 #include <tsn/vm/Instruction.h>
-#include <tsn/ffi/Function.h>
 
 #include <utils/Array.hpp>
 #include <utils/Buffer.hpp>
 #include <utils/json.hpp>
+
 
 #include <filesystem>
 #include "tojson.h"
@@ -34,7 +33,6 @@ using namespace nlohmann;
 #define ARGUMENT_ERROR                  -7
 #define CONFIG_PARSE_ERROR              -8
 #define CONFIG_VALUE_ERROR              -9
-
 
 enum output_mode {
     om_all,
@@ -128,9 +126,7 @@ i32 main (i32 argc, const char** argv) {
         return FILE_EMPTY;
     }
 
-    utils::String::Allocator::Create(16384, 1024);
     utils::Mem::Create();
-
     {
         Context ctx = Context(1, &contextCfg);
         Module* mod = ctx.getPipeline()->buildFromSource(&meta);
@@ -138,8 +134,6 @@ i32 main (i32 argc, const char** argv) {
     }
 
     utils::Mem::Destroy();
-    utils::String::Allocator::Destroy();
-
     return status;
 }
 

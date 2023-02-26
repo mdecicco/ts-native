@@ -440,7 +440,11 @@ namespace tsn {
         // Parser
         //
         
-        Parser::Parser(Lexer* l, Logger* log) : IWithLogger(log), m_tokens(l->tokenize()), m_currentIdx(32), m_nodeAlloc(1024, 1024, true) {
+        utils::FixedAllocator<ParseNode>* Parser::allocatorPageGenerator() {
+            return new utils::FixedAllocator<ParseNode>(1024, 1024, true);
+        }
+
+        Parser::Parser(Lexer* l, Logger* log) : IWithLogger(log), m_tokens(l->tokenize()), m_currentIdx(32), m_nodeAlloc(allocatorPageGenerator) {
             m_currentIdx.push(0);
         }
         

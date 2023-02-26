@@ -245,6 +245,7 @@ namespace tsn {
                 void error(log_message_code code, const utils::String& msg, const token& tok);
 
             private:
+                static utils::FixedAllocator<ParseNode>* allocatorPageGenerator();
                 utils::Array<token> m_tokens;
                 utils::Array<u32> m_currentIdx;
                 utils::PagedAllocator<ParseNode, utils::FixedAllocator<ParseNode>> m_nodeAlloc;

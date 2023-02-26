@@ -1,5 +1,8 @@
 #include <tsn/common/types.h>
+#include <tsn/common/Config.h>
 #include <tsn/common/Context.h>
+#include <tsn/common/Module.h>
+
 #include <tsn/ffi/DataType.h>
 #include <tsn/ffi/Function.h>
 #include <tsn/ffi/DataTypeRegistry.h>
