@@ -233,8 +233,6 @@ namespace tsn {
 
                 ParseNode* newNode(node_type tp, const token* src = nullptr);
                 void freeNode(ParseNode* n);
-                void addType(const utils::String& name, ParseNode* n);
-                ParseNode* getType(const utils::String& name);
 
                 // helpers
                 bool typeIs(token_type tp) const;

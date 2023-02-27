@@ -1029,9 +1029,10 @@ namespace tsn {
                 if (!n) {
                     ps->error(pm_expected_type_specifier, "Expected template argument");
 
-                    const token& r = skipToNextType(ps, { tt_comma });
+                    const token& r = skipToNextSymbol(ps, ">", { tt_comma });
                     switch (r.tp) {
                         case tt_comma: continue;
+                        case tt_symbol: break;
                         default: {
                             ps->freeNode(args);
                             return errorNode(ps);
@@ -1120,6 +1121,7 @@ namespace tsn {
         }
         ParseNode* maybeTypedParameterList(Parser* ps) {
             if (!ps->typeIs(tt_open_parenth)) return nullptr;
+            const token& ft = ps->get();
             ps->consume();
 
             ParseNode* f = typedParameter(ps);
@@ -1133,9 +1135,10 @@ namespace tsn {
                 if (!n) {
                     ps->error(pm_expected_parameter, "Expected typed parameter after ','");
 
-                    const token& r = skipToNextType(ps, { tt_comma });
+                    const token& r = skipToNextType(ps, { tt_comma, tt_close_parenth });
                     switch (r.tp) {
                         case tt_comma: continue;
+                        case tt_close_parenth: continue;
                         default: {
                             ps->freeNode(f);
                             return errorNode(ps);
@@ -1160,6 +1163,8 @@ namespace tsn {
                 }
             }
             ps->consume();
+
+            if (f == nullptr) return ps->newNode(nt_empty, &ft);
 
             return f;
         }
