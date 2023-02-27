@@ -1164,12 +1164,16 @@ namespace tsn {
             }
             ps->consume();
 
-            if (f == nullptr) return ps->newNode(nt_empty, &ft);
+            if (!f) {
+                f = ps->newNode(nt_empty, &ft);
+                f->manuallySpecifyRange(ps->getPrev());
+            }
 
             return f;
         }
         ParseNode* maybeParameterList(Parser* ps) {
             if (!ps->typeIs(tt_open_parenth)) return nullptr;
+            const token& ft = ps->get();
             ps->consume();
 
             ParseNode* f = parameter(ps);
@@ -1183,9 +1187,10 @@ namespace tsn {
                 if (!n) {
                     ps->error(pm_expected_parameter, "Expected parameter after ','");
 
-                    const token& r = skipToNextType(ps, { tt_comma });
+                    const token& r = skipToNextType(ps, { tt_comma, tt_close_parenth });
                     switch (r.tp) {
                         case tt_comma: continue;
+                        case tt_close_parenth: continue;
                         default: {
                             ps->freeNode(f);
                             return errorNode(ps);
@@ -1211,6 +1216,11 @@ namespace tsn {
             }
             ps->consume();
 
+            if (!f) {
+                f = ps->newNode(nt_empty, &ft);
+                f->manuallySpecifyRange(ps->getPrev());
+            }
+
             return f;
         }
         ParseNode* parameterList(Parser* ps) {
@@ -1229,9 +1239,10 @@ namespace tsn {
                 if (!n) {
                     ps->error(pm_expected_parameter, "Expected parameter after ','");
 
-                    const token& r = skipToNextType(ps, { tt_comma });
+                    const token& r = skipToNextType(ps, { tt_comma, tt_close_parenth });
                     switch (r.tp) {
                         case tt_comma: continue;
+                        case tt_close_parenth: continue;
                         default: {
                             ps->freeNode(f);
                             return errorNode(ps);
@@ -1247,6 +1258,12 @@ namespace tsn {
                 switch (r.tp) {
                     case tt_close_parenth: {
                         ps->consume();
+
+                        if (!f) {
+                            f = ps->newNode(nt_empty, &ft);
+                            f->manuallySpecifyRange(ps->getPrev());
+                        }
+
                         return f;
                     }
                     default: {
@@ -1279,11 +1296,12 @@ namespace tsn {
                 n->next = typedParameter(ps);
                 n = n->next;
                 if (!n) {
-                    ps->error(pm_expected_parameter, "Expected parameter after ','");
+                    ps->error(pm_expected_parameter, "Expected typed parameter after ','");
 
-                    const token& r = skipToNextType(ps, { tt_comma });
+                    const token& r = skipToNextType(ps, { tt_comma, tt_close_parenth });
                     switch (r.tp) {
                         case tt_comma: continue;
+                        case tt_close_parenth: continue;
                         default: {
                             ps->freeNode(f);
                             return errorNode(ps);
@@ -1293,7 +1311,7 @@ namespace tsn {
             }
 
             if (!ps->typeIs(tt_close_parenth)) {
-                ps->error(pm_expected_closing_parenth, "Expected ')' to close parameter list");
+                ps->error(pm_expected_closing_parenth, "Expected ')' to close typed parameter list");
 
                 const token& r = skipToNextType(ps, { tt_close_parenth });
                 switch (r.tp) {

@@ -405,33 +405,441 @@ TEST_CASE("Parse parameters/arguments", "[parser]") {
     SECTION("maybeParameterList") {
         ModuleSource* src = nullptr;
 
-        src = mock_module_source(";");
+        src = mock_module_source("()");
         {
             Logger log;
             Lexer l(src);
             Parser p(&l, &log);
 
-            ParseNode* n = eos(&p);
+            ParseNode* n = maybeParameterList(&p);
             REQUIRE(log.getMessages().size() == 0);
+
             REQUIRE(n != nullptr);
-            REQUIRE(n->tp == nt_eos);
+            REQUIRE(n->tp == nt_empty);
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("(a: i32)");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = maybeParameterList(&p);
+            REQUIRE(log.getMessages().size() == 0);
+
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_identifier);
+            REQUIRE(n->str() == "a");
+            REQUIRE(n->data_type != nullptr);
+            REQUIRE(n->data_type->tp == nt_type_specifier);
+            REQUIRE(n->data_type->body != nullptr);
+            REQUIRE(n->data_type->body->tp == nt_identifier);
+            REQUIRE(n->data_type->body->str() == "i32");
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("(a: i32, b: f32)");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = maybeParameterList(&p);
+            REQUIRE(log.getMessages().size() == 0);
+
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_identifier);
+            REQUIRE(n->str() == "a");
+            REQUIRE(n->data_type != nullptr);
+            REQUIRE(n->data_type->tp == nt_type_specifier);
+            REQUIRE(n->data_type->body != nullptr);
+            REQUIRE(n->data_type->body->tp == nt_identifier);
+            REQUIRE(n->data_type->body->str() == "i32");
+
+            n = n->next;
+            
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_identifier);
+            REQUIRE(n->str() == "b");
+            REQUIRE(n->data_type != nullptr);
+            REQUIRE(n->data_type->tp == nt_type_specifier);
+            REQUIRE(n->data_type->body != nullptr);
+            REQUIRE(n->data_type->body->tp == nt_identifier);
+            REQUIRE(n->data_type->body->str() == "f32");
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("(a: i32,)");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = maybeParameterList(&p);
+            REQUIRE(log.getMessages().size() == 1);
+            const auto& msg = log.getMessages()[0];
+            REQUIRE(msg.code == pm_expected_parameter);
+            REQUIRE(msg.type == lt_error);
+            REQUIRE(msg.msg == "Expected parameter after ','");
+            REQUIRE(msg.src.getLine() == 0);
+            REQUIRE(msg.src.getCol() == 8);
+
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_identifier);
+            REQUIRE(n->str() == "a");
+            REQUIRE(n->data_type != nullptr);
+            REQUIRE(n->data_type->tp == nt_type_specifier);
+            REQUIRE(n->data_type->body != nullptr);
+            REQUIRE(n->data_type->body->tp == nt_identifier);
+            REQUIRE(n->data_type->body->str() == "i32");
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("(a: i32 ");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = maybeParameterList(&p);
+            REQUIRE(log.getMessages().size() == 1);
+            const auto& msg = log.getMessages()[0];
+            REQUIRE(msg.code == pm_expected_closing_parenth);
+            REQUIRE(msg.type == lt_error);
+            REQUIRE(msg.msg == "Expected ')' after parameter list");
+            REQUIRE(msg.src.getLine() == 0);
+            REQUIRE(msg.src.getCol() == 7);
+
+            REQUIRE(isError(n));
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("(a)");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = maybeParameterList(&p);
+            REQUIRE(log.getMessages().size() == 0);
+
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_identifier);
+            REQUIRE(n->str() == "a");
+            REQUIRE(n->data_type == nullptr);
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("(a, b)");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = maybeParameterList(&p);
+            REQUIRE(log.getMessages().size() == 0);
+
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_identifier);
+            REQUIRE(n->str() == "a");
+            REQUIRE(n->data_type == nullptr);
+
+            n = n->next;
+            
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_identifier);
+            REQUIRE(n->str() == "b");
+            REQUIRE(n->data_type == nullptr);
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("(a, b : f32)");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = maybeParameterList(&p);
+            REQUIRE(log.getMessages().size() == 0);
+
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_identifier);
+            REQUIRE(n->str() == "a");
+            REQUIRE(n->data_type == nullptr);
+
+            n = n->next;
+            
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_identifier);
+            REQUIRE(n->str() == "b");
+            REQUIRE(n->data_type != nullptr);
+            REQUIRE(n->data_type->tp == nt_type_specifier);
+            REQUIRE(n->data_type->body != nullptr);
+            REQUIRE(n->data_type->body->tp == nt_identifier);
+            REQUIRE(n->data_type->body->str() == "f32");
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("(a,)");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = maybeParameterList(&p);
+            REQUIRE(log.getMessages().size() == 1);
+            const auto& msg = log.getMessages()[0];
+            REQUIRE(msg.code == pm_expected_parameter);
+            REQUIRE(msg.type == lt_error);
+            REQUIRE(msg.msg == "Expected parameter after ','");
+            REQUIRE(msg.src.getLine() == 0);
+            REQUIRE(msg.src.getCol() == 3);
+
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_identifier);
+            REQUIRE(n->str() == "a");
+            REQUIRE(n->data_type == nullptr);
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("(a ");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = maybeParameterList(&p);
+            REQUIRE(log.getMessages().size() == 1);
+            const auto& msg = log.getMessages()[0];
+            REQUIRE(msg.code == pm_expected_closing_parenth);
+            REQUIRE(msg.type == lt_error);
+            REQUIRE(msg.msg == "Expected ')' after parameter list");
+            REQUIRE(msg.src.getLine() == 0);
+            REQUIRE(msg.src.getCol() == 2);
+
+            REQUIRE(isError(n));
         }
         delete_mocked_source(src);
     }
-    
+
     SECTION("parameterList") {
         ModuleSource* src = nullptr;
 
-        src = mock_module_source(";");
+        src = mock_module_source("()");
         {
             Logger log;
             Lexer l(src);
             Parser p(&l, &log);
 
-            ParseNode* n = eos(&p);
+            ParseNode* n = maybeParameterList(&p);
             REQUIRE(log.getMessages().size() == 0);
+
             REQUIRE(n != nullptr);
-            REQUIRE(n->tp == nt_eos);
+            REQUIRE(n->tp == nt_empty);
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("(a: i32)");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = maybeParameterList(&p);
+            REQUIRE(log.getMessages().size() == 0);
+
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_identifier);
+            REQUIRE(n->str() == "a");
+            REQUIRE(n->data_type != nullptr);
+            REQUIRE(n->data_type->tp == nt_type_specifier);
+            REQUIRE(n->data_type->body != nullptr);
+            REQUIRE(n->data_type->body->tp == nt_identifier);
+            REQUIRE(n->data_type->body->str() == "i32");
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("(a: i32, b: f32)");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = maybeParameterList(&p);
+            REQUIRE(log.getMessages().size() == 0);
+
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_identifier);
+            REQUIRE(n->str() == "a");
+            REQUIRE(n->data_type != nullptr);
+            REQUIRE(n->data_type->tp == nt_type_specifier);
+            REQUIRE(n->data_type->body != nullptr);
+            REQUIRE(n->data_type->body->tp == nt_identifier);
+            REQUIRE(n->data_type->body->str() == "i32");
+
+            n = n->next;
+            
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_identifier);
+            REQUIRE(n->str() == "b");
+            REQUIRE(n->data_type != nullptr);
+            REQUIRE(n->data_type->tp == nt_type_specifier);
+            REQUIRE(n->data_type->body != nullptr);
+            REQUIRE(n->data_type->body->tp == nt_identifier);
+            REQUIRE(n->data_type->body->str() == "f32");
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("(a: i32,)");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = maybeParameterList(&p);
+            REQUIRE(log.getMessages().size() == 1);
+            const auto& msg = log.getMessages()[0];
+            REQUIRE(msg.code == pm_expected_parameter);
+            REQUIRE(msg.type == lt_error);
+            REQUIRE(msg.msg == "Expected parameter after ','");
+            REQUIRE(msg.src.getLine() == 0);
+            REQUIRE(msg.src.getCol() == 8);
+
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_identifier);
+            REQUIRE(n->str() == "a");
+            REQUIRE(n->data_type != nullptr);
+            REQUIRE(n->data_type->tp == nt_type_specifier);
+            REQUIRE(n->data_type->body != nullptr);
+            REQUIRE(n->data_type->body->tp == nt_identifier);
+            REQUIRE(n->data_type->body->str() == "i32");
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("(a: i32 ");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = maybeParameterList(&p);
+            REQUIRE(log.getMessages().size() == 1);
+            const auto& msg = log.getMessages()[0];
+            REQUIRE(msg.code == pm_expected_closing_parenth);
+            REQUIRE(msg.type == lt_error);
+            REQUIRE(msg.msg == "Expected ')' after parameter list");
+            REQUIRE(msg.src.getLine() == 0);
+            REQUIRE(msg.src.getCol() == 7);
+
+            REQUIRE(isError(n));
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("(a)");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = maybeParameterList(&p);
+            REQUIRE(log.getMessages().size() == 0);
+
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_identifier);
+            REQUIRE(n->str() == "a");
+            REQUIRE(n->data_type == nullptr);
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("(a, b)");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = maybeParameterList(&p);
+            REQUIRE(log.getMessages().size() == 0);
+
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_identifier);
+            REQUIRE(n->str() == "a");
+            REQUIRE(n->data_type == nullptr);
+
+            n = n->next;
+            
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_identifier);
+            REQUIRE(n->str() == "b");
+            REQUIRE(n->data_type == nullptr);
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("(a, b : f32)");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = maybeParameterList(&p);
+            REQUIRE(log.getMessages().size() == 0);
+
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_identifier);
+            REQUIRE(n->str() == "a");
+            REQUIRE(n->data_type == nullptr);
+
+            n = n->next;
+            
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_identifier);
+            REQUIRE(n->str() == "b");
+            REQUIRE(n->data_type != nullptr);
+            REQUIRE(n->data_type->tp == nt_type_specifier);
+            REQUIRE(n->data_type->body != nullptr);
+            REQUIRE(n->data_type->body->tp == nt_identifier);
+            REQUIRE(n->data_type->body->str() == "f32");
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("(a,)");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = maybeParameterList(&p);
+            REQUIRE(log.getMessages().size() == 1);
+            const auto& msg = log.getMessages()[0];
+            REQUIRE(msg.code == pm_expected_parameter);
+            REQUIRE(msg.type == lt_error);
+            REQUIRE(msg.msg == "Expected parameter after ','");
+            REQUIRE(msg.src.getLine() == 0);
+            REQUIRE(msg.src.getCol() == 3);
+
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_identifier);
+            REQUIRE(n->str() == "a");
+            REQUIRE(n->data_type == nullptr);
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("(a ");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = maybeParameterList(&p);
+            REQUIRE(log.getMessages().size() == 1);
+            const auto& msg = log.getMessages()[0];
+            REQUIRE(msg.code == pm_expected_closing_parenth);
+            REQUIRE(msg.type == lt_error);
+            REQUIRE(msg.msg == "Expected ')' after parameter list");
+            REQUIRE(msg.src.getLine() == 0);
+            REQUIRE(msg.src.getCol() == 2);
+
+            REQUIRE(isError(n));
         }
         delete_mocked_source(src);
     }
@@ -439,16 +847,113 @@ TEST_CASE("Parse parameters/arguments", "[parser]") {
     SECTION("typedParameterList") {
         ModuleSource* src = nullptr;
 
-        src = mock_module_source(";");
+        src = mock_module_source("()");
         {
             Logger log;
             Lexer l(src);
             Parser p(&l, &log);
 
-            ParseNode* n = eos(&p);
+            ParseNode* n = typedParameterList(&p);
             REQUIRE(log.getMessages().size() == 0);
+
             REQUIRE(n != nullptr);
-            REQUIRE(n->tp == nt_eos);
+            REQUIRE(n->tp == nt_empty);
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("(a: i32)");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = typedParameterList(&p);
+            REQUIRE(log.getMessages().size() == 0);
+
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_identifier);
+            REQUIRE(n->str() == "a");
+            REQUIRE(n->data_type != nullptr);
+            REQUIRE(n->data_type->tp == nt_type_specifier);
+            REQUIRE(n->data_type->body != nullptr);
+            REQUIRE(n->data_type->body->tp == nt_identifier);
+            REQUIRE(n->data_type->body->str() == "i32");
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("(a: i32, b: f32)");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = typedParameterList(&p);
+            REQUIRE(log.getMessages().size() == 0);
+
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_identifier);
+            REQUIRE(n->str() == "a");
+            REQUIRE(n->data_type != nullptr);
+            REQUIRE(n->data_type->tp == nt_type_specifier);
+            REQUIRE(n->data_type->body != nullptr);
+            REQUIRE(n->data_type->body->tp == nt_identifier);
+            REQUIRE(n->data_type->body->str() == "i32");
+
+            n = n->next;
+            
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_identifier);
+            REQUIRE(n->str() == "b");
+            REQUIRE(n->data_type != nullptr);
+            REQUIRE(n->data_type->tp == nt_type_specifier);
+            REQUIRE(n->data_type->body != nullptr);
+            REQUIRE(n->data_type->body->tp == nt_identifier);
+            REQUIRE(n->data_type->body->str() == "f32");
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("(a: i32,)");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = typedParameterList(&p);
+            REQUIRE(log.getMessages().size() == 1);
+            const auto& msg = log.getMessages()[0];
+            REQUIRE(msg.code == pm_expected_parameter);
+            REQUIRE(msg.type == lt_error);
+            REQUIRE(msg.msg == "Expected typed parameter after ','");
+            REQUIRE(msg.src.getLine() == 0);
+            REQUIRE(msg.src.getCol() == 8);
+
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_identifier);
+            REQUIRE(n->str() == "a");
+            REQUIRE(n->data_type != nullptr);
+            REQUIRE(n->data_type->tp == nt_type_specifier);
+            REQUIRE(n->data_type->body != nullptr);
+            REQUIRE(n->data_type->body->tp == nt_identifier);
+            REQUIRE(n->data_type->body->str() == "i32");
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("(a: i32 ");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = typedParameterList(&p);
+            REQUIRE(log.getMessages().size() == 1);
+            const auto& msg = log.getMessages()[0];
+            REQUIRE(msg.code == pm_expected_closing_parenth);
+            REQUIRE(msg.type == lt_error);
+            REQUIRE(msg.msg == "Expected ')' to close typed parameter list");
+            REQUIRE(msg.src.getLine() == 0);
+            REQUIRE(msg.src.getCol() == 7);
+
+            REQUIRE(isError(n));
         }
         delete_mocked_source(src);
     }
@@ -456,16 +961,145 @@ TEST_CASE("Parse parameters/arguments", "[parser]") {
     SECTION("arguments") {
         ModuleSource* src = nullptr;
 
-        src = mock_module_source(";");
+        src = mock_module_source("()");
         {
             Logger log;
             Lexer l(src);
             Parser p(&l, &log);
 
-            ParseNode* n = eos(&p);
+            ParseNode* n = arguments(&p);
             REQUIRE(log.getMessages().size() == 0);
+
             REQUIRE(n != nullptr);
-            REQUIRE(n->tp == nt_eos);
+            REQUIRE(n->tp == nt_empty);
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("(a)");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = arguments(&p);
+            REQUIRE(log.getMessages().size() == 0);
+
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_identifier);
+            REQUIRE(n->str() == "a");
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("(61)");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = arguments(&p);
+            REQUIRE(log.getMessages().size() == 0);
+
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_literal);
+            REQUIRE(n->value_tp == lt_i32);
+            REQUIRE(n->value.i == 61);
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("(a, b)");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = arguments(&p);
+            REQUIRE(log.getMessages().size() == 0);
+
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_expression_sequence);
+
+            n = n->body;
+
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_identifier);
+            REQUIRE(n->str() == "a");
+
+            n = n->next;
+            
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_identifier);
+            REQUIRE(n->str() == "b");
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("(a, b, 61)");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = arguments(&p);
+            REQUIRE(log.getMessages().size() == 0);
+
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_expression_sequence);
+
+            n = n->body;
+
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_identifier);
+            REQUIRE(n->str() == "a");
+
+            n = n->next;
+            
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_identifier);
+            REQUIRE(n->str() == "b");
+
+            n = n->next;
+
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_literal);
+            REQUIRE(n->value_tp == lt_i32);
+            REQUIRE(n->value.i == 61);
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("(a,)");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = arguments(&p);
+            REQUIRE(log.getMessages().size() == 1);
+            const auto& msg = log.getMessages()[0];
+            REQUIRE(msg.code == pm_expected_expr);
+            REQUIRE(msg.type == lt_error);
+            REQUIRE(msg.msg == "Expected expression after ','");
+            REQUIRE(msg.src.getLine() == 0);
+            REQUIRE(msg.src.getCol() == 3);
+
+            REQUIRE(isError(n));
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("(a ");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = arguments(&p);
+            REQUIRE(log.getMessages().size() == 1);
+            const auto& msg = log.getMessages()[0];
+            REQUIRE(msg.code == pm_expected_closing_parenth);
+            REQUIRE(msg.type == lt_error);
+            REQUIRE(msg.msg == "Expected ')' to close argument list");
+            REQUIRE(msg.src.getLine() == 0);
+            REQUIRE(msg.src.getCol() == 2);
+
+            REQUIRE(isError(n));
         }
         delete_mocked_source(src);
     }
