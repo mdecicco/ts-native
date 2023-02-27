@@ -23,14 +23,15 @@ namespace tsn {
                 &fptr,
                 &result,
                 &ectx,
-                getArg<Args>(std::forward<Args>(args), &ptrBuf[pbi], sigArgs[3 + pbi++].argType)...
+                getArg<Args>(std::forward<Args>(args), &ptrBuf[pbi], sigArgs[3 + pbi].argType, pbi)...
             };
-
+            
+            pbi = 0;
             ffi_type* typeBuf[] = {
                 &ffi_type_pointer, // func->getAddress()
                 &ffi_type_pointer, // return value pointer
                 &ffi_type_pointer, // execution context
-                getType<Args>(args)...
+                (sigArgs[3 + (pbi++)].argType == arg_type::pointer ? &ffi_type_pointer : getType<Args>(args))...
             };
             
             ffi_cif cif;

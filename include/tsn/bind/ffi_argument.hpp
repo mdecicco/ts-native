@@ -23,7 +23,9 @@ namespace tsn {
          *         is returned.
          */
         template <typename T>
-        void* getArg(T&& arg, void** ptrStorage, const arg_type& argType) {
+        void* getArg(T&& arg, void** ptrStorage, const arg_type& argType, u8& argIdx) {
+            argIdx++;
+            
             // If function expects value:
             //     output must be T*
             // If function expects a pointer:

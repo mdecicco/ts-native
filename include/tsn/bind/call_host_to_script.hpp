@@ -21,7 +21,7 @@ namespace tsn {
             const auto* sigArgs = f->getSignature()->getArguments().data();
 
             void* argBuf[] = {
-                getArg<Args>(std::forward<Args>(args), &ptrBuf[pbi], sigArgs[3 + pbi++].argType)...,
+                getArg<Args>(std::forward<Args>(args), &ptrBuf[pbi], sigArgs[3 + pbi].argType, pbi)...,
                 nullptr // because argc can be 0 and argBuf can't have length 0
             };
 

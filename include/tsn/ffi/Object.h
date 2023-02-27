@@ -25,19 +25,19 @@ namespace tsn {
             // Creates an empty object of the given type that is prepared for construction
             Object(Context* ctx, ffi::DataType* tp);
 
-            // Creates a view of an object of the given type at the given address, optionally
-            // taking ownership of the memory pointed to by the given address.
-            //
-            // IMPORTANT: If the Object should take ownership of 'ptr', then it _MUST_ be
-            // allocated via utils::Mem::alloc. Ignore this rule at your own peril.
-            Object(Context* ctx, bool takeOwnership, ffi::DataType* tp, void* ptr);
-
             // References the given object
             Object(const Object& o);
 
             // Only destroys the object if the memory holding it is owned and if
             // the reference count is zero
             ~Object();
+
+            // Creates a view of an object of the given type at the given address, optionally
+            // taking ownership of the memory pointed to by the given address.
+            //
+            // IMPORTANT: If the Object should take ownership of 'ptr', then it _MUST_ be
+            // allocated via utils::Mem::alloc. Ignore this rule at your own peril.
+            static Object View(Context* ctx, bool takeOwnership, ffi::DataType* tp, void* ptr);
 
             template <typename T>
             Object prop(const utils::String& propName, const T& value);
@@ -67,6 +67,8 @@ namespace tsn {
             u32* m_dataRefCount;
         
         private:
+            Object();
+            
             void destruct();
     };
 };

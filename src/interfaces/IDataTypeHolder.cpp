@@ -14,6 +14,12 @@ namespace tsn {
         if (it == m_typeIdMap.end()) return nullptr;
         return m_types[it->second];
     }
+    
+    ffi::DataType* IDataTypeHolder::getTypeByHostHash(size_t hash) const {
+        auto it = m_typeHashMap.find(hash);
+        if (it == m_typeHashMap.end()) return nullptr;
+        return m_types[it->second];
+    }
 
     const utils::Array<ffi::DataType*>& IDataTypeHolder::allTypes() const {
         return m_types;

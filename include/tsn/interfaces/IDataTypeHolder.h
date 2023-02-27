@@ -22,6 +22,7 @@ namespace tsn {
             ffi::DataType* getType(T&& arg) const;
 
             ffi::DataType* getType(type_id id) const;
+            ffi::DataType* getTypeByHostHash(size_t hash) const;
             const utils::Array<ffi::DataType*>& allTypes() const;
             u32 typeCount() const;
 

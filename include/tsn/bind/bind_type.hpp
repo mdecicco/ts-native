@@ -192,6 +192,180 @@ namespace tsn {
 
 
         //
+        // PrimitiveTypeExtender
+        //
+        
+        template <typename Cls>
+        PrimitiveTypeExtender<Cls>::PrimitiveTypeExtender(Module* mod, FunctionRegistry* freg, DataTypeRegistry* treg) : DataTypeExtender(mod, freg, treg, meta<Cls>()) { }
+
+        template <typename Cls>
+        PrimitiveTypeExtender<Cls>::~PrimitiveTypeExtender() { }
+
+        template <typename Cls>
+        template <typename Ret, typename... Args>
+        PrimitiveTypeExtender<Cls>& PrimitiveTypeExtender<Cls>::method(const utils::String& name, Ret (*method)(Cls*, Args...), access_modifier access) {
+            Function* f = bind_pseudo_method<Cls, Ret, Args...>(m_mod, funcRegistry, typeRegistry, name, method, access);
+            if (f) addMethod(f);
+            return *this;
+        }
+
+        template <typename Cls>
+        template <typename Ret, typename... Args>
+        PrimitiveTypeExtender<Cls>& PrimitiveTypeExtender<Cls>::staticMethod(const utils::String& name, Ret (*method)(Args...), access_modifier access) {
+            Function* f = bind_function(m_mod, funcRegistry, typeRegistry, name, method, access, m_type);
+            if (f) addMethod(f);
+            return *this;
+        }
+
+        template <typename Cls>
+        template <typename T>
+        PrimitiveTypeExtender<Cls>& PrimitiveTypeExtender<Cls>::prop(const utils::String& name, T* member, access_modifier access, value_flag_mask flags) {
+            if (!checkNewProp<T>(name)) return *this;
+
+            DataType* tp = typeRegistry->getType<T>();
+            if (!tp->getInfo().is_primitive) flags |= vf_pointer;
+            flags |= vf_static;
+
+            addProperty({
+                name,
+                access,
+                (u64)member,
+                tp,
+                convertPropertyMask(flags),
+                nullptr,
+                nullptr
+            });
+
+            return *this;
+        }
+
+        template <typename Cls>
+        template <typename T>
+        PrimitiveTypeExtender<Cls>& PrimitiveTypeExtender<Cls>::prop(const utils::String& name, T (*getter)(), T (*setter)(const T&), access_modifier access) {
+            if (!checkNewProp<T>(name)) return *this;
+
+            value_flag_mask flags = vf_static;
+
+            DataType* tp = typeRegistry->getType<T>();
+            if (getter) flags |= vf_read;
+            if (setter) flags |= vf_write;
+            if (!tp->getInfo().is_primitive) flags |= vf_pointer;
+
+            addProperty({
+                name,
+                access,
+                0,
+                tp,
+                convertPropertyMask(flags),
+                getter ? bind_function(m_mod, funcRegistry, typeRegistry, "$get_" + name, getter, private_access, m_type) : nullptr,
+                setter ? bind_function(m_mod, funcRegistry, typeRegistry, "$set_" + name, setter, private_access, m_type) : nullptr
+            });
+
+            return *this;
+        }
+        
+        template <typename Cls>
+        template <typename T>
+        PrimitiveTypeExtender<Cls>& PrimitiveTypeExtender<Cls>::prop(const utils::String& name, T (*getter)(), T (*setter)(T), access_modifier access) {
+            if (!checkNewProp<T>(name)) return *this;
+
+            value_flag_mask flags = vf_static;
+
+            DataType* tp = typeRegistry->getType<T>();
+            if (getter) flags |= vf_read;
+            if (setter) flags |= vf_write;
+            if (!tp->getInfo().is_primitive) flags |= vf_pointer;
+
+            addProperty({
+                name,
+                access,
+                0,
+                tp,
+                convertPropertyMask(flags),
+                getter ? bind_function(m_mod, funcRegistry, typeRegistry, "$get_" + name, getter, private_access, m_type) : nullptr,
+                setter ? bind_function(m_mod, funcRegistry, typeRegistry, "$set_" + name, setter, private_access, m_type) : nullptr
+            });
+
+            return *this;
+        }
+
+        template <typename Cls>
+        template <typename T>
+        PrimitiveTypeExtender<Cls>& PrimitiveTypeExtender<Cls>::prop(const utils::String& name, T (*getter)(Cls*), T (*setter)(Cls*, const T&), access_modifier access) {
+            if (!checkNewProp<T>(name)) return *this;
+
+            value_flag_mask flags = 0;
+
+            DataType* tp = typeRegistry->getType<T>();
+            if (getter) flags |= vf_read;
+            if (setter) flags |= vf_write;
+            if (!tp->getInfo().is_primitive) flags |= vf_pointer;
+
+            addProperty({
+                name,
+                access,
+                0,
+                tp,
+                convertPropertyMask(flags),
+                getter ? bind_pseudo_function<Cls, T&>(m_mod, funcRegistry, typeRegistry, "$get_" + name, getter, private_access) : nullptr,
+                setter ? bind_pseudo_function<Cls, T&, const T&>(m_mod, funcRegistry, typeRegistry, "$set_" + name, setter, private_access) : nullptr
+            });
+
+            return *this;
+        }
+
+        template <typename Cls>
+        template <typename T>
+        PrimitiveTypeExtender<Cls>& PrimitiveTypeExtender<Cls>::prop(const utils::String& name, T (*getter)(Cls*), T (*setter)(Cls*, T), access_modifier access) {
+            if (!checkNewProp<T>(name)) return *this;
+
+            value_flag_mask flags = 0;
+
+            DataType* tp = typeRegistry->getType<T>();
+            if (getter) flags |= vf_read;
+            if (setter) flags |= vf_write;
+            if (!tp->getInfo().is_primitive) flags |= vf_pointer;
+
+            addProperty({
+                name,
+                access,
+                0,
+                tp,
+                convertPropertyMask(flags),
+                getter ? bind_pseudo_function<Cls, T&>(m_mod, funcRegistry, typeRegistry, "$get_" + name, getter, private_access) : nullptr,
+                setter ? bind_pseudo_function<Cls, T&, T>(m_mod, funcRegistry, typeRegistry, "$set_" + name, setter, private_access) : nullptr
+            });
+
+            return *this;
+        }
+
+        template <typename Cls>
+        template <typename T>
+        bool PrimitiveTypeExtender<Cls>::checkNewProp(const utils::String& name) const {
+            if (!typeRegistry->getType<T>()) {
+                throw BindException(utils::String::Format(
+                    "Cannot bind property '%s' of type '%s' to type '%s', type '%s' has not been bound",
+                    name.c_str(), type_name<T>(), m_type->getName().c_str(), type_name<T>()
+                ));
+                
+                return false;
+            }
+
+            bool exists = propNameExists(name);
+
+            if (exists) {
+                throw BindException(utils::String::Format(
+                    "Type '%s' already has a property named '%s'",
+                    m_type->getName().c_str(), name.c_str()
+                ));
+            }
+
+            return !exists;
+        }
+
+
+
+        //
         // ObjectTypeBinder
         //
 
@@ -397,6 +571,188 @@ namespace tsn {
         template <typename Cls>
         template <typename T>
         bool ObjectTypeBinder<Cls>::checkNewProp(const utils::String& name) const {
+            if (!typeRegistry->getType<T>()) {
+                throw BindException(utils::String::Format(
+                    "Cannot bind property '%s' of type '%s' to type '%s', type '%s' has not been bound",
+                    name.c_str(), type_name<T>(), m_type->getName().c_str(), type_name<T>()
+                ));
+                
+                return false;
+            }
+
+            bool exists = propNameExists(name);
+
+            if (exists) {
+                throw BindException(utils::String::Format(
+                    "Type '%s' already has a property named '%s'",
+                    m_type->getName().c_str(), name.c_str()
+                ));
+            }
+
+            return !exists;
+        }
+
+
+
+        //
+        // ObjectTypeExtender
+        //
+        
+        template <typename Cls>
+        ObjectTypeExtender<Cls>::ObjectTypeExtender(Module* mod, FunctionRegistry* freg, DataTypeRegistry* treg) : DataTypeExtender(mod, freg, treg, meta<Cls>()) { }
+
+        template <typename Cls>
+        ObjectTypeExtender<Cls>::~ObjectTypeExtender() { }
+
+        template <typename Cls>
+        template <typename Ret, typename... Args>
+        ObjectTypeExtender<Cls>& ObjectTypeExtender<Cls>::method(const utils::String& name, Ret (Cls::*method)(Args...), access_modifier access) {
+            Function* f = bind_method(m_mod, funcRegistry, typeRegistry, name, method, access);
+            if (f) addMethod(f);
+            return *this;
+        }
+
+        template <typename Cls>
+        template <typename Ret, typename... Args>
+        ObjectTypeExtender<Cls>& ObjectTypeExtender<Cls>::method(const utils::String& name, Ret (Cls::*method)(Args...) const, access_modifier access) {
+            Function* f = bind_method(m_mod, funcRegistry, typeRegistry, name, method, access);
+            if (f) addMethod(f);
+            return *this;
+        }
+
+        template <typename Cls>
+        template <typename Ret, typename... Args>
+        ObjectTypeExtender<Cls>& ObjectTypeExtender<Cls>::staticMethod(const utils::String& name, Ret (*method)(Args...), access_modifier access) {
+            Function* f = bind_function(m_mod, funcRegistry, typeRegistry, name, method, access, m_type);
+            if (f) addMethod(f);
+            return *this;
+        }
+
+        template <typename Cls>
+        template <typename T>
+        ObjectTypeExtender<Cls>& ObjectTypeExtender<Cls>::prop(const utils::String& name, T* member, access_modifier access, value_flag_mask flags) {
+            if (!checkNewProp<T>(name)) return *this;
+
+            DataType* tp = typeRegistry->getType<T>();
+            if (std::is_pointer_v<T> || std::is_reference_v<T>) flags |= vf_pointer;
+            flags |= vf_static;
+
+            addProperty({
+                name,
+                access,
+                (u64)member,
+                tp,
+                convertPropertyMask(flags),
+                nullptr,
+                nullptr
+            });
+
+            return *this;
+        }
+
+        template <typename Cls>
+        template <typename T>
+        ObjectTypeExtender<Cls>& ObjectTypeExtender<Cls>::prop(const utils::String& name, T (*getter)(), T (*setter)(const T&), access_modifier access) {
+            if (!checkNewProp<T>(name)) return *this;
+
+            value_flag_mask flags = vf_static;
+
+            DataType* tp = typeRegistry->getType<T>();
+            if (getter) flags |= vf_read;
+            if (setter) flags |= vf_write;
+            if (!tp->getInfo().is_primitive) flags |= vf_pointer;
+
+            addProperty({
+                name,
+                access,
+                0,
+                tp,
+                convertPropertyMask(flags),
+                getter ? bind_function(m_mod, funcRegistry, typeRegistry, "$get_" + name, getter, private_access, m_type) : nullptr,
+                setter ? bind_function(m_mod, funcRegistry, typeRegistry, "$set_" + name, setter, private_access, m_type) : nullptr
+            });
+
+            return *this;
+        }
+
+        template <typename Cls>
+        template <typename T>
+        ObjectTypeExtender<Cls>& ObjectTypeExtender<Cls>::prop(const utils::String& name, T (*getter)(), T (*setter)(T), access_modifier access) {
+            if (!checkNewProp<T>(name)) return *this;
+
+            value_flag_mask flags = vf_static;
+
+            DataType* tp = typeRegistry->getType<T>();
+            if (getter) flags |= vf_read;
+            if (setter) flags |= vf_write;
+            if (!tp->getInfo().is_primitive) flags |= vf_pointer;
+
+            addProperty({
+                name,
+                access,
+                0,
+                tp,
+                convertPropertyMask(flags),
+                getter ? bind_function(m_mod, funcRegistry, typeRegistry, "$get_" + name, getter, private_access, m_type) : nullptr,
+                setter ? bind_function(m_mod, funcRegistry, typeRegistry, "$set_" + name, setter, private_access, m_type) : nullptr
+            });
+
+            return *this;
+        }
+
+        template <typename Cls>
+        template <typename T>
+        ObjectTypeExtender<Cls>& ObjectTypeExtender<Cls>::prop(const utils::String& name, T (Cls::*getter)(Cls*), T (Cls::*setter)(const T&), access_modifier access) {
+            if (!checkNewProp<T>(name)) return *this;
+
+            value_flag_mask flags = 0;
+
+            DataType* tp = typeRegistry->getType<T>();
+            if (getter) flags |= vf_read;
+            if (setter) flags |= vf_write;
+            if (!tp->getInfo().is_primitive) flags |= vf_pointer;
+
+            addProperty({
+                name,
+                access,
+                0,
+                tp,
+                convertPropertyMask(flags),
+                getter ? bind_method(m_mod, funcRegistry, typeRegistry, "$get_" + name, getter, private_access) : nullptr,
+                setter ? bind_method(m_mod, funcRegistry, typeRegistry, "$set_" + name, setter, private_access) : nullptr
+            });
+
+            return *this;
+        }
+
+        template <typename Cls>
+        template <typename T>
+        ObjectTypeExtender<Cls>& ObjectTypeExtender<Cls>::prop(const utils::String& name, T (Cls::*getter)(Cls*), T (Cls::*setter)(T), access_modifier access) {
+            if (!checkNewProp<T>(name)) return *this;
+
+            value_flag_mask flags = 0;
+
+            DataType* tp = typeRegistry->getType<T>();
+            if (getter) flags |= vf_read;
+            if (setter) flags |= vf_write;
+            if (!tp->getInfo().is_primitive) flags |= vf_pointer;
+
+            addProperty({
+                name,
+                access,
+                0,
+                tp,
+                convertPropertyMask(flags),
+                getter ? bind_method(m_mod, funcRegistry, typeRegistry, "$get_" + name, getter, private_access) : nullptr,
+                setter ? bind_method(m_mod, funcRegistry, typeRegistry, "$set_" + name, setter, private_access) : nullptr
+            });
+
+            return *this;
+        }
+        
+        template <typename Cls>
+        template <typename T>
+        bool ObjectTypeExtender<Cls>::checkNewProp(const utils::String& name) const {
             if (!typeRegistry->getType<T>()) {
                 throw BindException(utils::String::Format(
                     "Cannot bind property '%s' of type '%s' to type '%s', type '%s' has not been bound",

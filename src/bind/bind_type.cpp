@@ -13,6 +13,15 @@ namespace tsn {
             funcRegistry = freg;
             typeRegistry = treg;
             m_mod = mod;
+
+            DataType* existing = treg->getTypeByHostHash(meta.host_hash);
+            if (existing) {
+                throw BindException(utils::String::Format(
+                    "Attempted to bind new type '%s' which has already been bound (as '%s')",
+                    name.c_str(), existing->getFullyQualifiedName().c_str()
+                ));
+            }
+
             m_type = new DataType(name, fullyQualifiedName, meta);
             m_type->m_id = (type_id)std::hash<utils::String>()(m_type->getFullyQualifiedName());
             typeRegistry->addHostType(meta.host_hash, m_type);
@@ -95,16 +104,49 @@ namespace tsn {
             m_isFinal = true;
 
             if (m_type->m_destructor) {
-                funcRegistry->registerFunction(m_type->m_destructor);
                 if (m_mod) m_mod->addFunction(m_type->m_destructor);
             }
 
             for (u32 i = 0;i < m_type->m_methods.size();i++) {
-                funcRegistry->registerFunction(m_type->m_methods[i]);
                 if (m_mod) m_mod->addFunction(m_type->m_methods[i]);
             }
 
             return m_type;
+        }
+
+
+        
+        DataTypeExtender::DataTypeExtender(Module* mod, FunctionRegistry* freg, DataTypeRegistry* treg, type_meta&& meta) {
+            funcRegistry = freg;
+            typeRegistry = treg;
+
+            m_type = treg->getTypeByHostHash(meta.host_hash);
+            m_mod = mod;
+            if (!m_type) {
+                throw BindException("Attempted to extend type which has not been bound");
+            }
+        }
+
+        DataTypeExtender::~DataTypeExtender() {
+            m_type = nullptr;
+        }
+        
+        type_meta& DataTypeExtender::info() {
+            return m_type->m_info;
+        }
+
+        void DataTypeExtender::addMethod(Function* method) {
+            m_type->m_methods.push(method);
+        }
+
+        void DataTypeExtender::addProperty(type_property&& prop) {
+            m_type->m_properties.push(prop);
+        }
+        
+        bool DataTypeExtender::propNameExists(const utils::String& name) const {
+            return m_type->m_properties.some([name](const type_property& p) {
+                return p.name == name;
+            });
         }
     };
 };

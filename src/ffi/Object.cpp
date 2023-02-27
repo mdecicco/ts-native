@@ -6,6 +6,11 @@
 #include <utils/Array.hpp>
 
 namespace tsn {
+    Object::Object() : ITypedObject(nullptr), IContextual(nullptr) {
+        m_data = nullptr;
+        m_dataRefCount = nullptr;
+    }
+
     Object::Object(Context* ctx, ffi::DataType* tp) : ITypedObject(tp), IContextual(ctx) {
         if (tp->getInfo().size > 0) {
             m_data = utils::Mem::alloc(tp->getInfo().size);
@@ -14,14 +19,6 @@ namespace tsn {
             m_data = nullptr;
             m_dataRefCount = nullptr;
         }
-    }
-
-    Object::Object(Context* ctx, bool takeOwnership, ffi::DataType* tp, void* ptr) : ITypedObject(tp), IContextual(ctx) {
-        m_data = ptr;
-
-        if (takeOwnership) {
-            m_dataRefCount = new u32(1);
-        } else m_dataRefCount = nullptr;
     }
 
     Object::Object(const Object& o) : ITypedObject(o.getType()), IContextual(o.getContext()) {
@@ -42,6 +39,20 @@ namespace tsn {
 
         m_dataRefCount = nullptr;
         m_data = nullptr;
+    }
+    
+    Object Object::View(Context* ctx, bool takeOwnership, ffi::DataType* tp, void* ptr) {
+        Object o;
+
+        o.m_data = ptr;
+        o.m_type = tp;
+        o.m_ctx = ctx;
+
+        if (takeOwnership) {
+            o.m_dataRefCount = new u32(1);
+        } else o.m_dataRefCount = nullptr;
+
+        return o;
     }
     
     const Object Object::prop(const utils::String& propName) const {
@@ -78,7 +89,7 @@ namespace tsn {
             }
         }
 
-        return Object(m_ctx, false, p.type, (void*)((u8*)m_data + p.offset));
+        return Object::View(m_ctx, false, p.type, (void*)((u8*)m_data + p.offset));
     }
 
     Object Object::prop(const utils::String& propName) {
@@ -92,7 +103,7 @@ namespace tsn {
         }
 
         const auto& p = props[(u32)idx];
-        return Object(m_ctx, false, p.type, (void*)((u8*)m_data + p.offset));
+        return Object::View(m_ctx, false, p.type, (void*)((u8*)m_data + p.offset));
     }
 
     void* Object::getPtr() const {

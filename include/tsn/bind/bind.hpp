@@ -21,6 +21,19 @@ namespace tsn {
         }
 
         template <typename Cls>
+        std::enable_if_t<std::is_fundamental_v<typename remove_all<Cls>::type>, PrimitiveTypeExtender<Cls>>
+        extend(Context* ctx) {
+            return PrimitiveTypeExtender<Cls>(nullptr, ctx->getFunctions(), ctx->getTypes());
+        }
+
+        template <typename Cls>
+        std::enable_if_t<std::is_fundamental_v<typename remove_all<Cls>::type>, PrimitiveTypeExtender<Cls>>
+        extend(Module* mod) {
+            Context* ctx = mod->getContext();
+            return PrimitiveTypeExtender<Cls>(mod, ctx->getFunctions(), ctx->getTypes());
+        }
+
+        template <typename Cls>
         std::enable_if_t<!std::is_fundamental_v<typename remove_all<Cls>::type>, ObjectTypeBinder<Cls>>
         bind(Context* ctx, const utils::String& name) {
             return ObjectTypeBinder<Cls>(nullptr, ctx->getFunctions(), ctx->getTypes(), name, "::" + name);
@@ -31,6 +44,19 @@ namespace tsn {
         bind(Module* mod, const utils::String& name) {
             Context* ctx = mod->getContext();
             return ObjectTypeBinder<Cls>(mod, ctx->getFunctions(), ctx->getTypes(), name, mod->getName() + "::" + name);
+        }
+
+        template <typename Cls>
+        std::enable_if_t<!std::is_fundamental_v<typename remove_all<Cls>::type>, ObjectTypeExtender<Cls>>
+        extend(Context* ctx) {
+            return ObjectTypeExtender<Cls>(nullptr, ctx->getFunctions(), ctx->getTypes());
+        }
+
+        template <typename Cls>
+        std::enable_if_t<!std::is_fundamental_v<typename remove_all<Cls>::type>, ObjectTypeExtender<Cls>>
+        extend(Module* mod) {
+            Context* ctx = mod->getContext();
+            return ObjectTypeExtender<Cls>(mod, ctx->getFunctions(), ctx->getTypes());
         }
 
         template <typename Ret, typename... Args>

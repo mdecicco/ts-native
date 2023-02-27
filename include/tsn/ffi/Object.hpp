@@ -99,7 +99,7 @@ namespace tsn {
         const ffi::DataType* argTps[argc + 1] = { m_ctx->getTypes()->getType<Args>(std::forward<Args>(args))..., nullptr };
 
         utils::Array<ffi::Function*> matches = function_match(
-            m_type->getName() + "::" + funcName,
+            funcName,
             nullptr,
             argTps,
             argc,

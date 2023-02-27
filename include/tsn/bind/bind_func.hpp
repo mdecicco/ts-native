@@ -192,7 +192,7 @@ namespace tsn {
 
             void (*wrapper)(Ret (*)(Cls*, Args...), Ret*, ExecutionContext*, Cls*, Args...) = &_func_wrapper<Ret, Cls*, Args...>;
 
-            return new Function(
+            Function* fn = new Function(
                 name,
                 utils::String(mod ? mod->getName() + "::" : ""),
                 sig,
@@ -200,6 +200,10 @@ namespace tsn {
                 *reinterpret_cast<void**>(&func),
                 *reinterpret_cast<void**>(&wrapper)
             );
+
+            freg->registerFunction(fn);
+
+            return fn;
         }
         
         template <typename Cls, typename Ret, typename... Args>
@@ -245,7 +249,7 @@ namespace tsn {
 
             void (*wrapper)(Ret (Cls::*)(Args...), Ret*, ExecutionContext*, Cls*, Args...) = &_method_wrapper<Cls, Ret, Args...>;
 
-            return new Method(
+            Method* m = new Method(
                 name,
                 utils::String(mod ? mod->getName() + "::" : ""),
                 sig,
@@ -254,6 +258,10 @@ namespace tsn {
                 *reinterpret_cast<void**>(&wrapper),
                 0
             );
+            
+            freg->registerFunction(m);
+
+            return m;
         }
         
         template <typename Cls, typename Ret, typename... Args>
@@ -299,7 +307,7 @@ namespace tsn {
 
             void (*wrapper)(Ret (Cls::*)(Args...) const, Ret*, ExecutionContext*, Cls*, Args...) = &_method_wrapper<Cls, Ret, Args...>;
 
-            return new Method(
+            Method* m = new Method(
                 name,
                 utils::String(mod ? mod->getName() + "::" : ""),
                 sig,
@@ -308,6 +316,10 @@ namespace tsn {
                 *reinterpret_cast<void**>(&wrapper),
                 0
             );
+            
+            freg->registerFunction(m);
+
+            return m;
         }
 
         template <typename Cls, typename... Args>
@@ -345,7 +357,7 @@ namespace tsn {
             void (*func)(Cls*, Args...) = &constructor_wrapper<Cls, Args...>;
             void (*wrapper)(void (*)(Cls*, Args...), void*, ExecutionContext*, Cls*, Args...) = &_func_wrapper<void, Cls*, Args...>;
 
-            return new Function(
+            Function* fn = new Function(
                 name,
                 utils::String(mod ? mod->getName() + "::" : ""),
                 sig,
@@ -353,6 +365,10 @@ namespace tsn {
                 *reinterpret_cast<void**>(&func),
                 *reinterpret_cast<void**>(&wrapper)
             );
+
+            freg->registerFunction(fn);
+
+            return fn;
         }
 
         template <typename Cls>
@@ -386,7 +402,7 @@ namespace tsn {
             void (*func)(Cls*) = &destructor_wrapper<Cls>;
             void (*wrapper)(void (*)(Cls*), void*, ExecutionContext*, Cls*) = &_func_wrapper<void, Cls*>;
 
-            return new Function(
+            Function* fn = new Function(
                 name,
                 utils::String(mod ? mod->getName() + "::" : ""),
                 sig,
@@ -394,6 +410,10 @@ namespace tsn {
                 *reinterpret_cast<void**>(&func),
                 *reinterpret_cast<void**>(&wrapper)
             );
+
+            freg->registerFunction(fn);
+
+            return fn;
         }
     };
 };

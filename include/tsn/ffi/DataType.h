@@ -244,6 +244,7 @@ namespace tsn {
             
             protected:
                 friend class DataTypeBinder;
+                friend class DataTypeExtender;
                 friend class DataTypeRegistry;
                 friend class FunctionType;
                 friend class TemplateType;

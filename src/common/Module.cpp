@@ -66,7 +66,7 @@ namespace tsn {
     }
 
     Object Module::getData(u32 slot) {
-        return Object(m_ctx, false, m_data[slot].type, m_data[slot].ptr);
+        return Object::View(m_ctx, false, m_data[slot].type, m_data[slot].ptr);
     }
     
     const utils::Array<module_data>& Module::getData() const {
