@@ -338,7 +338,13 @@ TEST_CASE("Parse Types", "[parser]") {
             Parser p(&l, &log);
 
             ParseNode* n = parenthesizedTypeSpecifier(&p);
-            REQUIRE(log.getMessages().size() == 0);
+            REQUIRE(log.getMessages().size() == 1);
+            const auto& msg = log.getMessages()[0];
+            REQUIRE(msg.code == pm_expected_eos);
+            REQUIRE(msg.type == lt_error);
+            REQUIRE(msg.msg == "Expected ';' after type property");
+            REQUIRE(msg.src.getLine() == 0);
+            REQUIRE(msg.src.getCol() == 10);
             REQUIRE(n != nullptr);
             REQUIRE(n->tp == nt_type_specifier);
             REQUIRE(n->body != nullptr);

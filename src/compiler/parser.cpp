@@ -1705,8 +1705,12 @@ namespace tsn {
 
             ParseNode* n = expressionSequence(ps);
             if (!n) {
-                ps->revert();
-                return nullptr;
+                if (!ps->typeIs(tt_close_bracket)) {
+                    ps->revert();
+                    return nullptr;
+                }
+
+                n = ps->newNode(nt_empty);
             }
 
             if (!ps->typeIs(tt_close_bracket)) {
@@ -1717,10 +1721,12 @@ namespace tsn {
                     case tt_close_bracket: break;
                     default: {
                         if (n) ps->freeNode(n);
+                        ps->commit();
                         return errorNode(ps);
                     }
                 }
             }
+            
             n->manuallySpecifyRange(ps->get());
             ps->consume();
             ps->commit();

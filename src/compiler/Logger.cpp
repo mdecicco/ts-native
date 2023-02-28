@@ -6,6 +6,7 @@
 namespace tsn {
     namespace compiler {
         Logger::Logger() {
+            m_logCountStack.push(0);
         }
 
         Logger::~Logger() {
@@ -43,6 +44,7 @@ namespace tsn {
                 src,
                 ast
             });
+            m_logCountStack[m_logCountStack.size() - 1]++;
             return m_messages.last();
         }
 
@@ -54,6 +56,7 @@ namespace tsn {
                 SourceLocation(),
                 nullptr
             });
+            m_logCountStack[m_logCountStack.size() - 1]++;
             return m_messages.last();
         }
 
