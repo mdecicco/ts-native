@@ -400,6 +400,18 @@ TEST_CASE("Parse parameters/arguments", "[parser]") {
             REQUIRE(isError(n));
         }
         delete_mocked_source(src);
+
+        src = mock_module_source("(a)");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = maybeTypedParameterList(&p);
+            REQUIRE(log.getMessages().size() == 0);
+            REQUIRE(n == nullptr);
+        }
+        delete_mocked_source(src);
     }
     
     SECTION("maybeParameterList") {

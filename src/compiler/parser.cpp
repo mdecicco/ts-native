@@ -1121,10 +1121,19 @@ namespace tsn {
         }
         ParseNode* maybeTypedParameterList(Parser* ps) {
             if (!ps->typeIs(tt_open_parenth)) return nullptr;
+            ps->begin();
+
             const token& ft = ps->get();
             ps->consume();
 
             ParseNode* f = typedParameter(ps);
+            if (!f && !ps->typeIs(tt_close_parenth)) {
+                ps->revert();
+                return nullptr;
+            }
+
+            ps->commit();
+
             ParseNode* n = f;
             while (n) {
                 if (!ps->typeIs(tt_comma)) break;
@@ -1392,6 +1401,7 @@ namespace tsn {
                     switch (r.tp) {
                         case tt_close_bracket: {
                             ps->consume();
+                            break;
                         }
                         default: {
                             return errorNode(ps);
@@ -1471,6 +1481,8 @@ namespace tsn {
             return n;
         }
         ParseNode* identifierTypeSpecifier(Parser* ps, ParseNode* id) {
+            if (!id) return nullptr;
+            
             ParseNode* n = ps->newNode(nt_type_specifier, &id->tok);
             n->body = id;
             n->template_parameters = templateArgs(ps);
@@ -1501,7 +1513,7 @@ namespace tsn {
                 } else ps->consume();
 
                 ParseNode* n = f;
-                do {
+                while (true) {
                     n->next = typeProperty(ps);
                     n = n->next;
                     
@@ -1512,7 +1524,7 @@ namespace tsn {
                         if (ps->typeIs(tt_comma)) ps->consume(); // a likely mistake
                         // attempt to continue
                     } else ps->consume();
-                } while (true);
+                }
 
                 if (!ps->typeIs(tt_close_brace)) {
                     ps->error(pm_expected_closing_brace, "Expected '}' to close object type definition");
@@ -1536,7 +1548,7 @@ namespace tsn {
                 const token* t = &ps->get();
                 ps->begin();
                 ParseNode* p = maybeTypedParameterList(ps);
-                if (p) {
+                if (p && !isError(p)) {
                     ParseNode* n = ps->newNode(nt_type_specifier, t);
                     n->parameters = p;
 
@@ -1556,6 +1568,8 @@ namespace tsn {
                     }
 
                     return n;
+                } else if (isError(p)) {
+                    ps->freeNode(p);
                 }
 
                 ps->revert();
