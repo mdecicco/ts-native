@@ -313,6 +313,7 @@ namespace tsn {
         ParseNode* primaryExpression             (Parser* ps);
         ParseNode* functionExpression            (Parser* ps);
         ParseNode* memberExpression              (Parser* ps);
+        ParseNode* newExpression                 (Parser* ps);
         ParseNode* callExpression                (Parser* ps);
         ParseNode* leftHandSideExpression        (Parser* ps);
         ParseNode* postfixExpression             (Parser* ps);

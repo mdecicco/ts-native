@@ -1883,7 +1883,7 @@ namespace tsn {
                 ParseNode* n = ps->newNode(nt_sizeof, &ps->getPrev());
 
                 if (!ps->isSymbol("<")) {
-                    ps->error(pm_expected_symbol, "Expected single template parameter after 'sizeof'");
+                    ps->error(pm_expected_single_template_arg, "Expected single template parameter after 'sizeof'");
                     ps->freeNode(n);
                     return errorNode(ps);
                 }
@@ -1896,7 +1896,9 @@ namespace tsn {
                 }
 
                 if (n->data_type->next) {
-                    ps->error(pm_expected_single_template_arg, "Expected single template parameter after 'sizeof'");
+                    ps->error(pm_expected_single_template_arg, "Expected single template parameter after 'sizeof'", n->data_type->next->tok);
+                    ps->freeNode(n->data_type->next);
+                    n->data_type->next = nullptr;
                 }
 
                 return n;
@@ -2015,7 +2017,6 @@ namespace tsn {
                     
                     ParseNode* r = expression(ps);
                     if (!r) {
-                        ps->revert();
                         ps->error(pm_expected_expr, "Expected expression after '['");
 
                         const token& rt = skipToNextType(ps, { tt_close_bracket });
@@ -2032,28 +2033,27 @@ namespace tsn {
                     }
 
                     if (!ps->typeIs(tt_close_bracket)) {
-                        ps->revert();
                         ps->error(pm_expected_closing_bracket, "Expected ']'");
 
                         const token& rt = skipToNextType(ps, { tt_close_bracket });
                         switch (rt.tp) {
-                            case tt_close_bracket: {
-                                ps->consume();
-                                break;
-                            }
+                            case tt_close_bracket: break;
                             default: {
                                 ps->freeNode(l);
                                 return errorNode(ps);
                             }
                         }
                     }
+                    
+                    ps->consume();
 
                     ParseNode* e = ps->newNode(nt_expression, &tok);
                     e->op = op_index;
                     e->lvalue = l;
                     e->rvalue = r;
 
-                    n = e;
+                    l = e;
+                    continue;
                 }
 
                 break;
@@ -2073,6 +2073,19 @@ namespace tsn {
                 ps->freeNode(n);
                 return errorNode(ps);
             }
+
+            if (n->body->tp == nt_expression) {
+                if (n->body->op != op_member) {
+                    ps->error(pm_expected_type_specifier, "Expected type specifier after 'new'");
+                    ps->freeNode(n);
+                    return errorNode(ps);
+                }
+            } else if (n->body->tp != nt_type_specifier && n->body->tp != nt_identifier) {
+                ps->error(pm_expected_type_specifier, "Expected type specifier after 'new'");
+                ps->freeNode(n);
+                return errorNode(ps);
+            }
+
             n->parameters = parameterList(ps);
 
             return n;
@@ -2085,15 +2098,16 @@ namespace tsn {
                 return nullptr;
             }
 
-            if (callee->tp == nt_expression && callee->op == op_new) {
-                // new acts as the call node
-                return callee;
-            }
-
             const token& argTok = ps->get();
 
             ParseNode* args = arguments(ps);
             if (!args) {
+                if (callee->tp == nt_expression && callee->op == op_new) {
+                    // new expression is valid output here, the result of
+                    // the new expression just isn't called itself
+                    return callee;
+                }
+
                 ps->revert();
                 ps->freeNode(callee);
                 return nullptr;
@@ -2121,9 +2135,9 @@ namespace tsn {
                     e->rvalue = identifier(ps);
                     
                     if (!e->rvalue) {
-                        ps->revert();
-                        ps->error(pm_expected_identifier, "Expected identifier after '.'");
+                        auto& etok = ps->get();
                         ps->freeNode(e);
+                        ps->error(pm_expected_identifier, "Expected identifier after '.'", etok);
                         return errorNode(ps);
                     }
 
@@ -2137,7 +2151,6 @@ namespace tsn {
                     e->rvalue = expression(ps);
                     
                     if (!e->rvalue) {
-                        ps->revert();
                         ps->error(pm_expected_expr, "Expected expression after '['");
 
                         const token& rt = skipToNextType(ps, { tt_close_bracket });
@@ -2154,22 +2167,19 @@ namespace tsn {
                     }
 
                     if (!ps->typeIs(tt_close_bracket)) {
-                        ps->revert();
                         ps->error(pm_expected_closing_bracket, "Expected ']'");
 
                         const token& rt = skipToNextType(ps, { tt_close_bracket });
                         switch (rt.tp) {
-                            case tt_close_bracket: {
-                                ps->consume();
-                                break;
-                            }
+                            case tt_close_bracket: break;
                             default: {
                                 ps->freeNode(e);
-                                return nullptr;
+                                return errorNode(ps);
                             }
                         }
                     }
 
+                    ps->consume();
                     n = e;
                     continue;
                 }
