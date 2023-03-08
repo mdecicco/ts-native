@@ -648,16 +648,85 @@ TEST_CASE("Parse Literals", "[parser]") {
     SECTION("objectLiteralProperty") {
         ModuleSource* src = nullptr;
 
-        src = mock_module_source(";");
+        src = mock_module_source("a: 5");
         {
             Logger log;
             Lexer l(src);
             Parser p(&l, &log);
 
-            ParseNode* n = eos(&p);
+            ParseNode* n = objectLiteralProperty(&p, false);
             REQUIRE(log.getMessages().size() == 0);
             REQUIRE(n != nullptr);
-            REQUIRE(n->tp == nt_eos);
+            REQUIRE(n->tp == nt_object_literal_property);
+            REQUIRE(n->str() == "a");
+            REQUIRE(n->initializer != nullptr);
+            REQUIRE(n->initializer->tp == nt_literal);
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("a 5");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = objectLiteralProperty(&p, false);
+            REQUIRE(log.getMessages().size() == 0);
+            REQUIRE(n == nullptr);
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("a 5");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = objectLiteralProperty(&p, true);
+            REQUIRE(log.getMessages().size() == 1);
+            const auto& msg = log.getMessages()[0];
+            REQUIRE(msg.code == pm_expected_colon);
+            REQUIRE(msg.type == lt_error);
+            REQUIRE(msg.msg == "Expected ':' after 'a'");
+            REQUIRE(msg.src.getLine() == 0);
+            REQUIRE(msg.src.getCol() == 2);
+            REQUIRE(isError(n));
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("a: ");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = objectLiteralProperty(&p, true);
+            REQUIRE(log.getMessages().size() == 1);
+            const auto& msg = log.getMessages()[0];
+            REQUIRE(msg.code == pm_expected_expr);
+            REQUIRE(msg.type == lt_error);
+            REQUIRE(msg.msg == "Expected expression after 'a:'");
+            REQUIRE(msg.src.getLine() == 0);
+            REQUIRE(msg.src.getCol() == 2);
+            REQUIRE(isError(n));
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("a: ");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = objectLiteralProperty(&p, false);
+            REQUIRE(log.getMessages().size() == 1);
+            const auto& msg = log.getMessages()[0];
+            REQUIRE(msg.code == pm_expected_expr);
+            REQUIRE(msg.type == lt_error);
+            REQUIRE(msg.msg == "Expected expression after 'a:'");
+            REQUIRE(msg.src.getLine() == 0);
+            REQUIRE(msg.src.getCol() == 2);
+            REQUIRE(isError(n));
         }
         delete_mocked_source(src);
     }
@@ -665,16 +734,272 @@ TEST_CASE("Parse Literals", "[parser]") {
     SECTION("objectLiteral") {
         ModuleSource* src = nullptr;
 
-        src = mock_module_source(";");
+        src = mock_module_source("5");
         {
             Logger log;
             Lexer l(src);
             Parser p(&l, &log);
 
-            ParseNode* n = eos(&p);
+            ParseNode* n = objectLiteral(&p);
+            REQUIRE(log.getMessages().size() == 0);
+            REQUIRE(n == nullptr);
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("{ 5");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = objectLiteral(&p);
+            REQUIRE(log.getMessages().size() == 0);
+            REQUIRE(n == nullptr);
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("{ a: 5 }");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = objectLiteral(&p);
             REQUIRE(log.getMessages().size() == 0);
             REQUIRE(n != nullptr);
-            REQUIRE(n->tp == nt_eos);
+            REQUIRE(n->tp == nt_literal);
+            REQUIRE(n->value_tp == lt_object);
+
+            n = n->body;
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_object_literal_property);
+            REQUIRE(n->str() == "a");
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("{ a: 5, b: 6, c: 7 }");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = objectLiteral(&p);
+            REQUIRE(log.getMessages().size() == 0);
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_literal);
+            REQUIRE(n->value_tp == lt_object);
+
+            n = n->body;
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_object_literal_property);
+            REQUIRE(n->str() == "a");
+
+            n = n->next;
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_object_literal_property);
+            REQUIRE(n->str() == "b");
+
+            n = n->next;
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_object_literal_property);
+            REQUIRE(n->str() == "c");
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("{ a: ");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = objectLiteral(&p);
+            REQUIRE(log.getMessages().size() == 1);
+            const auto& msg = log.getMessages()[0];
+            REQUIRE(msg.code == pm_expected_expr);
+            REQUIRE(msg.type == lt_error);
+            REQUIRE(msg.msg == "Expected expression after 'a:'");
+            REQUIRE(msg.src.getLine() == 0);
+            REQUIRE(msg.src.getCol() == 4);
+            REQUIRE(n != nullptr);
+            REQUIRE(isError(n));
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("{ a: , b: 1 }");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = objectLiteral(&p);
+            REQUIRE(log.getMessages().size() == 1);
+            const auto& msg = log.getMessages()[0];
+            REQUIRE(msg.code == pm_expected_expr);
+            REQUIRE(msg.type == lt_error);
+            REQUIRE(msg.msg == "Expected expression after 'a:'");
+            REQUIRE(msg.src.getLine() == 0);
+            REQUIRE(msg.src.getCol() == 5);
+            
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_literal);
+            REQUIRE(n->value_tp == lt_object);
+
+            n = n->body;
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_object_literal_property);
+            REQUIRE(n->str() == "b");
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("{ a: 5, b: , c: 7 }");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = objectLiteral(&p);
+            REQUIRE(log.getMessages().size() == 1);
+            const auto& msg = log.getMessages()[0];
+            REQUIRE(msg.code == pm_expected_expr);
+            REQUIRE(msg.type == lt_error);
+            REQUIRE(msg.msg == "Expected expression after 'b:'");
+            REQUIRE(msg.src.getLine() == 0);
+            REQUIRE(msg.src.getCol() == 11);
+            
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_literal);
+            REQUIRE(n->value_tp == lt_object);
+
+            n = n->body;
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_object_literal_property);
+            REQUIRE(n->str() == "a");
+
+            n = n->next;
+            REQUIRE(n != nullptr);
+            REQUIRE(isError(n));
+
+            n = n->next;
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_object_literal_property);
+            REQUIRE(n->str() == "c");
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("{ a: } ");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = objectLiteral(&p);
+            REQUIRE(log.getMessages().size() == 1);
+            const auto& msg = log.getMessages()[0];
+            REQUIRE(msg.code == pm_expected_expr);
+            REQUIRE(msg.type == lt_error);
+            REQUIRE(msg.msg == "Expected expression after 'a:'");
+            REQUIRE(msg.src.getLine() == 0);
+            REQUIRE(msg.src.getCol() == 5);
+            REQUIRE(n != nullptr);
+            REQUIRE(isError(n));
+
+            // It should have skipped to after the closing brace
+            REQUIRE(p.get().src.getCol() == 6);    
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("{ a: 5, } ");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = objectLiteral(&p);
+            REQUIRE(log.getMessages().size() == 1);
+            const auto& msg = log.getMessages()[0];
+            REQUIRE(msg.code == pm_expected_object_property);
+            REQUIRE(msg.type == lt_error);
+            REQUIRE(msg.msg == "Expected object literal property after ','");
+            REQUIRE(msg.src.getLine() == 0);
+            REQUIRE(msg.src.getCol() == 8);
+            REQUIRE(n != nullptr);
+            REQUIRE(isError(n));
+
+            // It should have skipped to after the closing brace
+            REQUIRE(p.get().src.getCol() == 9);    
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("{ a: 5, 6");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = objectLiteral(&p);
+            REQUIRE(log.getMessages().size() == 1);
+            const auto& msg = log.getMessages()[0];
+            REQUIRE(msg.code == pm_expected_object_property);
+            REQUIRE(msg.type == lt_error);
+            REQUIRE(msg.msg == "Expected object literal property after ','");
+            REQUIRE(msg.src.getLine() == 0);
+            REQUIRE(msg.src.getCol() == 8);
+            REQUIRE(n != nullptr);
+            REQUIRE(isError(n));
+
+            // It should not have skipped anything
+            REQUIRE(p.get().src.getCol() == 8);    
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("{ a: 5 6 } ");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = objectLiteral(&p);
+            REQUIRE(log.getMessages().size() == 1);
+            const auto& msg = log.getMessages()[0];
+            REQUIRE(msg.code == pm_expected_closing_brace);
+            REQUIRE(msg.type == lt_error);
+            REQUIRE(msg.msg == "Expected '}' to close object literal");
+            REQUIRE(msg.src.getLine() == 0);
+            REQUIRE(msg.src.getCol() == 7);
+            
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_literal);
+            REQUIRE(n->value_tp == lt_object);
+
+            n = n->body;
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_object_literal_property);
+            REQUIRE(n->str() == "a");
+
+            // It should have skipped to after the closing brace
+            REQUIRE(p.get().src.getCol() == 10);    
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("{ a: 5 6");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = objectLiteral(&p);
+            REQUIRE(log.getMessages().size() == 1);
+            const auto& msg = log.getMessages()[0];
+            REQUIRE(msg.code == pm_expected_closing_brace);
+            REQUIRE(msg.type == lt_error);
+            REQUIRE(msg.msg == "Expected '}' to close object literal");
+            REQUIRE(msg.src.getLine() == 0);
+            REQUIRE(msg.src.getCol() == 7);
+            REQUIRE(n != nullptr);
+            REQUIRE(isError(n));
+
+            // It should not have skipped anything
+            REQUIRE(p.get().src.getCol() == 7);    
         }
         delete_mocked_source(src);
     }

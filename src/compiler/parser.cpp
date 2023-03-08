@@ -1726,7 +1726,7 @@ namespace tsn {
                     }
                 }
             }
-            
+
             n->manuallySpecifyRange(ps->get());
             ps->consume();
             ps->commit();
@@ -1737,32 +1737,27 @@ namespace tsn {
             return a;
         }
         ParseNode* objectLiteralProperty(Parser* ps, bool expected) {
-            ps->begin();
             ParseNode* n = identifier(ps);
-            if (!n) {
-                ps->revert();
-                return nullptr;
-            }
+            if (!n) return nullptr;
 
             if (!ps->typeIs(tt_colon)) {
                 if (expected) {
                     ps->error(pm_expected_colon, utils::String::Format("Expected ':' after '%s'", n->str().c_str()));
                 }
-                ps->revert();
                 ps->freeNode(n);
                 return expected ? errorNode(ps) : nullptr;
             }
+
+            ps->consume();
 
             n->tp = nt_object_literal_property;
             n->initializer = singleExpression(ps);
             if (!n->initializer) {
                 ps->error(pm_expected_expr, utils::String::Format("Expected expression after '%s:'", n->str().c_str()));
-                ps->revert();
                 ps->freeNode(n);
                 return errorNode(ps);
             }
 
-            ps->commit();
             return n;
         }
         ParseNode* objectLiteral(Parser* ps) {
@@ -1780,8 +1775,27 @@ namespace tsn {
             ps->commit();
             
             if (isError(f)) {
-                skipToNextType(ps, { tt_close_brace });
-                return f;
+                auto& t = skipToNextType(ps, { tt_comma, tt_close_brace });
+                if (t.tp != tt_comma) {
+                    if (t.tp == tt_close_brace) ps->consume();
+                    return f;
+                }
+
+                // attempt to continue
+                ps->begin();
+                ps->consume();
+                ParseNode* nf = objectLiteralProperty(ps, true);
+                if (!nf || isError(nf)) {
+                    // oh well
+                    if (nf) ps->freeNode(nf);
+                    ps->revert();
+                    return f;
+                }
+
+                ps->commit();
+
+                ps->freeNode(f);
+                f = nf;
             }
 
             ParseNode* n = f;
@@ -1793,9 +1807,14 @@ namespace tsn {
                 if (!n || isError(n)) {
                     if (!n) ps->error(pm_expected_object_property, "Expected object literal property after ','");
 
-                    const token& r = skipToNextType(ps, { tt_comma });
+                    const token& r = skipToNextType(ps, { tt_comma, tt_close_brace });
                     switch (r.tp) {
                         case tt_comma: continue;
+                        case tt_close_brace: {
+                            ps->consume();
+                            ps->freeNode(f);
+                            return errorNode(ps);
+                        }
                         default: {
                             ps->freeNode(f);
                             return errorNode(ps);
@@ -1805,7 +1824,7 @@ namespace tsn {
             }
 
             if (!ps->typeIs(tt_close_brace)) {
-                ps->error(pm_expected_closing_bracket, "Expected '}' to close object literal");
+                ps->error(pm_expected_closing_brace, "Expected '}' to close object literal");
 
                 const token& r = skipToNextType(ps, { tt_close_brace });
                 switch (r.tp) {
