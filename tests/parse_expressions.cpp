@@ -1624,16 +1624,212 @@ TEST_CASE("Parse Expressions", "[parser]") {
     SECTION("multiplicativeExpression") {
         ModuleSource* src = nullptr;
 
-        src = mock_module_source(";");
+        src = mock_module_source("!i");
         {
             Logger log;
             Lexer l(src);
             Parser p(&l, &log);
 
-            ParseNode* n = eos(&p);
+            ParseNode* n = multiplicativeExpression(&p);
             REQUIRE(log.getMessages().size() == 0);
             REQUIRE(n != nullptr);
-            REQUIRE(n->tp == nt_eos);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_not);
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("1 * 2");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = multiplicativeExpression(&p);
+            REQUIRE(log.getMessages().size() == 0);
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_mul);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->value.i == 1);
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_literal);
+            REQUIRE(n->rvalue->value.i == 2);
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("1 * ;");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = multiplicativeExpression(&p);
+            REQUIRE(log.getMessages().size() == 1);
+            const auto& msg = log.getMessages()[0];
+            REQUIRE(msg.type == lt_error);
+            REQUIRE(msg.code == pm_expected_expr);
+            REQUIRE(msg.msg == "Expected expression after '*'");
+            REQUIRE(msg.src.getLine() == 0);
+            REQUIRE(msg.src.getCol() == 4);
+            REQUIRE(n != nullptr);
+            REQUIRE(isError(n));
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("1 * 2 * 3");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = multiplicativeExpression(&p);
+            REQUIRE(log.getMessages().size() == 0);
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_mul);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_expression);
+            REQUIRE(n->lvalue->op == op_mul);
+            REQUIRE(n->lvalue->lvalue != nullptr);
+            REQUIRE(n->lvalue->lvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->lvalue->value.i == 1);
+            REQUIRE(n->lvalue->rvalue != nullptr);
+            REQUIRE(n->lvalue->rvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->rvalue->value.i == 2);
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_literal);
+            REQUIRE(n->rvalue->value.i == 3);
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("1 / 2");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = multiplicativeExpression(&p);
+            REQUIRE(log.getMessages().size() == 0);
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_div);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->value.i == 1);
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_literal);
+            REQUIRE(n->rvalue->value.i == 2);
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("1 / ;");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = multiplicativeExpression(&p);
+            REQUIRE(log.getMessages().size() == 1);
+            const auto& msg = log.getMessages()[0];
+            REQUIRE(msg.type == lt_error);
+            REQUIRE(msg.code == pm_expected_expr);
+            REQUIRE(msg.msg == "Expected expression after '/'");
+            REQUIRE(msg.src.getLine() == 0);
+            REQUIRE(msg.src.getCol() == 4);
+            REQUIRE(n != nullptr);
+            REQUIRE(isError(n));
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("1 / 2 / 3");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = multiplicativeExpression(&p);
+            REQUIRE(log.getMessages().size() == 0);
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_div);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_expression);
+            REQUIRE(n->lvalue->op == op_div);
+            REQUIRE(n->lvalue->lvalue != nullptr);
+            REQUIRE(n->lvalue->lvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->lvalue->value.i == 1);
+            REQUIRE(n->lvalue->rvalue != nullptr);
+            REQUIRE(n->lvalue->rvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->rvalue->value.i == 2);
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_literal);
+            REQUIRE(n->rvalue->value.i == 3);
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("1 % 2");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = multiplicativeExpression(&p);
+            REQUIRE(log.getMessages().size() == 0);
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_mod);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->value.i == 1);
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_literal);
+            REQUIRE(n->rvalue->value.i == 2);
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("1 % ;");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = multiplicativeExpression(&p);
+            REQUIRE(log.getMessages().size() == 1);
+            const auto& msg = log.getMessages()[0];
+            REQUIRE(msg.type == lt_error);
+            REQUIRE(msg.code == pm_expected_expr);
+            REQUIRE(msg.msg == "Expected expression after '%'");
+            REQUIRE(msg.src.getLine() == 0);
+            REQUIRE(msg.src.getCol() == 4);
+            REQUIRE(n != nullptr);
+            REQUIRE(isError(n));
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("1 % 2 % 3");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = multiplicativeExpression(&p);
+            REQUIRE(log.getMessages().size() == 0);
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_mod);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_expression);
+            REQUIRE(n->lvalue->op == op_mod);
+            REQUIRE(n->lvalue->lvalue != nullptr);
+            REQUIRE(n->lvalue->lvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->lvalue->value.i == 1);
+            REQUIRE(n->lvalue->rvalue != nullptr);
+            REQUIRE(n->lvalue->rvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->rvalue->value.i == 2);
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_literal);
+            REQUIRE(n->rvalue->value.i == 3);
         }
         delete_mocked_source(src);
     }
@@ -1641,16 +1837,173 @@ TEST_CASE("Parse Expressions", "[parser]") {
     SECTION("additiveExpression") {
         ModuleSource* src = nullptr;
 
-        src = mock_module_source(";");
+        src = mock_module_source("1 * 2");
         {
             Logger log;
             Lexer l(src);
             Parser p(&l, &log);
 
-            ParseNode* n = eos(&p);
+            ParseNode* n = additiveExpression(&p);
             REQUIRE(log.getMessages().size() == 0);
             REQUIRE(n != nullptr);
-            REQUIRE(n->tp == nt_eos);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_mul);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->value.i == 1);
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_literal);
+            REQUIRE(n->rvalue->value.i == 2);
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("1 + 2");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = additiveExpression(&p);
+            REQUIRE(log.getMessages().size() == 0);
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_add);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->value.i == 1);
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_literal);
+            REQUIRE(n->rvalue->value.i == 2);
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("1 + ;");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = additiveExpression(&p);
+            REQUIRE(log.getMessages().size() == 1);
+            const auto& msg = log.getMessages()[0];
+            REQUIRE(msg.type == lt_error);
+            REQUIRE(msg.code == pm_expected_expr);
+            REQUIRE(msg.msg == "Expected expression after '+'");
+            REQUIRE(msg.src.getLine() == 0);
+            REQUIRE(msg.src.getCol() == 4);
+            REQUIRE(n != nullptr);
+            REQUIRE(isError(n));
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("1 + 2 + 3");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = additiveExpression(&p);
+            REQUIRE(log.getMessages().size() == 0);
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_add);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_expression);
+            REQUIRE(n->lvalue->op == op_add);
+            REQUIRE(n->lvalue->lvalue != nullptr);
+            REQUIRE(n->lvalue->lvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->lvalue->value.i == 1);
+            REQUIRE(n->lvalue->rvalue != nullptr);
+            REQUIRE(n->lvalue->rvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->rvalue->value.i == 2);
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_literal);
+            REQUIRE(n->rvalue->value.i == 3);
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("1 - 2");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = additiveExpression(&p);
+            REQUIRE(log.getMessages().size() == 0);
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_sub);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->value.i == 1);
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_literal);
+            REQUIRE(n->rvalue->value.i == 2);
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("1 - ;");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = additiveExpression(&p);
+            REQUIRE(log.getMessages().size() == 1);
+            const auto& msg = log.getMessages()[0];
+            REQUIRE(msg.type == lt_error);
+            REQUIRE(msg.code == pm_expected_expr);
+            REQUIRE(msg.msg == "Expected expression after '-'");
+            REQUIRE(msg.src.getLine() == 0);
+            REQUIRE(msg.src.getCol() == 4);
+            REQUIRE(n != nullptr);
+            REQUIRE(isError(n));
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("1 - 2 - 3");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = additiveExpression(&p);
+            REQUIRE(log.getMessages().size() == 0);
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_sub);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_expression);
+            REQUIRE(n->lvalue->op == op_sub);
+            REQUIRE(n->lvalue->lvalue != nullptr);
+            REQUIRE(n->lvalue->lvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->lvalue->value.i == 1);
+            REQUIRE(n->lvalue->rvalue != nullptr);
+            REQUIRE(n->lvalue->rvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->rvalue->value.i == 2);
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_literal);
+            REQUIRE(n->rvalue->value.i == 3);
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("1 - 2");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = additiveExpression(&p);
+            REQUIRE(log.getMessages().size() == 0);
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_sub);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->value.i == 1);
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_literal);
+            REQUIRE(n->rvalue->value.i == 2);
         }
         delete_mocked_source(src);
     }
@@ -1658,16 +2011,173 @@ TEST_CASE("Parse Expressions", "[parser]") {
     SECTION("shiftExpression") {
         ModuleSource* src = nullptr;
 
-        src = mock_module_source(";");
+        src = mock_module_source("1 + 2");
         {
             Logger log;
             Lexer l(src);
             Parser p(&l, &log);
 
-            ParseNode* n = eos(&p);
+            ParseNode* n = shiftExpression(&p);
             REQUIRE(log.getMessages().size() == 0);
             REQUIRE(n != nullptr);
-            REQUIRE(n->tp == nt_eos);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_add);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->value.i == 1);
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_literal);
+            REQUIRE(n->rvalue->value.i == 2);
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("1 << 2");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = shiftExpression(&p);
+            REQUIRE(log.getMessages().size() == 0);
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_shLeft);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->value.i == 1);
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_literal);
+            REQUIRE(n->rvalue->value.i == 2);
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("1 << ;");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = shiftExpression(&p);
+            REQUIRE(log.getMessages().size() == 1);
+            const auto& msg = log.getMessages()[0];
+            REQUIRE(msg.type == lt_error);
+            REQUIRE(msg.code == pm_expected_expr);
+            REQUIRE(msg.msg == "Expected expression after '<<'");
+            REQUIRE(msg.src.getLine() == 0);
+            REQUIRE(msg.src.getCol() == 5);
+            REQUIRE(n != nullptr);
+            REQUIRE(isError(n));
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("1 << 2 << 3");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = shiftExpression(&p);
+            REQUIRE(log.getMessages().size() == 0);
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_shLeft);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_expression);
+            REQUIRE(n->lvalue->op == op_shLeft);
+            REQUIRE(n->lvalue->lvalue != nullptr);
+            REQUIRE(n->lvalue->lvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->lvalue->value.i == 1);
+            REQUIRE(n->lvalue->rvalue != nullptr);
+            REQUIRE(n->lvalue->rvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->rvalue->value.i == 2);
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_literal);
+            REQUIRE(n->rvalue->value.i == 3);
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("1 >> 2");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = shiftExpression(&p);
+            REQUIRE(log.getMessages().size() == 0);
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_shRight);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->value.i == 1);
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_literal);
+            REQUIRE(n->rvalue->value.i == 2);
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("1 >> ;");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = shiftExpression(&p);
+            REQUIRE(log.getMessages().size() == 1);
+            const auto& msg = log.getMessages()[0];
+            REQUIRE(msg.type == lt_error);
+            REQUIRE(msg.code == pm_expected_expr);
+            REQUIRE(msg.msg == "Expected expression after '>>'");
+            REQUIRE(msg.src.getLine() == 0);
+            REQUIRE(msg.src.getCol() == 5);
+            REQUIRE(n != nullptr);
+            REQUIRE(isError(n));
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("1 >> 2 >> 3");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = shiftExpression(&p);
+            REQUIRE(log.getMessages().size() == 0);
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_shRight);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_expression);
+            REQUIRE(n->lvalue->op == op_shRight);
+            REQUIRE(n->lvalue->lvalue != nullptr);
+            REQUIRE(n->lvalue->lvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->lvalue->value.i == 1);
+            REQUIRE(n->lvalue->rvalue != nullptr);
+            REQUIRE(n->lvalue->rvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->rvalue->value.i == 2);
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_literal);
+            REQUIRE(n->rvalue->value.i == 3);
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("1 >> 2");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = shiftExpression(&p);
+            REQUIRE(log.getMessages().size() == 0);
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_shRight);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->value.i == 1);
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_literal);
+            REQUIRE(n->rvalue->value.i == 2);
         }
         delete_mocked_source(src);
     }
@@ -1675,16 +2185,283 @@ TEST_CASE("Parse Expressions", "[parser]") {
     SECTION("relationalExpression") {
         ModuleSource* src = nullptr;
 
-        src = mock_module_source(";");
+        src = mock_module_source("1 << 2");
         {
             Logger log;
             Lexer l(src);
             Parser p(&l, &log);
 
-            ParseNode* n = eos(&p);
+            ParseNode* n = relationalExpression(&p);
             REQUIRE(log.getMessages().size() == 0);
             REQUIRE(n != nullptr);
-            REQUIRE(n->tp == nt_eos);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_shLeft);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->value.i == 1);
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_literal);
+            REQUIRE(n->rvalue->value.i == 2);
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("1 < 2");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = relationalExpression(&p);
+            REQUIRE(log.getMessages().size() == 0);
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_lessThan);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->value.i == 1);
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_literal);
+            REQUIRE(n->rvalue->value.i == 2);
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("1 < ;");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = relationalExpression(&p);
+            REQUIRE(log.getMessages().size() == 1);
+            const auto& msg = log.getMessages()[0];
+            REQUIRE(msg.type == lt_error);
+            REQUIRE(msg.code == pm_expected_expr);
+            REQUIRE(msg.msg == "Expected expression after '<'");
+            REQUIRE(msg.src.getLine() == 0);
+            REQUIRE(msg.src.getCol() == 4);
+            REQUIRE(n != nullptr);
+            REQUIRE(isError(n));
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("1 < 2 < 3");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = relationalExpression(&p);
+            REQUIRE(log.getMessages().size() == 0);
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_lessThan);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_expression);
+            REQUIRE(n->lvalue->op == op_lessThan);
+            REQUIRE(n->lvalue->lvalue != nullptr);
+            REQUIRE(n->lvalue->lvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->lvalue->value.i == 1);
+            REQUIRE(n->lvalue->rvalue != nullptr);
+            REQUIRE(n->lvalue->rvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->rvalue->value.i == 2);
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_literal);
+            REQUIRE(n->rvalue->value.i == 3);
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("1 <= 2");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = relationalExpression(&p);
+            REQUIRE(log.getMessages().size() == 0);
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_lessThanEq);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->value.i == 1);
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_literal);
+            REQUIRE(n->rvalue->value.i == 2);
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("1 <= ;");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = relationalExpression(&p);
+            REQUIRE(log.getMessages().size() == 1);
+            const auto& msg = log.getMessages()[0];
+            REQUIRE(msg.type == lt_error);
+            REQUIRE(msg.code == pm_expected_expr);
+            REQUIRE(msg.msg == "Expected expression after '<='");
+            REQUIRE(msg.src.getLine() == 0);
+            REQUIRE(msg.src.getCol() == 5);
+            REQUIRE(n != nullptr);
+            REQUIRE(isError(n));
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("1 <= 2 <= 3");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = relationalExpression(&p);
+            REQUIRE(log.getMessages().size() == 0);
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_lessThanEq);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_expression);
+            REQUIRE(n->lvalue->op == op_lessThanEq);
+            REQUIRE(n->lvalue->lvalue != nullptr);
+            REQUIRE(n->lvalue->lvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->lvalue->value.i == 1);
+            REQUIRE(n->lvalue->rvalue != nullptr);
+            REQUIRE(n->lvalue->rvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->rvalue->value.i == 2);
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_literal);
+            REQUIRE(n->rvalue->value.i == 3);
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("1 > 2");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = relationalExpression(&p);
+            REQUIRE(log.getMessages().size() == 0);
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_greaterThan);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->value.i == 1);
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_literal);
+            REQUIRE(n->rvalue->value.i == 2);
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("1 > ;");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = relationalExpression(&p);
+            REQUIRE(log.getMessages().size() == 1);
+            const auto& msg = log.getMessages()[0];
+            REQUIRE(msg.type == lt_error);
+            REQUIRE(msg.code == pm_expected_expr);
+            REQUIRE(msg.msg == "Expected expression after '>'");
+            REQUIRE(msg.src.getLine() == 0);
+            REQUIRE(msg.src.getCol() == 4);
+            REQUIRE(n != nullptr);
+            REQUIRE(isError(n));
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("1 > 2 > 3");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = relationalExpression(&p);
+            REQUIRE(log.getMessages().size() == 0);
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_greaterThan);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_expression);
+            REQUIRE(n->lvalue->op == op_greaterThan);
+            REQUIRE(n->lvalue->lvalue != nullptr);
+            REQUIRE(n->lvalue->lvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->lvalue->value.i == 1);
+            REQUIRE(n->lvalue->rvalue != nullptr);
+            REQUIRE(n->lvalue->rvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->rvalue->value.i == 2);
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_literal);
+            REQUIRE(n->rvalue->value.i == 3);
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("1 >= 2");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = relationalExpression(&p);
+            REQUIRE(log.getMessages().size() == 0);
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_greaterThanEq);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->value.i == 1);
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_literal);
+            REQUIRE(n->rvalue->value.i == 2);
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("1 >= ;");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = relationalExpression(&p);
+            REQUIRE(log.getMessages().size() == 1);
+            const auto& msg = log.getMessages()[0];
+            REQUIRE(msg.type == lt_error);
+            REQUIRE(msg.code == pm_expected_expr);
+            REQUIRE(msg.msg == "Expected expression after '>='");
+            REQUIRE(msg.src.getLine() == 0);
+            REQUIRE(msg.src.getCol() == 5);
+            REQUIRE(n != nullptr);
+            REQUIRE(isError(n));
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("1 >= 2 >= 3");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = relationalExpression(&p);
+            REQUIRE(log.getMessages().size() == 0);
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_greaterThanEq);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_expression);
+            REQUIRE(n->lvalue->op == op_greaterThanEq);
+            REQUIRE(n->lvalue->lvalue != nullptr);
+            REQUIRE(n->lvalue->lvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->lvalue->value.i == 1);
+            REQUIRE(n->lvalue->rvalue != nullptr);
+            REQUIRE(n->lvalue->rvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->rvalue->value.i == 2);
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_literal);
+            REQUIRE(n->rvalue->value.i == 3);
         }
         delete_mocked_source(src);
     }
@@ -1692,16 +2469,153 @@ TEST_CASE("Parse Expressions", "[parser]") {
     SECTION("equalityExpression") {
         ModuleSource* src = nullptr;
 
-        src = mock_module_source(";");
+        src = mock_module_source("1 < 2");
         {
             Logger log;
             Lexer l(src);
             Parser p(&l, &log);
 
-            ParseNode* n = eos(&p);
+            ParseNode* n = equalityExpression(&p);
             REQUIRE(log.getMessages().size() == 0);
             REQUIRE(n != nullptr);
-            REQUIRE(n->tp == nt_eos);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_lessThan);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->value.i == 1);
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_literal);
+            REQUIRE(n->rvalue->value.i == 2);
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("1 != 2");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = equalityExpression(&p);
+            REQUIRE(log.getMessages().size() == 0);
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_notEq);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->value.i == 1);
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_literal);
+            REQUIRE(n->rvalue->value.i == 2);
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("1 != ;");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = equalityExpression(&p);
+            REQUIRE(log.getMessages().size() == 1);
+            const auto& msg = log.getMessages()[0];
+            REQUIRE(msg.type == lt_error);
+            REQUIRE(msg.code == pm_expected_expr);
+            REQUIRE(msg.msg == "Expected expression after '!='");
+            REQUIRE(msg.src.getLine() == 0);
+            REQUIRE(msg.src.getCol() == 5);
+            REQUIRE(n != nullptr);
+            REQUIRE(isError(n));
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("1 != 2 != 3");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = equalityExpression(&p);
+            REQUIRE(log.getMessages().size() == 0);
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_notEq);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_expression);
+            REQUIRE(n->lvalue->op == op_notEq);
+            REQUIRE(n->lvalue->lvalue != nullptr);
+            REQUIRE(n->lvalue->lvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->lvalue->value.i == 1);
+            REQUIRE(n->lvalue->rvalue != nullptr);
+            REQUIRE(n->lvalue->rvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->rvalue->value.i == 2);
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_literal);
+            REQUIRE(n->rvalue->value.i == 3);
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("1 == 2");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = equalityExpression(&p);
+            REQUIRE(log.getMessages().size() == 0);
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_compare);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->value.i == 1);
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_literal);
+            REQUIRE(n->rvalue->value.i == 2);
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("1 == ;");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = equalityExpression(&p);
+            REQUIRE(log.getMessages().size() == 1);
+            const auto& msg = log.getMessages()[0];
+            REQUIRE(msg.type == lt_error);
+            REQUIRE(msg.code == pm_expected_expr);
+            REQUIRE(msg.msg == "Expected expression after '=='");
+            REQUIRE(msg.src.getLine() == 0);
+            REQUIRE(msg.src.getCol() == 5);
+            REQUIRE(n != nullptr);
+            REQUIRE(isError(n));
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("1 == 2 == 3");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = equalityExpression(&p);
+            REQUIRE(log.getMessages().size() == 0);
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_compare);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_expression);
+            REQUIRE(n->lvalue->op == op_compare);
+            REQUIRE(n->lvalue->lvalue != nullptr);
+            REQUIRE(n->lvalue->lvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->lvalue->value.i == 1);
+            REQUIRE(n->lvalue->rvalue != nullptr);
+            REQUIRE(n->lvalue->rvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->rvalue->value.i == 2);
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_literal);
+            REQUIRE(n->rvalue->value.i == 3);
         }
         delete_mocked_source(src);
     }
@@ -1709,16 +2623,88 @@ TEST_CASE("Parse Expressions", "[parser]") {
     SECTION("bitwiseAndExpression") {
         ModuleSource* src = nullptr;
 
-        src = mock_module_source(";");
+        src = mock_module_source("1 < 2");
         {
             Logger log;
             Lexer l(src);
             Parser p(&l, &log);
 
-            ParseNode* n = eos(&p);
+            ParseNode* n = bitwiseAndExpression(&p);
             REQUIRE(log.getMessages().size() == 0);
             REQUIRE(n != nullptr);
-            REQUIRE(n->tp == nt_eos);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_lessThan);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->value.i == 1);
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_literal);
+            REQUIRE(n->rvalue->value.i == 2);
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("1 & 2");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = bitwiseAndExpression(&p);
+            REQUIRE(log.getMessages().size() == 0);
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_bitAnd);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->value.i == 1);
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_literal);
+            REQUIRE(n->rvalue->value.i == 2);
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("1 & ;");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = bitwiseAndExpression(&p);
+            REQUIRE(log.getMessages().size() == 1);
+            const auto& msg = log.getMessages()[0];
+            REQUIRE(msg.type == lt_error);
+            REQUIRE(msg.code == pm_expected_expr);
+            REQUIRE(msg.msg == "Expected expression after '&'");
+            REQUIRE(msg.src.getLine() == 0);
+            REQUIRE(msg.src.getCol() == 4);
+            REQUIRE(n != nullptr);
+            REQUIRE(isError(n));
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("1 & 2 & 3");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = bitwiseAndExpression(&p);
+            REQUIRE(log.getMessages().size() == 0);
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_bitAnd);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_expression);
+            REQUIRE(n->lvalue->op == op_bitAnd);
+            REQUIRE(n->lvalue->lvalue != nullptr);
+            REQUIRE(n->lvalue->lvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->lvalue->value.i == 1);
+            REQUIRE(n->lvalue->rvalue != nullptr);
+            REQUIRE(n->lvalue->rvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->rvalue->value.i == 2);
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_literal);
+            REQUIRE(n->rvalue->value.i == 3);
         }
         delete_mocked_source(src);
     }
@@ -1726,16 +2712,88 @@ TEST_CASE("Parse Expressions", "[parser]") {
     SECTION("XOrExpression") {
         ModuleSource* src = nullptr;
 
-        src = mock_module_source(";");
+        src = mock_module_source("1 & 2");
         {
             Logger log;
             Lexer l(src);
             Parser p(&l, &log);
 
-            ParseNode* n = eos(&p);
+            ParseNode* n = XOrExpression(&p);
             REQUIRE(log.getMessages().size() == 0);
             REQUIRE(n != nullptr);
-            REQUIRE(n->tp == nt_eos);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_bitAnd);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->value.i == 1);
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_literal);
+            REQUIRE(n->rvalue->value.i == 2);
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("1 ^ 2");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = XOrExpression(&p);
+            REQUIRE(log.getMessages().size() == 0);
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_xor);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->value.i == 1);
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_literal);
+            REQUIRE(n->rvalue->value.i == 2);
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("1 ^ ;");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = XOrExpression(&p);
+            REQUIRE(log.getMessages().size() == 1);
+            const auto& msg = log.getMessages()[0];
+            REQUIRE(msg.type == lt_error);
+            REQUIRE(msg.code == pm_expected_expr);
+            REQUIRE(msg.msg == "Expected expression after '^'");
+            REQUIRE(msg.src.getLine() == 0);
+            REQUIRE(msg.src.getCol() == 4);
+            REQUIRE(n != nullptr);
+            REQUIRE(isError(n));
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("1 ^ 2 ^ 3");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = XOrExpression(&p);
+            REQUIRE(log.getMessages().size() == 0);
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_xor);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_expression);
+            REQUIRE(n->lvalue->op == op_xor);
+            REQUIRE(n->lvalue->lvalue != nullptr);
+            REQUIRE(n->lvalue->lvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->lvalue->value.i == 1);
+            REQUIRE(n->lvalue->rvalue != nullptr);
+            REQUIRE(n->lvalue->rvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->rvalue->value.i == 2);
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_literal);
+            REQUIRE(n->rvalue->value.i == 3);
         }
         delete_mocked_source(src);
     }
@@ -1743,16 +2801,88 @@ TEST_CASE("Parse Expressions", "[parser]") {
     SECTION("bitwiseOrExpression") {
         ModuleSource* src = nullptr;
 
-        src = mock_module_source(";");
+        src = mock_module_source("1 ^ 2");
         {
             Logger log;
             Lexer l(src);
             Parser p(&l, &log);
 
-            ParseNode* n = eos(&p);
+            ParseNode* n = bitwiseOrExpression(&p);
             REQUIRE(log.getMessages().size() == 0);
             REQUIRE(n != nullptr);
-            REQUIRE(n->tp == nt_eos);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_xor);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->value.i == 1);
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_literal);
+            REQUIRE(n->rvalue->value.i == 2);
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("1 | 2");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = bitwiseOrExpression(&p);
+            REQUIRE(log.getMessages().size() == 0);
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_bitOr);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->value.i == 1);
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_literal);
+            REQUIRE(n->rvalue->value.i == 2);
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("1 | ;");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = bitwiseOrExpression(&p);
+            REQUIRE(log.getMessages().size() == 1);
+            const auto& msg = log.getMessages()[0];
+            REQUIRE(msg.type == lt_error);
+            REQUIRE(msg.code == pm_expected_expr);
+            REQUIRE(msg.msg == "Expected expression after '|'");
+            REQUIRE(msg.src.getLine() == 0);
+            REQUIRE(msg.src.getCol() == 4);
+            REQUIRE(n != nullptr);
+            REQUIRE(isError(n));
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("1 | 2 | 3");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = bitwiseOrExpression(&p);
+            REQUIRE(log.getMessages().size() == 0);
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_bitOr);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_expression);
+            REQUIRE(n->lvalue->op == op_bitOr);
+            REQUIRE(n->lvalue->lvalue != nullptr);
+            REQUIRE(n->lvalue->lvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->lvalue->value.i == 1);
+            REQUIRE(n->lvalue->rvalue != nullptr);
+            REQUIRE(n->lvalue->rvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->rvalue->value.i == 2);
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_literal);
+            REQUIRE(n->rvalue->value.i == 3);
         }
         delete_mocked_source(src);
     }
@@ -1760,16 +2890,88 @@ TEST_CASE("Parse Expressions", "[parser]") {
     SECTION("logicalAndExpression") {
         ModuleSource* src = nullptr;
 
-        src = mock_module_source(";");
+        src = mock_module_source("1 | 2");
         {
             Logger log;
             Lexer l(src);
             Parser p(&l, &log);
 
-            ParseNode* n = eos(&p);
+            ParseNode* n = logicalAndExpression(&p);
             REQUIRE(log.getMessages().size() == 0);
             REQUIRE(n != nullptr);
-            REQUIRE(n->tp == nt_eos);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_bitOr);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->value.i == 1);
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_literal);
+            REQUIRE(n->rvalue->value.i == 2);
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("1 && 2");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = logicalAndExpression(&p);
+            REQUIRE(log.getMessages().size() == 0);
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_logAnd);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->value.i == 1);
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_literal);
+            REQUIRE(n->rvalue->value.i == 2);
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("1 && ;");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = logicalAndExpression(&p);
+            REQUIRE(log.getMessages().size() == 1);
+            const auto& msg = log.getMessages()[0];
+            REQUIRE(msg.type == lt_error);
+            REQUIRE(msg.code == pm_expected_expr);
+            REQUIRE(msg.msg == "Expected expression after '&&'");
+            REQUIRE(msg.src.getLine() == 0);
+            REQUIRE(msg.src.getCol() == 5);
+            REQUIRE(n != nullptr);
+            REQUIRE(isError(n));
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("1 && 2 && 3");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = logicalAndExpression(&p);
+            REQUIRE(log.getMessages().size() == 0);
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_logAnd);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_expression);
+            REQUIRE(n->lvalue->op == op_logAnd);
+            REQUIRE(n->lvalue->lvalue != nullptr);
+            REQUIRE(n->lvalue->lvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->lvalue->value.i == 1);
+            REQUIRE(n->lvalue->rvalue != nullptr);
+            REQUIRE(n->lvalue->rvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->rvalue->value.i == 2);
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_literal);
+            REQUIRE(n->rvalue->value.i == 3);
         }
         delete_mocked_source(src);
     }
@@ -1777,16 +2979,88 @@ TEST_CASE("Parse Expressions", "[parser]") {
     SECTION("logicalOrExpression") {
         ModuleSource* src = nullptr;
 
-        src = mock_module_source(";");
+        src = mock_module_source("1 && 2");
         {
             Logger log;
             Lexer l(src);
             Parser p(&l, &log);
 
-            ParseNode* n = eos(&p);
+            ParseNode* n = logicalOrExpression(&p);
             REQUIRE(log.getMessages().size() == 0);
             REQUIRE(n != nullptr);
-            REQUIRE(n->tp == nt_eos);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_logAnd);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->value.i == 1);
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_literal);
+            REQUIRE(n->rvalue->value.i == 2);
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("1 || 2");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = logicalOrExpression(&p);
+            REQUIRE(log.getMessages().size() == 0);
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_logOr);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->value.i == 1);
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_literal);
+            REQUIRE(n->rvalue->value.i == 2);
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("1 || ;");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = logicalOrExpression(&p);
+            REQUIRE(log.getMessages().size() == 1);
+            const auto& msg = log.getMessages()[0];
+            REQUIRE(msg.type == lt_error);
+            REQUIRE(msg.code == pm_expected_expr);
+            REQUIRE(msg.msg == "Expected expression after '||'");
+            REQUIRE(msg.src.getLine() == 0);
+            REQUIRE(msg.src.getCol() == 5);
+            REQUIRE(n != nullptr);
+            REQUIRE(isError(n));
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("1 || 2 || 3");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = logicalOrExpression(&p);
+            REQUIRE(log.getMessages().size() == 0);
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_logOr);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_expression);
+            REQUIRE(n->lvalue->op == op_logOr);
+            REQUIRE(n->lvalue->lvalue != nullptr);
+            REQUIRE(n->lvalue->lvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->lvalue->value.i == 1);
+            REQUIRE(n->lvalue->rvalue != nullptr);
+            REQUIRE(n->lvalue->rvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->rvalue->value.i == 2);
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_literal);
+            REQUIRE(n->rvalue->value.i == 3);
         }
         delete_mocked_source(src);
     }
@@ -1794,16 +3068,102 @@ TEST_CASE("Parse Expressions", "[parser]") {
     SECTION("conditionalExpression") {
         ModuleSource* src = nullptr;
 
-        src = mock_module_source(";");
+        src = mock_module_source("1 || 2");
         {
             Logger log;
             Lexer l(src);
             Parser p(&l, &log);
 
-            ParseNode* n = eos(&p);
+            ParseNode* n = conditionalExpression(&p);
             REQUIRE(log.getMessages().size() == 0);
             REQUIRE(n != nullptr);
-            REQUIRE(n->tp == nt_eos);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_logOr);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->value.i == 1);
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_literal);
+            REQUIRE(n->rvalue->value.i == 2);
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("a ? 1 : 2");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = conditionalExpression(&p);
+            REQUIRE(log.getMessages().size() == 0);
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_conditional);
+            REQUIRE(n->cond != nullptr);
+            REQUIRE(n->cond->tp == nt_identifier);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->value.i == 1);
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_literal);
+            REQUIRE(n->rvalue->value.i == 2);
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("a ? ;");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = conditionalExpression(&p);
+            REQUIRE(log.getMessages().size() == 1);
+            const auto& msg = log.getMessages()[0];
+            REQUIRE(msg.type == lt_error);
+            REQUIRE(msg.code == pm_expected_expr);
+            REQUIRE(msg.msg == "Expected expression for conditional expression's truth result");
+            REQUIRE(msg.src.getLine() == 0);
+            REQUIRE(msg.src.getCol() == 4);
+            REQUIRE(n != nullptr);
+            REQUIRE(isError(n));
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("a ? 1 ;");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = conditionalExpression(&p);
+            REQUIRE(log.getMessages().size() == 1);
+            const auto& msg = log.getMessages()[0];
+            REQUIRE(msg.type == lt_error);
+            REQUIRE(msg.code == pm_expected_symbol);
+            REQUIRE(msg.msg == "Expected ':' after conditional expression's truth result");
+            REQUIRE(msg.src.getLine() == 0);
+            REQUIRE(msg.src.getCol() == 6);
+            REQUIRE(n != nullptr);
+            REQUIRE(isError(n));
+        }
+        delete_mocked_source(src);
+
+        src = mock_module_source("a ? 1 : ;");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = conditionalExpression(&p);
+            REQUIRE(log.getMessages().size() == 1);
+            const auto& msg = log.getMessages()[0];
+            REQUIRE(msg.type == lt_error);
+            REQUIRE(msg.code == pm_expected_expr);
+            REQUIRE(msg.msg == "Expected expression for conditional expression's false result");
+            REQUIRE(msg.src.getLine() == 0);
+            REQUIRE(msg.src.getCol() == 8);
+            REQUIRE(n != nullptr);
+            REQUIRE(isError(n));
         }
         delete_mocked_source(src);
     }
@@ -1811,84 +3171,401 @@ TEST_CASE("Parse Expressions", "[parser]") {
     SECTION("assignmentExpression") {
         ModuleSource* src = nullptr;
 
-        src = mock_module_source(";");
+        src = mock_module_source("a ? 1 : 2");
         {
             Logger log;
             Lexer l(src);
             Parser p(&l, &log);
 
-            ParseNode* n = eos(&p);
+            ParseNode* n = assignmentExpression(&p);
             REQUIRE(log.getMessages().size() == 0);
             REQUIRE(n != nullptr);
-            REQUIRE(n->tp == nt_eos);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_conditional);
+            REQUIRE(n->cond != nullptr);
+            REQUIRE(n->cond->tp == nt_identifier);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_literal);
+            REQUIRE(n->lvalue->value.i == 1);
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_literal);
+            REQUIRE(n->rvalue->value.i == 2);
         }
         delete_mocked_source(src);
+
+        const char* assignmentOpStrs[13] = {
+            "=", "+=", "-=", "*=", "/=", "%=", "<<=", ">>=", "&=", "|=", "&&=", "||=", "^="
+        };
+        expr_operator assignmentOps[13] = {
+            op_assign,
+            op_addEq,
+            op_subEq,
+            op_mulEq,
+            op_divEq,
+            op_modEq,
+            op_shLeftEq,
+            op_shRightEq,
+            op_bitAndEq,
+            op_bitOrEq,
+            op_logAndEq,
+            op_logOrEq,
+            op_xorEq
+        };
+
+        for (u32 i = 0;i < 13;i++) {
+            utils::String code = utils::String::Format("a %s b", assignmentOpStrs[i]);
+            src = mock_module_source(code.c_str());
+            {
+                Logger log;
+                Lexer l(src);
+                Parser p(&l, &log);
+
+                ParseNode* n = assignmentExpression(&p);
+                REQUIRE(log.getMessages().size() == 0);
+                REQUIRE(n != nullptr);
+                REQUIRE(n->tp == nt_expression);
+                REQUIRE(n->op == assignmentOps[i]);
+                REQUIRE(n->lvalue != nullptr);
+                REQUIRE(n->lvalue->tp == nt_identifier);
+                REQUIRE(n->lvalue->str() == "a");
+                REQUIRE(n->rvalue != nullptr);
+                REQUIRE(n->rvalue->tp == nt_identifier);
+                REQUIRE(n->rvalue->str() == "b");
+            }
+            delete_mocked_source(src);
+
+            code = utils::String::Format("a %s ;", assignmentOpStrs[i]);
+            src = mock_module_source(code.c_str());
+            {
+                Logger log;
+                Lexer l(src);
+                Parser p(&l, &log);
+
+                ParseNode* n = assignmentExpression(&p);
+                REQUIRE(log.getMessages().size() == 1);
+                const auto& msg = log.getMessages()[0];
+                REQUIRE(msg.type == lt_error);
+                REQUIRE(msg.code == pm_expected_expr);
+                REQUIRE(msg.msg == "Expected expression for rvalue");
+                REQUIRE(msg.src.getLine() == 0);
+                REQUIRE(msg.src.getCol() == 3 + strlen(assignmentOpStrs[i]));
+                REQUIRE(n != nullptr);
+                REQUIRE(isError(n));
+            }
+            delete_mocked_source(src);
+
+            code = utils::String::Format("a %s b %s c", assignmentOpStrs[i], assignmentOpStrs[i]);
+            src = mock_module_source(code.c_str());
+            {
+                Logger log;
+                Lexer l(src);
+                Parser p(&l, &log);
+
+                ParseNode* n = assignmentExpression(&p);
+                REQUIRE(log.getMessages().size() == 0);
+                REQUIRE(n != nullptr);
+                REQUIRE(n->tp == nt_expression);
+                REQUIRE(n->op == assignmentOps[i]);
+                REQUIRE(n->lvalue != nullptr);
+                REQUIRE(n->lvalue->tp == nt_identifier);
+                REQUIRE(n->lvalue->str() == "a");
+                REQUIRE(n->rvalue != nullptr);
+                REQUIRE(n->rvalue->tp == nt_expression);
+                REQUIRE(n->rvalue->op == assignmentOps[i]);
+                REQUIRE(n->rvalue->lvalue != nullptr);
+                REQUIRE(n->rvalue->lvalue->tp == nt_identifier);
+                REQUIRE(n->rvalue->lvalue->str() == "b");
+                REQUIRE(n->rvalue->rvalue != nullptr);
+                REQUIRE(n->rvalue->rvalue->tp == nt_identifier);
+                REQUIRE(n->rvalue->rvalue->str() == "c");
+            }
+            delete_mocked_source(src);
+        }
     }
     
     SECTION("singleExpression") {
         ModuleSource* src = nullptr;
-
-        src = mock_module_source(";");
+        
+        src = mock_module_source("a = b");
         {
             Logger log;
             Lexer l(src);
             Parser p(&l, &log);
 
-            ParseNode* n = eos(&p);
+            ParseNode* n = singleExpression(&p);
             REQUIRE(log.getMessages().size() == 0);
             REQUIRE(n != nullptr);
-            REQUIRE(n->tp == nt_eos);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_assign);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_identifier);
+            REQUIRE(n->lvalue->str() == "a");
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_identifier);
+            REQUIRE(n->rvalue->str() == "b");
+        }
+        delete_mocked_source(src);
+        
+        src = mock_module_source("a = b, c = d");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = singleExpression(&p);
+            REQUIRE(log.getMessages().size() == 0);
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_assign);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_identifier);
+            REQUIRE(n->lvalue->str() == "a");
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_identifier);
+            REQUIRE(n->rvalue->str() == "b");
+            REQUIRE(n->next == nullptr);
         }
         delete_mocked_source(src);
     }
     
     SECTION("expression") {
         ModuleSource* src = nullptr;
-
-        src = mock_module_source(";");
+        
+        src = mock_module_source("a = b");
         {
             Logger log;
             Lexer l(src);
             Parser p(&l, &log);
 
-            ParseNode* n = eos(&p);
+            ParseNode* n = expression(&p);
             REQUIRE(log.getMessages().size() == 0);
             REQUIRE(n != nullptr);
-            REQUIRE(n->tp == nt_eos);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_assign);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_identifier);
+            REQUIRE(n->lvalue->str() == "a");
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_identifier);
+            REQUIRE(n->rvalue->str() == "b");
+        }
+        delete_mocked_source(src);
+        
+        src = mock_module_source("a = b, ;");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = expression(&p);
+            REQUIRE(log.getMessages().size() == 1);
+            const auto& msg = log.getMessages()[0];
+            REQUIRE(msg.type == lt_error);
+            REQUIRE(msg.code == pm_expected_expr);
+            REQUIRE(msg.msg == "Expected expression after ','");
+            REQUIRE(msg.src.getLine() == 0);
+            REQUIRE(msg.src.getCol() == 7);
+            REQUIRE(n != nullptr);
+            REQUIRE(isError(n));
+        }
+        delete_mocked_source(src);
+        
+        src = mock_module_source("a = b, c = d");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = expression(&p);
+            REQUIRE(log.getMessages().size() == 0);
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_assign);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_identifier);
+            REQUIRE(n->lvalue->str() == "a");
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_identifier);
+            REQUIRE(n->rvalue->str() == "b");
+
+            n = n->next;
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_assign);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_identifier);
+            REQUIRE(n->lvalue->str() == "c");
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_identifier);
+            REQUIRE(n->rvalue->str() == "d");
         }
         delete_mocked_source(src);
     }
     
     SECTION("expressionSequence") {
         ModuleSource* src = nullptr;
-
-        src = mock_module_source(";");
+        
+        src = mock_module_source("a = b");
         {
             Logger log;
             Lexer l(src);
             Parser p(&l, &log);
 
-            ParseNode* n = eos(&p);
+            ParseNode* n = expressionSequence(&p);
             REQUIRE(log.getMessages().size() == 0);
             REQUIRE(n != nullptr);
-            REQUIRE(n->tp == nt_eos);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_assign);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_identifier);
+            REQUIRE(n->lvalue->str() == "a");
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_identifier);
+            REQUIRE(n->rvalue->str() == "b");
+        }
+        delete_mocked_source(src);
+        
+        src = mock_module_source("a = b, ;");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = expression(&p);
+            REQUIRE(log.getMessages().size() == 1);
+            const auto& msg = log.getMessages()[0];
+            REQUIRE(msg.type == lt_error);
+            REQUIRE(msg.code == pm_expected_expr);
+            REQUIRE(msg.msg == "Expected expression after ','");
+            REQUIRE(msg.src.getLine() == 0);
+            REQUIRE(msg.src.getCol() == 7);
+            REQUIRE(n != nullptr);
+            REQUIRE(isError(n));
+        }
+        delete_mocked_source(src);
+        
+        src = mock_module_source("a = b, c = d");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = expressionSequence(&p);
+            REQUIRE(log.getMessages().size() == 0);
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_expression_sequence);
+            n = n->body;
+
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_assign);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_identifier);
+            REQUIRE(n->lvalue->str() == "a");
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_identifier);
+            REQUIRE(n->rvalue->str() == "b");
+
+            n = n->next;
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_assign);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_identifier);
+            REQUIRE(n->lvalue->str() == "c");
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_identifier);
+            REQUIRE(n->rvalue->str() == "d");
         }
         delete_mocked_source(src);
     }
     
     SECTION("expressionSequenceGroup") {
         ModuleSource* src = nullptr;
-
-        src = mock_module_source(";");
+        
+        src = mock_module_source("a = b");
         {
             Logger log;
             Lexer l(src);
             Parser p(&l, &log);
 
-            ParseNode* n = eos(&p);
+            ParseNode* n = expressionSequenceGroup(&p);
+            REQUIRE(log.getMessages().size() == 0);
+            REQUIRE(n == nullptr);
+        }
+        delete_mocked_source(src);
+        
+        src = mock_module_source("(a = b)");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = expressionSequence(&p);
             REQUIRE(log.getMessages().size() == 0);
             REQUIRE(n != nullptr);
-            REQUIRE(n->tp == nt_eos);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_assign);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_identifier);
+            REQUIRE(n->lvalue->str() == "a");
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_identifier);
+            REQUIRE(n->rvalue->str() == "b");
+        }
+        delete_mocked_source(src);
+        
+        src = mock_module_source("(a = b, c = d)");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = expressionSequence(&p);
+            REQUIRE(log.getMessages().size() == 0);
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_expression_sequence);
+            n = n->body;
+
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_assign);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_identifier);
+            REQUIRE(n->lvalue->str() == "a");
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_identifier);
+            REQUIRE(n->rvalue->str() == "b");
+
+            n = n->next;
+            REQUIRE(n != nullptr);
+            REQUIRE(n->tp == nt_expression);
+            REQUIRE(n->op == op_assign);
+            REQUIRE(n->lvalue != nullptr);
+            REQUIRE(n->lvalue->tp == nt_identifier);
+            REQUIRE(n->lvalue->str() == "c");
+            REQUIRE(n->rvalue != nullptr);
+            REQUIRE(n->rvalue->tp == nt_identifier);
+            REQUIRE(n->rvalue->str() == "d");
+        }
+        delete_mocked_source(src);
+        
+        src = mock_module_source("(a = b ;");
+        {
+            Logger log;
+            Lexer l(src);
+            Parser p(&l, &log);
+
+            ParseNode* n = expressionSequence(&p);
+            REQUIRE(log.getMessages().size() == 1);
+            const auto& msg = log.getMessages()[0];
+            REQUIRE(msg.type == lt_error);
+            REQUIRE(msg.code == pm_expected_closing_parenth);
+            REQUIRE(msg.msg == "Expected ')'");
+            REQUIRE(msg.src.getLine() == 0);
+            REQUIRE(msg.src.getCol() == 7);
+            REQUIRE(n != nullptr);
+            REQUIRE(isError(n));
         }
         delete_mocked_source(src);
     }

@@ -2335,7 +2335,7 @@ namespace tsn {
                 e->rvalue = additiveExpression(ps);
                 
                 if (!e->rvalue) {
-                    ps->error(pm_expected_expr, utils::String::Format("Expected expression after '%c%c'", t->text[0]));
+                    ps->error(pm_expected_expr, utils::String::Format("Expected expression after '%c%c'", t->text[0], t->text[0]));
                     ps->freeNode(e);
                     return errorNode(ps);
                 }
