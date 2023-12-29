@@ -1,3 +1,4 @@
+#pragma once
 #include <tsn/common/types.h>
 #include <tsn/interfaces/IContextual.h>
 

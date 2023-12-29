@@ -244,6 +244,7 @@ namespace tsn {
                 Value operands[3];
                 SourceLocation src;
                 u8 oCnt;
+                utils::String comment;
 
                 /**
                  * @brief Returns pointer to Value that would be assigned by this instruction
@@ -275,6 +276,7 @@ namespace tsn {
                 InstructionRef& op(const Value& v);
                 InstructionRef& op(FunctionDef* fn);
                 InstructionRef& label(label_id l);
+                InstructionRef& comment(const utils::String& comment);
 
                 /**
                  * @brief Returns pointer to Value that would be assigned by this instruction

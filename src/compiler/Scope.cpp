@@ -16,7 +16,12 @@ namespace tsn {
         // Scope
         //
 
-        Scope::Scope(Compiler* comp, Scope* parent) : m_parent(parent), m_comp(comp), m_scopeOriginNode(comp->currentNode()) {
+        Scope::Scope(Compiler* comp, Scope* parent) {
+            m_parent = parent;
+            m_comp = comp;
+            m_func = m_comp->currentFunction();
+            m_scopeOriginNode = m_comp->currentNode();
+            m_didReturn = false;
         }
 
         Scope::~Scope() {
@@ -77,7 +82,7 @@ namespace tsn {
         }
 
         void ScopeManager::exit() {
-            emitScopeExitInstructions(m_scopes[m_scopes.size() - 1]);
+            emitScopeExitInstructions(m_scopes.last());
             m_scopes.pop();
         }
 
@@ -87,10 +92,24 @@ namespace tsn {
                 save = save->getSrcSelf();
             }
 
-            emitScopeExitInstructions(m_scopes[m_scopes.size() - 1], save);
+            emitScopeExitInstructions(m_scopes.last(), save);
             m_scopes.pop();
             
-            if (save && save->isStack()) m_scopes[m_scopes.size() - 1].addToStack(*save);
+            if (save && save->isStack()) m_scopes.last().addToStack(*save);
+        }
+        
+        void ScopeManager::emitReturnInstructions() {
+            FunctionDef* functionBound = nullptr;
+            for (i32 i = m_scopes.size() - 1;i >= 0;i--) {
+                if (functionBound && m_scopes[i].m_func != functionBound) break;
+
+                emitScopeExitInstructions(m_scopes[i]);
+
+                if (i == m_scopes.size() - 1) {
+                    m_scopes[i].m_didReturn = true;
+                    functionBound = m_scopes[i].m_func;
+                }
+            }
         }
         
         Scope& ScopeManager::getBase() {
@@ -98,27 +117,27 @@ namespace tsn {
         }
 
         Scope& ScopeManager::get() {
-            return m_scopes[m_scopes.size() - 1];
+            return m_scopes.last();
         }
 
         Value& ScopeManager::add(const utils::String& name, Value* v) {
-            return m_scopes[m_scopes.size() - 1].add(name, v);
+            return m_scopes.last().add(name, v);
         }
 
         Value& ScopeManager::add(const utils::String& name, ffi::DataType* t) {
-            return m_scopes[m_scopes.size() - 1].add(name, t);
+            return m_scopes.last().add(name, t);
         }
 
         Value& ScopeManager::add(const utils::String& name, FunctionDef* f) {
-            return m_scopes[m_scopes.size() - 1].add(name, f);
+            return m_scopes.last().add(name, f);
         }
 
         Value& ScopeManager::add(const utils::String& name, Module* m) {
-            return m_scopes[m_scopes.size() - 1].add(name, m);
+            return m_scopes.last().add(name, m);
         }
 
         Value& ScopeManager::add(const utils::String& name, Module* m, u32 slotId) {
-            return m_scopes[m_scopes.size() - 1].add(name, m, slotId);
+            return m_scopes.last().add(name, m, slotId);
         }
 
         symbol* ScopeManager::get(const utils::String& name) {
@@ -131,6 +150,8 @@ namespace tsn {
         }
         
         void ScopeManager::emitScopeExitInstructions(const Scope& s, const Value* save) {
+            if (s.m_didReturn) return;
+
             if (save && !save->isStack() && save->getSrcSelf() && save->getSrcSelf()->isStack()) {
                 save = save->getSrcSelf();
             }

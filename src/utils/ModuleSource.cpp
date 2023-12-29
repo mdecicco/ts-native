@@ -70,6 +70,7 @@ namespace tsn {
     }
 
     const utils::String& ModuleSource::getLine(u32 idx) const {
+        if (idx > m_lines.size()) return m_lines.last();
         return m_lines[idx];
     }
 };

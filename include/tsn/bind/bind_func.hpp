@@ -16,29 +16,35 @@ namespace tsn {
     namespace ffi {
         template <typename Ret, typename... Args>
         void __cdecl _func_wrapper(Ret (*func)(Args...), Ret* out, ExecutionContext* ctx, Args... args) {
+            ExecutionContext::Push(ctx);
             if constexpr (std::is_same_v<void, Ret>) {
                 func(args...);
             } else {
                 new (out) Ret (func(args...));
             }
+            ExecutionContext::Pop();
         }
         
         template <typename Cls, typename Ret, typename... Args>
         void __cdecl _method_wrapper(Ret (Cls::*method)(Args...), Ret* out, ExecutionContext* ctx, Cls* self, Args... args) {
+            ExecutionContext::Push(ctx);
             if constexpr (std::is_same_v<void, Ret>) {
                 (*self.*method)(args...);
             } else {
                 new (out) Ret ((*self.*method)(args...));
             }
+            ExecutionContext::Pop();
         }
 
         template <typename Cls, typename Ret, typename... Args>
         void __cdecl _method_wrapper(Ret (Cls::*method)(Args...) const, Ret* out, ExecutionContext* ctx, Cls* self, Args... args) {
+            ExecutionContext::Push(ctx);
             if constexpr (std::is_same_v<void, Ret>) {
                 (*self.*method)(args...);
             } else {
                 new (out) Ret ((*self.*method)(args...));
             }
+            ExecutionContext::Pop();
         }
 
         template <typename Cls, typename... Args>

@@ -127,12 +127,15 @@ i32 main (i32 argc, const char** argv) {
     }
 
     utils::Mem::Create();
+    tsn::ffi::ExecutionContext::Init();
+
     {
         Context ctx = Context(1, &contextCfg);
         Module* mod = ctx.getPipeline()->buildFromSource(&meta);
         status = handleResult(&ctx, mod, meta, conf);
     }
 
+    tsn::ffi::ExecutionContext::Shutdown();
     utils::Mem::Destroy();
     return status;
 }
@@ -207,6 +210,8 @@ i32 parse_args(i32 argc, const char** argv, tsnc_config* conf, Config* ctxConf) 
     conf->debugLogging = ctxConf->debugLogging;
     conf->disableOptimizations = ctxConf->disableOptimizations;
     conf->backend = bt_vm;
+
+    // conf->mode = om_exec;
 
     try {
         const char* tmp = nullptr;

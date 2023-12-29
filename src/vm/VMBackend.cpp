@@ -397,8 +397,8 @@ namespace tsn {
                 // This comment was written in a police station while waiting for a ride
                 switch (i.op) {
                     case op::ir_noop: {
-                        m_instructions.push(encode(vmi::null));
-                        m_map.add(i.src.getLine(), i.src.getCol(), i.src.getLength());
+                        // m_instructions.push(encode(vmi::null));
+                        // m_map.add(i.src.getLine(), i.src.getCol(), i.src.getLength());
                         break;
                     }
                     case op::ir_load: {
@@ -770,8 +770,22 @@ namespace tsn {
                             if (!will_be_overwritten) continue;
                             DataType* tp = cfArgs[a].dataType;
 
+                            bool isPointer = false;
+                            switch (cfArgs[a].argType) {
+                                case arg_type::context_ptr:
+                                case arg_type::func_ptr:
+                                case arg_type::ret_ptr:
+                                case arg_type::captures_ptr:
+                                case arg_type::this_ptr:
+                                case arg_type::pointer: {
+                                    isPointer = true;
+                                    break;
+                                }
+                                default: break;
+                            }
+
                             u8 sz = tp->getInfo().size;
-                            if (!tp->getInfo().is_primitive) sz = sizeof(void*);
+                            if (isPointer || !tp->getInfo().is_primitive) sz = sizeof(void*);
                             vmi st = vmi::st8;
                             switch (sz) {
                                 case 2: { st = vmi::st16; break; }

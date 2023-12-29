@@ -35,6 +35,7 @@ namespace tsn {
         func_ptr,
         ret_ptr,
         context_ptr,
+        captures_ptr,
         this_ptr,
         value,
         pointer

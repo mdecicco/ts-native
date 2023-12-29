@@ -9,17 +9,22 @@
 #include <utils/Allocator.hpp>
 
 namespace tsn {
+    void freeClosure(ffi::Closure* closure);
+    void freeCaptureData(void* data);
+
     namespace ffi {
         ClosureRef::ClosureRef() {
             m_ref = nullptr;
         }
 
         ClosureRef::ClosureRef(const ClosureRef& closure) {
+            m_captureData = closure.m_captureData;
             m_ref = closure.m_ref;
             if (m_ref) m_ref->m_refCount++;
         }
 
         ClosureRef::ClosureRef(Closure* closure) {
+            m_captureData = closure ? closure->m_captureData : nullptr;
             m_ref = closure;
             if (m_ref) m_ref->m_refCount++;
         }
@@ -27,7 +32,7 @@ namespace tsn {
         ClosureRef::~ClosureRef() {
             if (m_ref) {
                 m_ref->m_refCount--;
-                if (m_ref->m_refCount == 0) delete m_ref;
+                if (m_ref->m_refCount == 0) freeClosure(m_ref);
                 m_ref = nullptr;
             }
         }
@@ -54,31 +59,37 @@ namespace tsn {
 
 
 
-        Closure::Closure(ExecutionContext* ectx, function_id targetId, void* captures, void* captureTypeIds, u32 captureCount)
+        Closure::Closure(ExecutionContext* ectx, function_id targetId, void* captureData)
             : IContextual(ectx->getContext())
         {
             m_self = nullptr;
             m_target = m_ctx->getFunctions()->getFunction(targetId);
-            m_captureData = captures;
-            m_captureDataTypeIds = (u32*)captureTypeIds;
-            m_captureDataCount = captureCount;
+            m_captureData = captureData;
             m_refCount = 0;
+        }
+
+        Closure::Closure(const Closure& c) : IContextual(nullptr) {
+            throw std::exception("Closures are not copy constructible");
         }
 
         Closure::~Closure() {
             if (m_captureData) {
-                void* objPtr = m_captureData;
-                for (u32 i = 0;i < m_captureDataCount;i++) {
-                    DataType* tp = m_ctx->getTypes()->getType(m_captureDataTypeIds[i]);
+                u8* data = (u8*)m_captureData;
+                u32 count = *(u32*)data;
+                data += sizeof(u32);
+
+                for (u32 i = 0;i < count;i++) {
+                    type_id tid = *(type_id*)data;
+                    data += sizeof(type_id);
+
+                    DataType* tp = m_ctx->getTypes()->getType(tid);
                     Function* dtor = tp->getDestructor();
-                    if (dtor) call_method(m_ctx, dtor, objPtr);
-                    objPtr = ((u8*)objPtr) + tp->getInfo().size;
+                    if (dtor) call_method(m_ctx, dtor, data);
+                    data += tp->getInfo().size;
                 }
 
-                freeMem(m_captureData);
-                freeMem(m_captureDataTypeIds);
+                freeCaptureData(m_captureData);
                 m_captureData = nullptr;
-                m_captureDataTypeIds = nullptr;
             }
         }
         

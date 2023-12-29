@@ -146,6 +146,10 @@ namespace tsn {
         }
 
         utils::String Instruction::toString(Context* ctx) const {
+            if (op == ir_noop && comment.size() > 0) {
+                return "; " + comment;
+            }
+
             const ir_instruction_info& info = opcode_info[op];
             utils::String s = info.name;
             for (u8 o = 0;o < oCnt;o++) {
@@ -183,6 +187,8 @@ namespace tsn {
                 } else s += " " + operands[o].toString(ctx);
             }
 
+            bool commentStarted = false;
+
             if (op == ir_uadd && operands[1].isReg() && operands[2].isImm() && operands[2].getType()->getInfo().is_integral && operands[1].getName().size() > 0) {
                 // Is likely a property offset
                 u32 offset = operands[2].getImm<u32>();
@@ -206,12 +212,19 @@ namespace tsn {
             } else if (op == ir_param) {
                 arg_type at = arg_type(operands[1].getImm<u8>());
                 switch (at) {
-                    case arg_type::context_ptr: { s += " ; context_ptr"; break; }
-                    case arg_type::func_ptr: { s += " ; func_ptr"; break; }
-                    case arg_type::ret_ptr: { s += " ; ret_ptr"; break; }
-                    case arg_type::this_ptr: { s += " ; this_ptr"; break; }
+                    case arg_type::context_ptr: { s += " ; context_ptr"; commentStarted = true; break; }
+                    case arg_type::func_ptr: { s += " ; func_ptr"; commentStarted = true; break; }
+                    case arg_type::ret_ptr: { s += " ; ret_ptr"; commentStarted = true; break; }
+                    case arg_type::this_ptr: { s += " ; this_ptr"; commentStarted = true; break; }
+                    case arg_type::captures_ptr: { s += " ; captures_ptr"; commentStarted = true; break; }
                     default: break;
                 }
+            }
+
+            if (comment.size() > 0) {
+                if (!commentStarted) s += " ; ";
+                else s += ", ";
+                s += comment;
             }
 
             return s;
@@ -249,6 +262,12 @@ namespace tsn {
         InstructionRef& InstructionRef::label(label_id l) {
             Instruction& i = m_owner->m_instructions[m_index];
             i.operands[i.oCnt++].reset(m_owner->imm(l));
+            return *this;
+        }
+
+        InstructionRef& InstructionRef::comment(const utils::String& comment) {
+            Instruction& i = m_owner->m_instructions[m_index];
+            i.comment = comment;
             return *this;
         }
 

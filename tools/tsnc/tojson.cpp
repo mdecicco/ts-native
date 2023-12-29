@@ -500,6 +500,7 @@ json toJson(u32 index, const function_argument& a, FunctionDef* fd) {
         "func_ptr",
         "ret_ptr",
         "ectx_ptr",
+        "caps_ptr",
         "this_ptr",
         "value",
         "pointer"
@@ -520,6 +521,8 @@ json toJson(u32 index, const function_argument& a, FunctionDef* fd) {
         } else if (a.argType == arg_type::ret_ptr) {
             if (fd->getReturnType()->isEqualTo(fd->getContext()->getTypes()->getType<void>())) loc = json(nullptr);
             else loc = fd->getRetPtr().toString(fd->getContext()).c_str();
+        } else if (a.argType == arg_type::captures_ptr) {
+            loc = fd->getCaptures().toString(fd->getContext()).c_str();
         } else if (a.argType == arg_type::this_ptr) {
             if (fd->getThisType()->isEqualTo(fd->getContext()->getTypes()->getType<void>())) loc = json(nullptr);
             else loc = fd->getThis().toString(fd->getContext()).c_str();

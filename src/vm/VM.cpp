@@ -8,6 +8,7 @@
 #include <tsn/ffi/DataType.h>
 #include <tsn/ffi/Closure.h>
 #include <tsn/ffi/FunctionRegistry.h>
+#include <tsn/ffi/DataTypeRegistry.h>
 #include <tsn/bind/call_common.hpp>
 #include <tsn/utils/ModuleSource.h>
 
@@ -91,7 +92,7 @@ namespace tsn {
             bool term = false;
             const Instruction* iptr = code.data();
             iptr += *ip;
-            constexpr bool debug = true;
+            constexpr bool debug = false;
             u32 lastLoggedLn = -1;
 
             while ((*ip) <= cs && !term) {
@@ -721,8 +722,10 @@ namespace tsn {
                         if (((u64)fn->getAddress()) > code.size()) {
                             call_external(fn);
                         } else {
+                            Backend* be = (Backend*)m_ctx->getBackend();
+                            const auto* fd = be->getFunctionData(fn);
                             GRx(vmr::ra, u64) = (*ip) + 1;
-                            *ip = ((u64)fn->getAddress()) - 1;
+                            *ip = ((u64)fd->begin) - 1;
                             iptr = code.data() + *ip;
                         }
                         break;
@@ -742,6 +745,8 @@ namespace tsn {
         }
 
         void VM::call_external(ffi::Function* fn) {
+            ffi::DataType* voidp = m_ctx->getTypes()->getVoidPtr();
+
             // Actual signature:
             // If method of class
             //     RetTp (RetTp (ThisTp::*)(ArgTypes...), RetTp*, ExecutionContext*, ThisTp*, ArgsTypes...)
@@ -754,6 +759,7 @@ namespace tsn {
             // callPtr(funcPtr, retPtr, ectx, ...)
 
             static void* argSpace[64];
+            static void* primArgSpace[64];
             ffi_type* argTypeSpace[64];
 
             utils::Array<arg_location> argLocs;
@@ -776,8 +782,22 @@ namespace tsn {
                 if (loc.reg_id == vmr::sp) src = (void*)(state.registers[(u8)vmr::sp] + loc.stack_offset);
                 else src = (void*)&state.registers[(u8)loc.reg_id];
 
-                if (info.isImplicit() || info.argType == arg_type::pointer) {
-                    argSpace[i] = src;
+                if (info.isImplicit()) {
+                    auto& ti = info.dataType->getInfo();
+                    if (info.argType == arg_type::this_ptr && ti.is_primitive) {
+                        // pseudo method of primitive type
+                        // the 'this' argument is always T*, even if T = void*
+                        primArgSpace[i] = src;
+                        argSpace[i] = &primArgSpace[i];
+                    } else argSpace[i] = src;
+                    argTypeSpace[i] = &ffi_type_pointer;
+                } else if (info.argType == arg_type::pointer) {
+                    auto& ti = info.dataType->getInfo();
+                    if (ti.is_primitive && info.dataType != voidp) {
+                        primArgSpace[i] = src;
+                        argSpace[i] = &primArgSpace[i];
+                    } else argSpace[i] = src;
+
                     argTypeSpace[i] = &ffi_type_pointer;
                 } else {
                     argSpace[i] = src;

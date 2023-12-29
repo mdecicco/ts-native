@@ -44,7 +44,7 @@ namespace tsn {
         }
 
         FunctionDef* OutputBuilder::newFunc(const utils::String& name, ParseNode* n, ffi::DataType* methodOf) {
-            FunctionDef* fn = new FunctionDef(m_comp, name, methodOf, n);
+            FunctionDef* fn = new FunctionDef(m_comp, name, methodOf, n, false);
             
             // Don't add __init__ function to scope
             if (m_funcs.size() > 0) {
@@ -65,6 +65,21 @@ namespace tsn {
             m_funcs.push(fn);
             m_funcDefs[preCreated] = m_allFuncDefs.size();
             m_allFuncDefs.push(fn);
+            return fn;
+        }
+        
+        FunctionDef* OutputBuilder::newClosure(const utils::String& name, ParseNode* n) {
+            FunctionDef* fn = new FunctionDef(m_comp, name, nullptr, n, true);
+            
+            // Don't add __init__ function to scope
+            if (m_funcs.size() > 0) {
+                fn->m_scopeRef = &m_comp->scope().add(name, fn);
+            }
+            m_funcs.push(fn);
+            m_allFuncDefs.push(fn);
+            
+            // def index will be added to m_funcDefs later when output Function* is created
+
             return fn;
         }
         

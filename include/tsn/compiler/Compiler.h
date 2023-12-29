@@ -155,7 +155,9 @@ namespace tsn {
                 Value typeValue(ffi::DataType* tp);
                 Value moduleValue(Module* mod);
                 Value moduleData(Module* m, u32 slot);
-                Value newClosure(function_id target, Value* captures = nullptr, Value* captureTypeIds = nullptr, Value* captureCount = nullptr);
+                Value newClosure(function_id target, Value* captureData = nullptr);
+                Value allocateCaptureData(const utils::Array<Value>& captures, utils::Array<u32>& outOffsets);
+                void findCaptures(ParseNode* node, utils::Array<Value>& outCaptures, robin_hood::unordered_map<utils::String, u32>& declaredNames, u32 scopeIdx);
                 Value newClosureRef(const Value& closure, ffi::DataType* signature);
                 Value newClosureRef(const Value& fnImm);
                 Value newClosureRef(ffi::Function* fn);

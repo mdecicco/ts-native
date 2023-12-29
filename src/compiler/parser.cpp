@@ -2702,7 +2702,8 @@ namespace tsn {
 
         ParseNode* variableDecl(Parser* ps) {
             ParseNode* _assignable = one_of(ps, { typedAssignable, assignable, objectDecompositor });
-            if (!_assignable || isError(_assignable)) return nullptr;
+            if (!_assignable) return nullptr;
+            if (isError(_assignable)) return _assignable;
 
             ParseNode* decl = ps->newNode(nt_variable, &_assignable->tok);
             decl->body = _assignable;
@@ -2710,7 +2711,7 @@ namespace tsn {
                 ps->consume();
                 decl->initializer = singleExpression(ps);
                 if (!decl->initializer || isError(decl->initializer)) {
-                    if (decl->initializer) ps->error(pm_expected_expr, "Expected expression for variable initializer");
+                    if (!decl->initializer) ps->error(pm_expected_expr, "Expected expression for variable initializer");
                     
                     const token& r = skipToNextType(ps, { tt_semicolon });
                     switch (r.tp) {
@@ -2735,7 +2736,7 @@ namespace tsn {
             ParseNode* f = variableDecl(ps);
             if (!f || isError(f)) {
                 if (!isError(f)) ps->error(pm_expected_variable_decl, "Expected variable declaration");
-                ps->freeNode(f);
+                else return f;
                 return errorNode(ps);
             }
 
@@ -2792,6 +2793,7 @@ namespace tsn {
                 if (!didCommit) ps->commit();
                 didCommit = true;
                 isStatic = true;
+                ps->consume();
             }
 
             bool isGetter = false;
@@ -2908,8 +2910,10 @@ namespace tsn {
             n->tok = ft;
 
             if (!isGetter && !isSetter && ps->typeIs(tt_colon)) {
-                if (isOperator) {
-                    ps->error(pm_reserved_word, "Cannot name a class property 'operator', 'operator' is a reserved word");
+                if (n->str() == "constructor") {
+                    ps->error(pm_reserved_word, "Cannot name a class property 'constructor', which is a reserved word", n->tok);
+                } else if (n->str() == "destructor") {
+                    ps->error(pm_reserved_word, "Cannot name a class property 'destructor', which is a reserved word", n->tok);
                 }
 
                 ps->consume();

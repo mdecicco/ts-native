@@ -14,6 +14,23 @@ namespace tsn {
         b.finalize();
     }
 
+    template <typename T>
+    void ExtendNumberType(Context* ctx) {
+        auto tp = extend<T>(ctx);
+
+        tp.method("toString", +[](T* self) {
+            if constexpr (std::is_floating_point_v<T>) {
+                return utils::String::Format("%f", *self);
+            } else if constexpr (std::is_integral_v<T>) {
+                if constexpr (std::is_unsigned_v<T>) {
+                    return utils::String::Format("%llu", (u64)*self);
+                } else {
+                    return utils::String::Format("%lli", (i64)*self);
+                }
+            }
+        }, public_access);
+    }
+
     i32 print(const utils::String& str) {
         return printf(str.c_str());
     }
@@ -57,7 +74,7 @@ namespace tsn {
         auto ectx = bind<ExecutionContext>(ctx, "$exec").dtor(tsn::private_access).finalize();
         
         auto cb = bind<Closure>(ctx, "$closure");
-        cb.ctor<ExecutionContext*, function_id, void*, void*, u32>(public_access);
+        cb.ctor<const Closure&>(public_access);
         cb.dtor(private_access);
         cb.finalize();
 
@@ -89,5 +106,21 @@ namespace tsn {
             DataType* arr = ma->allTypes().find([](const DataType* t) { return t->getName() == "Array"; });
             if (arr) ctx->getGlobal()->addForeignType(arr);
         }
+
+        auto ev = extend<void*>(ctx);
+        ev.method("toString", +[](void** self) {
+            return utils::String::Format("0x%X", reinterpret_cast<u64>(*self));
+        }, public_access);
+
+        ExtendNumberType<i8 >(ctx);
+        ExtendNumberType<i16>(ctx);
+        ExtendNumberType<i32>(ctx);
+        ExtendNumberType<i64>(ctx);
+        ExtendNumberType<u8 >(ctx);
+        ExtendNumberType<u16>(ctx);
+        ExtendNumberType<u32>(ctx);
+        ExtendNumberType<u64>(ctx);
+        ExtendNumberType<f32>(ctx);
+        ExtendNumberType<f64>(ctx);
     }
 };

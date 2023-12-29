@@ -44,6 +44,7 @@ namespace tsn {
                 Value& getArg(u32 argIdx);
                 Value& getThis();
                 Value& getECtx();
+                Value& getCaptures();
                 Value& getFPtr();
                 Value& getRetPtr();
                 Value& getPoison();
@@ -64,7 +65,12 @@ namespace tsn {
                 // is not added to the scope. The stack slot will not be freed
                 // by the end of the scope (unless it is added to the scope or
                 // freed manually)
-                Value stack(ffi::DataType* tp, bool unscoped = false);
+                Value stack(
+                    ffi::DataType* tp,
+                    bool unscoped = false,
+                    const utils::String& allocComment = utils::String(),
+                    const utils::String& getPtrComment = utils::String()
+                );
                 
                 template <typename T>
                 Value& val(const utils::String& name);
@@ -91,7 +97,7 @@ namespace tsn {
                 friend class InstructionRef;
 
                 FunctionDef();
-                FunctionDef(Compiler* c, const utils::String& name, ffi::DataType* methodOf, ParseNode* n);
+                FunctionDef(Compiler* c, const utils::String& name, ffi::DataType* methodOf, ParseNode* n, bool doesCapture);
                 FunctionDef(Compiler* c, ffi::Function* func, ParseNode* n);
 
                 ParseNode* m_node;
@@ -101,12 +107,14 @@ namespace tsn {
                 utils::String m_name;
                 ffi::DataType* m_retTp;
                 bool m_retTpSet;
+                bool m_captures;
                 u8 m_implicitArgCount;
                 utils::Array<ffi::function_argument> m_argInfo;
                 utils::Array<utils::String> m_argNames;
                 utils::Array<Value*> m_args;
                 Value* m_thisArg;
                 Value* m_ectxArg;
+                Value* m_capsArg;
                 Value* m_fptrArg;
                 Value* m_retpArg;
                 Value* m_poison;

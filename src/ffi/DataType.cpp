@@ -367,6 +367,7 @@ namespace tsn {
                 bool is_implicit = arg.argType == arg_type::func_ptr;
                 is_implicit = is_implicit || arg.argType == arg_type::ret_ptr;
                 is_implicit = is_implicit || arg.argType == arg_type::context_ptr;
+                is_implicit = is_implicit || arg.argType == arg_type::captures_ptr;
                 is_implicit = is_implicit || arg.argType == arg_type::this_ptr;
                 bool is_ptr = is_implicit || arg.argType == arg_type::pointer;
 

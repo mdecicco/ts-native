@@ -31,13 +31,14 @@ namespace tsn {
                 
             protected:
                 friend class compiler::Compiler;
+                void* m_captureData;
                 Closure* m_ref;
         };
 
         class Closure : public IContextual {
             public:
-                Closure(ExecutionContext* ectx, function_id targetId, void* captures, void* captureTypeIds, u32 captureCount);
-                Closure(const Closure& c) = delete;
+                Closure(ExecutionContext* ectx, function_id targetId, void* captureData);
+                Closure(const Closure& c);
                 ~Closure();
 
                 void bind(void* self);
@@ -53,8 +54,6 @@ namespace tsn {
                 void* m_self;
                 void* m_captureData;
                 ffi::Function* m_target;
-                type_id* m_captureDataTypeIds;
-                u32 m_captureDataCount;
                 u32 m_refCount;
         };
     };

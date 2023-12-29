@@ -33,6 +33,7 @@ namespace tsn {
 
                 FunctionDef* newFunc(const utils::String& name, ParseNode* n, ffi::DataType* methodOf = nullptr);
                 FunctionDef* newFunc(ffi::Function* preCreated, ParseNode* n, bool retTpExplicit = true);
+                FunctionDef* newClosure(const utils::String& name, ParseNode* n);
                 void resolveFunctionDef(FunctionDef* def, ffi::Function* fn);
                 FunctionDef* getFunctionDef(ffi::Function* fn);
                 void add(ffi::DataType* tp);

@@ -22,6 +22,7 @@ namespace tsn {
             m_comp = nullptr;
             m_retTp = nullptr;
             m_retTpSet = false;
+            m_captures = false;
             m_thisTp = nullptr;
             m_output = nullptr;
             m_nextAllocId = 1;
@@ -29,13 +30,14 @@ namespace tsn {
             m_nextLabelId = 1;
             m_thisArg = nullptr;
             m_ectxArg = nullptr;
+            m_capsArg = nullptr;
             m_fptrArg = nullptr;
             m_retpArg = nullptr;
             m_poison = nullptr;
             m_implicitArgCount = 0;
         }
 
-        FunctionDef::FunctionDef(Compiler* c, const utils::String& name, DataType* methodOf, ParseNode* n) {
+        FunctionDef::FunctionDef(Compiler* c, const utils::String& name, DataType* methodOf, ParseNode* n, bool doesCapture) {
             m_node = n;
             m_scopeRef = nullptr;
             m_comp = c;
@@ -43,6 +45,7 @@ namespace tsn {
             m_name = name;
             m_retTp = c->getContext()->getTypes()->getType<void>();
             m_retTpSet = false;
+            m_captures = doesCapture;
             m_thisTp = methodOf;
             m_output = nullptr;
             m_nextAllocId = 1;
@@ -50,6 +53,7 @@ namespace tsn {
             m_nextLabelId = 1;
             m_thisArg = nullptr;
             m_ectxArg = nullptr;
+            m_capsArg = nullptr;
             m_fptrArg = nullptr;
             m_retpArg = nullptr;
             m_poison = &val("@poison", c->getContext()->getTypes()->getType<poison_t>());
@@ -58,10 +62,17 @@ namespace tsn {
             m_argInfo.push({ arg_type::func_ptr, ptrTp });
             m_argInfo.push({ arg_type::ret_ptr, m_retTp });
             m_argInfo.push({ arg_type::context_ptr, ptrTp });
-            if (methodOf) {
-                m_argInfo.push({ arg_type::this_ptr, methodOf });
-                m_implicitArgCount = 4;
-            } else m_implicitArgCount = 3;
+            m_implicitArgCount = 3;
+
+            if (m_captures) {
+                m_argInfo.push({ arg_type::captures_ptr, ptrTp });
+                m_implicitArgCount++;
+            }
+
+            if (m_thisTp) {
+                m_argInfo.push({ arg_type::this_ptr, m_thisTp });
+                m_implicitArgCount++;
+            }
         }
         
         FunctionDef::FunctionDef(Compiler* c, Function* func, ParseNode* n) {
@@ -73,12 +84,14 @@ namespace tsn {
             m_thisTp = nullptr;
             m_retTp = c->getContext()->getTypes()->getType<void>();
             m_retTpSet = false;
+            m_captures = false;
             m_output = func;
             m_nextAllocId = 1;
             m_nextRegId = 1;
             m_nextLabelId = 1;
             m_thisArg = nullptr;
             m_ectxArg = nullptr;
+            m_capsArg = nullptr;
             m_fptrArg = nullptr;
             m_retpArg = nullptr;
             m_poison = &val("@poison", c->getContext()->getTypes()->getType<poison_t>());
@@ -90,7 +103,10 @@ namespace tsn {
                 m_retTpSet = true;
                 const auto& args = sig->getArguments();
                 for (u8 a = 0;a < args.size();a++) {
-                    if (args[a].isImplicit()) m_implicitArgCount++;
+                    if (args[a].isImplicit()) {
+                        m_implicitArgCount++;
+                        if (args[a].argType == arg_type::captures_ptr) m_captures = true;
+                    }
                     m_argInfo.push(args[a]);
                 }
             }
@@ -234,6 +250,10 @@ namespace tsn {
             return *m_ectxArg;
         }
         
+        Value& FunctionDef::getCaptures() {
+            return *m_capsArg;
+        }
+        
         Value& FunctionDef::getFPtr() {
             return *m_fptrArg;
         }
@@ -322,18 +342,18 @@ namespace tsn {
             return v;
         }
 
-        Value FunctionDef::stack(DataType* tp, bool unscoped) {
+        Value FunctionDef::stack(DataType* tp, bool unscoped, const utils::String& allocComment, const utils::String& ptrComment) {
             Value v = Value(this, tp);
 
             alloc_id stackId = reserveStackId();
             v.setStackAllocId(stackId);
-            add(ir_stack_allocate).op(imm(tp->getInfo().size)).op(imm(stackId));
+            add(ir_stack_allocate).op(imm(tp->getInfo().size)).op(imm(stackId)).comment(allocComment);
             if (!unscoped) {
                 m_comp->scope().get().addToStack(v);
                 Value out = val(tp);
-                add(ir_stack_ptr).op(out).op(imm(stackId));
+                add(ir_stack_ptr).op(out).op(imm(stackId)).comment(ptrComment);
                 out.m_flags.is_pointer = 1;
-                out.m_srcSelf = new Value(v);
+                out.setStackSrc(v);
                 return out;
             }
 
@@ -349,37 +369,48 @@ namespace tsn {
             DataType* ectx = m_comp->getContext()->getTypes()->getType<ExecutionContext>();
             DataType* errt = m_comp->getContext()->getTypes()->getType<poison_t>();
 
+            u32 argIdx = 0;
+
             Value& f = val("@fptr", voidp);
             f.m_flags.is_argument = 1;
             f.m_flags.is_pointer = 1;
             f.m_regId = 0;
-            f.m_imm.u = 0;
+            f.m_imm.u = argIdx++;
             m_fptrArg = new Value(f);
 
             Value& r = val("@ret", m_retTpSet ? m_retTp : voidp);
             r.m_flags.is_argument = 1;
             r.m_flags.is_pointer = 1;
             r.m_regId = 0;
-            r.m_imm.u = 1;
+            r.m_imm.u = argIdx++;
             m_retpArg = new Value(r);
 
             Value& c = val("@ectx", ectx);
             c.m_flags.is_argument = 1;
             c.m_flags.is_pointer = 1;
             c.m_regId = 0;
-            c.m_imm.u = 2;
+            c.m_imm.u = argIdx++;
             m_ectxArg = new Value(c);
 
-            Value& p = val("@poison", errt);
+            if (m_captures) {
+                Value& cp = val("@caps", voidp);
+                cp.m_flags.is_argument = 1;
+                cp.m_flags.is_pointer = 1;
+                cp.m_regId = 0;
+                cp.m_imm.u = argIdx++;
+                m_capsArg = new Value(cp);
+            }
 
             if (m_thisTp) {
                 Value& t = val("this", m_thisTp);
                 t.m_flags.is_argument = 1;
                 t.m_flags.is_pointer = 1;
                 t.m_regId = 0;
-                t.m_imm.u = 3;
+                t.m_imm.u = argIdx++;
                 m_thisArg = new Value(t);
             }
+
+            Value& p = val("@poison", errt);
         }
 
         Function* FunctionDef::onExit() {
@@ -388,12 +419,13 @@ namespace tsn {
 
             if (m_instructions.size() == 0 || m_instructions.last().op != ir_ret) {
                 if (m_retTp->isEqualTo(voidTp)) {
-                    add(ir_ret).op(val(voidTp));
+                    m_comp->scope().emitReturnInstructions();
+                    add(ir_ret);
                 } else {
                     m_comp->error(
                         cm_err_function_must_return_a_value,
                         "Function '%s' must return a value of type '%s'",
-                        m_output->getDisplayName().c_str(),
+                        (m_output ? m_output->getDisplayName() : m_name).c_str(),
                         m_retTp->getName().c_str()
                     );
                 }
