@@ -163,12 +163,30 @@ namespace tsn {
                 ObjectTypeBinder<Cls>& prop(const utils::String& name, T (*getter)(), T (*setter)(const T&), access_modifier access = public_access);
                 template <typename T>
                 ObjectTypeBinder<Cls>& prop(const utils::String& name, T (*getter)(), T (*setter)(T), access_modifier access = public_access);
+                template <typename T>
+                ObjectTypeBinder<Cls>& prop(const utils::String& name, T (*getter)(), access_modifier access = public_access);
 
                 // member proxy
                 template <typename T>
-                ObjectTypeBinder<Cls>& prop(const utils::String& name, T (Cls::*getter)(Cls*), T (Cls::*setter)(const T&), access_modifier access = public_access);
+                ObjectTypeBinder<Cls>& prop(const utils::String& name, T (Cls::*getter)(), T (Cls::*setter)(const T&), access_modifier access = public_access);
                 template <typename T>
-                ObjectTypeBinder<Cls>& prop(const utils::String& name, T (Cls::*getter)(Cls*), T (Cls::*setter)(T), access_modifier access = public_access);
+                ObjectTypeBinder<Cls>& prop(const utils::String& name, T (Cls::*getter)() const, T (Cls::*setter)(const T&), access_modifier access = public_access);
+                template <typename T>
+                ObjectTypeBinder<Cls>& prop(const utils::String& name, T (Cls::*getter)(), T (Cls::*setter)(const T&) const, access_modifier access = public_access);
+                template <typename T>
+                ObjectTypeBinder<Cls>& prop(const utils::String& name, T (Cls::*getter)() const, T (Cls::*setter)(const T&) const, access_modifier access = public_access);
+                template <typename T>
+                ObjectTypeBinder<Cls>& prop(const utils::String& name, T (Cls::*getter)(), T (Cls::*setter)(T), access_modifier access = public_access);
+                template <typename T>
+                ObjectTypeBinder<Cls>& prop(const utils::String& name, T (Cls::*getter)() const, T (Cls::*setter)(T), access_modifier access = public_access);
+                template <typename T>
+                ObjectTypeBinder<Cls>& prop(const utils::String& name, T (Cls::*getter)(), T (Cls::*setter)(T) const, access_modifier access = public_access);
+                template <typename T>
+                ObjectTypeBinder<Cls>& prop(const utils::String& name, T (Cls::*getter)() const, T (Cls::*setter)(T) const, access_modifier access = public_access);
+                template <typename T>
+                ObjectTypeBinder<Cls>& prop(const utils::String& name, T (Cls::*getter)(), access_modifier access = public_access);
+                template <typename T>
+                ObjectTypeBinder<Cls>& prop(const utils::String& name, T (Cls::*getter)() const, access_modifier access = public_access);
             
             private:
                 template <typename T>

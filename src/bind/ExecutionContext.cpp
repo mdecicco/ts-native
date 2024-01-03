@@ -6,6 +6,7 @@ namespace tsn {
         ExecutionContext::thread_ctx_map* ExecutionContext::g_ectx = nullptr;
 
         ExecutionContext::ExecutionContext(Context* ctx) : IContextual(ctx) {
+            m_exceptionCaught = false;
         }
 
         ExecutionContext::~ExecutionContext() {

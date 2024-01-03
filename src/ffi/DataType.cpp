@@ -17,6 +17,7 @@ namespace tsn {
 
         DataType::DataType() {
             m_id = 0;
+            m_sourceModule = nullptr;
             m_name = "";
             m_fullyQualifiedName = "";
             m_info = { 0 };
@@ -32,6 +33,7 @@ namespace tsn {
             const type_meta& info
         ) {
             m_id = (type_id)std::hash<utils::String>()(fullyQualifiedName);
+            m_sourceModule = nullptr;
             m_name = name;
             m_fullyQualifiedName = fullyQualifiedName;
             m_info = info;
@@ -51,6 +53,7 @@ namespace tsn {
             const utils::Array<Function*>& methods
         ) {
             m_id = (type_id)std::hash<utils::String>()(fullyQualifiedName);
+            m_sourceModule = nullptr;
             m_name = name;
             m_fullyQualifiedName = fullyQualifiedName;
             m_info = info;
@@ -97,6 +100,10 @@ namespace tsn {
 
         type_id DataType::getId() const {
             return m_id;
+        }
+
+        Module* DataType::getSource() const {
+            return m_sourceModule;
         }
 
         const utils::String& DataType::getName() const {
@@ -259,14 +266,14 @@ namespace tsn {
             return getEffectiveType()->m_templateArgs;
         }
 
-        bool DataType::isInstantiationOf(ffi::TemplateType* templ) const {
+        bool DataType::isSpecializationOf(ffi::TemplateType* templ) const {
             TemplateType* templBase = getTemplateBase();
 
             if (!templBase || !templ) return false;
             return templBase->isEqualTo(templ);
         }
 
-        bool DataType::isInstantiationOf(ffi::TemplateType* templ, const utils::Array<ffi::DataType*>& withArgs) const {
+        bool DataType::isSpecializationOf(ffi::TemplateType* templ, const utils::Array<ffi::DataType*>& withArgs) const {
             TemplateType* templBase = getTemplateBase();
             const utils::Array<DataType*>& templArgs = getTemplateArguments();
 
@@ -341,7 +348,7 @@ namespace tsn {
         //
 
         bool function_argument::isImplicit() const {
-            return (u32)argType <= (u32)arg_type::this_ptr;
+            return argType == arg_type::context_ptr;
         }
 
 
@@ -350,25 +357,27 @@ namespace tsn {
         //
         FunctionType::FunctionType() {
             m_returnType = nullptr;
+            m_thisType = nullptr;
             m_returnsPointer = false;
             m_itype = dti_function;
         }
 
-        FunctionType::FunctionType(DataType* returnType, const utils::Array<function_argument>& args, bool returnsPointer) {
+        FunctionType::FunctionType(DataType* thisType, DataType* returnType, const utils::Array<function_argument>& args, bool returnsPointer) {
             m_itype = dti_function;
-            m_name = returnType->m_name + "(";
-            m_fullyQualifiedName = returnType->m_fullyQualifiedName + "(";
+            if (!thisType) {
+                m_name = returnType->m_name + " ::(";
+                m_fullyQualifiedName = returnType->m_fullyQualifiedName + " ::(";
+            } else {
+                m_name = returnType->m_name + " " + thisType->getName() + "::(";
+                m_fullyQualifiedName = returnType->m_fullyQualifiedName + " " + thisType->getName() + "::(";
+            }
             args.each([this](const function_argument& arg, u32 idx) {
                 if (idx > 0) {
                     m_name += ",";
                     m_fullyQualifiedName += ",";
                 }
 
-                bool is_implicit = arg.argType == arg_type::func_ptr;
-                is_implicit = is_implicit || arg.argType == arg_type::ret_ptr;
-                is_implicit = is_implicit || arg.argType == arg_type::context_ptr;
-                is_implicit = is_implicit || arg.argType == arg_type::captures_ptr;
-                is_implicit = is_implicit || arg.argType == arg_type::this_ptr;
+                bool is_implicit = arg.isImplicit();
                 bool is_ptr = is_implicit || arg.argType == arg_type::pointer;
 
                 if (is_implicit) {
@@ -409,6 +418,7 @@ namespace tsn {
 
             m_returnType = returnType;
             m_returnsPointer = returnsPointer;
+            m_thisType = thisType;
             m_args = args;
         }
 
@@ -466,12 +476,11 @@ namespace tsn {
         DataType* FunctionType::getReturnType() const {
             return m_returnType;
         }
+
         DataType* FunctionType::getThisType() const {
-            for (u32 i = 0;i < m_args.size();i++) {
-                if (m_args[i].argType == arg_type::this_ptr) return m_args[i].dataType;
-            }
-            return nullptr;
+            return m_thisType;
         }
+
         bool FunctionType::returnsPointer() const {
             return m_returnsPointer;
         }
@@ -505,6 +514,7 @@ namespace tsn {
             };
 
             if (!out->write(m_returnType ? m_returnType->getId() : type_id(0))) return false;
+            if (!out->write(m_thisType ? m_thisType->getId() : type_id(0))) return false;
             if (!out->write(m_returnsPointer)) return false;
             if (!out->write(m_args.size())) return false;
             if (m_args.some(writeArg)) return false;

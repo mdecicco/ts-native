@@ -22,7 +22,7 @@ namespace tsn {
 
     Closure* newClosure(function_id targetId, void* captureData) {
         Closure* c = closureAllocator.alloc(1);
-        new (c) Closure(ExecutionContext::Get(), targetId, captureData);
+        new (c) Closure(ffi::ExecutionContext::Get(), targetId, captureData);
         return c;
     }
 

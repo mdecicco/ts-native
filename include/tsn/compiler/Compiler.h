@@ -10,6 +10,7 @@
 
 namespace tsn {
     class Module;
+    class Pipeline;
     struct script_metadata;
 
     namespace ffi {
@@ -123,7 +124,9 @@ namespace tsn {
 
                 const script_metadata* getScriptInfo() const;
                 OutputBuilder* getOutput();
-                OutputBuilder* compile();
+                void begin();
+                void end();
+                OutputBuilder* compileAll();
 
                 log_message& typeError(ffi::DataType* tp, log_message_code code, const char* msg, ...);
                 log_message& typeError(ParseNode* node, ffi::DataType* tp, log_message_code code, const char* msg, ...);
@@ -143,6 +146,7 @@ namespace tsn {
             protected:
                 friend class Value;
                 friend class ScopeManager;
+                friend class Pipeline;
 
                 InstructionRef add(ir_instruction inst);
                 Value getStorageForExpr(ffi::DataType* tp);

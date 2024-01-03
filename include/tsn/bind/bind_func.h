@@ -15,13 +15,13 @@ namespace tsn {
         class ExecutionContext;
 
         template <typename Ret, typename... Args>
-        void __cdecl _func_wrapper(Ret (*func)(Args... args), Ret* out, ExecutionContext* ctx, Args... args);
+        void __cdecl _func_wrapper(call_context* ctx, Args... args);
         
         template <typename Cls, typename Ret, typename... Args>
-        void __cdecl _method_wrapper(Ret (Cls::*func)(Args... args), Ret* out, ExecutionContext* ctx, Cls* self, Args... args);
+        void __cdecl _method_wrapper(call_context* ctx, Args... args);
 
         template <typename Cls, typename Ret, typename... Args>
-        void __cdecl _method_wrapper(Ret (Cls::*func)(Args... args) const, Ret* out, ExecutionContext* ctx, Cls* self, Args... args);
+        void __cdecl _const_method_wrapper(call_context* ctx, Args... args);
 
 
 

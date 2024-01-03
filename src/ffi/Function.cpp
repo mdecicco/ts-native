@@ -13,6 +13,7 @@ namespace tsn {
         //
         Function::Function() {
             m_id = 0;
+            m_sourceModule = nullptr;
             m_registryIndex = u32(-1);
             m_access = public_access;
             m_signature = nullptr;
@@ -22,11 +23,12 @@ namespace tsn {
             m_isTemplate = false;
         }
 
-        Function::Function(const utils::String& name, const utils::String& extraQualifiers, FunctionType* signature, access_modifier access, void* address, void* wrapperAddr) {
+        Function::Function(const utils::String& name, const utils::String& extraQualifiers, FunctionType* signature, access_modifier access, void* address, void* wrapperAddr, Module* source) {
             m_extraQualifiers = extraQualifiers;
             m_fullyQualifiedName = signature ? signature->generateFullyQualifiedFunctionName(name, m_extraQualifiers) : "";
             m_displayName = signature ? signature->generateFunctionDisplayName(name, m_extraQualifiers) : "";
             m_id = (function_id)std::hash<utils::String>()(m_fullyQualifiedName);
+            m_sourceModule = source;
             m_registryIndex = u32(-1);
             m_name = name;
             m_signature = signature;
@@ -42,6 +44,10 @@ namespace tsn {
 
         function_id Function::getId() const {
             return m_id;
+        }
+
+        Module* Function::getSourceModule() const {
+            return m_sourceModule;
         }
 
         const utils::String& Function::getName() const {
@@ -82,9 +88,7 @@ namespace tsn {
 
         bool Function::isThisCall() const {
             if (!m_signature) return false;
-            return m_signature->getArguments().some([](const function_argument& a) { 
-                return a.argType == arg_type::this_ptr;
-            });
+            return m_signature->getThisType() != nullptr;
         }
 
         void* Function::getAddress() const {
@@ -126,14 +130,12 @@ namespace tsn {
 
             if (current->getId() == tp->getId()) return;
 
-            utils::Array<function_argument> args = m_signature->getArguments();
-
-            // The exception above not occurring proves this function will not return nullptr.
-            args.find([](const function_argument& a) {
-                return a.argType == arg_type::this_ptr;
-            })->dataType = tp;
-
-            FunctionType* newSig = new FunctionType(m_signature->getReturnType(), args, m_signature->returnsPointer());
+            FunctionType* newSig = new FunctionType(
+                tp,
+                m_signature->getReturnType(),
+                m_signature->getArguments(),
+                m_signature->returnsPointer()
+            );
 
             const auto& types = treg->allTypes();
             for (auto* t : types) {
@@ -160,18 +162,12 @@ namespace tsn {
 
             if (m_signature->getReturnType()->getId() == tp->getId()) return;
 
-            utils::Array<function_argument> args = m_signature->getArguments();
-            
-            DataType* selfTp = nullptr;
-            for (u32 a = 0;a < args.size();a++) {
-                if (args[a].argType == arg_type::ret_ptr) {
-                    args[a].dataType = tp;
-                } else if (args[a].argType == arg_type::this_ptr) {
-                    selfTp = args[a].dataType;
-                } else if (!args[a].isImplicit()) break;
-            }
-
-            FunctionType* newSig = new FunctionType(tp, args, returnsPointer);
+            FunctionType* newSig = new FunctionType(
+                m_signature->getThisType(),
+                tp,
+                m_signature->getArguments(),
+                returnsPointer
+            );
 
             const auto& types = treg->allTypes();
             for (auto* t : types) {
@@ -202,8 +198,8 @@ namespace tsn {
             m_isMethod = true;
         }
 
-        Method::Method(const utils::String& name, const utils::String& extraQualifiers, FunctionType* signature, access_modifier access, void* address, void* wrapperAddr, u64 baseOffset)
-        : Function(name, extraQualifiers, signature, access, address, wrapperAddr)
+        Method::Method(const utils::String& name, const utils::String& extraQualifiers, FunctionType* signature, access_modifier access, void* address, void* wrapperAddr, u64 baseOffset, Module* source)
+        : Function(name, extraQualifiers, signature, access, address, wrapperAddr, source)
         {
             m_baseOffset = baseOffset;
             m_isMethod = true;
@@ -214,7 +210,7 @@ namespace tsn {
         }
         
         Method* Method::clone(const utils::String& name, u64 baseOffset) const {
-            return new Method(name, m_extraQualifiers, getSignature(), getAccessModifier(), getAddress(), getWrapperAddress(), baseOffset);
+            return new Method(name, m_extraQualifiers, getSignature(), getAccessModifier(), getAddress(), getWrapperAddress(), baseOffset, m_sourceModule);
         }
 
         bool Method::serialize(utils::Buffer* out, Context* ctx) const {
@@ -239,7 +235,7 @@ namespace tsn {
         }
 
         TemplateFunction::TemplateFunction(const utils::String& name, const utils::String& extraQualifiers, access_modifier access, compiler::TemplateContext* templateData)
-        : Function(name, extraQualifiers, nullptr, access, nullptr, nullptr) {
+        : Function(name, extraQualifiers, nullptr, access, nullptr, nullptr, templateData->getOrigin()) {
             m_data = templateData;
             m_isTemplate = true;
         }
@@ -275,7 +271,7 @@ namespace tsn {
         }
 
         TemplateMethod::TemplateMethod(const utils::String& name, const utils::String& extraQualifiers, access_modifier access, u64 baseOffset, compiler::TemplateContext* templateData)
-        : Method(name, extraQualifiers, nullptr, access, nullptr, nullptr, baseOffset) {
+        : Method(name, extraQualifiers, nullptr, access, nullptr, nullptr, baseOffset, templateData->getOrigin()) {
             m_data = templateData;
             m_isTemplate = true;
         }

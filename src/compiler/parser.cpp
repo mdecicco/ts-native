@@ -1904,6 +1904,32 @@ namespace tsn {
                 return n;
             }
 
+            if (ps->isKeyword("typeinfo")) {
+                ps->consume();
+                ParseNode* n = ps->newNode(nt_typeinfo, &ps->getPrev());
+
+                if (!ps->isSymbol("<")) {
+                    ps->error(pm_expected_single_template_arg, "Expected single template parameter after 'typeinfo'");
+                    ps->freeNode(n);
+                    return errorNode(ps);
+                }
+
+                n->data_type = templateArgs(ps);
+                if (!n->data_type) {
+                    // error already emitted
+                    ps->freeNode(n);
+                    return errorNode(ps);
+                }
+
+                if (n->data_type->next) {
+                    ps->error(pm_expected_single_template_arg, "Expected single template parameter after 'typeinfo'", n->data_type->next->tok);
+                    ps->freeNode(n->data_type->next);
+                    n->data_type->next = nullptr;
+                }
+
+                return n;
+            }
+
             // todo:
             // hex literal
             // regex literal?
@@ -2192,10 +2218,28 @@ namespace tsn {
             return n;
         }
         ParseNode* leftHandSideExpression(Parser* ps) {
-            ParseNode* n = callExpression(ps);
+            ParseNode* n = nullptr;
+
+            const token& f = ps->get();
+            if (f.text == "*") {
+                ps->consume();
+                n = ps->newNode(nt_expression, &f);
+                n->op = op_dereference;
+                n->lvalue = callExpression(ps);
+                if (!n->lvalue) n->lvalue = memberExpression(ps);
+                if (!n->lvalue) {
+                    ps->error(pm_expected_expr, "Expected expression after dereference operator");
+                    ps->freeNode(n);
+                    return errorNode(ps);
+                }
+            }
+
+            if (!n) n = callExpression(ps);
             if (!n) n = memberExpression(ps);
 
-            if (ps->isKeyword("as")) {
+            const token& t = ps->get();
+
+            if (t.text == "as") {
                 ParseNode* o = ps->newNode(nt_cast);
                 ps->consume();
 
@@ -2236,20 +2280,30 @@ namespace tsn {
             if (n) return n;
 
             const token& t = ps->get();
-            if (t.text.size() == 1 && (t.text[0] == '-' || t.text[0] == '~' || t.text[0] == '!' || t.text[0] == '*')) {
-                ps->consume();
-
-                ParseNode* e = ps->newNode(nt_expression, &t);
-                e->op = (t.text[0] == '-') ? op_negate : ((t.text[0] == '~') ? op_bitInv : (t.text[0] == '!' ? op_not : op_dereference));
-                e->lvalue = unaryExpression(ps);
-
-                if (!e->lvalue) {
-                    ps->error(pm_expected_expr, utils::String::Format("Expected expression after '%c'", t.text[0]));
-                    ps->freeNode(e);
-                    return errorNode(ps);
+            if (t.text.size() == 1) {
+                expr_operator op = op_undefined;
+                switch (t.text[0]) {
+                    case '-': { op = op_negate; break; }
+                    case '~': { op = op_bitInv; break; }
+                    case '!': { op = op_not; break; }
+                    default: break;
                 }
 
-                return e;
+                if (op != op_undefined) {
+                    ps->consume();
+
+                    ParseNode* e = ps->newNode(nt_expression, &t);
+                    e->op = op;
+                    e->lvalue = unaryExpression(ps);
+
+                    if (!e->lvalue) {
+                        ps->error(pm_expected_expr, utils::String::Format("Expected expression after '%c'", t.text[0]));
+                        ps->freeNode(e);
+                        return errorNode(ps);
+                    }
+
+                    return e;
+                }
             }
 
             if (t.text.size() == 2 && (t.text[0] == '-' || t.text[0] == '+') && t.text[0] == t.text[1]) {
@@ -2994,6 +3048,8 @@ namespace tsn {
                             }
                         }
                     }
+                } else if (isGetter || isSetter) {
+                    ps->error(pm_expected_return_type, "Getter/setter methods must specify return types explicitly");
                 }
 
                 n->body = block(ps);

@@ -9,6 +9,9 @@ namespace tsn {
     class ModuleSource;
     class SourceLocation;
 
+    template <u32 count>
+    i32 stringMatchesOne(const char* strings[count], const char* str, const char** endPtr = nullptr);
+
     namespace compiler {
         enum token_type {
             tt_unknown,
@@ -18,7 +21,8 @@ namespace tsn {
             // import, export, from, as, operator, static,
             // const, get, set, null, return, switch, case,
             // default, true, false, this, function, let
-            // new, try, throw, catch, sizeof, delete
+            // new, try, throw, catch, sizeof, delete,
+            // typeinfo
             tt_keyword,
 
             // + , - , *  , / , ~  , ! , % , ^ , < , > , = , & , && , | , || ,

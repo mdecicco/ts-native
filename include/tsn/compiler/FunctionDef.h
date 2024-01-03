@@ -36,13 +36,13 @@ namespace tsn {
                 const SourceLocation& getSource() const;
 
                 u32 getArgCount() const;
-                u32 getImplicitArgCount() const;
                 void addArg(const utils::String& name, ffi::DataType* tp);
                 void addDeferredArg(const utils::String& name);
                 const ffi::function_argument& getArgInfo(u32 argIdx) const;
                 const utils::Array<ffi::function_argument>& getArgs() const;
                 Value& getArg(u32 argIdx);
                 Value& getThis();
+                Value& getCCtx();
                 Value& getECtx();
                 Value& getCaptures();
                 Value& getFPtr();
@@ -97,7 +97,7 @@ namespace tsn {
                 friend class InstructionRef;
 
                 FunctionDef();
-                FunctionDef(Compiler* c, const utils::String& name, ffi::DataType* methodOf, ParseNode* n, bool doesCapture);
+                FunctionDef(Compiler* c, const utils::String& name, ffi::DataType* methodOf, ParseNode* n);
                 FunctionDef(Compiler* c, ffi::Function* func, ParseNode* n);
 
                 ParseNode* m_node;
@@ -107,11 +107,10 @@ namespace tsn {
                 utils::String m_name;
                 ffi::DataType* m_retTp;
                 bool m_retTpSet;
-                bool m_captures;
-                u8 m_implicitArgCount;
                 utils::Array<ffi::function_argument> m_argInfo;
                 utils::Array<utils::String> m_argNames;
                 utils::Array<Value*> m_args;
+                Value* m_cctxArg;
                 Value* m_thisArg;
                 Value* m_ectxArg;
                 Value* m_capsArg;

@@ -67,12 +67,14 @@ namespace tsn {
 
             struct load_info {
                 address loadedAt;
+                u32 offset;
                 Value* loadedFrom;
                 Value* loadedTo;
                 bool wasOverwritten;
             };
             struct store_info {
                 address storedAt;
+                u32 offset;
                 Value* sourceValue;
                 Value* destValue;
             };
@@ -89,6 +91,36 @@ namespace tsn {
             for (address c = 0;c < ch->code.size();c++) {
                 Instruction& i = ch->code[c];
                 if (i.op == ir_load) {
+                    if (i.oCnt == 3 && i.operands[2].getImm<u32>() != 0) {
+                        // todo:
+                        // allowing offsets for ir_load/ir_store broke this
+                        // optimization
+                        continue;
+                    }
+
+                    // First: Look to see if the result of this load is even used
+                    bool isUsed = false;
+                    for (address c0 = c + 1;c0 < ch->code.size();c0++) {
+                        Instruction& i0 = ch->code[c0];
+                        if (i0.involves(i.operands[0].getRegId(), true)) {
+                            isUsed = true;
+                            break;
+                        }
+                    }
+
+                    if (!isUsed) {
+                        hasChanges = true;
+                        removeAddrs.push(c);
+                        if (doDebug) {
+                            log->submit(
+                                lt_debug,
+                                lm_generic,
+                                utils::String::Format("[%lu] %s <- Unnecessary load (loaded value unused)", c, i.toString(m_ctx).c_str())
+                            );
+                        }
+                        continue;
+                    }
+
                     // Possibilities:
                     // 1. This is a fresh load (no previous stores/loads to/from this address)
                     //    ^ Just save the load/assignment information for later
@@ -120,8 +152,12 @@ namespace tsn {
                     if (prevLoad == loadMap.end() && prevStore == storeMap.end()) {
                         // Scenario #1
                         loadMap[from] = {
-                            // loaded at, loaded from, loaded to, wasOverwritten
-                            c, &i.operands[1], &i.operands[0], false
+                            // loaded at, offset, loaded from, loaded to, wasOverwritten
+                            c,
+                            i.oCnt == 3 ? i.operands[2].getImm<u32>() : 0,
+                            &i.operands[1],
+                            &i.operands[0],
+                            false
                         };
                         lastAssign[to] = c;
                         continue;
@@ -372,12 +408,23 @@ namespace tsn {
 
                     if (!wasHandled) {
                         loadMap[from] = {
-                            // loaded at, loaded from, loaded to, wasOverwritten
-                            c, &i.operands[1], &i.operands[0], false
+                            // loaded at, offset, loaded from, loaded to, wasOverwritten
+                            c, 
+                            i.oCnt == 3 ? i.operands[2].getImm<u32>() : 0,
+                            &i.operands[1],
+                            &i.operands[0],
+                            false
                         };
                         lastAssign[to] = c;
                     }
                 } else if (i.op == ir_store) {
+                    if (i.oCnt == 3 && i.operands[2].getImm<u32>() != 0) {
+                        // todo:
+                        // allowing offsets for ir_load/ir_store broke this
+                        // optimization
+                        continue;
+                    }
+                    
                     // Possibilities: (keep in mind, previous store data is the _most recent_ store data)
                     // 1. This is a fresh store (no previous store/load instructions wrote/read from this address)
                     //     ^ Just save the store information
@@ -401,7 +448,10 @@ namespace tsn {
                     if (prevLoad == loadMap.end() && prevStore == storeMap.end()) {
                         // Scenario #1
                         storeMap[at] = {
-                            c, &i.operands[0], &i.operands[1]
+                            c, 
+                            i.oCnt == 3 ? i.operands[2].getImm<u32>() : 0,
+                            &i.operands[0],
+                            &i.operands[1]
                         };
                         continue;
                     }
@@ -541,7 +591,10 @@ namespace tsn {
 
                     if (!wasHandled) {
                         storeMap[at] = {
-                            c, &i.operands[0], &i.operands[1]
+                            c,
+                            i.oCnt == 3 ? i.operands[2].getImm<u32>() : 0,
+                            &i.operands[0],
+                            &i.operands[1]
                         };
 
                         if (prevLoad != loadMap.end()) {

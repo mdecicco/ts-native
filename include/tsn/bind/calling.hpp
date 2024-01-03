@@ -12,9 +12,9 @@ namespace tsn {
             Object ret = Object(ctx, f->getSignature()->getReturnType());
 
             if (f->getWrapperAddress()) {
-                call_hostToHost(ctx, f, ret.getPtr(), args...);
+                call_hostToHost(ctx, f, ret.getPtr(), nullptr, args...);
             } else {
-                call_hostToScript(ctx, f, ret.getPtr(), args...);
+                call_hostToScript(ctx, f, ret.getPtr(), nullptr, args...);
             }
 
             return ret;
@@ -23,9 +23,9 @@ namespace tsn {
         template <typename ...Args>
         void call(Context* ctx, void* ret, Function* f, Args&&... args) {
             if (f->getWrapperAddress()) {
-                call_hostToHost(ctx, f, ret, args...);
+                call_hostToHost(ctx, f, ret, nullptr, args...);
             } else {
-                call_hostToScript(ctx, f, ret, args...);
+                call_hostToScript(ctx, f, ret, nullptr, args...);
             }
         }
         

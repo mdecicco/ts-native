@@ -1,6 +1,5 @@
 #pragma once
 #include <tsn/common/types.h>
-#include <tsn/interfaces/IContextual.h>
 #include <tsn/interfaces/IDataTypeHolder.h>
 
 namespace tsn {
@@ -12,7 +11,7 @@ namespace tsn {
         class DataType;
         class TemplateType;
 
-        class DataTypeRegistry : public IContextual, public IDataTypeHolder {
+        class DataTypeRegistry : public IDataTypeHolder {
             public:
                 DataTypeRegistry(Context* ctx);
                 ~DataTypeRegistry();

@@ -701,7 +701,7 @@ namespace tsn {
                         function_id id = (function_id)_O1ui64;
                         ffi::Function* fn = m_ctx->getFunctions()->getFunction(id);
                         if (!fn) throw std::exception("VM: jal instruction provided invalid function ID");
-                        if (fn->getAddress()) {
+                        if (fn->getWrapperAddress()) {
                             call_external(fn);
                         } else {
                             Backend* be = (Backend*)m_ctx->getBackend();
@@ -747,16 +747,8 @@ namespace tsn {
         void VM::call_external(ffi::Function* fn) {
             ffi::DataType* voidp = m_ctx->getTypes()->getVoidPtr();
 
-            // Actual signature:
-            // If method of class
-            //     RetTp (RetTp (ThisTp::*)(ArgTypes...), RetTp*, ExecutionContext*, ThisTp*, ArgsTypes...)
-            // If normal function
-            //     RetTp (RetTp (*)(ArgTypes...), RetTp*, ExecutionContext*, ArgsTypes...)
             void* callPtr = fn->getWrapperAddress();
             void* funcPtr = fn->getAddress();
-
-            // callPtr must be called with arguments:
-            // callPtr(funcPtr, retPtr, ectx, ...)
 
             static void* argSpace[64];
             static void* primArgSpace[64];
@@ -767,37 +759,21 @@ namespace tsn {
             getArgRegisters(fn->getSignature(), argLocs);
             for (u32 i = 0;i < argLocs.size();i++) {
                 const auto& info = argInfo[i];
-                // only parameter that must be explicitly handled is func_ptr, because
-                // until now it was undefined in the code. IR code as well as VM code
-                // just pass an undefined value as a placeholder to make life easier
-                // when handling function signatures.
-                if (info.argType == arg_type::func_ptr) {
-                    argSpace[i] = &funcPtr;
-                    argTypeSpace[i] = &ffi_type_pointer;
-                    continue;
-                }
                 
                 arg_location& loc = argLocs[i];
                 void* src = nullptr;
                 if (loc.reg_id == vmr::sp) src = (void*)(state.registers[(u8)vmr::sp] + loc.stack_offset);
                 else src = (void*)&state.registers[(u8)loc.reg_id];
 
-                if (info.isImplicit()) {
-                    auto& ti = info.dataType->getInfo();
-                    if (info.argType == arg_type::this_ptr && ti.is_primitive) {
-                        // pseudo method of primitive type
-                        // the 'this' argument is always T*, even if T = void*
-                        primArgSpace[i] = src;
-                        argSpace[i] = &primArgSpace[i];
-                    } else argSpace[i] = src;
+                if (info.argType == arg_type::context_ptr) {
+                    call_context* cctx = *(call_context**)src;
+                    cctx->funcPtr = funcPtr;
+
+                    primArgSpace[i] = cctx;
+                    argSpace[i] = &primArgSpace[i];
                     argTypeSpace[i] = &ffi_type_pointer;
                 } else if (info.argType == arg_type::pointer) {
-                    auto& ti = info.dataType->getInfo();
-                    if (ti.is_primitive && info.dataType != voidp) {
-                        primArgSpace[i] = src;
-                        argSpace[i] = &primArgSpace[i];
-                    } else argSpace[i] = src;
-
+                    argSpace[i] = src;
                     argTypeSpace[i] = &ffi_type_pointer;
                 } else {
                     argSpace[i] = src;

@@ -7,10 +7,13 @@
 #include <tsn/ffi/DataTypeRegistry.h>
 #include <tsn/compiler/Logger.h>
 #include <tsn/compiler/Compiler.h>
+#include <tsn/compiler/CodeHolder.h>
+#include <tsn/compiler/Output.h>
 #include <tsn/compiler/OutputBuilder.h>
 #include <tsn/compiler/FunctionDef.h>
 #include <tsn/compiler/Parser.h>
 #include <tsn/compiler/TemplateContext.h>
+#include <tsn/pipeline/Pipeline.h>
 #include <tsn/utils/SourceLocation.h>
 #include <tsn/utils/ModuleSource.h>
 #include <tsn/io/Workspace.h>
@@ -27,7 +30,7 @@ using namespace nlohmann;
 json toJson(const SourceLocation& src) {
     if (!src.isValid()) return json(nullptr);
 
-    const SourceLocation& end = src.getEndLocation();
+    SourceLocation end = src.getEndLocation();
     u32 baseOffset = src.getOffset();
     u32 endOffset = end.getOffset();
     u32 wsc = 0;
@@ -133,6 +136,7 @@ json toJson(const ParseNode* n, bool isArrayElem) {
         "return",
         "scoped_block",
         "sizeof",
+        "typeinfo",
         "switch_case",
         "switch",
         "this",
@@ -452,7 +456,12 @@ json toJson(const Function* f, bool brief, FunctionDef* fd) {
 
         out["code"] = json::array();
         if (fd) {
-            const auto& code = fd->getCode();
+            auto output = fd->getContext()->getPipeline()->getCompilerOutput()->getCode();
+            CodeHolder* ch = output.find([fd](CodeHolder* ch) {
+                return ch->owner == fd->getOutput();
+            });
+            
+            const auto& code = ch ? ch->code : fd->getCode();
             for (u32 i = 0;i < code.size();i++) {
                 out["code"].push_back(code[i].toString(fd->getContext()).c_str());
             }
@@ -497,11 +506,7 @@ json toJson(const type_property& p) {
 
 json toJson(u32 index, const function_argument& a, FunctionDef* fd) {
     constexpr const char* argTpStr[] = {
-        "func_ptr",
-        "ret_ptr",
-        "ectx_ptr",
-        "caps_ptr",
-        "this_ptr",
+        "ctx_ptr",
         "value",
         "pointer"
     };
@@ -515,19 +520,9 @@ json toJson(u32 index, const function_argument& a, FunctionDef* fd) {
     if (fd) {
         json loc;
         if (a.argType == arg_type::context_ptr) {
-            loc = fd->getECtx().toString(fd->getContext()).c_str();
-        } else if (a.argType == arg_type::func_ptr) {
-            loc = fd->getFPtr().toString(fd->getContext()).c_str();
-        } else if (a.argType == arg_type::ret_ptr) {
-            if (fd->getReturnType()->isEqualTo(fd->getContext()->getTypes()->getType<void>())) loc = json(nullptr);
-            else loc = fd->getRetPtr().toString(fd->getContext()).c_str();
-        } else if (a.argType == arg_type::captures_ptr) {
-            loc = fd->getCaptures().toString(fd->getContext()).c_str();
-        } else if (a.argType == arg_type::this_ptr) {
-            if (fd->getThisType()->isEqualTo(fd->getContext()->getTypes()->getType<void>())) loc = json(nullptr);
-            else loc = fd->getThis().toString(fd->getContext()).c_str();
+            loc = fd->getCCtx().toString(fd->getContext()).c_str();
         } else {
-            loc = fd->getArg(index - fd->getImplicitArgCount()).toString(fd->getContext()).c_str();
+            loc = fd->getArg(index - 1).toString(fd->getContext()).c_str();
         }
         out["location"] = loc;
     } else out["location"] = json(nullptr);

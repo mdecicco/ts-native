@@ -49,7 +49,7 @@ namespace tsn {
                 virtual void generate(Pipeline* input);
                 void generate(compiler::CodeHolder* ch);
                 
-                virtual void call(ffi::Function* func, ffi::ExecutionContext* ctx, void* retPtr, void** args);
+                virtual void call(ffi::Function* func, call_context* ctx, void* retPtr, void** args);
 
                 VM* getVM();
                 const utils::Array<Instruction>& getCode() const;

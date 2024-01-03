@@ -37,7 +37,8 @@ namespace tsn {
                     unsigned is_func : 1;
                     unsigned is_arg : 1;
                     unsigned is_imm : 1;
-                    unsigned _unused : 3;
+                    unsigned is_pointer : 1;
+                    unsigned _unused : 2;
                 } flags;
 
                 ffi::DataType* data_type;
@@ -121,6 +122,7 @@ namespace tsn {
 
                 // function types only
                 function_id returnTypeId;
+                function_id thisTypeId;
                 bool returnsPointer;
                 utils::Array<proto_type_arg> args;
 
@@ -142,8 +144,11 @@ namespace tsn {
 
                 Module* getModule();
                 const utils::Array<compiler::CodeHolder*>& getCode() const;
+                const utils::Array<Module*>& getDependencies() const;
+                const utils::Array<u64>& getDependencyVersions() const;
 
                 virtual bool serialize(utils::Buffer* out, Context* ctx) const;
+                bool deserializeDependencies(utils::Buffer* in, Context* ctx);
                 virtual bool deserialize(utils::Buffer* in, Context* ctx);
 
             protected:
@@ -156,11 +161,13 @@ namespace tsn {
 
                 Module* m_mod;
                 ModuleSource* m_src;
+                bool m_didDeserializeDeps;
 
                 const script_metadata* m_meta;
                 utils::Array<output::function> m_funcs;
                 utils::Array<compiler::CodeHolder*> m_output;
                 utils::Array<Module*> m_dependencies;
+                utils::Array<u64> m_dependencyVersions;
         };
     };
 };

@@ -8,7 +8,7 @@
 
 namespace tsn {
     namespace ffi {
-        DataTypeRegistry::DataTypeRegistry(Context* ctx) : IContextual(ctx) {
+        DataTypeRegistry::DataTypeRegistry(Context* ctx) : IDataTypeHolder(ctx) {
             m_anonTypeCount = 0;
             m_i8 = nullptr;
             m_u8 = nullptr;
@@ -74,11 +74,11 @@ namespace tsn {
             m_closure = getType<Closure>();
             m_closureRef = getType<ClosureRef>();
 
-            Module* ma = m_ctx->getModule("trusted/array");
-            m_array = (TemplateType*)(ma ? ma->allTypes().find([](const DataType* t) { return t->getName() == "Array"; }) : nullptr);
-
             Module* mp = m_ctx->getModule("trusted/pointer");
             m_pointer = (TemplateType*)(mp ? mp->allTypes().find([](const DataType* t) { return t->getName() == "Pointer"; }) : nullptr);
+
+            Module* ma = m_ctx->getModule("trusted/array");
+            m_array = (TemplateType*)(ma ? ma->allTypes().find([](const DataType* t) { return t->getName() == "Array"; }) : nullptr);
         }
 
         u32 DataTypeRegistry::getNextAnonTypeIndex() {

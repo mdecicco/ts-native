@@ -6,6 +6,9 @@
 #include <utils/String.h>
 
 namespace tsn {
+    class Pipeline;
+    class Module;
+
     namespace compiler {
         class TemplateContext;
         class Output;
@@ -84,6 +87,7 @@ namespace tsn {
                 const type_property* getProp(const utils::String& name, bool excludeInherited = false, bool excludePrivate = false) const;
 
                 type_id getId() const;
+                Module* getSource() const;
                 const utils::String& getName() const;
                 const utils::String& getFullyQualifiedName() const;
                 const type_meta& getInfo() const;
@@ -222,22 +226,21 @@ namespace tsn {
                  * @return true if this type's effective type is an instantiation of the specified
                  *         type, otherwise false
                  */
-                bool isInstantiationOf(ffi::TemplateType* templ) const;
+                bool isSpecializationOf(ffi::TemplateType* templ) const;
                 
                 /**
-                 * @brief Checks if this type's effective type is an instantiation of the specified
+                 * @brief Checks if this type's effective type is a specialization of the specified
                  *        template type with the provided template arguments
                  * 
-                 * @param templ    The template type to check if this type is an instantiation of
+                 * @param templ    The template type to check if this type is a specialization of
                  * @param withArgs An array of template arguments to check against any template
-                 *                 arguments that may have been used to instantiate this type
+                 *                 arguments that may have been used to specialize this type
                  *                 from a template.
                  * 
-                 * @return true if this type's effective type is an instantiation of the specified
-                 *         type which was instantiated using the specified template arguments,
-                 *         otherwise false
+                 * @return true if this type's effective type is a specialization of the specified
+                 *         type which using the specified template arguments, otherwise false
                  */
-                bool isInstantiationOf(ffi::TemplateType* templ, const utils::Array<ffi::DataType*>& withArgs) const;
+                bool isSpecializationOf(ffi::TemplateType* templ, const utils::Array<ffi::DataType*>& withArgs) const;
             
                 virtual bool serialize(utils::Buffer* out, Context* ctx) const;
                 virtual bool deserialize(utils::Buffer* in, Context* ctx);
@@ -250,11 +253,13 @@ namespace tsn {
                 friend class TemplateType;
                 friend class AliasType;
                 friend class ClassType;
+                friend class Pipeline;
                 friend class compiler::Output;
                 friend class compiler::Compiler;
                 
                 type_id m_id;
                 data_type_instance m_itype;
+                Module* m_sourceModule;
                 utils::String m_name;
                 utils::String m_fullyQualifiedName;
                 type_meta m_info;
@@ -277,7 +282,7 @@ namespace tsn {
         class FunctionType : public DataType {
             public:
                 FunctionType();
-                FunctionType(DataType* returnType, const utils::Array<function_argument>& args, bool returnsPointer);
+                FunctionType(DataType* thisType, DataType* returnType, const utils::Array<function_argument>& args, bool returnsPointer);
                 virtual ~FunctionType();
 
                 utils::String generateFullyQualifiedFunctionName(const utils::String& funcName, const utils::String& extraQualifiers);
@@ -296,6 +301,7 @@ namespace tsn {
                 friend class compiler::Output;
 
                 DataType* m_returnType;
+                DataType* m_thisType;
                 bool m_returnsPointer;
                 utils::Array<function_argument> m_args;
         };

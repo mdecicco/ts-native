@@ -42,7 +42,7 @@ namespace tsn {
             const auto& args = sig->getArguments();
             for (u32 a = 0;a < args.size();a++) {
                 const auto& ti = args[a].dataType->getInfo();
-                if (ti.is_floating_point) {
+                if (ti.is_floating_point && args[a].argType == arg_type::value) {
                     if (nextFP > vm_register::fa7) {
                         u32 size = (u32)sizeof(void*);
                         if (ti.is_primitive) size = ti.size;
@@ -85,7 +85,7 @@ namespace tsn {
         }
         
         void Backend::beforeCompile(Pipeline* input) {
-            input->addOptimizationStep(new backend::RegisterAllocatonStep(m_ctx, 16, 16));
+            input->addOptimizationStep(new backend::RegisterAllocatonStep(m_ctx, 16, 16), true);
         }
 
         void Backend::generate(Pipeline* input) {
@@ -146,7 +146,7 @@ namespace tsn {
                             if (assignedReg == vm_register::sp) continue;
                         } else {
                             assignedReg = vmr((u16)vmr::s0 + (assigns->getRegId() - 1));
-                            if (assigns->getType()->getInfo().is_floating_point) assignedReg = vmr((u16)vmr::f0 + (assigns->getRegId() - 1));
+                            if (assigns->isFloatingPoint()) assignedReg = vmr((u16)vmr::f0 + (assigns->getRegId() - 1));
                         }
                     }
 
@@ -303,7 +303,7 @@ namespace tsn {
                             }
                         } else {
                             r1 = vmr((u8)vmr::s0 + (o1.getRegId() - 1));
-                            if (t1->getInfo().is_floating_point) r1 = vmr((u8)vmr::f0 + (o1.getRegId() - 1));
+                            if (o1.isFloatingPoint()) r1 = vmr((u8)vmr::f0 + (o1.getRegId() - 1));
                         }
                     }
 
@@ -346,7 +346,7 @@ namespace tsn {
                             }
                         } else {
                             r2 = vmr((u8)vmr::s0 + (o2.getRegId() - 1));
-                            if (t2->getInfo().is_floating_point) r2 = vmr((u8)vmr::f0 + (o2.getRegId() - 1));
+                            if (o2.isFloatingPoint()) r2 = vmr((u8)vmr::f0 + (o2.getRegId() - 1));
                         }
                     }
 
@@ -389,7 +389,7 @@ namespace tsn {
                             }
                         } else {
                             r3 = vmr((u8)vmr::s0 + (o3.getRegId() - 1));
-                            if (t3->getInfo().is_floating_point) r3 = vmr((u8)vmr::f0 + (o3.getRegId() - 1));
+                            if (o3.isFloatingPoint()) r3 = vmr((u8)vmr::f0 + (o3.getRegId() - 1));
                         }
                     }
                 }
@@ -403,7 +403,7 @@ namespace tsn {
                     }
                     case op::ir_load: {
                         u8 sz = o1.getType()->getInfo().size;
-                        if (!o1.getType()->getInfo().is_primitive) sz = sizeof(void*);
+                        if (!o1.getType()->getInfo().is_primitive || o1.getFlags().is_pointer) sz = sizeof(void*);
                         vmi ld = vmi::ld8;
                         switch (sz) {
                             case 2: { ld = vmi::ld16; break; }
@@ -413,27 +413,33 @@ namespace tsn {
                                 break;
                             }
                         }
-                        // load dest_var var_addr
 
-                        m_instructions.push(encode(ld).operand(r1).operand(r2).operand((u64)0));
+                        u64 off = 0;
+                        if (o3.isValid() && o3.isImm()) off = o3.getImm<u64>();
+
+                        m_instructions.push(encode(ld).operand(r1).operand(r2).operand(off));
                         m_map.add(i.src.getLine(), i.src.getCol(), i.src.getLength());
                         break;
                     }
                     case op::ir_store: {
                         if (o1.isImm()) {
-                            if (t1->getInfo().is_floating_point) {
-                                r1 = vmr::vf3;
-                                if (t1->getInfo().size == sizeof(f64)) m_instructions.push(encode(vmi::daddi).operand(r1).operand(vmr::zero).operand(o1.getImm<f64>()));
-                                else m_instructions.push(encode(vmi::faddi).operand(r1).operand(vmr::zero).operand(o1.getImm<f32>()));
+                            if (o1.getImm<u64>() == 0) {
+                                r1 = vmr::zero;
                             } else {
-                                r1 = vmr::v3;
-                                m_instructions.push(encode(vmi::addui).operand(r1).operand(vmr::zero).operand(o1.getImm<u64>()));
+                                if (t1->getInfo().is_floating_point) {
+                                    r1 = vmr::vf3;
+                                    if (t1->getInfo().size == sizeof(f64)) m_instructions.push(encode(vmi::daddi).operand(r1).operand(vmr::zero).operand(o1.getImm<f64>()));
+                                    else m_instructions.push(encode(vmi::faddi).operand(r1).operand(vmr::zero).operand(o1.getImm<f32>()));
+                                } else {
+                                    r1 = vmr::v3;
+                                    m_instructions.push(encode(vmi::addui).operand(r1).operand(vmr::zero).operand(o1.getImm<u64>()));
+                                }
+                                m_map.add(i.src.getLine(), i.src.getCol(), i.src.getLength());
                             }
-                            m_map.add(i.src.getLine(), i.src.getCol(), i.src.getLength());
                         }
                         
                         u8 sz = t1->getInfo().size;
-                        if (!t1->getInfo().is_primitive) sz = sizeof(void*);
+                        if (!t1->getInfo().is_primitive || o1.getFlags().is_pointer) sz = sizeof(void*);
                         vmi st = vmi::st8;
                         switch (sz) {
                             case 2: { st = vmi::st16; break; }
@@ -442,7 +448,10 @@ namespace tsn {
                             default: { break; }
                         }
 
-                        m_instructions.push(encode(st).operand(r1).operand(r2).operand((u64)0));
+                        u64 off = 0;
+                        if (o3.isValid() && o3.isImm()) off = o3.getImm<u64>();
+
+                        m_instructions.push(encode(st).operand(r1).operand(r2).operand(off));
                         m_map.add(i.src.getLine(), i.src.getCol(), i.src.getLength());
                         break;
                     }
@@ -489,6 +498,16 @@ namespace tsn {
                     case op::ir_imod: {
                         break;
                     }
+                    case op::ir_iinc: {
+                        m_instructions.push(encode(vmi::addi).operand(r1).operand(r1).operand(i64(1)));
+                        m_map.add(i.src.getLine(), i.src.getCol(), i.src.getLength());
+                        break;
+                    }
+                    case op::ir_idec: {
+                        m_instructions.push(encode(vmi::subi).operand(r1).operand(r1).operand(i64(1)));
+                        m_map.add(i.src.getLine(), i.src.getCol(), i.src.getLength());
+                        break;
+                    }
                     case op::ir_uadd: {
                         arith(vmi::addu, vmi::addui, vmi::addui);
                         break;
@@ -506,6 +525,16 @@ namespace tsn {
                         break;
                     }
                     case op::ir_umod: {
+                        break;
+                    }
+                    case op::ir_uinc: {
+                        m_instructions.push(encode(vmi::addui).operand(r1).operand(r1).operand(u64(1)));
+                        m_map.add(i.src.getLine(), i.src.getCol(), i.src.getLength());
+                        break;
+                    }
+                    case op::ir_udec: {
+                        m_instructions.push(encode(vmi::subui).operand(r1).operand(r1).operand(u64(1)));
+                        m_map.add(i.src.getLine(), i.src.getCol(), i.src.getLength());
                         break;
                     }
                     case op::ir_fadd: {
@@ -527,6 +556,16 @@ namespace tsn {
                     case op::ir_fmod: {
                         break;
                     }
+                    case op::ir_finc: {
+                        m_instructions.push(encode(vmi::faddi).operand(r1).operand(r1).operand(f32(1.0f)));
+                        m_map.add(i.src.getLine(), i.src.getCol(), i.src.getLength());
+                        break;
+                    }
+                    case op::ir_fdec: {
+                        m_instructions.push(encode(vmi::fsubi).operand(r1).operand(r1).operand(f32(1.0f)));
+                        m_map.add(i.src.getLine(), i.src.getCol(), i.src.getLength());
+                        break;
+                    }
                     case op::ir_dadd: {
                         arith(vmi::dadd, vmi::daddi, vmi::daddi);
                         break;
@@ -544,6 +583,16 @@ namespace tsn {
                         break;
                     }
                     case op::ir_dmod: {
+                        break;
+                    }
+                    case op::ir_dinc: {
+                        m_instructions.push(encode(vmi::daddi).operand(r1).operand(r1).operand(f64(1.0)));
+                        m_map.add(i.src.getLine(), i.src.getCol(), i.src.getLength());
+                        break;
+                    }
+                    case op::ir_ddec: {
+                        m_instructions.push(encode(vmi::dsubi).operand(r1).operand(r1).operand(f64(1.0)));
+                        m_map.add(i.src.getLine(), i.src.getCol(), i.src.getLength());
                         break;
                     }
                     case op::ir_shl: {
@@ -674,9 +723,9 @@ namespace tsn {
                     case op::ir_resolve:
                     case op::ir_assign: {
                         vmi rr, ri;
-                        if (t1->getInfo().is_floating_point != t2->getInfo().is_floating_point) {
+                        if (o1.isFloatingPoint() != o2.isFloatingPoint()) {
                             if (o2.isImm()) {
-                                if (t1->getInfo().is_floating_point) {
+                                if (o1.isFloatingPoint()) {
                                     if (t1->getInfo().size == sizeof(f64)) {
                                         if (t2->getInfo().is_unsigned) m_instructions.push(encode(vmi::daddi).operand(r1).operand(vmr::zero).operand((f64)o2.getImm<u64>()));
                                         else m_instructions.push(encode(vmi::daddi).operand(r1).operand(vmr::zero).operand((f64)o2.getImm<i64>()));
@@ -694,7 +743,7 @@ namespace tsn {
                                     }
                                 }
                             } else {
-                                if (t1->getInfo().is_floating_point) m_instructions.push(encode(vmi::mtfp).operand(r2).operand(r1));
+                                if (o1.isFloatingPoint()) m_instructions.push(encode(vmi::mtfp).operand(r2).operand(r1));
                                 else m_instructions.push(encode(vmi::mffp).operand(r2).operand(r1));
                             }
                             
@@ -702,7 +751,7 @@ namespace tsn {
                             break;
                         }
 
-                        if (t1->getInfo().is_floating_point) {
+                        if (o1.isFloatingPoint()) {
                             if (t1->getInfo().size == sizeof(f64)) { rr = vmi::dadd; ri = vmi::daddi; }
                             else { rr = vmi::fadd; ri = vmi::faddi; }
                         } else {
@@ -773,10 +822,6 @@ namespace tsn {
                             bool isPointer = false;
                             switch (cfArgs[a].argType) {
                                 case arg_type::context_ptr:
-                                case arg_type::func_ptr:
-                                case arg_type::ret_ptr:
-                                case arg_type::captures_ptr:
-                                case arg_type::this_ptr:
                                 case arg_type::pointer: {
                                     isPointer = true;
                                     break;
@@ -827,7 +872,7 @@ namespace tsn {
                                             reg = argLocs[params[p1].getImm<u32>()].reg_id;
                                             if (reg == vmr::sp) continue;
                                         } else {
-                                            if (params[p1].getType()->getInfo().is_floating_point) reg = vmr(u32(vmr::f0) + (params[p1].getRegId() - 1));
+                                            if (params[p1].isFloatingPoint()) reg = vmr(u32(vmr::f0) + (params[p1].getRegId() - 1));
                                             else reg = vmr(u32(vmr::s0) + (params[p1].getRegId() - 1));
                                         }
                                         will_overwrite = calleeArgLoc.reg_id == reg;
@@ -841,12 +886,12 @@ namespace tsn {
                                 DataType* tp = params[p].getType();
                                 vmr destReg = calleeArgLoc.reg_id;
                                 if (destReg == vmr::sp) {
-                                    if (tp->getInfo().is_floating_point) destReg = vmr::vf3;
+                                    if (params[p].isFloatingPoint()) destReg = vmr::vf3;
                                     else destReg = vmr::v3;
                                 }
 
                                 if (params[p].isImm()) {
-                                    if (tp->getInfo().is_floating_point) {
+                                    if (params[p].isFloatingPoint()) {
                                         if (tp->getInfo().size == sizeof(f64)) m_instructions.push(encode(vmi::daddi).operand(destReg).operand(vmr::zero).operand(params[p].getImm<f64>()));
                                         else m_instructions.push(encode(vmi::faddi).operand(destReg).operand(vmr::zero).operand(params[p].getImm<f32>()));
                                     } else {
@@ -897,7 +942,7 @@ namespace tsn {
                                                 m_instructions.push(encode(ld).operand(destReg).operand(vmr::sp).operand((u64)info.addr));
                                                 m_map.add(i.src.getLine(), i.src.getCol(), i.src.getLength());
                                             } else {
-                                                if (tp->getInfo().is_floating_point) {
+                                                if (params[p].isFloatingPoint()) {
                                                     if (tp->getInfo().size == sizeof(f64)) m_instructions.push(encode(vmi::dadd).operand(destReg).operand(vmr::zero).operand(reg));
                                                     else m_instructions.push(encode(vmi::fadd).operand(destReg).operand(vmr::zero).operand(reg));
                                                 } else {
@@ -910,10 +955,10 @@ namespace tsn {
                                     } else {
                                         vmr reg;
 
-                                        if (params[p].getType()->getInfo().is_floating_point) reg = vmr(u32(vmr::f0) + (params[p].getRegId() - 1));
+                                        if (params[p].isFloatingPoint()) reg = vmr(u32(vmr::f0) + (params[p].getRegId() - 1));
                                         else reg = vmr(u32(vmr::s0) + (params[p].getRegId() - 1));
 
-                                        if (tp->getInfo().is_floating_point) {
+                                        if (params[p].isFloatingPoint()) {
                                             if (tp->getInfo().size == sizeof(f64)) m_instructions.push(encode(vmi::dadd).operand(destReg).operand(vmr::zero).operand(reg));
                                             else m_instructions.push(encode(vmi::fadd).operand(destReg).operand(vmr::zero).operand(reg));
                                         } else {
@@ -1342,7 +1387,7 @@ namespace tsn {
             };
         }
 
-        void Backend::call(ffi::Function* func, ffi::ExecutionContext* ctx, void* retPtr, void** args) {
+        void Backend::call(ffi::Function* func, call_context* ctx, void* retPtr, void** args) {
             const function_data* fd = getFunctionData(func);
             if (!fd) return; // todo exception
 
@@ -1362,13 +1407,7 @@ namespace tsn {
                 if (loc.reg_id == vmr::sp) dest = (void*)(vm->state.registers[(u8)vmr::sp] + loc.stack_offset);
                 else dest = &vm->state.registers[(u8)loc.reg_id];
 
-                // arg_type::this_ptr is not explicitly handled here because
-                // the 'this' pointer will be passed explicitly as the first
-                // argument (if required). It is handled implicitly by the
-                // 'else' block at the bottom
-                if (argInfo[a].argType == arg_type::context_ptr) *((ffi::ExecutionContext**)dest) = ctx;
-                else if (argInfo[a].argType == arg_type::func_ptr) *((void**)dest) = nullptr;
-                else if (argInfo[a].argType == arg_type::ret_ptr) *((void**)dest) = retPtr;
+                if (argInfo[a].argType == arg_type::context_ptr) *((call_context**)dest) = ctx;
                 else {
                     *((void**)dest) = args[explicitIdx++];
                 }

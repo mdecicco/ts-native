@@ -42,8 +42,81 @@ namespace tsn {
         b.ctor<const utils::String&>(access_modifier::public_access);
         b.ctor<void*, u32>(access_modifier::trusted_access);
         b.dtor(access_modifier::public_access);
+        b.method<utils::String , const utils::String&>("operator +"  , &utils::String::operator+   , access_modifier::public_access);
+        b.method<utils::String&, const utils::String&>("operator +=" , &utils::String::operator+=  , access_modifier::public_access);
+        b.method<utils::String&, const utils::String&>("operator ="  , &utils::String::operator=   , access_modifier::public_access);
+        b.method<utils::String&, const utils::String&>("operator ="  , &utils::String::operator=   , access_modifier::public_access);
+        b.method<bool          , const utils::String&>("operator ==" , &utils::String::operator==  , access_modifier::public_access);
+        b.method<i64           , const utils::String&>("firstIndexOf", &utils::String::firstIndexOf, access_modifier::public_access);
+        b.method<i64           , const utils::String&>("lastIndexOf" , &utils::String::lastIndexOf , access_modifier::public_access);
+        b.method<void          , const utils::String&, const utils::String&>("replace", &utils::String::replaceAll, access_modifier::public_access);
+        b.method("trim", &utils::String::trim, access_modifier::public_access);
+        b.method("clone", &utils::String::clone, access_modifier::public_access);
+        b.method("toUpperCase", &utils::String::toUpperCase, access_modifier::public_access);
+        b.method("toLowerCase", &utils::String::toLowerCase, access_modifier::public_access);
+        b.prop("length", &utils::String::size, public_access);
         
         b.finalize();
+    }
+
+    void BindPointer(Context* ctx) {
+        Module* m = ctx->getModule("trusted/pointer");
+        if (!m) return;
+
+        m->init();
+
+        TemplateType* ptr = (TemplateType*)m->allTypes().find([](const DataType* t) { return t->getName() == "Pointer"; });
+        if (!ptr) return;
+
+        ctx->getGlobal()->addForeignType(ptr);
+        ctx->getTypes()->addForeignType(ptr);
+        
+        ctx->getPipeline()->specializeTemplate(ptr, { ctx->getTypes()->getInt8() });
+        ctx->getPipeline()->specializeTemplate(ptr, { ctx->getTypes()->getUInt8() });
+        ctx->getPipeline()->specializeTemplate(ptr, { ctx->getTypes()->getInt16() });
+        ctx->getPipeline()->specializeTemplate(ptr, { ctx->getTypes()->getUInt16() });
+        ctx->getPipeline()->specializeTemplate(ptr, { ctx->getTypes()->getInt32() });
+        ctx->getPipeline()->specializeTemplate(ptr, { ctx->getTypes()->getUInt32() });
+        ctx->getPipeline()->specializeTemplate(ptr, { ctx->getTypes()->getInt64() });
+        ctx->getPipeline()->specializeTemplate(ptr, { ctx->getTypes()->getUInt64() });
+        ctx->getPipeline()->specializeTemplate(ptr, { ctx->getTypes()->getFloat32() });
+        ctx->getPipeline()->specializeTemplate(ptr, { ctx->getTypes()->getFloat64() });
+        ctx->getPipeline()->specializeTemplate(ptr, { ctx->getTypes()->getVoidPtr() });
+        ctx->getPipeline()->specializeTemplate(ptr, { ctx->getTypes()->getString() });
+        ctx->getPipeline()->specializeTemplate(ptr, { ctx->getTypes()->getBoolean() });
+    }
+
+    void BindArray(Context* ctx) {
+        Module* m = ctx->getModule("trusted/array");
+        if (!m) return;
+
+        m->init();
+
+        TemplateType* arr = (TemplateType*)m->allTypes().find([](const DataType* t) { return t->getName() == "Array"; });
+        if (!arr) return;
+        
+        ctx->getGlobal()->addForeignType(arr);
+        ctx->getTypes()->addForeignType(arr);
+        
+        ctx->getPipeline()->specializeTemplate(arr, { ctx->getTypes()->getInt8() });
+        ctx->getPipeline()->specializeTemplate(arr, { ctx->getTypes()->getUInt8() });
+        ctx->getPipeline()->specializeTemplate(arr, { ctx->getTypes()->getInt16() });
+        ctx->getPipeline()->specializeTemplate(arr, { ctx->getTypes()->getUInt16() });
+        ctx->getPipeline()->specializeTemplate(arr, { ctx->getTypes()->getInt32() });
+        ctx->getPipeline()->specializeTemplate(arr, { ctx->getTypes()->getUInt32() });
+        ctx->getPipeline()->specializeTemplate(arr, { ctx->getTypes()->getInt64() });
+        ctx->getPipeline()->specializeTemplate(arr, { ctx->getTypes()->getUInt64() });
+        ctx->getPipeline()->specializeTemplate(arr, { ctx->getTypes()->getFloat32() });
+        ctx->getPipeline()->specializeTemplate(arr, { ctx->getTypes()->getFloat64() });
+        ctx->getPipeline()->specializeTemplate(arr, { ctx->getTypes()->getVoidPtr() });
+        ctx->getPipeline()->specializeTemplate(arr, { ctx->getTypes()->getString() });
+        ctx->getPipeline()->specializeTemplate(arr, { ctx->getTypes()->getBoolean() });
+    }
+
+    void ExtendString(Context* ctx) {
+        auto b = extend<utils::String>(ctx);
+        b.method<utils::Array<u32>, const utils::String&>("indicesOf", &utils::String::indicesOf, access_modifier::public_access);
+        b.method<utils::Array<utils::String>, const utils::String&>("split", &utils::String::split, access_modifier::public_access);
     }
 
     void AddBuiltInBindings(Context* ctx) {
@@ -92,20 +165,12 @@ namespace tsn {
         // pointer compilation needs the above
         ctx->getTypes()->updateCachedTypes();
 
-        Module* mp = ctx->getModule("trusted/pointer");
-        if (mp) {
-            DataType* ptr = mp->allTypes().find([](const DataType* t) { return t->getName() == "Pointer"; });
-            if (ptr) ctx->getGlobal()->addForeignType(ptr);
-        }
+        BindPointer(ctx);
 
         // array compilation needs pointer
         ctx->getTypes()->updateCachedTypes();
 
-        Module* ma = ctx->getModule("trusted/array");
-        if (ma) {
-            DataType* arr = ma->allTypes().find([](const DataType* t) { return t->getName() == "Array"; });
-            if (arr) ctx->getGlobal()->addForeignType(arr);
-        }
+        BindArray(ctx);
 
         auto ev = extend<void*>(ctx);
         ev.method("toString", +[](void** self) {
@@ -122,5 +187,8 @@ namespace tsn {
         ExtendNumberType<u64>(ctx);
         ExtendNumberType<f32>(ctx);
         ExtendNumberType<f64>(ctx);
+
+
+        ExtendString(ctx);
     }
 };

@@ -1,10 +1,13 @@
 #include <tsn/optimize/OptimizationGroup.h>
 #include <tsn/compiler/CodeHolder.h>
+#include <tsn/common/Context.h>
+#include <tsn/common/Config.h>
 #include <utils/Array.hpp>
 
 namespace tsn {
     namespace optimize {
         OptimizationGroup::OptimizationGroup(Context* ctx) : IOptimizationStep(ctx) {
+            m_doRepeat = false;
         }
 
         OptimizationGroup::~OptimizationGroup() {
@@ -16,22 +19,26 @@ namespace tsn {
         }
 
         void OptimizationGroup::setShouldRepeat(bool doRepeat) {
-            m_doRepeat = true;
+            m_doRepeat = doRepeat;
         }
 
         bool OptimizationGroup::willRepeat() const {
             return m_doRepeat;
         }
 
-        void OptimizationGroup::addStep(IOptimizationStep* step) {
+        void OptimizationGroup::addStep(IOptimizationStep* step, bool isRequired) {
             m_steps.push(step);
             step->setGroup(this);
+            step->setRequired(isRequired);
         }
 
         bool OptimizationGroup::execute(compiler::CodeHolder* code, Pipeline* pipeline) {
             m_doRepeat = false;
 
-            m_steps.each([code, pipeline](IOptimizationStep* step) {
+            bool optimizationsDisabled = getContext()->getConfig()->disableOptimizations;
+            m_steps.each([code, pipeline, optimizationsDisabled](IOptimizationStep* step) {
+                if (optimizationsDisabled && !step->isRequired()) return;
+
                 for (auto& b : code->cfg.blocks) {
                     while (step->execute(code, &b, pipeline));
                 }

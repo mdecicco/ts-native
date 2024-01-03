@@ -3,44 +3,51 @@
 #include <tsn/bind/ffi_argument.hpp>
 #include <tsn/ffi/Function.h>
 #include <tsn/bind/ExecutionContext.h>
+#include <tsn/common/Context.h>
+#include <tsn/common/Config.h>
 
 namespace tsn {
     namespace ffi {
         template <typename ...Args>
-        void call_hostToHost(Context* ctx, Function* f, void* result, Args&&... args) {
+        void call_hostToHost(Context* ctx, Function* f, void* result, void* self, Args&&... args) {
+            if (ctx->getConfig()->disableExecution) return;
+
             constexpr int argc = std::tuple_size_v<std::tuple<Args...>>;
             void* fptr = f->getAddress();
 
-            void* ectx = nullptr;
+            call_context cctx;
+            cctx.ectx = nullptr;
+            cctx.funcPtr = f->getAddress();
+            cctx.retPtr = result;
+            cctx.thisPtr = self;
+            cctx.capturePtr = nullptr;
+            
+            void* pcctx = &cctx;
 
             // + 1 because argc can be 0
             void* ptrBuf[argc + 1] = { 0 };
-            u8 pbi = 0;
 
             const auto* sigArgs = f->getSignature()->getArguments().data();
 
+            u8 pbi = 0;
             void* argBuf[] = {
-                &fptr,
-                &result,
-                &ectx,
-                getArg<Args>(std::forward<Args>(args), &ptrBuf[pbi], sigArgs[3 + pbi].argType, pbi)...
+                &pcctx,
+                getArg<Args>(std::forward<Args>(args), &ptrBuf[pbi], sigArgs[pbi + 1].argType, pbi)...
             };
             
             pbi = 0;
             ffi_type* typeBuf[] = {
-                &ffi_type_pointer, // func->getAddress()
-                &ffi_type_pointer, // return value pointer
-                &ffi_type_pointer, // execution context
-                (sigArgs[3 + (pbi++)].argType == arg_type::pointer ? &ffi_type_pointer : getType<Args>(args))...
+                &ffi_type_pointer,
+                (sigArgs[(pbi++) + 1].argType == arg_type::pointer ? &ffi_type_pointer : getType<Args>(args))...
             };
             
             ffi_cif cif;
-            if (ffi_prep_cif(&cif, FFI_DEFAULT_ABI, argc + 3, &ffi_type_void, typeBuf) != FFI_OK) {
+            if (ffi_prep_cif(&cif, FFI_DEFAULT_ABI, argc + 1, &ffi_type_void, typeBuf) != FFI_OK) {
                 return;
             }
 
             ExecutionContext exec(ctx);
-            ectx = (void*)&exec;
+            cctx.ectx = &exec;
             ffi_call(&cif, reinterpret_cast<void (*)()>(f->getWrapperAddress()), result, argBuf);
         }
     };

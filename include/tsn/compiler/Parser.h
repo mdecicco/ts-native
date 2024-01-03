@@ -55,6 +55,7 @@ namespace tsn {
             nt_type_property,
             nt_type_specifier,
             nt_type,
+            nt_typeinfo,
             nt_variable
         };
         

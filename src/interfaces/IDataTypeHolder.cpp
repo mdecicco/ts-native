@@ -3,7 +3,7 @@
 #include <utils/Array.hpp>
 
 namespace tsn {
-    IDataTypeHolder::IDataTypeHolder() {
+    IDataTypeHolder::IDataTypeHolder(Context* ctx) : IContextual(ctx) {
     }
 
     IDataTypeHolder::~IDataTypeHolder() {

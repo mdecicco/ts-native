@@ -28,11 +28,12 @@ namespace tsn {
                  * 
                  * @param step The step to execute
                  */
-                void addStep(IOptimizationStep* step);
+                void addStep(IOptimizationStep* step, bool isRequired = false);
 
                 virtual bool execute(compiler::CodeHolder* code, Pipeline* pipeline);
             
             protected:
+                friend class IOptimizationStep;
                 bool m_doRepeat;
                 utils::Array<IOptimizationStep*> m_steps;
         };

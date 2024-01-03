@@ -6,15 +6,16 @@
 #include <utils/Array.hpp>
 
 namespace tsn {
-    Module::Module(Context* ctx, const utils::String& name, const utils::String& path, const script_metadata* meta) : IContextual(ctx), m_name(name), m_path(path) {
+    Module::Module(Context* ctx, const utils::String& name, const utils::String& path, const script_metadata* meta) : IDataTypeHolder(ctx), m_name(name), m_path(path) {
         m_id = (u32)std::hash<utils::String>()(path);
         m_meta = meta;
         m_src = nullptr;
         m_didInit = false;
+        m_ownsSource = false;
     }
 
     Module::~Module() {
-        if (m_src) delete m_src;
+        if (m_src && m_ownsSource) delete m_src;
         m_src = nullptr;
 
         for (u32 i = 0;i < m_data.size();i++) {
@@ -52,7 +53,7 @@ namespace tsn {
     const script_metadata* Module::getInfo() const {
         return m_meta;
     }
-
+    
     u32 Module::getDataSlotCount() const {
         return m_data.size();
     }
@@ -103,7 +104,8 @@ namespace tsn {
         return m_data.size() - 1;
     }
 
-    void Module::setSrc(ModuleSource* src) {
+    void Module::setSrc(ModuleSource* src, bool takeOwnership) {
         m_src = src;
+        m_ownsSource = takeOwnership;
     }
 };

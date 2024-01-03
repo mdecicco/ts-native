@@ -77,12 +77,14 @@ namespace tsn {
             //
             // Operand 0 will be vreg which will receive the loaded value
             // Operand 1 will be vreg which holds the address to load from
+            // (optional) Operand 2 can be imm which holds offset for address
             ir_load,
 
             // Store value at address
             //
             // Operand 0 will be val which holds value to store
             // Operand 1 will be vreg which holds address to store value in
+            // (optional) Operand 2 can be imm which holds offset for address
             ir_store,
 
             // Copies value from one val to another

@@ -5,6 +5,7 @@
 #include <tsn/compiler/OutputBuilder.h>
 #include <tsn/compiler/Output.h>
 #include <tsn/compiler/FunctionDef.h>
+#include <tsn/compiler/CodeHolder.h>
 #include <tsn/pipeline/Pipeline.h>
 #include <tsn/vm/VMBackend.h>
 #include <tsn/vm/Instruction.h>
@@ -104,6 +105,7 @@ i32 main (i32 argc, const char** argv) {
 
     contextCfg.debugLogging = conf.debugLogging;
     contextCfg.disableOptimizations = conf.disableOptimizations;
+    contextCfg.disableExecution = true;
     
     script_metadata meta;
     try {
@@ -131,8 +133,22 @@ i32 main (i32 argc, const char** argv) {
 
     {
         Context ctx = Context(1, &contextCfg);
+        
+        backend::IBackend* be = nullptr;
+        switch (conf.backend) {
+            case bt_none: break;
+            case bt_vm: be = new vm::Backend(&ctx, 16384);
+        }
+
+        ctx.init(be);
+
         Module* mod = ctx.getPipeline()->buildFromSource(&meta);
+        if (be) mod->init();
+
         status = handleResult(&ctx, mod, meta, conf);
+        
+        ctx.shutdown();
+        if (be) delete be;
     }
 
     tsn::ffi::ExecutionContext::Shutdown();
@@ -209,9 +225,7 @@ i32 parse_args(i32 argc, const char** argv, tsnc_config* conf, Config* ctxConf) 
     conf->trusted = false;
     conf->debugLogging = ctxConf->debugLogging;
     conf->disableOptimizations = ctxConf->disableOptimizations;
-    conf->backend = bt_vm;
-
-    // conf->mode = om_exec;
+    conf->backend = bt_none;
 
     try {
         const char* tmp = nullptr;
@@ -491,15 +505,22 @@ i32 handleResult(Context* ctx, Module* mod, const script_metadata& meta, const t
 
         if (out.contains("code")) {
             json &o = out["code"];
-            const auto& funcs = c->getOutput()->getFuncs();
-            for (u32 i = 0;i < funcs.size();i++) {
-                if (!funcs[i] || !funcs[i]->getOutput()) continue;
-                json func = toJson(funcs[i]->getOutput(), true, funcs[i]);
+            auto& output = ctx->getPipeline()->getCompilerOutput()->getCode();
+            auto& funcs = c->getOutput()->getFuncs();
+            for (u32 i = 0;i < output.size();i++) {
+                if (!output[i] || !output[i]->owner) continue;
+
+                ffi::Function* fn = output[i]->owner;
+                FunctionDef* fd = funcs.find([fn](FunctionDef* fd) {
+                    return fd->getOutput() == fn;
+                });
+
+                json func = toJson(fn, true, fd);
                 json& oc = func["code"] = json::array();
 
-                const auto& code = funcs[i]->getCode();
+                const auto& code = output[i]->code;
                 for (u32 c = 0;c < code.size();c++) {
-                    oc.push_back(code[c].toString(funcs[i]->getContext()).c_str());
+                    oc.push_back(code[c].toString(ctx).c_str());
                 }
 
                 o.push_back(func);

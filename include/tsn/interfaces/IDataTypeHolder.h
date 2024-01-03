@@ -1,5 +1,6 @@
 #pragma once
 #include <tsn/common/types.h>
+#include <tsn/interfaces/IContextual.h>
 
 #include <utils/Array.h>
 #include <utils/robin_hood.h>
@@ -10,9 +11,9 @@ namespace tsn {
         class FunctionType;
     };
         
-    class IDataTypeHolder {
+    class IDataTypeHolder : public IContextual {
         public:
-            IDataTypeHolder();
+            IDataTypeHolder(Context* ctx);
             ~IDataTypeHolder();
 
             template <typename T>

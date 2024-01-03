@@ -248,13 +248,14 @@ namespace tsn {
                 return *this;
             }
 
-            DataType* voidp = m_func->getContext()->getTypes()->getType<void*>();
+            DataType* voidp = m_func->getContext()->getTypes()->getVoidPtr();
             if (m_type->isEqualTo(voidp) || tp->isEqualTo(voidp)) {
                 // This is necessary to enable trusted scripts to work with
                 // _real_ pointers. Writers of trusted scripts should know
                 // what they are doing when working with pointers / casting
                 Value ret = Value(*this);
                 ret.m_type = tp;
+                ret.m_flags.is_pointer = 1;
                 return ret;
             }
 
@@ -691,20 +692,20 @@ namespace tsn {
             ptr.m_flags.is_pointer = 1;
             m_func->add(ir_uadd).op(ptr).op(*this).op(m_func->imm(prop->offset));
 
-            if (prop->flags.is_pointer) {
-                // Load pointer to object or primitive
-                m_func->add(ir_load).op(ptr).op(ptr);
+            if (!prop->flags.is_pointer && !prop->type->getInfo().is_primitive) {
+                // object instantiation at ptr
+                return ptr;
             }
-
+            
+            // load primitive or pointer from ptr
             Value out = m_func->val(prop->type);
+            out.m_flags.is_read_only = prop->flags.can_write ? 0 : 1;
+            out.m_flags.is_pointer = (prop->flags.is_pointer || prop->type->isEqualTo(m_func->getContext()->getTypes()->getVoidPtr())) ? 1 : 0;
+
             out.m_srcPtr = new Value(ptr);
             out.m_srcSelf = new Value(*this);
-            out.m_flags.is_read_only = prop->flags.can_write ? 0 : 1;
-            if (prop->type->getInfo().is_primitive) {
-                // load primitive from pointer
-                m_func->add(ir_load).op(out).op(ptr);
-            }
 
+            m_func->add(ir_load).op(out).op(ptr);
             return out;
         }
 
@@ -877,6 +878,17 @@ namespace tsn {
             return m_flags.is_argument == 1;
         }
 
+        bool Value::isFloatingPoint() const {
+            if (!m_type) return false;
+            if (!m_type->getInfo().is_floating_point) return false;
+
+            if (m_flags.is_pointer) return false;
+            if (m_flags.is_module_data) return false;
+            if (m_allocId > 0) return false;
+
+            return true;
+        }
+
         bool Value::isReg() const {
             return m_regId > 0;
         }
@@ -937,6 +949,7 @@ namespace tsn {
             }
 
             DataType* selfTp = self->getType();
+            bool isVoidPtr = selfTp->isEqualTo(m_func->getContext()->getTypes()->getVoidPtr());
             const auto& i = selfTp->getInfo();
 
             if (i.is_primitive) {
@@ -958,7 +971,14 @@ namespace tsn {
                         out.reset(_rhs);
                     } else {
                         out.reset(fn->val(selfTp));
-                        Value val = **self;
+                        Value val;
+                        if (isVoidPtr) {
+                            // void* is treated differently, essentially like a u64
+                            val.reset(*self);
+                        } else {
+                            // all other primitives should be loaded
+                            val.reset(**self);
+                        }
                         fn->add(inst).op(out).op(val).op(_rhs);
                     }
                 } else {
@@ -972,7 +992,7 @@ namespace tsn {
                 }
 
                 if (assignmentOp) {
-                    if (self->m_flags.is_pointer) fn->add(ir_store).op(out).op(*self);
+                    if (self->m_flags.is_pointer && !isVoidPtr) fn->add(ir_store).op(out).op(*self);
                     else if (self->m_srcPtr) fn->add(ir_store).op(out).op(*self->m_srcPtr);
                     else if (self->m_srcSetter) m_func->getCompiler()->generateCall(self->m_srcSetter, { out }, self->m_srcSelf);
                 }
@@ -1458,7 +1478,7 @@ namespace tsn {
                 return m_func->getPoison();
             }
             
-            if (!m_flags.is_pointer && !m_type->isEqualTo(m_func->getContext()->getTypes()->getType<void*>())) {
+            if (!m_flags.is_pointer && !m_type->isEqualTo(m_func->getContext()->getTypes()->getVoidPtr())) {
                 m_func->getCompiler()->valueError(
                     *this,
                     cm_err_internal,
@@ -1544,6 +1564,8 @@ namespace tsn {
         }
 
         String Value::toString(Context* ctx) const {
+            if (!isValid()) return "<Invalid Value>";
+
             String s;
             if (m_flags.is_argument) {
                 if (m_type->getInfo().is_floating_point) s = String::Format("$FPA%d", m_imm.u);

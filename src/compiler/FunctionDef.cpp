@@ -22,22 +22,21 @@ namespace tsn {
             m_comp = nullptr;
             m_retTp = nullptr;
             m_retTpSet = false;
-            m_captures = false;
             m_thisTp = nullptr;
             m_output = nullptr;
             m_nextAllocId = 1;
             m_nextRegId = 1;
             m_nextLabelId = 1;
+            m_cctxArg = nullptr;
             m_thisArg = nullptr;
             m_ectxArg = nullptr;
             m_capsArg = nullptr;
             m_fptrArg = nullptr;
             m_retpArg = nullptr;
             m_poison = nullptr;
-            m_implicitArgCount = 0;
         }
 
-        FunctionDef::FunctionDef(Compiler* c, const utils::String& name, DataType* methodOf, ParseNode* n, bool doesCapture) {
+        FunctionDef::FunctionDef(Compiler* c, const utils::String& name, DataType* methodOf, ParseNode* n) {
             m_node = n;
             m_scopeRef = nullptr;
             m_comp = c;
@@ -45,12 +44,12 @@ namespace tsn {
             m_name = name;
             m_retTp = c->getContext()->getTypes()->getType<void>();
             m_retTpSet = false;
-            m_captures = doesCapture;
             m_thisTp = methodOf;
             m_output = nullptr;
             m_nextAllocId = 1;
             m_nextRegId = 1;
             m_nextLabelId = 1;
+            m_cctxArg = nullptr;
             m_thisArg = nullptr;
             m_ectxArg = nullptr;
             m_capsArg = nullptr;
@@ -59,20 +58,7 @@ namespace tsn {
             m_poison = &val("@poison", c->getContext()->getTypes()->getType<poison_t>());
             
             DataType* ptrTp = c->getContext()->getTypes()->getType<void*>();
-            m_argInfo.push({ arg_type::func_ptr, ptrTp });
-            m_argInfo.push({ arg_type::ret_ptr, m_retTp });
             m_argInfo.push({ arg_type::context_ptr, ptrTp });
-            m_implicitArgCount = 3;
-
-            if (m_captures) {
-                m_argInfo.push({ arg_type::captures_ptr, ptrTp });
-                m_implicitArgCount++;
-            }
-
-            if (m_thisTp) {
-                m_argInfo.push({ arg_type::this_ptr, m_thisTp });
-                m_implicitArgCount++;
-            }
         }
         
         FunctionDef::FunctionDef(Compiler* c, Function* func, ParseNode* n) {
@@ -84,18 +70,17 @@ namespace tsn {
             m_thisTp = nullptr;
             m_retTp = c->getContext()->getTypes()->getType<void>();
             m_retTpSet = false;
-            m_captures = false;
             m_output = func;
             m_nextAllocId = 1;
             m_nextRegId = 1;
             m_nextLabelId = 1;
+            m_cctxArg = nullptr;
             m_thisArg = nullptr;
             m_ectxArg = nullptr;
             m_capsArg = nullptr;
             m_fptrArg = nullptr;
             m_retpArg = nullptr;
             m_poison = &val("@poison", c->getContext()->getTypes()->getType<poison_t>());
-            m_implicitArgCount = 0;
 
             FunctionType* sig = func->getSignature();
             if (sig) {
@@ -103,16 +88,15 @@ namespace tsn {
                 m_retTpSet = true;
                 const auto& args = sig->getArguments();
                 for (u8 a = 0;a < args.size();a++) {
-                    if (args[a].isImplicit()) {
-                        m_implicitArgCount++;
-                        if (args[a].argType == arg_type::captures_ptr) m_captures = true;
-                    }
                     m_argInfo.push(args[a]);
                 }
             }
         }
 
         FunctionDef::~FunctionDef() {
+            if (m_cctxArg) delete m_cctxArg;
+            m_cctxArg = nullptr;
+
             if (m_fptrArg) delete m_fptrArg;
             m_fptrArg = nullptr;
 
@@ -121,6 +105,9 @@ namespace tsn {
 
             if (m_ectxArg) delete m_ectxArg;
             m_ectxArg = nullptr;
+
+            if (m_capsArg) delete m_capsArg;
+            m_capsArg = nullptr;
 
             if (m_thisArg) delete m_thisArg;
             m_thisArg = nullptr;
@@ -160,15 +147,7 @@ namespace tsn {
         }
 
         void FunctionDef::setThisType(ffi::DataType* tp) {
-            bool found = false;
-            for (u8 a = 0;a < m_argInfo.size();a++) {
-                if (m_argInfo[a].argType == arg_type::this_ptr) {
-                    found = true;
-                    m_argInfo[a].dataType = tp;
-                }
-            }
-
-            if (found) m_thisTp = tp;
+            m_thisTp = tp;
         }
 
         DataType* FunctionDef::getReturnType() const {
@@ -188,11 +167,7 @@ namespace tsn {
         }
 
         u32 FunctionDef::getArgCount() const {
-            return m_argInfo.size() - m_implicitArgCount;
-        }
-
-        u32 FunctionDef::getImplicitArgCount() const {
-            return m_implicitArgCount;
+            return m_argInfo.size() - 1;
         }
 
         void FunctionDef::addArg(const utils::String& name, DataType* tp) {
@@ -211,7 +186,7 @@ namespace tsn {
         }
         
         void FunctionDef::addDeferredArg(const utils::String& name) {
-            u32 idx = m_implicitArgCount + m_args.size();
+            u32 idx = m_args.size() + 1;
             if (idx >= m_argInfo.size()) {
                 m_comp->error(cm_err_internal, "Attempted to add deferred argument that is out of range");
                 return;
@@ -226,7 +201,7 @@ namespace tsn {
         }
         
         const function_argument& FunctionDef::getArgInfo(u32 argIdx) const {
-            return m_argInfo[argIdx + m_implicitArgCount];
+            return m_argInfo[argIdx + 1];
         }
         
         const utils::Array<ffi::function_argument>& FunctionDef::getArgs() const {
@@ -244,6 +219,10 @@ namespace tsn {
             }
 
             return *m_thisArg;
+        }
+
+        Value& FunctionDef::getCCtx() {
+            return *m_cctxArg;
         }
 
         Value& FunctionDef::getECtx() {
@@ -369,44 +348,37 @@ namespace tsn {
             DataType* ectx = m_comp->getContext()->getTypes()->getType<ExecutionContext>();
             DataType* errt = m_comp->getContext()->getTypes()->getType<poison_t>();
 
-            u32 argIdx = 0;
+            Value cctxParam = val(voidp);
+            cctxParam.m_flags.is_argument = 1;
+            cctxParam.m_flags.is_pointer = 1;
+            cctxParam.m_regId = 0;
+            cctxParam.m_imm.u = 0;
+            m_cctxArg = new Value(cctxParam);
+
+            Value& c = val("@ectx", ectx);
+            c.m_flags.is_pointer = 1;
+            add(ir_load).op(c).op(cctxParam).op(imm<u32>(offsetof(call_context, ectx)));
+            m_ectxArg = new Value(c);
 
             Value& f = val("@fptr", voidp);
-            f.m_flags.is_argument = 1;
             f.m_flags.is_pointer = 1;
-            f.m_regId = 0;
-            f.m_imm.u = argIdx++;
+            add(ir_load).op(f).op(cctxParam).op(imm<u32>(offsetof(call_context, funcPtr)));
             m_fptrArg = new Value(f);
 
             Value& r = val("@ret", m_retTpSet ? m_retTp : voidp);
-            r.m_flags.is_argument = 1;
             r.m_flags.is_pointer = 1;
-            r.m_regId = 0;
-            r.m_imm.u = argIdx++;
+            add(ir_load).op(r).op(cctxParam).op(imm<u32>(offsetof(call_context, retPtr)));
             m_retpArg = new Value(r);
 
-            Value& c = val("@ectx", ectx);
-            c.m_flags.is_argument = 1;
-            c.m_flags.is_pointer = 1;
-            c.m_regId = 0;
-            c.m_imm.u = argIdx++;
-            m_ectxArg = new Value(c);
-
-            if (m_captures) {
-                Value& cp = val("@caps", voidp);
-                cp.m_flags.is_argument = 1;
-                cp.m_flags.is_pointer = 1;
-                cp.m_regId = 0;
-                cp.m_imm.u = argIdx++;
-                m_capsArg = new Value(cp);
-            }
+            Value& cp = val("@caps", voidp);
+            cp.m_flags.is_pointer = 1;
+            add(ir_load).op(cp).op(cctxParam).op(imm<u32>(offsetof(call_context, capturePtr)));
+            m_capsArg = new Value(cp);
 
             if (m_thisTp) {
                 Value& t = val("this", m_thisTp);
-                t.m_flags.is_argument = 1;
                 t.m_flags.is_pointer = 1;
-                t.m_regId = 0;
-                t.m_imm.u = argIdx++;
+                add(ir_load).op(t).op(cctxParam).op(imm<u32>(offsetof(call_context, thisPtr)));
                 m_thisArg = new Value(t);
             }
 
@@ -433,7 +405,7 @@ namespace tsn {
 
             if (m_output) return m_output;
 
-            ffi::FunctionType* sig = new FunctionType(m_retTp, m_argInfo, false);
+            ffi::FunctionType* sig = new FunctionType(m_thisTp, m_retTp, m_argInfo, false);
             
             bool sigExisted = false;
             const auto& types = m_comp->getOutput()->getTypes();
@@ -473,7 +445,8 @@ namespace tsn {
                 sig,
                 private_access,
                 nullptr,
-                nullptr
+                nullptr,
+                m_comp->getOutput()->getModule()
             );
 
             if (m_scopeRef) {

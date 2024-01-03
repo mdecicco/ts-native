@@ -96,6 +96,11 @@ namespace tsn {
 
                 bool isValid() const;
                 bool isArg() const;
+
+                // If the value referred to is actually floating point
+                // data. For example, if flags.is_pointer == 1 then
+                // this returns false
+                bool isFloatingPoint() const;
                 
                 // Only one of these can be true
                 bool isReg() const;
