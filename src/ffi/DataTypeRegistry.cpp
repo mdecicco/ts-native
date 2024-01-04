@@ -26,8 +26,8 @@ namespace tsn {
             m_voidPtr = nullptr;
             m_string = nullptr;
             m_boolean = nullptr;
+            m_captureData = nullptr;
             m_closure = nullptr;
-            m_closureRef = nullptr;
             m_array = nullptr;
             m_pointer = nullptr;
         }
@@ -49,8 +49,8 @@ namespace tsn {
         DataType* DataTypeRegistry::getVoidPtr() const { return m_voidPtr; }
         DataType* DataTypeRegistry::getString() const { return m_string; }
         DataType* DataTypeRegistry::getBoolean() const { return m_boolean; }
+        DataType* DataTypeRegistry::getCaptureData() const { return m_captureData; }
         DataType* DataTypeRegistry::getClosure() const { return m_closure; }
-        DataType* DataTypeRegistry::getClosureRef() const { return m_closureRef; }
         TemplateType* DataTypeRegistry::getArray() const { return m_array; }
         TemplateType* DataTypeRegistry::getPointer() const { return m_pointer; }
 
@@ -71,8 +71,8 @@ namespace tsn {
             m_voidPtr = getType<void*>();
             m_string = getType<utils::String>();
             m_boolean = getType<bool>();
+            m_captureData = getType<CaptureData>();
             m_closure = getType<Closure>();
-            m_closureRef = getType<ClosureRef>();
 
             Module* mp = m_ctx->getModule("trusted/pointer");
             m_pointer = (TemplateType*)(mp ? mp->allTypes().find([](const DataType* t) { return t->getName() == "Pointer"; }) : nullptr);

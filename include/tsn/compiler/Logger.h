@@ -118,6 +118,7 @@ namespace tsn {
             cm_err_module_data_used_as_value,
             cm_err_internal,
             cm_err_not_trusted,
+            cm_err_duplicate_name,
             COMPILER_MESSAGES_END
         };
 

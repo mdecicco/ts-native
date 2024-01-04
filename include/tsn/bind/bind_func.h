@@ -18,6 +18,9 @@ namespace tsn {
         void __cdecl _func_wrapper(call_context* ctx, Args... args);
         
         template <typename Cls, typename Ret, typename... Args>
+        void __cdecl _pseudo_method_wrapper(call_context* ctx, Args... args);
+        
+        template <typename Cls, typename Ret, typename... Args>
         void __cdecl _method_wrapper(call_context* ctx, Args... args);
 
         template <typename Cls, typename Ret, typename... Args>

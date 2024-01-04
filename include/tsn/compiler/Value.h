@@ -93,6 +93,7 @@ namespace tsn {
                 void setRegId(vreg_id reg);
                 void setStackAllocId(alloc_id id);
                 void setStackSrc(const Value& src);
+                void setSrcPtr(const Value& src);
 
                 bool isValid() const;
                 bool isArg() const;

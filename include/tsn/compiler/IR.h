@@ -115,12 +115,12 @@ namespace tsn {
             //
             // Pre-optimization and during optimization
             //     Operand 0 will either be imm pointer to the FunctionDef being
-            //     called or a vreg which holds a pointer to the ClosureRef being
+            //     called or a vreg which holds a pointer to the Closure being
             //     called
             //
             // Post-optimization
             //     Operand 0 will either be imm function_id of the function being
-            //     called or a vreg which holds a pointer to the ClosureRef being
+            //     called or a vreg which holds a pointer to the Closure being
             //     called
             //
             // In all cases, the data type of operand 0 will be the function
@@ -223,7 +223,7 @@ namespace tsn {
             /** register or immediate */
             ot_val,
 
-            /** function (immediate function id or ClosureRef pointer in vreg) */
+            /** function (immediate function id or Closure pointer in vreg) */
             ot_fun
         };
 

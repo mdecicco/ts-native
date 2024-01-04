@@ -50,6 +50,9 @@ namespace tsn {
             /** Store the result in the module data */
             rsl_module_data,
 
+            /** Store the result in the current function's capture data */
+            rsl_capture_data_if_non_primitive,
+
             /** Store the result in the provided destination */
             rsl_specified_dest
         };
@@ -58,8 +61,11 @@ namespace tsn {
             /** Where the expression result should be stored */
             result_storage_location loc;
 
-            /** If loc == rsl_module_data, this is this is the name of the module data entry */
-            utils::String md_name;
+            /** If expression result is the initializer for a variable, this is the name of the variable */
+            utils::String var_name;
+
+            /** If expression result is the initializer for a variable, this is the scope the variable should be declared in */
+            Scope* decl_scope;
 
             /** If loc == rsl_module_data, this is this is the access modifier of the module data entry */
             access_modifier md_access;
@@ -146,6 +152,7 @@ namespace tsn {
             protected:
                 friend class Value;
                 friend class ScopeManager;
+                friend class FunctionDef;
                 friend class Pipeline;
 
                 InstructionRef add(ir_instruction inst);
@@ -161,7 +168,8 @@ namespace tsn {
                 Value moduleData(Module* m, u32 slot);
                 Value newClosure(function_id target, Value* captureData = nullptr);
                 Value allocateCaptureData(const utils::Array<Value>& captures, utils::Array<u32>& outOffsets);
-                void findCaptures(ParseNode* node, utils::Array<Value>& outCaptures, robin_hood::unordered_map<utils::String, u32>& declaredNames, u32 scopeIdx);
+                void findCaptures(ParseNode* node, utils::Array<Value>& outCaptures, utils::Array<u32>& outCaptureOffsets, u32 scopeIdx);
+                bool isVarCaptured(ParseNode* n, const utils::String& name, u32 closureDepth = 0);
                 Value newClosureRef(const Value& closure, ffi::DataType* signature);
                 Value newClosureRef(const Value& fnImm);
                 Value newClosureRef(ffi::Function* fn);

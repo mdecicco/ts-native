@@ -146,14 +146,14 @@ namespace tsn {
         auto p = bind<poison_t>(ctx, "$poison").finalize();
         auto ectx = bind<ExecutionContext>(ctx, "$exec").dtor(tsn::private_access).finalize();
         
-        auto cb = bind<Closure>(ctx, "$closure");
-        cb.ctor<const Closure&>(public_access);
+        auto cb = bind<CaptureData>(ctx, "$capture_data");
+        cb.ctor<const CaptureData&>(public_access);
         cb.dtor(private_access);
         cb.finalize();
 
-        auto cbr = bind<ClosureRef>(ctx, "$closure_ref");
-        cbr.ctor<const ClosureRef&>(public_access);
-        cbr.ctor<Closure*>(public_access);
+        auto cbr = bind<Closure>(ctx, "$closure");
+        cbr.ctor<const Closure&>(public_access);
+        cbr.ctor<CaptureData*>(public_access);
         cbr.dtor(public_access);
         cbr.finalize();
 

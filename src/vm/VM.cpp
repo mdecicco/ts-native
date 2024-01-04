@@ -92,7 +92,7 @@ namespace tsn {
             bool term = false;
             const Instruction* iptr = code.data();
             iptr += *ip;
-            constexpr bool debug = false;
+            constexpr bool debug = true;
             u32 lastLoggedLn = -1;
 
             while ((*ip) <= cs && !term) {
@@ -713,7 +713,7 @@ namespace tsn {
                         break;
                     }
                     case vmi::jalr: {
-                        ffi::ClosureRef* ref = GRx(_O1, ffi::ClosureRef*);
+                        ffi::Closure* ref = GRx(_O1, ffi::Closure*);
                         if (!ref) throw std::exception("VM: Invalid callback passed to jalr");
 
                         ffi::Function* fn = ref->getTarget();

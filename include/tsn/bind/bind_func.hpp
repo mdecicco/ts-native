@@ -31,6 +31,24 @@ namespace tsn {
             }
             ExecutionContext::Pop();
         }
+
+        template <typename Cls, typename Ret, typename... Args>
+        void __cdecl _pseudo_method_wrapper(call_context* ctx, Args... args) {
+            Ret (*func)(Cls*, Args...) = (Ret (*)(Cls*, Args...))ctx->funcPtr;
+            
+            ExecutionContext::Push(ctx->ectx);
+            if constexpr (std::is_same_v<void, Ret>) {
+                func(args...);
+            } else {
+                if constexpr (std::is_reference_v<Ret>) {
+                    using RT = std::remove_reference_t<Ret>;
+                    *((RT**)ctx->retPtr) = &func((Cls*)ctx->thisPtr, args...);
+                } else {
+                    new ((Ret*)(ctx->retPtr)) Ret (func((Cls*)ctx->thisPtr, args...));
+                }
+            }
+            ExecutionContext::Pop();
+        }
         
         template <typename Cls, typename Ret, typename... Args>
         void __cdecl _method_wrapper(call_context* ctx, Args... args) {
@@ -221,7 +239,7 @@ namespace tsn {
                 treg->addFuncType(sig);
             }
 
-            void (*wrapper)(call_context*, Args...) = &_func_wrapper<Ret, Args...>;
+            void (*wrapper)(call_context*, Args...) = &_pseudo_method_wrapper<Cls, Ret, Args...>;
 
             Function* fn = new Function(
                 name,
@@ -423,7 +441,7 @@ namespace tsn {
             }
 
             void (*func)(Cls*) = nullptr;
-            void (*wrapper)(call_context*) = &_destructor_wrapper<Cls*>;
+            void (*wrapper)(call_context*) = &_destructor_wrapper<Cls>;
 
             Function* fn = new Function(
                 name,

@@ -9,27 +9,27 @@
 #include <utils/Allocator.hpp>
 
 namespace tsn {
-    void freeClosure(ffi::Closure* closure);
+    void freeClosure(ffi::CaptureData* closure);
     void freeCaptureData(void* data);
 
     namespace ffi {
-        ClosureRef::ClosureRef() {
+        Closure::Closure() {
             m_ref = nullptr;
         }
 
-        ClosureRef::ClosureRef(const ClosureRef& closure) {
+        Closure::Closure(const Closure& closure) {
             m_captureData = closure.m_captureData;
             m_ref = closure.m_ref;
             if (m_ref) m_ref->m_refCount++;
         }
 
-        ClosureRef::ClosureRef(Closure* closure) {
+        Closure::Closure(CaptureData* closure) {
             m_captureData = closure ? closure->m_captureData : nullptr;
             m_ref = closure;
             if (m_ref) m_ref->m_refCount++;
         }
 
-        ClosureRef::~ClosureRef() {
+        Closure::~Closure() {
             if (m_ref) {
                 m_ref->m_refCount--;
                 if (m_ref->m_refCount == 0) freeClosure(m_ref);
@@ -37,42 +37,42 @@ namespace tsn {
             }
         }
         
-        ffi::Function* ClosureRef::getTarget() const {
+        ffi::Function* Closure::getTarget() const {
             if (!m_ref) return nullptr;
             return m_ref->m_target;
         }
 
-        void* ClosureRef::getSelf() const {
+        void* Closure::getSelf() const {
             if (!m_ref) return nullptr;
             return m_ref->m_self;
         }
 
-        void ClosureRef::operator=(const ClosureRef& rhs) {
+        void Closure::operator=(const Closure& rhs) {
             m_ref = rhs.m_ref;
             if (m_ref) m_ref->m_refCount++;
         }
 
-        void ClosureRef::operator=(Closure* rhs) {
+        void Closure::operator=(CaptureData* rhs) {
             m_ref = rhs;
             if (m_ref) m_ref->m_refCount++;
         }
 
 
 
-        Closure::Closure(ExecutionContext* ectx, function_id targetId, void* captureData)
+        CaptureData::CaptureData(ExecutionContext* ectx, function_id targetId, void* data)
             : IContextual(ectx->getContext())
         {
             m_self = nullptr;
             m_target = m_ctx->getFunctions()->getFunction(targetId);
-            m_captureData = captureData;
+            m_captureData = data;
             m_refCount = 0;
         }
 
-        Closure::Closure(const Closure& c) : IContextual(nullptr) {
+        CaptureData::CaptureData(const CaptureData& c) : IContextual(nullptr) {
             throw std::exception("Closures are not copy constructible");
         }
 
-        Closure::~Closure() {
+        CaptureData::~CaptureData() {
             if (m_captureData) {
                 u8* data = (u8*)m_captureData;
                 u32 count = *(u32*)data;
@@ -93,15 +93,15 @@ namespace tsn {
             }
         }
         
-        void Closure::bind(void* self) {
+        void CaptureData::bind(void* self) {
             m_self = self;
         }
 
-        ffi::Function* Closure::getTarget() const {
+        ffi::Function* CaptureData::getTarget() const {
             return m_target;
         }
 
-        void* Closure::getSelf() const {
+        void* CaptureData::getSelf() const {
             return m_self;
         }
     };

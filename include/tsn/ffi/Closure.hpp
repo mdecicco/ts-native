@@ -4,7 +4,7 @@
 namespace tsn {
     namespace ffi {
         template <typename ...Args>
-        Object ClosureRef::call(Args&&... args) {
+        Object Closure::call(Args&&... args) {
             if (!m_ref || !m_ref->m_target) throw std::exception("Call to invalid closure");
             if (m_ref->m_target->isThisCall() && !m_ref->m_self) {
                 throw std::exception("Call to object method closure without specifying object pointer");

@@ -867,6 +867,11 @@ namespace tsn {
             if (m_srcSelf) m_srcSelf->reset(src);
             else m_srcSelf = new Value(src);
         }
+        
+        void Value::setSrcPtr(const Value& src) {
+            if (m_srcPtr) m_srcPtr->reset(src);
+            else m_srcPtr = new Value(src);
+        }
 
         bool Value::isValid() const {
             return m_regId > 0 || m_allocId > 0 || m_flags.is_module_data ||

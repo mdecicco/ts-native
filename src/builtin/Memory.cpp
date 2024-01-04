@@ -12,22 +12,22 @@ namespace tsn {
         u8 data[1024];
     };
 
-    utils::PagedAllocator<Closure> closureAllocator([](){
-        return new utils::FixedAllocator<Closure>(128, 128);
+    utils::PagedAllocator<CaptureData> closureAllocator([](){
+        return new utils::FixedAllocator<CaptureData>(128, 128);
     });
 
     utils::PagedAllocator<capture_data> captureDataAllocator([](){
         return new utils::FixedAllocator<capture_data>(256, 256);
     });
 
-    Closure* newClosure(function_id targetId, void* captureData) {
-        Closure* c = closureAllocator.alloc(1);
-        new (c) Closure(ffi::ExecutionContext::Get(), targetId, captureData);
+    CaptureData* newClosure(function_id targetId, void* captureData) {
+        CaptureData* c = closureAllocator.alloc(1);
+        new (c) CaptureData(ffi::ExecutionContext::Get(), targetId, captureData);
         return c;
     }
 
-    void freeClosure(Closure* closure) {
-        closure->~Closure();
+    void freeClosure(CaptureData* closure) {
+        closure->~CaptureData();
         closureAllocator.free(closure);
     }
 

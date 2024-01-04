@@ -29,7 +29,17 @@ namespace tsn {
         if (!((flags & fm_skip_implicit_args) || (flags & fm_ignore_args)) && argCount != args.size()) return false;
         
         // function name match
-        if (fn->getName() != name) return false;
+        const utils::String& fName = fn->getName();
+        if (fName != name) {
+            if (name.size() > 8 && fName.size() > 8 && name[0] == 'o' && fName[0] == 'o' && name[7] == 'r' && fName[7] == 'r') {
+                utils::String a = fName;
+                utils::String b = name;
+                a.replaceAll("operator ", "operator");
+                b.replaceAll("operator ", "operator");
+
+                if (a != b) return false;
+            } else return false;
+        }
 
         // arg count check (excluding implicit)
         if (!(flags & fm_ignore_args) && (flags & fm_skip_implicit_args)) {

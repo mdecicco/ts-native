@@ -32,8 +32,8 @@ namespace tsn {
                 DataType* getVoidPtr() const;
                 DataType* getString() const;
                 DataType* getBoolean() const;
+                DataType* getCaptureData() const;
                 DataType* getClosure() const;
-                DataType* getClosureRef() const;
                 TemplateType* getArray() const;
                 TemplateType* getPointer() const;
 
@@ -61,8 +61,8 @@ namespace tsn {
                 DataType* m_voidPtr;
                 DataType* m_string;
                 DataType* m_boolean;
+                DataType* m_captureData;
                 DataType* m_closure;
-                DataType* m_closureRef;
                 TemplateType* m_array;
                 TemplateType* m_pointer;
         };

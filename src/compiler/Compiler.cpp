@@ -597,13 +597,21 @@ namespace tsn {
             auto* cf = currentFunction();
             auto* exp = currentExpr();
             if (!exp || exp->loc == rsl_auto) {
-                if (tp->getInfo().is_primitive || tp->getInfo().size == 0) return currentFunction()->val(tp);
+                if (tp->getInfo().is_primitive || tp->getInfo().size == 0) return cf->val(tp);
                 else return cf->stack(tp);
             } else if (exp->loc == rsl_stack) {
                 return cf->stack(tp);
             } else if (exp->loc == rsl_module_data) {
-                u32 slot = m_output->getModule()->addData(exp->md_name, tp, exp->md_access);
+                u32 slot = m_output->getModule()->addData(exp->var_name, tp, exp->md_access);
                 return cf->val(m_output->getModule(), slot);
+            } else if (exp->loc == rsl_capture_data_if_non_primitive) {
+                Value& var = cf->val(exp->var_name, tp, exp->decl_scope);
+                if (tp->getInfo().is_primitive) return var;
+
+                u32 offset = cf->capture(var);
+                add(ir_uadd).op(var).op(cf->getOwnCaptureData()).op(cf->imm(offset));
+
+                return var;
             }
 
             return *exp->destination;
@@ -619,6 +627,12 @@ namespace tsn {
             Value storage = getStorageForExpr(storageTp);
             if (storage.getType()->getInfo().is_primitive && result.getType()->getInfo().is_primitive) {
                 storage = result;
+                return result;
+            }
+
+            if (result.isImm() && result.isFunction()) {
+                exp->targetNextConstructor = true;
+                newClosureRef(result);
                 return result;
             }
 
@@ -821,10 +835,10 @@ namespace tsn {
             });
             m_trustEnable = false;
 
-            // result is a Pointer<Closure*>
-            // Pointer will be destructed automatically, just return the raw Closure*
+            // result is a Pointer<CaptureData*>
+            // Pointer will be destructed automatically, just return the raw CaptureData*
             add(ir_load).op(closure).op(closure);
-            closure.setType(m_ctx->getTypes()->getClosure());
+            closure.setType(m_ctx->getTypes()->getCaptureData());
             closure.getFlags().is_pointer = 1;
 
             return closure;
@@ -880,44 +894,21 @@ namespace tsn {
             return out;
         }
 
-        void Compiler::findCaptures(ParseNode* node, utils::Array<Value>& outCaptures, robin_hood::unordered_map<utils::String, u32>& declaredNames, u32 scopeIdx) {
+        void Compiler::findCaptures(ParseNode* node, utils::Array<Value>& outCaptures, utils::Array<u32>& outCaptureOffsets, u32 scopeIdx) {
             ParseNode* n = node;
 
             while (n) {
                 u32 nestedScopeIdx = scopeIdx;
                 bool ignoreBody = false;
 
-                if (n->tp == nt_variable) {
-                    if (n->body->tp == nt_object_decompositor) {
-                        ParseNode* p = n->body;
-                        while (p) {
-                            if (declaredNames.count(p->str()) == 0) {
-                                declaredNames[p->str()] = scopeIdx;
-                            }
-                            p = p->next;
-                        }
-                    } else {
-                        if (declaredNames.count(n->body->str()) == 0) {
-                            declaredNames[n->body->str()] = scopeIdx;
-                        }
-                    }
-
-                    n = n->next;
-                    continue;
-                } else if (n->tp == nt_function) {
+                if (n->tp == nt_function) {
                     nestedScopeIdx = scopeIdx + 1;
-
-                    ParseNode* p = n->parameters;
-                    while (p) {
-                        if (declaredNames.count(p->str()) == 0) {
-                            declaredNames[p->str()] = nestedScopeIdx;
-                        }
-                        p = p->next;
-                    }
                 } else if (n->tp == nt_identifier) {
-                    if (declaredNames.count(n->str()) == 0) {
-                        symbol* s = scope().get(n->str());
-                        if (s && s->value && !s->value->isImm()) outCaptures.push(*s->value);
+                    symbol* s = scope().get(n->str());
+                    if (s && s->value && !s->value->isImm()) {
+                        outCaptures.push(*s->value);
+                        u32 offset = currentFunction()->capture(*s->value);
+                        outCaptureOffsets.push(offset);
                     }
                     
                     n = n->next;
@@ -928,34 +919,62 @@ namespace tsn {
                 else if (n->tp == nt_loop) nestedScopeIdx = scopeIdx + 1;
                 else if (n->tp == nt_if) nestedScopeIdx = scopeIdx + 1;
 
-                if (n->data_type) findCaptures(n->data_type, outCaptures, declaredNames, nestedScopeIdx);
-                if (n->lvalue) findCaptures(n->lvalue, outCaptures, declaredNames, nestedScopeIdx);
-                if (n->rvalue) findCaptures(n->rvalue, outCaptures, declaredNames, nestedScopeIdx);
-                if (n->cond) findCaptures(n->cond, outCaptures, declaredNames, nestedScopeIdx);
-                if (n->body && !ignoreBody) findCaptures(n->body, outCaptures, declaredNames, nestedScopeIdx);
-                if (n->else_body) findCaptures(n->else_body, outCaptures, declaredNames, nestedScopeIdx);
-                if (n->initializer) findCaptures(n->initializer, outCaptures, declaredNames, nestedScopeIdx);
-                if (n->parameters && n->tp != nt_function) findCaptures(n->parameters, outCaptures, declaredNames, nestedScopeIdx);
-                if (n->modifier) findCaptures(n->modifier, outCaptures, declaredNames, nestedScopeIdx);
-
-                if (nestedScopeIdx != scopeIdx) {
-                    auto it = declaredNames.begin();
-                    while (it != declaredNames.end()) {
-                        if (it->second == scopeIdx + 1) {
-                            it = declaredNames.erase(it);
-                            continue;
-                        }
-
-                        ++it;
-                    }
-                }
+                if (n->data_type) findCaptures(n->data_type, outCaptures, outCaptureOffsets, nestedScopeIdx);
+                if (n->lvalue) findCaptures(n->lvalue, outCaptures, outCaptureOffsets, nestedScopeIdx);
+                if (n->rvalue) findCaptures(n->rvalue, outCaptures, outCaptureOffsets, nestedScopeIdx);
+                if (n->cond) findCaptures(n->cond, outCaptures, outCaptureOffsets, nestedScopeIdx);
+                if (n->body && !ignoreBody) findCaptures(n->body, outCaptures, outCaptureOffsets, nestedScopeIdx);
+                if (n->else_body) findCaptures(n->else_body, outCaptures, outCaptureOffsets, nestedScopeIdx);
+                if (n->initializer) findCaptures(n->initializer, outCaptures, outCaptureOffsets, nestedScopeIdx);
+                if (n->parameters && n->tp != nt_function) findCaptures(n->parameters, outCaptures, outCaptureOffsets, nestedScopeIdx);
+                if (n->modifier) findCaptures(n->modifier, outCaptures, outCaptureOffsets, nestedScopeIdx);
 
                 n = n->next;
             }
         }
+        
+        bool Compiler::isVarCaptured(ParseNode* n, const utils::String& name, u32 closureDepth) {
+            while (n) {
+                bool ignoreBody = false;
+
+                if (closureDepth > 0) {
+                    if (n->tp == nt_identifier) {
+                        if (n->str() == name) return true;
+                        n = n->next;
+                        continue;
+                    }
+                } else {
+                    if (n->tp == nt_function) {
+                        ParseNode* p = n->parameters;
+                        while (p) {
+                            if (p->str() == name) return false;
+                            p = p->next;
+                        }
+
+                        return isVarCaptured(n->body, name, closureDepth + 1);
+                    } else if (n->tp == nt_type_specifier) {
+                        ignoreBody = n->body && n->body->tp == nt_identifier;
+                    }
+                }
+
+                if (n->data_type && isVarCaptured(n->data_type, name, closureDepth)) return true;
+                if (n->lvalue && isVarCaptured(n->lvalue, name, closureDepth)) return true;
+                if (n->rvalue && isVarCaptured(n->rvalue, name, closureDepth)) return true;
+                if (n->cond && isVarCaptured(n->cond, name, closureDepth)) return true;
+                if (n->body && !ignoreBody && isVarCaptured(n->body, name, closureDepth)) return true;
+                if (n->else_body && isVarCaptured(n->else_body, name, closureDepth)) return true;
+                if (n->initializer && isVarCaptured(n->initializer, name, closureDepth)) return true;
+                if (n->parameters && n->tp != nt_function && isVarCaptured(n->parameters, name, closureDepth)) return true;
+                if (n->modifier && isVarCaptured(n->modifier, name, closureDepth)) return true;
+
+                n = n->next;
+            }
+
+            return false;
+        }
 
         Value Compiler::newClosureRef(const Value& closure, ffi::DataType* signature) {
-            Value cr = constructObject(m_ctx->getTypes()->getClosureRef(), { closure });
+            Value cr = constructObject(m_ctx->getTypes()->getClosure(), { closure });
             cr.setType(signature);
             cr.getFlags().is_function = 1;
             return cr;
@@ -984,16 +1003,31 @@ namespace tsn {
             }
 
             enterExpr();
-            // Closure is ref counted and freed when the last closureRef is destroyed
+            // CaptureData is ref counted and freed when the last closureRef is destroyed
+
+            bool targetNextCtor = false;
+            bool targetNextCall = false;
+            expression_context* expr = currentExpr();
+            if (expr) {
+                targetNextCtor = expr->targetNextConstructor;
+                targetNextCall = expr->targetNextCall;
+                expr->targetNextConstructor = false;
+                expr->targetNextCall = false;
+            }
+
             Value closure = newClosure(fn->getId());
             Value* self = fnImm.getSrcSelf();
             if (self) {
                 // set self ptr on closure
-                add(ir_store).op(*self).op(closure).op(cf->imm<u64>(offsetof(Closure, m_self)));
+                add(ir_store).op(*self).op(closure).op(cf->imm<u64>(offsetof(CaptureData, m_self)));
             }
             
             exitExpr();
 
+            if (expr) {
+                expr->targetNextConstructor = targetNextCtor;
+                expr->targetNextCall = targetNextCall;
+            }
             return newClosureRef(closure, sig);
         }
 
@@ -1011,7 +1045,7 @@ namespace tsn {
             }
 
             enterExpr();
-            // Closure is ref counted and freed when the last closureRef is destroyed
+            // CaptureData is ref counted and freed when the last closureRef is destroyed
             Value closure = newClosure(fn->getId());
             exitExpr();
 
@@ -1033,7 +1067,7 @@ namespace tsn {
             }
 
             enterExpr();
-            // Closure is ref counted and freed when the last closureRef is destroyed
+            // CaptureData is ref counted and freed when the last closureRef is destroyed
             Value closure = newClosure(fn->getId());
             exitExpr();
 
@@ -1156,6 +1190,7 @@ namespace tsn {
                 }
             }
 
+            Value primitiveSelfPtr;
             Value resultStack;
             Value resultPtr;
             
@@ -1215,6 +1250,17 @@ namespace tsn {
                         Value retPtr = resultPtr;
                         Value selfPtr = self ? *self : cf->imm<u64>(0);
 
+                        if (self && !self->getFlags().is_pointer && self->getType()->getInfo().is_primitive) {
+                            // calling pseudo-method of primitive type, must pass pointer to primitive as
+                            // 'this' pointer
+                            Value selfStack = cf->stack(self->getType(), true);
+                            tempStackArgs.push(selfStack);
+                            primitiveSelfPtr.reset(cf->val(voidp));
+                            add(ir_stack_ptr).op(primitiveSelfPtr).op(cf->imm(selfStack.getStackAllocId()));
+                            add(ir_store).op(*self).op(primitiveSelfPtr);
+                            selfPtr.reset(primitiveSelfPtr);
+                        }
+
                         retPtr.setType(voidp);
                         selfPtr.setType(voidp);
 
@@ -1254,6 +1300,12 @@ namespace tsn {
             }
 
             auto call = add(ir_call).op(callee);
+
+            if (self && !self->isImm() && !self->getFlags().is_pointer && self->getType()->getInfo().is_primitive) {
+                // calling pseudo-method of primitive type, call might've modified the value of
+                // the 'this' pointer. Load it and overwrite self if it's not an imm
+                add(ir_load).op(*self).op(primitiveSelfPtr);
+            }
 
             if (tempStackArgs.size() > 0) {
                 add(ir_noop).comment("Free temporary stack slots");
@@ -1756,6 +1808,7 @@ namespace tsn {
 
             return applyTypeModifiers(tp, n->modifier);
         }
+        
         void Compiler::importTemplateContext(TemplateContext* tctx) {
             const auto& moduleData = tctx->getModuleDataImports();
             const auto& modules = tctx->getModuleImports();
@@ -2878,16 +2931,7 @@ namespace tsn {
 
             utils::Array<Value> captures;
             utils::Array<u32> captureOffsets;
-            robin_hood::unordered_map<utils::String, u32> declaredNames;
-            findCaptures(n->body, captures, declaredNames, 0);
-
-            Value captureData;
-            Value* pCaptureData = nullptr;
-            if (captures.size() > 0) {
-                captureOffsets.reserve(captures.size());
-                captureData.reset(allocateCaptureData(captures, captureOffsets));
-                pCaptureData = &captureData;
-            }
+            findCaptures(n->body, captures, captureOffsets, 0);
 
             Function* closureFunc = nullptr;
             {
@@ -2907,7 +2951,10 @@ namespace tsn {
                     Value& c = fd->val(captures[i].getName(), tp);
 
                     if (tp->getInfo().is_primitive) {
-                        fd->add(ir_load).op(c).op(capPtr).op(fd->imm(captureOffsets[i]));
+                        Value srcPtr = fd->val(voidp);
+                        fd->add(ir_uadd).op(srcPtr).op(capPtr).op(fd->imm(captureOffsets[i]));
+                        fd->add(ir_load).op(c).op(srcPtr);
+                        c.setSrcPtr(srcPtr);
                     } else {
                         fd->add(ir_uadd).op(c).op(capPtr).op(fd->imm(captureOffsets[i]));
                     }
@@ -2921,16 +2968,27 @@ namespace tsn {
                 DataType* poisonTp = currentFunction()->getPoison().getType();
                 while (p && p->tp != nt_empty) {
                     DataType* tp = poisonTp;
+                    utils::String pName = p->str();
+
                     if (!p->data_type) {
                         error(
                             cm_err_expected_function_argument_type,
-                            "No type specified for argument '%s' of function '%s'",
-                            p->str().c_str(),
-                            name.c_str()
+                            "No type specified for argument '%s' of arrow function",
+                            pName.c_str()
                         );
                     } else tp = resolveTypeSpecifier(p->data_type);
 
-                    fd->addArg(p->str(), tp);
+                    symbol* s = scope().get(pName);
+                    if (s) {
+                        error(
+                            cm_err_duplicate_name,
+                            "Argument '%s' of arrow function has a name that collides with existing symbol '%s'",
+                            pName.c_str(),
+                            s->value->toString(m_ctx).c_str()
+                        );
+                    }
+
+                    fd->addArg(pName, tp);
                     p = p->next;
                 }
 
@@ -2940,7 +2998,7 @@ namespace tsn {
                 exitNode();
             }
 
-            Value closure = newClosure(closureFunc->getId(), pCaptureData);
+            Value closure = newClosure(closureFunc->getId(), &currentFunction()->getOwnCaptureData());
             Value closureRef = newClosureRef(closure, closureFunc->getSignature());
 
             exitExpr();
@@ -3818,11 +3876,11 @@ namespace tsn {
                     if (callee.isFunction() && !callee.isImm() && !h.self) {
                         DataType* selfTp = ((FunctionType*)callee.getType())->getThisType();
                         if (selfTp) {
-                            // Get 'self' argument from ClosureRef
+                            // Get 'self' argument from Closure
                             FunctionDef* cf = currentFunction();
                             Value self = cf->val(selfTp);
-                            add(ir_load).op(self).op(callee).op(cf->imm<u64>(offsetof(ClosureRef, m_ref)));
-                            add(ir_load).op(self).op(self).op(cf->imm<u64>(offsetof(Closure, m_self)));
+                            add(ir_load).op(self).op(callee).op(cf->imm<u64>(offsetof(Closure, m_ref)));
+                            add(ir_load).op(self).op(self).op(cf->imm<u64>(offsetof(CaptureData, m_self)));
                             h.self = new Value(self);
                         }
                     }
@@ -3972,8 +4030,16 @@ namespace tsn {
             // todo
         }
         Value& Compiler::compileVarDecl(ParseNode* n, bool isExported) {
-            FunctionDef* cf = currentFunction();
+            // todo:
+            // - non-moduledata variables need to be checked against closures
+            //     - if they are captured, they must be stored in the current function's closure data
+            // - when a captured variable is declared:
+            //     - Look up the offset in the capture data where the variable should be stored
+            //     - Create the named value that points to the offset of the variable in the
+            //       closure data
+            //
 
+            FunctionDef* cf = currentFunction();
             enterNode(n);
 
             DataType* dt = nullptr;
@@ -3989,34 +4055,69 @@ namespace tsn {
                 }
             }
 
+            utils::String name = n->body->str();
+            symbol* s = scope().get(name);
+            if (s) {
+                error(
+                    cm_err_duplicate_name,
+                    "Cannot declare variable with name '%s' that collides with existing symbol '%s'",
+                    name.c_str(),
+                    s->value->toString(m_ctx).c_str()
+                );
+            }
+
             if (n->initializer) {
+                Value init;
+
                 auto* ctx = enterExpr();
                 ctx->expectedType = dt;
-                ctx->loc = inInitFunction() ? rsl_module_data : rsl_auto;
-                ctx->md_name = n->body->str();
+                ctx->loc = rsl_auto;
+                ctx->decl_scope = &scope().get();
+                ctx->var_name = name;
                 ctx->md_access = isExported ? public_access : private_access;
 
-                Value init = compileExpression(n->initializer);
+                if (inInitFunction()) {
+                    ctx->loc = rsl_module_data;
+                    init.reset(compileExpression(n->initializer));
+                } else if (isVarCaptured(n->next, name)) {
+                    ctx->loc = rsl_capture_data_if_non_primitive;
+                    init.reset(compileExpression(n->initializer));
+
+                    symbol* s = scope().get(name);
+                    if (s) {
+                        exitExpr();
+                        exitNode();
+                        return *s->value;
+                    }
+                } else {
+                    init.reset(compileExpression(n->initializer));
+                }
 
                 exitExpr();
                 exitNode();
 
-                if (init.isImm() && init.isFunction()) {
-                    init.reset(newClosureRef(init));
-                }
-
-                return cf->promote(init, n->body->str());
+                return cf->promote(init, name);
             }
             
             Value* v = nullptr;
             if (inInitFunction()) {
-                u32 slot = m_output->getModule()->addData(n->body->str(), dt, private_access);
+                u32 slot = m_output->getModule()->addData(name, dt, private_access);
                 if (isExported) {
                     m_output->getModule()->setDataAccess(slot, public_access);
                 }
-                v = &cf->val(n->body->str(), slot);
+                v = &cf->val(name, slot);
+            } else if (isVarCaptured(n->next, name) && !dt->getInfo().is_primitive) {
+                // Non-primitive captures must be immediately stored in the capture data
+                // primitive captures can wait to be stored until right before the first
+                // closure that references it is defined
+                Value& var = cf->val(name, dt);
+                u32 offset = cf->capture(var);
+                add(ir_uadd).op(var).op(cf->getOwnCaptureData()).op(cf->imm(offset));
+                constructObject(var, {});
+                exitNode();
+                return var;
             } else {
-                v = &cf->val(n->body->str(), dt);
+                v = &cf->val(name, dt);
             }
 
             if (!dt->getInfo().is_primitive) constructObject(*v, {});
@@ -4032,21 +4133,48 @@ namespace tsn {
             
             ParseNode* p = n->body;
             while (p) {
+                utils::String pName = p->str();
+                symbol* s = scope().get(pName);
+                if (s) {
+                    error(
+                        cm_err_duplicate_name,
+                        "Cannot declare variable with name '%s' that collides with existing symbol '%s'",
+                        pName.c_str(),
+                        s->value->toString(m_ctx).c_str()
+                    );
+                }
+                
                 enterNode(p);
-                Value init = source.getProp(p->str());
-
-                DataType* dt = p->data_type ? resolveTypeSpecifier(p->data_type) : init.getType();
-                Value* v = nullptr;
-
-                if (inInitFunction()) {
-                    u32 slot = m_output->getModule()->addData(p->str(), dt, private_access);
-                    v = &currentFunction()->val(p->str(), slot);
-                } else {
-                    v = &currentFunction()->val(p->str(), dt);
+                const type_property* propInfo = source.getType()->getProp(pName);
+                if (!propInfo) {
+                    // trigger error
+                    source.getProp(pName);
+                    cf->val(pName, cf->getPoison().getType());
+                    continue;
                 }
 
-                if (dt->getInfo().is_primitive) *v = init.convertedTo(dt);
-                else constructObject(*v, { init });
+                DataType* dt = p->data_type ? resolveTypeSpecifier(p->data_type) : propInfo->type;
+
+                Value v;
+
+                if (inInitFunction()) {
+                    u32 slot = m_output->getModule()->addData(pName, dt, private_access);
+                    v.reset(cf->val(pName, slot));
+                } else if (isVarCaptured(n->next, pName) && !dt->getInfo().is_primitive) {
+                    // Non-primitive captures must be immediately stored in the capture data
+                    // primitive captures can wait to be stored until right before the first
+                    // closure that references it is defined
+                    Value& var = cf->val(pName, dt);
+                    u32 offset = cf->capture(var);
+                    add(ir_uadd).op(var).op(cf->getOwnCaptureData()).op(cf->imm(offset));
+                    
+                    v.reset(var);
+                } else {
+                    v.reset(cf->val(pName, dt));
+                }
+
+                if (dt->getInfo().is_primitive) v = source.getProp(pName);
+                else constructObject(v, { source.getProp(pName) });
 
                 exitNode();
                 p = p->next;

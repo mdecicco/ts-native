@@ -2,6 +2,7 @@
 #include <tsn/ffi/DataTypeRegistry.h>
 #include <tsn/ffi/Function.h>
 #include <tsn/ffi/FunctionRegistry.h>
+#include <tsn/ffi/Closure.h>
 #include <tsn/common/Context.h>
 #include <tsn/compiler/TemplateContext.h>
 #include <tsn/compiler/Parser.h>
@@ -399,21 +400,21 @@ namespace tsn {
 
             m_id = (type_id)std::hash<utils::String>()(m_fullyQualifiedName);
             m_info = {
-                1            , // is pod
-                0            , // is_trivially_constructible
-                0            , // is_trivially_copyable
-                0            , // is_trivially_destructible
-                0            , // is_primitive
-                0            , // is_floating_point
-                0            , // is_integral
-                0            , // is_unsigned
-                1            , // is_function
-                0            , // is_template
-                0            , // is_alias
-                1            , // is_host
-                0            , // is_anonymous
-                sizeof(void*), // size
-                0              // host_hash
+                1              , // is pod
+                0              , // is_trivially_constructible
+                0              , // is_trivially_copyable
+                0              , // is_trivially_destructible
+                0              , // is_primitive
+                0              , // is_floating_point
+                0              , // is_integral
+                0              , // is_unsigned
+                1              , // is_function
+                0              , // is_template
+                0              , // is_alias
+                1              , // is_host
+                0              , // is_anonymous
+                sizeof(Closure), // size
+                0                // host_hash
             };
 
             m_returnType = returnType;

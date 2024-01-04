@@ -161,7 +161,7 @@ namespace tsn {
             // statement in a loop. The break exits the loop scope, but the current scope is
             // the if statement body. All scopes inside of scope `s` must also be handled.
 
-            ffi::Function* crefDtor = m_comp->getContext()->getTypes()->getClosureRef()->getDestructor();
+            ffi::Function* crefDtor = m_comp->getContext()->getTypes()->getClosure()->getDestructor();
 
             for (i64 i = m_scopes.size() - 1;i >= 0;i--) {
                 Scope& cur = m_scopes[(u32)i];
@@ -171,7 +171,7 @@ namespace tsn {
                     if (save && v.getStackAllocId() == save->getStackAllocId()) continue;
 
                     if (v.isFunction()) {
-                        // runtime function references are actually of type 'ClosureRef'
+                        // runtime function references are actually of type 'Closure'
                         Value ptr = cf->val(v.getType());
                         m_comp->add(ir_stack_ptr).op(ptr).op(cf->imm(v.getStackAllocId()));
                         m_comp->generateCall(crefDtor, {}, &ptr);
