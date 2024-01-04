@@ -446,14 +446,14 @@ namespace tsn {
                 Array<Instruction> backupInstructions = m_instructions;
                 m_instructions.clear(false);
 
-                ffi::Function* newCaptureData = m_comp->getContext()->getModule("<host>/memory.tsn")->allFunctions().find([](const ffi::Function* fn) {
-                    return fn && fn->getName() == "$newCaptureData";
+                ffi::Function* allocCaptures = m_comp->getContext()->getModule("<host>/memory.tsn")->allFunctions().find([](const ffi::Function* fn) {
+                    return fn && fn->getName() == "$allocCaptures";
                 });
 
                 Value count = imm(m_captures.size());
                 
                 m_comp->m_trustEnable = true;
-                Value data = m_comp->generateCall(newCaptureData, { imm(m_captureDataOffset), count });
+                Value data = m_comp->generateCall(allocCaptures, { imm(m_captureDataOffset), count });
                 add(ir_assign).op(*m_ownCaptureData).op(data);
                 m_comp->m_trustEnable = false;
 

@@ -632,7 +632,7 @@ namespace tsn {
 
             if (result.isImm() && result.isFunction()) {
                 exp->targetNextConstructor = true;
-                newClosureRef(result);
+                newClosure(result);
                 return result;
             }
 
@@ -821,15 +821,15 @@ namespace tsn {
             return currentFunction()->val(m, slot);
         }
 
-        Value Compiler::newClosure(function_id target, Value* captureData) {
+        Value Compiler::newCaptureData(function_id target, Value* captureData) {
             FunctionDef* cf = currentFunction();
 
-            ffi::Function* newClosure = m_ctx->getModule("<host>/memory.tsn")->allFunctions().find([](const ffi::Function* fn) {
-                return fn && fn->getName() == "$newClosure";
+            ffi::Function* newCaptureData = m_ctx->getModule("<host>/memory.tsn")->allFunctions().find([](const ffi::Function* fn) {
+                return fn && fn->getName() == "$newCaptureData";
             });
 
             m_trustEnable = true;
-            Value closure = generateCall(newClosure, {
+            Value closure = generateCall(newCaptureData, {
                 cf->imm(target),
                 captureData ? *captureData : cf->getNull()
             });
@@ -842,56 +842,6 @@ namespace tsn {
             closure.getFlags().is_pointer = 1;
 
             return closure;
-        }
-
-        Value Compiler::allocateCaptureData(const utils::Array<Value>& captures, utils::Array<u32>& outOffsets) {
-            FunctionDef* cf = currentFunction();
-            if (captures.size() == 0) return cf->getNull();
-
-            ffi::Function* newCaptureData = m_ctx->getModule("<host>/memory.tsn")->allFunctions().find([](const ffi::Function* fn) {
-                return fn && fn->getName() == "$newCaptureData";
-            });
-
-            u32 captureSize = 0;
-            captures.each([&captureSize](const Value& v) {
-                captureSize += v.getType()->getInfo().size;
-            });
-
-            Value count = cf->imm(captures.size());
-
-            m_trustEnable = true;
-            Value out = generateCall(newCaptureData, { cf->imm(captureSize), count });
-            m_trustEnable = false;
-
-
-            u32 offset = 0;
-
-            // write capture count
-            add(ir_store).op(count).op(out);
-            offset += sizeof(u32);
-
-            Value ptr = cf->val(out.getType());
-            for (u32 i = 0;i < captures.size();i++) {
-                auto& v = captures[i];
-                DataType* tp = v.getType();
-                type_id tid = tp->getId();
-                u32 size = tp->getInfo().size;
-
-                add(ir_noop).comment(utils::String::Format("---- capture[%d] '%s'", i, v.getName().c_str()));
-
-                // write capture type id
-                add(ir_store).op(cf->imm(tid)).op(out).op(cf->imm(offset));
-                offset += sizeof(type_id);
-
-                // copy captured value
-                add(ir_uadd).op(ptr).op(out).op(cf->imm(offset));
-                constructObject(ptr, tp, { v });
-                outOffsets.push(offset);
-
-                offset += size;
-            }
-
-            return out;
         }
 
         void Compiler::findCaptures(ParseNode* node, utils::Array<Value>& outCaptures, utils::Array<u32>& outCaptureOffsets, u32 scopeIdx) {
@@ -973,14 +923,14 @@ namespace tsn {
             return false;
         }
 
-        Value Compiler::newClosureRef(const Value& closure, ffi::DataType* signature) {
+        Value Compiler::newClosure(const Value& closure, ffi::DataType* signature) {
             Value cr = constructObject(m_ctx->getTypes()->getClosure(), { closure });
             cr.setType(signature);
             cr.getFlags().is_function = 1;
             return cr;
         }
 
-        Value Compiler::newClosureRef(const Value& fnImm) {
+        Value Compiler::newClosure(const Value& fnImm) {
             FunctionDef* cf = currentFunction();
 
             if (!fnImm.isImm() || !fnImm.isFunction()) {
@@ -1015,7 +965,7 @@ namespace tsn {
                 expr->targetNextCall = false;
             }
 
-            Value closure = newClosure(fn->getId());
+            Value closure = newCaptureData(fn->getId());
             Value* self = fnImm.getSrcSelf();
             if (self) {
                 // set self ptr on closure
@@ -1028,10 +978,10 @@ namespace tsn {
                 expr->targetNextConstructor = targetNextCtor;
                 expr->targetNextCall = targetNextCall;
             }
-            return newClosureRef(closure, sig);
+            return newClosure(closure, sig);
         }
 
-        Value Compiler::newClosureRef(ffi::Function* fn) {
+        Value Compiler::newClosure(ffi::Function* fn) {
             ffi::DataType* sig = fn ? fn->getSignature() : nullptr;
 
             if (!fn || !sig) {
@@ -1046,13 +996,13 @@ namespace tsn {
 
             enterExpr();
             // CaptureData is ref counted and freed when the last closureRef is destroyed
-            Value closure = newClosure(fn->getId());
+            Value closure = newCaptureData(fn->getId());
             exitExpr();
 
-            return newClosureRef(closure, sig);
+            return newClosure(closure, sig);
         }
 
-        Value Compiler::newClosureRef(FunctionDef* fd) {
+        Value Compiler::newClosure(FunctionDef* fd) {
             ffi::Function* fn = fd->getOutput();
             ffi::DataType* sig = fn ? fn->getSignature() : nullptr;
 
@@ -1068,10 +1018,10 @@ namespace tsn {
 
             enterExpr();
             // CaptureData is ref counted and freed when the last closureRef is destroyed
-            Value closure = newClosure(fn->getId());
+            Value closure = newCaptureData(fn->getId());
             exitExpr();
 
-            return newClosureRef(closure, sig);
+            return newClosure(closure, sig);
         }
 
         Value Compiler::generateCall(const Value& fn, const utils::String& name, bool returnsPointer, ffi::DataType* retTp, const utils::Array<function_argument>& fargs, const utils::Array<Value>& params, const Value* self) {
@@ -2998,8 +2948,8 @@ namespace tsn {
                 exitNode();
             }
 
-            Value closure = newClosure(closureFunc->getId(), &currentFunction()->getOwnCaptureData());
-            Value closureRef = newClosureRef(closure, closureFunc->getSignature());
+            Value closure = newCaptureData(closureFunc->getId(), &currentFunction()->getOwnCaptureData());
+            Value closureRef = newClosure(closure, closureFunc->getSignature());
 
             exitExpr();
             return closureRef;

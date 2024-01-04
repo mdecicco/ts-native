@@ -92,7 +92,7 @@ namespace tsn {
             bool term = false;
             const Instruction* iptr = code.data();
             iptr += *ip;
-            constexpr bool debug = true;
+            constexpr bool debug = false;
             u32 lastLoggedLn = -1;
 
             while ((*ip) <= cs && !term) {
