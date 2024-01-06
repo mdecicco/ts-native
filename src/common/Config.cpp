@@ -8,6 +8,7 @@ namespace tsn {
         scanIntervalMS = 2500;
         debugLogging = false;
         disableOptimizations = false;
+        disableExecution = false;
     }
 
     Config::~Config() {

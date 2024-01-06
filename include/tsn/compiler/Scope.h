@@ -45,7 +45,9 @@ namespace tsn {
                 friend class ScopeManager;
                 utils::Array<Value> m_stackObjs;
                 ParseNode* m_scopeOriginNode;
+                bool m_didReturn;
                 Scope* m_parent;
+                FunctionDef* m_func;
                 Compiler* m_comp;
         };
 
@@ -56,6 +58,7 @@ namespace tsn {
                 Scope& enter();
                 void exit();
                 void exit(const Value& v);
+                void emitReturnInstructions();
 
                 Scope& getBase();
                 Scope& get();
@@ -68,7 +71,7 @@ namespace tsn {
                 Value& add(const utils::String& name, Module* m, u32 slotId);
                 symbol* get(const utils::String& name);
 
-                void emitScopeExitInstructions(const Scope& s, const Value* save = nullptr);
+                bool emitScopeExitInstructions(const Scope& s, const Value* save = nullptr);
             
             private:
                 utils::Array<Scope> m_scopes;

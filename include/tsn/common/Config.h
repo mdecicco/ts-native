@@ -14,5 +14,6 @@ namespace tsn {
             u32 scanIntervalMS;
             bool debugLogging;
             bool disableOptimizations;
+            bool disableExecution;
     };
 };

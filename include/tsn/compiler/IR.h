@@ -77,12 +77,14 @@ namespace tsn {
             //
             // Operand 0 will be vreg which will receive the loaded value
             // Operand 1 will be vreg which holds the address to load from
+            // (optional) Operand 2 can be imm which holds offset for address
             ir_load,
 
             // Store value at address
             //
             // Operand 0 will be val which holds value to store
             // Operand 1 will be vreg which holds address to store value in
+            // (optional) Operand 2 can be imm which holds offset for address
             ir_store,
 
             // Copies value from one val to another
@@ -113,12 +115,12 @@ namespace tsn {
             //
             // Pre-optimization and during optimization
             //     Operand 0 will either be imm pointer to the FunctionDef being
-            //     called or a vreg which holds a pointer to the ClosureRef being
+            //     called or a vreg which holds a pointer to the Closure being
             //     called
             //
             // Post-optimization
             //     Operand 0 will either be imm function_id of the function being
-            //     called or a vreg which holds a pointer to the ClosureRef being
+            //     called or a vreg which holds a pointer to the Closure being
             //     called
             //
             // In all cases, the data type of operand 0 will be the function
@@ -137,6 +139,19 @@ namespace tsn {
             // Operand 1 will be the label to jump to if op 0 is true
             // Operand 2 will be the label to jump to if op 0 is false
             ir_branch,
+
+            ir_vset,    // op0[0] = (op1[0] | op1), ..., op0[N] = (op1[N] | op1)
+            ir_vadd,    // op0[0] = op0[0] + (op1[0] | op1), ..., op0[N] = op0[N] + (op1[N] | op1)
+            ir_vsub,    // op0[0] = op0[0] - (op1[0] | op1), ..., op0[N] = op0[N] - (op1[N] | op1)
+            ir_vmul,    // op0[0] = op0[0] * (op1[0] | op1), ..., op0[N] = op0[N] * (op1[N] | op1)
+            ir_vdiv,    // op0[0] = op0[0] / (op1[0] | op1), ..., op0[N] = op0[N] / (op1[N] | op1)
+            ir_vmod,    // op0[0] = op0[0] % (op1[0] | op1), ..., op0[N] = op0[N] % (op1[N] | op1)
+            ir_vneg,    // op0[0] = -op0[0], ..., op0[N] = -op0[N]
+            ir_vdot,    // op0 = dot(op1[0], op2[0])
+            ir_vmag,    // op0 = length(op1)
+            ir_vmagsq,  // op0 = lengthSq(op1)
+            ir_vnorm,   // op0[0] = op0[0] / length(op0), ..., op0[N] = op0[N] / length(op0)
+            ir_vcross,  // op0[0] = cross(op1, op2)[0], ..., op0[N] = cross(op1, op2)[N]
 
             ir_iadd,  // op0 = op1 + op2 (signed integer)
             ir_uadd,  // op0 = op1 + op2 (unsigned integer)
@@ -221,7 +236,7 @@ namespace tsn {
             /** register or immediate */
             ot_val,
 
-            /** function (immediate function id or ClosureRef pointer in vreg) */
+            /** function (immediate function id or Closure pointer in vreg) */
             ot_fun
         };
 
@@ -244,6 +259,7 @@ namespace tsn {
                 Value operands[3];
                 SourceLocation src;
                 u8 oCnt;
+                utils::String comment;
 
                 /**
                  * @brief Returns pointer to Value that would be assigned by this instruction
@@ -275,6 +291,7 @@ namespace tsn {
                 InstructionRef& op(const Value& v);
                 InstructionRef& op(FunctionDef* fn);
                 InstructionRef& label(label_id l);
+                InstructionRef& comment(const utils::String& comment);
 
                 /**
                  * @brief Returns pointer to Value that would be assigned by this instruction

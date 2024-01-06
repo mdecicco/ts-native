@@ -19,6 +19,17 @@ namespace tsn {
     typedef struct { u8 dummy; }    poison_t;
     typedef struct { u64 dummy; }   null_t;
 
+    namespace ffi {
+        class ExecutionContext;
+    };
+
+    struct call_context {
+        ffi::ExecutionContext* ectx;
+        void* funcPtr;
+        void* retPtr;
+        void* thisPtr;
+        void* capturePtr;
+    };
 
     enum access_modifier {
         /** Accessible to everyone */
@@ -32,10 +43,7 @@ namespace tsn {
     };
 
     enum class arg_type {
-        func_ptr,
-        ret_ptr,
         context_ptr,
-        this_ptr,
         value,
         pointer
     };

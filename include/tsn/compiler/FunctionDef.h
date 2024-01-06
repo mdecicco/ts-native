@@ -19,6 +19,20 @@ namespace tsn {
 
         class FunctionDef {
             public:
+                struct capture_info {
+                    // Offset into capture data
+                    u32 offset;
+
+                    // Address of the last instruction before the
+                    // variable was marked as captured, before which
+                    // the vreg does not need to be kept in sync with
+                    // the capture data
+                    u32 firstCapturedAt;
+
+                    // Pointer to the named value that was captured
+                    Value* decl;
+                };
+
                 ~FunctionDef();
 
                 InstructionRef add(ir_instruction i);
@@ -36,26 +50,30 @@ namespace tsn {
                 const SourceLocation& getSource() const;
 
                 u32 getArgCount() const;
-                u32 getImplicitArgCount() const;
                 void addArg(const utils::String& name, ffi::DataType* tp);
                 void addDeferredArg(const utils::String& name);
                 const ffi::function_argument& getArgInfo(u32 argIdx) const;
                 const utils::Array<ffi::function_argument>& getArgs() const;
                 Value& getArg(u32 argIdx);
                 Value& getThis();
+                Value& getCCtx();
                 Value& getECtx();
+                Value& getCaptures();
                 Value& getFPtr();
                 Value& getRetPtr();
                 Value& getPoison();
+                Value& getOwnCaptureData();
                 Value getNull();
+                
+                u32 capture(const Value& val);
 
                 alloc_id reserveStackId();
                 void setStackId(Value& v, alloc_id id);
 
-                Value& promote(const Value& val, const utils::String& name);
-                Value& val(const utils::String& name, ffi::DataType* tp);
-                Value& val(const utils::String& name, u32 module_data_slot);
-                Value& val(const utils::String& name, Module* m, u32 module_data_slot);
+                Value& promote(const Value& val, const utils::String& name, Scope* scope = nullptr);
+                Value& val(const utils::String& name, ffi::DataType* tp, Scope* scope = nullptr);
+                Value& val(const utils::String& name, u32 module_data_slot, Scope* scope = nullptr);
+                Value& val(const utils::String& name, Module* m, u32 module_data_slot, Scope* scope = nullptr);
                 Value val(Module* m, u32 module_data_slot);
                 Value val(ffi::DataType* tp);
 
@@ -64,7 +82,12 @@ namespace tsn {
                 // is not added to the scope. The stack slot will not be freed
                 // by the end of the scope (unless it is added to the scope or
                 // freed manually)
-                Value stack(ffi::DataType* tp, bool unscoped = false);
+                Value stack(
+                    ffi::DataType* tp,
+                    bool unscoped = false,
+                    const utils::String& allocComment = utils::String(),
+                    const utils::String& getPtrComment = utils::String()
+                );
                 
                 template <typename T>
                 Value& val(const utils::String& name);
@@ -101,17 +124,23 @@ namespace tsn {
                 utils::String m_name;
                 ffi::DataType* m_retTp;
                 bool m_retTpSet;
-                u8 m_implicitArgCount;
                 utils::Array<ffi::function_argument> m_argInfo;
                 utils::Array<utils::String> m_argNames;
                 utils::Array<Value*> m_args;
+                Value* m_cctxArg;
                 Value* m_thisArg;
                 Value* m_ectxArg;
+                Value* m_capsArg;
                 Value* m_fptrArg;
                 Value* m_retpArg;
+                Value* m_ownCaptureData;
                 Value* m_poison;
                 ffi::DataType* m_thisTp;
                 ffi::Function* m_output;
+
+                u32 m_captureDataInsertAddr;
+                u32 m_captureDataOffset;
+                utils::Array<capture_info> m_captures;
 
                 label_id m_nextLabelId;
                 alloc_id m_nextAllocId;

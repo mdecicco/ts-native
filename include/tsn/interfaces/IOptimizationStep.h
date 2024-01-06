@@ -34,6 +34,8 @@ namespace tsn {
                 virtual ~IOptimizationStep();
 
                 void setGroup(OptimizationGroup* group);
+                void setRequired(bool required);
+                bool isRequired() const;
                 OptimizationGroup* getGroup() const;
 
                 /**
@@ -60,6 +62,7 @@ namespace tsn {
             
             private:
                 OptimizationGroup* m_group;
+                bool m_isRequired;
         };
     };
 };

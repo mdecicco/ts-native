@@ -115,6 +115,8 @@ namespace tsn {
         }
 
         void OutputBuilder::addDependency(Module* mod) {
+            if (!mod || mod == m_mod) return;
+
             for (u32 i = 0;i < m_dependencies.size();i++) {
                 if (mod->getId() == m_dependencies[i]->getId()) return;
             }

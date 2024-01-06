@@ -90,7 +90,7 @@ namespace tsn {
                 if (do_calc) {
                     // Determine if this assignment is within an established
                     // live range for the same virtual register id
-                    if (!assigns0->getType()->getInfo().is_floating_point) {
+                    if (!assigns0->isFloatingPoint()) {
                         for (u32 r = 0;r < m_gpLf.size() && do_calc;r++) {
                             if (m_gpLf[r].reg_id != assigns0->getRegId()) continue;
                             if (m_gpLf[r].begin <= i && m_gpLf[r].end > i) do_calc = false;
@@ -111,7 +111,7 @@ namespace tsn {
                     u32(-1),
                     i,
                     i,
-                    assigns0->getType()->getInfo().is_floating_point == 1
+                    assigns0->isFloatingPoint()
                 };
 
                 while (do_calc) {
@@ -272,7 +272,7 @@ namespace tsn {
                     Instruction& instr = m_ch->code[c];
 
                     for (u8 o = 0;o < instr.oCnt;o++) {
-                        if (instr.operands[o].getRegId() == live[i].reg_id && instr.operands[o].getType()->getInfo().is_floating_point == live[i].is_fp) {
+                        if (instr.operands[o].getRegId() == live[i].reg_id && instr.operands[o].isFloatingPoint() == live[i].is_fp) {
                             changes.push({ c, o, i });
                         }
                     }

@@ -11,7 +11,7 @@ namespace utils {
 namespace tsn {
     namespace ffi {
         class Function;
-        class ClosureRef;
+        class Closure;
     };
 
     namespace vm {

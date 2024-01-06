@@ -26,8 +26,10 @@ namespace tsn {
 
     struct script_metadata;
 
-    class Module : public IContextual, public IFunctionHolder, public IDataTypeHolder {
+    class Module : public IFunctionHolder, public IDataTypeHolder {
         public:
+            void init();
+            
             u32 getId() const;
             const utils::String& getName() const;
             const utils::String& getPath() const;
@@ -48,11 +50,9 @@ namespace tsn {
             Module(Context* ctx, const utils::String& name, const utils::String& path, const script_metadata* meta);
             ~Module();
             
-            void init();
-            
             u32 addData(const utils::String& name, ffi::DataType* tp, access_modifier access);
             u32 addData(const utils::String& name, u32 size);
-            void setSrc(ModuleSource* src);
+            void setSrc(ModuleSource* src, bool takeOwnership = true);
 
             utils::String m_name;
             utils::String m_path;
@@ -61,5 +61,6 @@ namespace tsn {
             ModuleSource* m_src;
             const script_metadata* m_meta;
             bool m_didInit;
+            bool m_ownsSource;
     };
 };

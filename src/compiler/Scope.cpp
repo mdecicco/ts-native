@@ -16,7 +16,12 @@ namespace tsn {
         // Scope
         //
 
-        Scope::Scope(Compiler* comp, Scope* parent) : m_parent(parent), m_comp(comp), m_scopeOriginNode(comp->currentNode()) {
+        Scope::Scope(Compiler* comp, Scope* parent) {
+            m_parent = parent;
+            m_comp = comp;
+            m_func = m_comp->currentFunction();
+            m_scopeOriginNode = m_comp->currentNode();
+            m_didReturn = false;
         }
 
         Scope::~Scope() {
@@ -77,7 +82,7 @@ namespace tsn {
         }
 
         void ScopeManager::exit() {
-            emitScopeExitInstructions(m_scopes[m_scopes.size() - 1]);
+            emitScopeExitInstructions(m_scopes.last());
             m_scopes.pop();
         }
 
@@ -87,10 +92,24 @@ namespace tsn {
                 save = save->getSrcSelf();
             }
 
-            emitScopeExitInstructions(m_scopes[m_scopes.size() - 1], save);
+            bool didSave = emitScopeExitInstructions(m_scopes.last(), save);
             m_scopes.pop();
             
-            if (save && save->isStack()) m_scopes[m_scopes.size() - 1].addToStack(*save);
+            if (save && save->isStack() && didSave) m_scopes.last().addToStack(*save);
+        }
+        
+        void ScopeManager::emitReturnInstructions() {
+            FunctionDef* functionBound = nullptr;
+            for (i32 i = m_scopes.size() - 1;i >= 0;i--) {
+                if (functionBound && m_scopes[i].m_func != functionBound) break;
+
+                emitScopeExitInstructions(m_scopes[i]);
+
+                if (i == m_scopes.size() - 1) {
+                    m_scopes[i].m_didReturn = true;
+                    functionBound = m_scopes[i].m_func;
+                }
+            }
         }
         
         Scope& ScopeManager::getBase() {
@@ -98,27 +117,27 @@ namespace tsn {
         }
 
         Scope& ScopeManager::get() {
-            return m_scopes[m_scopes.size() - 1];
+            return m_scopes.last();
         }
 
         Value& ScopeManager::add(const utils::String& name, Value* v) {
-            return m_scopes[m_scopes.size() - 1].add(name, v);
+            return m_scopes.last().add(name, v);
         }
 
         Value& ScopeManager::add(const utils::String& name, ffi::DataType* t) {
-            return m_scopes[m_scopes.size() - 1].add(name, t);
+            return m_scopes.last().add(name, t);
         }
 
         Value& ScopeManager::add(const utils::String& name, FunctionDef* f) {
-            return m_scopes[m_scopes.size() - 1].add(name, f);
+            return m_scopes.last().add(name, f);
         }
 
         Value& ScopeManager::add(const utils::String& name, Module* m) {
-            return m_scopes[m_scopes.size() - 1].add(name, m);
+            return m_scopes.last().add(name, m);
         }
 
         Value& ScopeManager::add(const utils::String& name, Module* m, u32 slotId) {
-            return m_scopes[m_scopes.size() - 1].add(name, m, slotId);
+            return m_scopes.last().add(name, m, slotId);
         }
 
         symbol* ScopeManager::get(const utils::String& name) {
@@ -130,7 +149,9 @@ namespace tsn {
             return nullptr;
         }
         
-        void ScopeManager::emitScopeExitInstructions(const Scope& s, const Value* save) {
+        bool ScopeManager::emitScopeExitInstructions(const Scope& s, const Value* save) {
+            if (s.m_didReturn) return false;
+
             if (save && !save->isStack() && save->getSrcSelf() && save->getSrcSelf()->isStack()) {
                 save = save->getSrcSelf();
             }
@@ -140,17 +161,20 @@ namespace tsn {
             // statement in a loop. The break exits the loop scope, but the current scope is
             // the if statement body. All scopes inside of scope `s` must also be handled.
 
-            ffi::Function* crefDtor = m_comp->getContext()->getTypes()->getClosureRef()->getDestructor();
-
+            ffi::Function* crefDtor = m_comp->getContext()->getTypes()->getClosure()->getDestructor();
+            bool didSaveValue = false;
             for (i64 i = m_scopes.size() - 1;i >= 0;i--) {
                 Scope& cur = m_scopes[(u32)i];
 
                 for (i32 i = cur.m_stackObjs.size() - 1;i >= 0;i--) {
                     const Value& v = cur.m_stackObjs[i];
-                    if (save && v.getStackAllocId() == save->getStackAllocId()) continue;
+                    if (save && v.getStackAllocId() == save->getStackAllocId()) {
+                        didSaveValue = true;
+                        continue;
+                    }
 
                     if (v.isFunction()) {
-                        // runtime function references are actually of type 'ClosureRef'
+                        // runtime function references are actually of type 'Closure'
                         Value ptr = cf->val(v.getType());
                         m_comp->add(ir_stack_ptr).op(ptr).op(cf->imm(v.getStackAllocId()));
                         m_comp->generateCall(crefDtor, {}, &ptr);
@@ -168,6 +192,8 @@ namespace tsn {
                 
                 if (cur.m_parent == s.m_parent) break;
             }
+
+            return didSaveValue;
         }
     };
 };

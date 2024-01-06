@@ -5,10 +5,11 @@
 #include <tsn/common/Context.h>
 #include <tsn/common/Module.h>
 #include <utils/Array.hpp>
+#include <utils/Math.hpp>
 
 namespace tsn {
     namespace ffi {
-        DataTypeRegistry::DataTypeRegistry(Context* ctx) : IContextual(ctx) {
+        DataTypeRegistry::DataTypeRegistry(Context* ctx) : IDataTypeHolder(ctx) {
             m_anonTypeCount = 0;
             m_i8 = nullptr;
             m_u8 = nullptr;
@@ -26,8 +27,8 @@ namespace tsn {
             m_voidPtr = nullptr;
             m_string = nullptr;
             m_boolean = nullptr;
+            m_captureData = nullptr;
             m_closure = nullptr;
-            m_closureRef = nullptr;
             m_array = nullptr;
             m_pointer = nullptr;
         }
@@ -49,8 +50,14 @@ namespace tsn {
         DataType* DataTypeRegistry::getVoidPtr() const { return m_voidPtr; }
         DataType* DataTypeRegistry::getString() const { return m_string; }
         DataType* DataTypeRegistry::getBoolean() const { return m_boolean; }
+        DataType* DataTypeRegistry::getCaptureData() const { return m_captureData; }
         DataType* DataTypeRegistry::getClosure() const { return m_closure; }
-        DataType* DataTypeRegistry::getClosureRef() const { return m_closureRef; }
+        DataType* DataTypeRegistry::getVec2f() const { return m_vec2f; }
+        DataType* DataTypeRegistry::getVec2d() const { return m_vec2d; }
+        DataType* DataTypeRegistry::getVec3f() const { return m_vec3f; }
+        DataType* DataTypeRegistry::getVec3d() const { return m_vec3d; }
+        DataType* DataTypeRegistry::getVec4f() const { return m_vec4f; }
+        DataType* DataTypeRegistry::getVec4d() const { return m_vec4d; }
         TemplateType* DataTypeRegistry::getArray() const { return m_array; }
         TemplateType* DataTypeRegistry::getPointer() const { return m_pointer; }
 
@@ -71,14 +78,20 @@ namespace tsn {
             m_voidPtr = getType<void*>();
             m_string = getType<utils::String>();
             m_boolean = getType<bool>();
+            m_captureData = getType<CaptureData>();
             m_closure = getType<Closure>();
-            m_closureRef = getType<ClosureRef>();
-
-            Module* ma = m_ctx->getModule("trusted/array");
-            m_array = (TemplateType*)(ma ? ma->allTypes().find([](const DataType* t) { return t->getName() == "Array"; }) : nullptr);
+            m_vec2f = getType<utils::vec2f>();
+            m_vec2d = getType<utils::vec2d>();
+            m_vec3f = getType<utils::vec3f>();
+            m_vec3d = getType<utils::vec3d>();
+            m_vec4f = getType<utils::vec4f>();
+            m_vec4d = getType<utils::vec4d>();
 
             Module* mp = m_ctx->getModule("trusted/pointer");
             m_pointer = (TemplateType*)(mp ? mp->allTypes().find([](const DataType* t) { return t->getName() == "Pointer"; }) : nullptr);
+
+            Module* ma = m_ctx->getModule("trusted/array");
+            m_array = (TemplateType*)(ma ? ma->allTypes().find([](const DataType* t) { return t->getName() == "Array"; }) : nullptr);
         }
 
         u32 DataTypeRegistry::getNextAnonTypeIndex() {

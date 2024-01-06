@@ -21,14 +21,26 @@ namespace tsn {
             { "module_data"   , 3, { ot_reg, ot_imm, ot_imm }, 0   , 0 },
             { "reserve"       , 1, { ot_reg, ot_nil, ot_nil }, 0   , 0 },
             { "resolve"       , 2, { ot_reg, ot_val, ot_nil }, 0xFF, 0 },
-            { "load"          , 2, { ot_reg, ot_reg, ot_nil }, 0   , 0 },
-            { "store"         , 2, { ot_val, ot_reg, ot_nil }, 0xFF, 0 },
+            { "load"          , 3, { ot_reg, ot_reg, ot_imm }, 0   , 0 },
+            { "store"         , 3, { ot_val, ot_reg, ot_imm }, 0xFF, 0 },
             { "jump"          , 1, { ot_lbl, ot_nil, ot_nil }, 0xFF, 0 },
             { "cvt"           , 3, { ot_reg, ot_val, ot_imm }, 0   , 0 },
             { "param"         , 2, { ot_val, ot_imm, ot_nil }, 0xFF, 0 },
             { "call"          , 1, { ot_fun, ot_nil, ot_nil }, 0xFF, 1 },
             { "ret"           , 0, { ot_nil, ot_nil, ot_nil }, 0xFF, 0 },
             { "branch"        , 3, { ot_reg, ot_lbl, ot_lbl }, 0xFF, 0 },
+            { "vset"          , 2, { ot_reg, ot_reg, ot_nil }, 0xFF, 0 },
+            { "vadd"          , 2, { ot_reg, ot_reg, ot_nil }, 0xFF, 0 },
+            { "vsub"          , 2, { ot_reg, ot_reg, ot_nil }, 0xFF, 0 },
+            { "vmul"          , 2, { ot_reg, ot_reg, ot_nil }, 0xFF, 0 },
+            { "vdiv"          , 2, { ot_reg, ot_reg, ot_nil }, 0xFF, 0 },
+            { "vmod"          , 2, { ot_reg, ot_reg, ot_nil }, 0xFF, 0 },
+            { "vneg"          , 1, { ot_reg, ot_nil, ot_nil }, 0xFF, 0 },
+            { "vdot"          , 3, { ot_reg, ot_reg, ot_reg }, 0xFF, 0 },
+            { "vmag"          , 2, { ot_reg, ot_reg, ot_nil }, 0   , 0 },
+            { "vmagsq"        , 2, { ot_reg, ot_reg, ot_nil }, 0   , 0 },
+            { "vnorm"         , 1, { ot_reg, ot_nil, ot_nil }, 0xFF, 0 },
+            { "vcross"        , 3, { ot_reg, ot_reg, ot_reg }, 0xFF, 0 },
             { "iadd"          , 3, { ot_reg, ot_val, ot_val }, 0   , 0 },
             { "uadd"          , 3, { ot_reg, ot_val, ot_val }, 0   , 0 },
             { "fadd"          , 3, { ot_reg, ot_val, ot_val }, 0   , 0 },
@@ -141,11 +153,16 @@ namespace tsn {
             operands[2].reset(rhs.operands[2]);
             src = rhs.src;
             oCnt = rhs.oCnt;
+            comment = rhs.comment;
             
             return *this;
         }
 
         utils::String Instruction::toString(Context* ctx) const {
+            if (op == ir_noop && comment.size() > 0) {
+                return "; " + comment;
+            }
+
             const ir_instruction_info& info = opcode_info[op];
             utils::String s = info.name;
             for (u8 o = 0;o < oCnt;o++) {
@@ -166,6 +183,9 @@ namespace tsn {
 
                         break;
                     }
+                } else if ((op == ir_load || op == ir_store) && o == 1 && operands[2].isValid() && operands[2].isImm()) {
+                    s += " " + operands[2].toString(ctx) + "(" + operands[1].toString(ctx) + ")";
+                    break;
                 }
 
                 if (info.operands[o] == ot_fun && operands[o].isImm()) {
@@ -183,6 +203,8 @@ namespace tsn {
                 } else s += " " + operands[o].toString(ctx);
             }
 
+            bool commentStarted = false;
+
             if (op == ir_uadd && operands[1].isReg() && operands[2].isImm() && operands[2].getType()->getInfo().is_integral && operands[1].getName().size() > 0) {
                 // Is likely a property offset
                 u32 offset = operands[2].getImm<u32>();
@@ -195,9 +217,11 @@ namespace tsn {
                     s += " ; " + operands[1].getName() + "." + prop->name;
                 }
             } else if ((op == ir_load || op == ir_store) && operands[1].getName().size() > 0) {
+                u32 offset = 0;
+                if (operands[2].isValid() && operands[2].isImm()) offset = operands[2].getImm<u32>();
                 // loading/storing in first property
-                auto prop = operands[1].getType()->getProperties().find([](const auto& prop) {
-                    return prop.offset == 0;
+                auto prop = operands[1].getType()->getProperties().find([offset](const auto& prop) {
+                    return prop.offset == offset;
                 });
 
                 if (prop) {
@@ -206,12 +230,17 @@ namespace tsn {
             } else if (op == ir_param) {
                 arg_type at = arg_type(operands[1].getImm<u8>());
                 switch (at) {
-                    case arg_type::context_ptr: { s += " ; context_ptr"; break; }
-                    case arg_type::func_ptr: { s += " ; func_ptr"; break; }
-                    case arg_type::ret_ptr: { s += " ; ret_ptr"; break; }
-                    case arg_type::this_ptr: { s += " ; this_ptr"; break; }
+                    case arg_type::context_ptr: { s += " ; context_ptr"; commentStarted = true; break; }
+                    case arg_type::pointer: { s += " ; pointer"; commentStarted = true; break; }
+                    case arg_type::value: { s += " ; value"; commentStarted = true; break; }
                     default: break;
                 }
+            }
+
+            if (comment.size() > 0) {
+                if (!commentStarted) s += " ; ";
+                else s += ", ";
+                s += comment;
             }
 
             return s;
@@ -249,6 +278,12 @@ namespace tsn {
         InstructionRef& InstructionRef::label(label_id l) {
             Instruction& i = m_owner->m_instructions[m_index];
             i.operands[i.oCnt++].reset(m_owner->imm(l));
+            return *this;
+        }
+
+        InstructionRef& InstructionRef::comment(const utils::String& comment) {
+            Instruction& i = m_owner->m_instructions[m_index];
+            i.comment = comment;
             return *this;
         }
 

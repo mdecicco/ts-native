@@ -18,7 +18,28 @@ namespace tsn {
         if (cfg) m_cfg = new Config(*cfg);
         else m_cfg = new Config();
 
-        m_backend = new vm::Backend(this, 16384);
+        m_backend = nullptr;
+        m_pipeline = nullptr;
+        m_workspace = nullptr;
+        m_types = nullptr;
+        m_funcs = nullptr;
+        m_global = nullptr;
+    }
+
+    Context::~Context() {
+        shutdown();
+    }
+
+    u32 Context::getBuiltinApiVersion() const {
+        return m_builtinApiVersion;
+    }
+
+    u32 Context::getExtendedApiVersion() const {
+        return m_userApiVersion;
+    }
+
+    void Context::init(backend::IBackend* backend) {
+        m_backend = backend;
         m_pipeline = new Pipeline(this, nullptr, nullptr);
         m_workspace = new Workspace(this);
         m_types = new ffi::DataTypeRegistry(this);
@@ -31,22 +52,24 @@ namespace tsn {
         m_types->updateCachedTypes();
     }
 
-    Context::~Context() {
+    void Context::shutdown() {
         if (m_global) delete m_global;
+        m_global = nullptr;
+
         if (m_funcs) delete m_funcs;
+        m_funcs = nullptr;
+
         if (m_types) delete m_types;
+        m_types = nullptr;
+
         if (m_workspace) delete m_workspace;
+        m_workspace = nullptr;
+
         if (m_pipeline) delete m_pipeline;
-        if (m_backend) delete m_backend;
+        m_pipeline = nullptr;
+
         if (m_cfg) delete m_cfg;
-    }
-
-    u32 Context::getBuiltinApiVersion() const {
-        return m_builtinApiVersion;
-    }
-
-    u32 Context::getExtendedApiVersion() const {
-        return m_userApiVersion;
+        m_cfg = nullptr;
     }
 
     const Config* Context::getConfig() const {
@@ -92,7 +115,8 @@ namespace tsn {
     }
     
     Module* Context::createHostModule(const utils::String& name) {
-        return createModule(name, "<host>/" + name + ".tsn", nullptr);
+        script_metadata* meta = m_workspace->createMeta("<host>/" + name + ".tsn", 0, 0, true);
+        return createModule(name, "<host>/" + name + ".tsn", meta);
     }
 
     Module* Context::getModule(const utils::String& _path, const utils::String& fromDir) {

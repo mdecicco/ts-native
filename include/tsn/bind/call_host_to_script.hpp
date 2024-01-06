@@ -4,11 +4,14 @@
 #include <tsn/ffi/Function.h>
 #include <tsn/interfaces/IBackend.h>
 #include <tsn/common/Context.h>
+#include <tsn/common/Config.h>
 
 namespace tsn {
     namespace ffi {
         template <typename ...Args>
-        void call_hostToScript(Context* ctx, Function* f, void* result, Args&&... args) {
+        void call_hostToScript(Context* ctx, Function* f, void* result, void* self, Args&&... args) {
+            if (ctx->getConfig()->disableExecution) return;
+            
             backend::IBackend* be = ctx->getBackend();
             if (!be) return;
             
@@ -16,17 +19,24 @@ namespace tsn {
 
             // + 1 because argc can be 0
             void* ptrBuf[argc + 1] = { 0 };
-            u8 pbi = 0;
 
             const auto* sigArgs = f->getSignature()->getArguments().data();
 
+            u8 pbi = 0;
             void* argBuf[] = {
-                getArg<Args>(std::forward<Args>(args), &ptrBuf[pbi], sigArgs[3 + pbi].argType, pbi)...,
+                getArg<Args>(std::forward<Args>(args), &ptrBuf[pbi], sigArgs[pbi + 1].argType, pbi)...,
                 nullptr // because argc can be 0 and argBuf can't have length 0
             };
 
             ExecutionContext exec(ctx);
-            be->call(f, &exec, result, argBuf);
+            call_context cctx;
+            cctx.ectx = &exec;
+            cctx.funcPtr = f->getAddress();
+            cctx.retPtr = result;
+            cctx.thisPtr = self;
+            cctx.capturePtr = nullptr;
+            
+            be->call(f, &cctx, result, argBuf);
         }
     };
 };

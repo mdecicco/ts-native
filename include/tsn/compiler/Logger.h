@@ -50,6 +50,7 @@ namespace tsn {
             pm_expected_parameter_list,
             pm_expected_single_template_arg,
             pm_expected_operator_override_target,
+            pm_expected_return_type,
             pm_unexpected_type_specifier,
             pm_malformed_class_element,
             pm_empty_class,
@@ -84,7 +85,11 @@ namespace tsn {
             cm_err_property_is_static,
             cm_err_property_no_read_access,
             cm_err_property_or_method_ambiguous,
+            cm_err_property_already_defined,
+            cm_err_property_getter_already_defined,
+            cm_err_property_setter_already_defined,
             cm_err_no_pointer_to_getter,
+            cm_err_getter_setter_static_mismatch,
             cm_err_value_not_callable_with_args,
             cm_err_method_not_found,
             cm_err_method_ambiguous,
@@ -108,10 +113,12 @@ namespace tsn {
             cm_err_type_not_convertible,
             cm_err_value_not_writable,
             cm_err_type_used_as_value,
+            cm_err_typeinfo_used_as_value,
             cm_err_module_used_as_value,
             cm_err_module_data_used_as_value,
             cm_err_internal,
             cm_err_not_trusted,
+            cm_err_duplicate_name,
             COMPILER_MESSAGES_END
         };
 

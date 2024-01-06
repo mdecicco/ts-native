@@ -15,40 +15,93 @@
 namespace tsn {
     namespace ffi {
         template <typename Ret, typename... Args>
-        void __cdecl _func_wrapper(Ret (*func)(Args...), Ret* out, ExecutionContext* ctx, Args... args) {
+        void __cdecl _func_wrapper(call_context* ctx, Args... args) {
+            Ret (*func)(Args...) = (Ret (*)(Args...))ctx->funcPtr;
+            
+            ExecutionContext::Push(ctx->ectx);
             if constexpr (std::is_same_v<void, Ret>) {
                 func(args...);
             } else {
-                new (out) Ret (func(args...));
+                if constexpr (std::is_reference_v<Ret>) {
+                    using RT = std::remove_reference_t<Ret>;
+                    *((RT**)ctx->retPtr) = &func(args...);
+                } else {
+                    new ((Ret*)(ctx->retPtr)) Ret (func(args...));
+                }
             }
+            ExecutionContext::Pop();
+        }
+
+        template <typename Cls, typename Ret, typename... Args>
+        void __cdecl _pseudo_method_wrapper(call_context* ctx, Args... args) {
+            Ret (*func)(Cls*, Args...) = (Ret (*)(Cls*, Args...))ctx->funcPtr;
+            
+            ExecutionContext::Push(ctx->ectx);
+            if constexpr (std::is_same_v<void, Ret>) {
+                func(args...);
+            } else {
+                if constexpr (std::is_reference_v<Ret>) {
+                    using RT = std::remove_reference_t<Ret>;
+                    *((RT**)ctx->retPtr) = &func((Cls*)ctx->thisPtr, args...);
+                } else {
+                    new ((Ret*)(ctx->retPtr)) Ret (func((Cls*)ctx->thisPtr, args...));
+                }
+            }
+            ExecutionContext::Pop();
         }
         
         template <typename Cls, typename Ret, typename... Args>
-        void __cdecl _method_wrapper(Ret (Cls::*method)(Args...), Ret* out, ExecutionContext* ctx, Cls* self, Args... args) {
+        void __cdecl _method_wrapper(call_context* ctx, Args... args) {
+            typedef Ret (Cls::*MethodTp)(Args...);
+            MethodTp method;
+            (*(void**)&method) = ctx->funcPtr;
+
+            ExecutionContext::Push(ctx->ectx);
             if constexpr (std::is_same_v<void, Ret>) {
-                (*self.*method)(args...);
+                (*((Cls*)ctx->thisPtr).*method)(args...);
             } else {
-                new (out) Ret ((*self.*method)(args...));
+                if constexpr (std::is_reference_v<Ret>) {
+                    using RT = std::remove_reference_t<Ret>;
+                    *((RT**)ctx->retPtr) = &(*((Cls*)ctx->thisPtr).*method)(args...);
+                } else {
+                    new ((Ret*)(ctx->retPtr)) Ret ((*((Cls*)ctx->thisPtr).*method)(args...));
+                }
             }
+            ExecutionContext::Pop();
         }
 
         template <typename Cls, typename Ret, typename... Args>
-        void __cdecl _method_wrapper(Ret (Cls::*method)(Args...) const, Ret* out, ExecutionContext* ctx, Cls* self, Args... args) {
+        void __cdecl _const_method_wrapper(call_context* ctx, Args... args) {
+            typedef Ret (Cls::*MethodTp)(Args...) const;
+            MethodTp method;
+            (*(void**)&method) = ctx->funcPtr;
+
+            ExecutionContext::Push(ctx->ectx);
             if constexpr (std::is_same_v<void, Ret>) {
-                (*self.*method)(args...);
+                (*((Cls*)ctx->thisPtr).*method)(args...);
             } else {
-                new (out) Ret ((*self.*method)(args...));
+                if constexpr (std::is_reference_v<Ret>) {
+                    using RT = std::remove_reference_t<Ret>;
+                    *((RT**)ctx->retPtr) = &(*((Cls*)ctx->thisPtr).*method)(args...);
+                } else {
+                    new ((Ret*)(ctx->retPtr)) Ret ((*((Cls*)ctx->thisPtr).*method)(args...));
+                }
             }
+            ExecutionContext::Pop();
         }
 
         template <typename Cls, typename... Args>
-        void constructor_wrapper(Cls* mem, Args... args) {
-            new (mem) Cls (args...);
+        void __cdecl _constructor_wrapper(call_context* ctx, Args... args) {
+            ExecutionContext::Push(ctx->ectx);
+            new ((Cls*)ctx->thisPtr) Cls (args...);
+            ExecutionContext::Pop();
         }
 
         template <typename Cls>
-        void destructor_wrapper(Cls* obj) {
-            obj->~Cls();
+        void __cdecl _destructor_wrapper(call_context* ctx) {
+            ExecutionContext::Push(ctx->ectx);
+            ((Cls*)ctx->thisPtr)->~Cls();
+            ExecutionContext::Pop();
         }
 
 
@@ -117,21 +170,19 @@ namespace tsn {
             DataType* ptrTp = treg->getType<void*>();
 
             utils::Array<function_argument> args;
-            args.push({ arg_type::func_ptr, ptrTp });
-            args.push({ arg_type::ret_ptr, retTp });
             args.push({ arg_type::context_ptr, ptrTp });
             if (!validateAndGetArgs<Args...>(treg, args, name)) {
                 return nullptr;
             }
 
-            FunctionType tmp(retTp, args, std::is_pointer_v<Ret> && !std::is_same_v<Ret, void*>);
+            FunctionType tmp(selfType, retTp, args, std::is_pointer_v<Ret> && !std::is_same_v<Ret, void*>);
             FunctionType* sig = (FunctionType*)treg->getType(tmp.getId());
             if (!sig) {
                 sig = new FunctionType(tmp);
                 treg->addFuncType(sig);
             }
 
-            void (*wrapper)(Ret (*)(Args...), Ret*, ExecutionContext*, Args...) = &_func_wrapper<Ret, Args...>;
+            void (*wrapper)(call_context*, Args...) = &_func_wrapper<Ret, Args...>;
 
             Function* fn = new Function(
                 name,
@@ -139,7 +190,8 @@ namespace tsn {
                 sig,
                 access,
                 *reinterpret_cast<void**>(&func),
-                *reinterpret_cast<void**>(&wrapper)
+                *reinterpret_cast<void**>(&wrapper),
+                mod
             );
 
             freg->registerFunction(fn);
@@ -175,22 +227,19 @@ namespace tsn {
             DataType* ptrTp = treg->getType<void*>();
 
             utils::Array<function_argument> args;
-            args.push({ arg_type::func_ptr, ptrTp });
-            args.push({ arg_type::ret_ptr, retTp });
             args.push({ arg_type::context_ptr, ptrTp });
-            args.push({ arg_type::this_ptr, selfTp });
             if (!validateAndGetArgs<Args...>(treg, args, name)) {
                 return nullptr;
             }
 
-            FunctionType tmp(retTp, args, std::is_pointer_v<Ret> && !std::is_same_v<Ret, void*>);
+            FunctionType tmp(selfTp, retTp, args, std::is_pointer_v<Ret> && !std::is_same_v<Ret, void*>);
             FunctionType* sig = (FunctionType*)treg->getType(tmp.getId());
             if (!sig) {
                 sig = new FunctionType(tmp);
                 treg->addFuncType(sig);
             }
 
-            void (*wrapper)(Ret (*)(Cls*, Args...), Ret*, ExecutionContext*, Cls*, Args...) = &_func_wrapper<Ret, Cls*, Args...>;
+            void (*wrapper)(call_context*, Args...) = &_pseudo_method_wrapper<Cls, Ret, Args...>;
 
             Function* fn = new Function(
                 name,
@@ -198,7 +247,8 @@ namespace tsn {
                 sig,
                 access,
                 *reinterpret_cast<void**>(&func),
-                *reinterpret_cast<void**>(&wrapper)
+                *reinterpret_cast<void**>(&wrapper),
+                mod
             );
 
             freg->registerFunction(fn);
@@ -234,20 +284,17 @@ namespace tsn {
             DataType* ptrTp = treg->getType<void*>();
 
             utils::Array<function_argument> args;
-            args.push({ arg_type::func_ptr, ptrTp });
-            args.push({ arg_type::ret_ptr, retTp });
             args.push({ arg_type::context_ptr, ptrTp });
-            args.push({ arg_type::this_ptr, selfTp });
             validateAndGetArgs<Args...>(treg, args, name);
 
-            FunctionType tmp(retTp, args, std::is_pointer_v<Ret> && !std::is_same_v<Ret, void*>);
+            FunctionType tmp(selfTp, retTp, args, std::is_pointer_v<Ret> && !std::is_same_v<Ret, void*>);
             FunctionType* sig = (FunctionType*)treg->getType(tmp.getId());
             if (!sig) {
                 sig = new FunctionType(tmp);
                 treg->addFuncType(sig);
             }
 
-            void (*wrapper)(Ret (Cls::*)(Args...), Ret*, ExecutionContext*, Cls*, Args...) = &_method_wrapper<Cls, Ret, Args...>;
+            void (*wrapper)(call_context*, Args...) = &_method_wrapper<Cls, Ret, Args...>;
 
             Method* m = new Method(
                 name,
@@ -256,7 +303,8 @@ namespace tsn {
                 access,
                 *reinterpret_cast<void**>(&func),
                 *reinterpret_cast<void**>(&wrapper),
-                0
+                0,
+                mod
             );
             
             freg->registerFunction(m);
@@ -292,20 +340,17 @@ namespace tsn {
             DataType* ptrTp = treg->getType<void*>();
 
             utils::Array<function_argument> args;
-            args.push({ arg_type::func_ptr, ptrTp });
-            args.push({ arg_type::ret_ptr, retTp });
             args.push({ arg_type::context_ptr, ptrTp });
-            args.push({ arg_type::this_ptr, selfTp });
             validateAndGetArgs<Args...>(treg, args, name);
 
-            FunctionType tmp(retTp, args, std::is_pointer_v<Ret> && !std::is_same_v<Ret, void*>);
+            FunctionType tmp(selfTp, retTp, args, std::is_pointer_v<Ret> && !std::is_same_v<Ret, void*>);
             FunctionType* sig = (FunctionType*)treg->getType(tmp.getId());
             if (!sig) {
                 sig = new FunctionType(tmp);
                 treg->addFuncType(sig);
             }
 
-            void (*wrapper)(Ret (Cls::*)(Args...) const, Ret*, ExecutionContext*, Cls*, Args...) = &_method_wrapper<Cls, Ret, Args...>;
+            void (*wrapper)(call_context*, Args...) = &_const_method_wrapper<Cls, Ret, Args...>;
 
             Method* m = new Method(
                 name,
@@ -314,7 +359,8 @@ namespace tsn {
                 access,
                 *reinterpret_cast<void**>(&func),
                 *reinterpret_cast<void**>(&wrapper),
-                0
+                0,
+                mod
             );
             
             freg->registerFunction(m);
@@ -338,24 +384,21 @@ namespace tsn {
             DataType* voidTp = treg->getType<void>();
 
             utils::Array<function_argument> args;
-            args.push({ arg_type::func_ptr, ptrTp });
-            args.push({ arg_type::ret_ptr, voidTp });
             args.push({ arg_type::context_ptr, ptrTp });
-            args.push({ arg_type::this_ptr, selfTp });
 
             if (!validateAndGetArgs<Args...>(treg, args, name)) {
                 return nullptr;
             }
 
-            FunctionType tmp(voidTp, args, false);
+            FunctionType tmp(selfTp, voidTp, args, false);
             FunctionType* sig = (FunctionType*)treg->getType(tmp.getId());
             if (!sig) {
                 sig = new FunctionType(tmp);
                 treg->addFuncType(sig);
             }
 
-            void (*func)(Cls*, Args...) = &constructor_wrapper<Cls, Args...>;
-            void (*wrapper)(void (*)(Cls*, Args...), void*, ExecutionContext*, Cls*, Args...) = &_func_wrapper<void, Cls*, Args...>;
+            void (*func)(Cls*, Args...) = nullptr;
+            void (*wrapper)(call_context*, Args...) = &_constructor_wrapper<Cls, Args...>;
 
             Function* fn = new Function(
                 name,
@@ -363,7 +406,8 @@ namespace tsn {
                 sig,
                 access,
                 *reinterpret_cast<void**>(&func),
-                *reinterpret_cast<void**>(&wrapper)
+                *reinterpret_cast<void**>(&wrapper),
+                mod
             );
 
             freg->registerFunction(fn);
@@ -387,20 +431,17 @@ namespace tsn {
             DataType* voidTp = treg->getType<void>();
 
             utils::Array<function_argument> args;
-            args.push({ arg_type::func_ptr, ptrTp });
-            args.push({ arg_type::ret_ptr, voidTp });
             args.push({ arg_type::context_ptr, ptrTp });
-            args.push({ arg_type::this_ptr, selfTp });
             
-            FunctionType tmp(voidTp, args, false);
+            FunctionType tmp(selfTp, voidTp, args, false);
             FunctionType* sig = (FunctionType*)treg->getType(tmp.getId());
             if (!sig) {
                 sig = new FunctionType(tmp);
                 treg->addFuncType(sig);
             }
 
-            void (*func)(Cls*) = &destructor_wrapper<Cls>;
-            void (*wrapper)(void (*)(Cls*), void*, ExecutionContext*, Cls*) = &_func_wrapper<void, Cls*>;
+            void (*func)(Cls*) = nullptr;
+            void (*wrapper)(call_context*) = &_destructor_wrapper<Cls>;
 
             Function* fn = new Function(
                 name,
@@ -408,7 +449,8 @@ namespace tsn {
                 sig,
                 access,
                 *reinterpret_cast<void**>(&func),
-                *reinterpret_cast<void**>(&wrapper)
+                *reinterpret_cast<void**>(&wrapper),
+                mod
             );
 
             freg->registerFunction(fn);

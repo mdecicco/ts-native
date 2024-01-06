@@ -5,6 +5,8 @@
 #include <utils/String.h>
 
 namespace tsn {
+    class Module;
+
     namespace compiler {
         class TemplateContext;
         class Compiler;
@@ -20,10 +22,11 @@ namespace tsn {
         class Function : public IPersistable {
             public:
                 Function();
-                Function(const utils::String& name, const utils::String& extraQualifiers, FunctionType* signature, access_modifier access, void* address, void* wrapperAddr);
+                Function(const utils::String& name, const utils::String& extraQualifiers, FunctionType* signature, access_modifier access, void* address, void* wrapperAddr, Module* source);
                 virtual ~Function();
 
                 function_id getId() const;
+                Module* getSourceModule() const;
                 const utils::String& getName() const;
                 const utils::String& getDisplayName() const;
                 const utils::String& getFullyQualifiedName() const;
@@ -70,6 +73,7 @@ namespace tsn {
                 bool m_isTemplate;
                 SourceLocation m_src;
                 function_id m_id;
+                Module* m_sourceModule;
                 u32 m_registryIndex;
                 utils::String m_name;
                 utils::String m_displayName;
@@ -84,7 +88,7 @@ namespace tsn {
         class Method : public Function {
             public:
                 Method();
-                Method(const utils::String& name, const utils::String& extraQualifiers, FunctionType* signature, access_modifier access, void* address, void* wrapperAddr, u64 baseOffset);
+                Method(const utils::String& name, const utils::String& extraQualifiers, FunctionType* signature, access_modifier access, void* address, void* wrapperAddr, u64 baseOffset, Module* source);
 
                 u64 getThisPtrOffset() const;
                 Method* clone(const utils::String& name, u64 baseOffset) const;

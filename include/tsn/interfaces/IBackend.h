@@ -1,3 +1,4 @@
+#pragma once
 #include <tsn/common/types.h>
 #include <tsn/interfaces/IContextual.h>
 
@@ -53,7 +54,7 @@ namespace tsn {
                  *
                  * References are pointers, so those are valid.
                  */
-                virtual void call(ffi::Function* func, ffi::ExecutionContext* ctx, void* retPtr, void** args) = 0;
+                virtual void call(ffi::Function* func, call_context* ctx, void* retPtr, void** args) = 0;
         };
     };
 };

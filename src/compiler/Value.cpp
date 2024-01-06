@@ -248,13 +248,14 @@ namespace tsn {
                 return *this;
             }
 
-            DataType* voidp = m_func->getContext()->getTypes()->getType<void*>();
+            DataType* voidp = m_func->getContext()->getTypes()->getVoidPtr();
             if (m_type->isEqualTo(voidp) || tp->isEqualTo(voidp)) {
                 // This is necessary to enable trusted scripts to work with
                 // _real_ pointers. Writers of trusted scripts should know
                 // what they are doing when working with pointers / casting
                 Value ret = Value(*this);
                 ret.m_type = tp;
+                ret.m_flags.is_pointer = 1;
                 return ret;
             }
 
@@ -691,20 +692,20 @@ namespace tsn {
             ptr.m_flags.is_pointer = 1;
             m_func->add(ir_uadd).op(ptr).op(*this).op(m_func->imm(prop->offset));
 
-            if (prop->flags.is_pointer) {
-                // Load pointer to object or primitive
-                m_func->add(ir_load).op(ptr).op(ptr);
+            if (!prop->flags.is_pointer && !prop->type->getInfo().is_primitive) {
+                // object instantiation at ptr
+                return ptr;
             }
-
+            
+            // load primitive or pointer from ptr
             Value out = m_func->val(prop->type);
+            out.m_flags.is_read_only = prop->flags.can_write ? 0 : 1;
+            out.m_flags.is_pointer = (prop->flags.is_pointer || prop->type->isEqualTo(m_func->getContext()->getTypes()->getVoidPtr())) ? 1 : 0;
+
             out.m_srcPtr = new Value(ptr);
             out.m_srcSelf = new Value(*this);
-            out.m_flags.is_read_only = prop->flags.can_write ? 0 : 1;
-            if (prop->type->getInfo().is_primitive) {
-                // load primitive from pointer
-                m_func->add(ir_load).op(out).op(ptr);
-            }
 
+            m_func->add(ir_load).op(out).op(ptr);
             return out;
         }
 
@@ -812,6 +813,68 @@ namespace tsn {
             return ptr;
         }
 
+        Value Value::callMethod(const utils::String& name, ffi::DataType* retTp, const utils::Array<Value>& args) {
+            Array<DataType*> argTps = args.map([](const Value& v) { return v.getType(); });
+            Array<Function*> matches = m_type->findMethods(name, retTp, const_cast<const ffi::DataType**>(argTps.data()), args.size(), fm_skip_implicit_args);
+            if (matches.size() == 1) {
+                return m_func->getCompiler()->generateCall(matches[0], { args }, this);
+            } else if (matches.size() > 1) {
+                u8 strictC = 0;
+                Function* func = nullptr;
+                for (u32 i = 0;i < matches.size();i++) {
+                    const auto& args = matches[i]->getSignature()->getArguments();
+                    for (u32 a = 0;a < args.size();a++) {
+                        if (args[a].isImplicit()) continue;
+                        if (args[a].dataType->isEqualTo(retTp)) {
+                            if (args.size() > a + 1) {
+                                // Function has more arguments which are not explicitly required
+                                break;
+                            }
+
+                            strictC++;
+                            func = matches[i];
+                        }
+                    }
+                }
+                
+                if (strictC == 1) {
+                    return m_func->getCompiler()->generateCall(func, args, this);
+                }
+
+                m_func->getCompiler()->functionError(
+                    m_type,
+                    retTp,
+                    args,
+                    cm_err_method_ambiguous,
+                    "Reference to method '%s' of type '%s' with arguments '%s' is ambiguous",
+                    name.c_str(),
+                    m_type->getName().c_str(),
+                    argListStr(args).c_str()
+                );
+
+                for (u32 i = 0;i < matches.size();i++) {
+                    m_func->getCompiler()->info(
+                        cm_info_could_be,
+                        "^ Could be: '%s'",
+                        matches[i]->getDisplayName().c_str()
+                    ).src = matches[i]->getSource();
+                }
+            } else {
+                m_func->getCompiler()->functionError(
+                    m_type,
+                    retTp,
+                    args,
+                    cm_err_method_not_found,
+                    "Type '%s' has no method named '%s' with arguments matching '%s'",
+                    m_type->getName().c_str(),
+                    name.c_str(),
+                    argListStr(args).c_str()
+                );
+            }
+
+            return m_func->getPoison();
+        }
+
         vreg_id Value::getRegId() const {
             return m_regId;
         }
@@ -861,6 +924,16 @@ namespace tsn {
             m_allocId = id;
             m_regId = 0;
         }
+        
+        void Value::setStackSrc(const Value& src) {
+            if (m_srcSelf) m_srcSelf->reset(src);
+            else m_srcSelf = new Value(src);
+        }
+        
+        void Value::setSrcPtr(const Value& src) {
+            if (m_srcPtr) m_srcPtr->reset(src);
+            else m_srcPtr = new Value(src);
+        }
 
         bool Value::isValid() const {
             return m_regId > 0 || m_allocId > 0 || m_flags.is_module_data ||
@@ -870,6 +943,17 @@ namespace tsn {
         
         bool Value::isArg() const {
             return m_flags.is_argument == 1;
+        }
+
+        bool Value::isFloatingPoint() const {
+            if (!m_type) return false;
+            if (!m_type->getInfo().is_floating_point) return false;
+
+            if (m_flags.is_pointer) return false;
+            if (m_flags.is_module_data) return false;
+            if (m_allocId > 0) return false;
+
+            return true;
         }
 
         bool Value::isReg() const {
@@ -932,6 +1016,7 @@ namespace tsn {
             }
 
             DataType* selfTp = self->getType();
+            bool isVoidPtr = selfTp->isEqualTo(m_func->getContext()->getTypes()->getVoidPtr());
             const auto& i = selfTp->getInfo();
 
             if (i.is_primitive) {
@@ -953,7 +1038,14 @@ namespace tsn {
                         out.reset(_rhs);
                     } else {
                         out.reset(fn->val(selfTp));
-                        Value val = **self;
+                        Value val;
+                        if (isVoidPtr) {
+                            // void* is treated differently, essentially like a u64
+                            val.reset(*self);
+                        } else {
+                            // all other primitives should be loaded
+                            val.reset(**self);
+                        }
                         fn->add(inst).op(out).op(val).op(_rhs);
                     }
                 } else {
@@ -967,7 +1059,7 @@ namespace tsn {
                 }
 
                 if (assignmentOp) {
-                    if (self->m_flags.is_pointer) fn->add(ir_store).op(out).op(*self);
+                    if (self->m_flags.is_pointer && !isVoidPtr) fn->add(ir_store).op(out).op(*self);
                     else if (self->m_srcPtr) fn->add(ir_store).op(out).op(*self->m_srcPtr);
                     else if (self->m_srcSetter) m_func->getCompiler()->generateCall(self->m_srcSetter, { out }, self->m_srcSelf);
                 }
@@ -975,6 +1067,56 @@ namespace tsn {
                 return out;
             } else {
                 const DataType* rtp = rhs.getType();
+                DataType* v2f = fn->getContext()->getTypes()->getVec2f();
+                DataType* v2d = fn->getContext()->getTypes()->getVec2d();
+                DataType* v3f = fn->getContext()->getTypes()->getVec3f();
+                DataType* v3d = fn->getContext()->getTypes()->getVec3d();
+                DataType* v4f = fn->getContext()->getTypes()->getVec4f();
+                DataType* v4d = fn->getContext()->getTypes()->getVec4d();
+                DataType* ft = fn->getContext()->getTypes()->getFloat32();
+                DataType* dt = fn->getContext()->getTypes()->getFloat64();
+
+                ir_instruction vop = ir_noop;
+                if (selfTp == rtp && (rtp == v2f || rtp == v2d || rtp == v3f || rtp == v3d || rtp == v4f || rtp == v4d)) {
+                    switch (_i) {
+                        case ir_assign: { vop = ir_vset; break; }
+                        case ir_iadd: { vop = ir_vadd; break; }
+                        case ir_isub: { vop = ir_vsub; break; }
+                        case ir_imul: { vop = ir_vmul; break; }
+                        case ir_idiv: { vop = ir_vdiv; break; }
+                        case ir_imod: { vop = ir_vmod; break; }
+                    }
+                } else if (rtp == ft && (selfTp == v2f || selfTp == v3f || selfTp == v4f)) {
+                    switch (_i) {
+                        case ir_iadd: { vop = ir_vadd; break; }
+                        case ir_isub: { vop = ir_vsub; break; }
+                        case ir_imul: { vop = ir_vmul; break; }
+                        case ir_idiv: { vop = ir_vdiv; break; }
+                        case ir_imod: { vop = ir_vmod; break; }
+                    }
+                } else if (rtp == dt && (selfTp == v2d || selfTp == v3d || selfTp == v4d)) {
+                    switch (_i) {
+                        case ir_iadd: { vop = ir_vadd; break; }
+                        case ir_isub: { vop = ir_vsub; break; }
+                        case ir_imul: { vop = ir_vmul; break; }
+                        case ir_idiv: { vop = ir_vdiv; break; }
+                        case ir_imod: { vop = ir_vmod; break; }
+                    }
+                }
+
+                if (vop != ir_noop) {
+                    Value tgt = *self;
+                    if (!assignmentOp) {
+                        tgt.reset(fn->stack(selfTp));
+                        fn->getCompiler()->maybeConstructVectorType(tgt, selfTp, { *self }, { selfTp });
+                    }
+
+                    fn->add(vop).op(tgt).op(rhs);
+
+                    return tgt;
+                }
+
+
                 Array<Function*> matches = selfTp->findMethods(overrideName, nullptr, &rtp, 1, fm_skip_implicit_args);
                 if (matches.size() == 1) {
                     return fn->getCompiler()->generateCall(matches[0], { rhs }, self);
@@ -1093,6 +1235,22 @@ namespace tsn {
 
                 return out;
             } else {
+                if (_i == ir_ineg) {
+                    DataType* v2f = fn->getContext()->getTypes()->getVec2f();
+                    DataType* v2d = fn->getContext()->getTypes()->getVec2d();
+                    DataType* v3f = fn->getContext()->getTypes()->getVec3f();
+                    DataType* v3d = fn->getContext()->getTypes()->getVec3d();
+                    DataType* v4f = fn->getContext()->getTypes()->getVec4f();
+                    DataType* v4d = fn->getContext()->getTypes()->getVec4d();
+
+                    if (selfTp == v2f || selfTp == v2d || selfTp == v3f || selfTp == v3d || selfTp == v4f || selfTp == v4d) {
+                        Value result = fn->stack(selfTp);
+                        fn->getCompiler()->maybeConstructVectorType(result, selfTp, { *self }, { selfTp });
+                        fn->add(ir_vneg).op(result);
+                        return result;
+                    }
+                }
+
                 Array<Function*> matches = selfTp->findMethods(overrideName, nullptr, nullptr, 0, fm_skip_implicit_args);
                 if (matches.size() == 1) {
                     return fn->getCompiler()->generateCall(matches[0], { }, self);
@@ -1453,7 +1611,7 @@ namespace tsn {
                 return m_func->getPoison();
             }
             
-            if (!m_flags.is_pointer && !m_type->isEqualTo(m_func->getContext()->getTypes()->getType<void*>())) {
+            if (!m_flags.is_pointer && !m_type->isEqualTo(m_func->getContext()->getTypes()->getVoidPtr())) {
                 m_func->getCompiler()->valueError(
                     *this,
                     cm_err_internal,
@@ -1539,6 +1697,8 @@ namespace tsn {
         }
 
         String Value::toString(Context* ctx) const {
+            if (!isValid()) return "<Invalid Value>";
+
             String s;
             if (m_flags.is_argument) {
                 if (m_type->getInfo().is_floating_point) s = String::Format("$FPA%d", m_imm.u);

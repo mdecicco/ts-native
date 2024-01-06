@@ -1,9 +1,54 @@
 #include <tsn/compiler/Lexer.h>
+#include <tsn/compiler/Lexer.hpp>
 #include <tsn/utils/ModuleSource.h>
+
 #include <utils/Array.hpp>
 
 namespace tsn {
     namespace compiler {
+        const char* allKeywords[] = {
+            "as",
+            "break",
+            "case",
+            "catch",
+            "class",
+            "const",
+            "continue",
+            "default",
+            "delete",
+            "do",
+            "else",
+            "enum",
+            "export",
+            "extends",
+            "false",
+            "for",
+            "from",
+            "function",
+            "get",
+            "if",
+            "import",
+            "let",
+            "new",
+            "null",
+            "operator",
+            "private",
+            "public",
+            "return",
+            "set",
+            "sizeof",
+            "static",
+            "switch",
+            "this",
+            "throw",
+            "true",
+            "try",
+            "type",
+            "typeinfo",
+            "while",
+        };
+        constexpr u32 keywordCount = sizeof(allKeywords) / sizeof(const char*);
+        
         utils::String token::str() const {
             return utils::String(const_cast<char*>(text.c_str()), text.size());
         }
@@ -51,368 +96,10 @@ namespace tsn {
                     }
 
                     const char* tmp = begin;
-                    char n = *tmp;
-                    tmp++;
-                    switch (n) {
-                        case 'a': {
-                            // as
-                            if (*tmp++ != 's') tp = tt_identifier;
-                            break;
-                        }
-                        case 'b': {
-                            // break
-                            if (
-                                *tmp++ != 'r' ||
-                                *tmp++ != 'e' ||
-                                *tmp++ != 'a' ||
-                                *tmp++ != 'k'
-                            ) {
-                                tp = tt_identifier;
-                            }
-                            break;
-                        }
-                        case 'c': {
-                            // case, catch, class, const, continue
-                            n = *tmp++;
-                            if (n == 'a') {
-                                n = *tmp++;
-                                if (n == 's') {
-                                    if (*tmp++ != 'e') {
-                                        tp = tt_identifier;
-                                    }
-                                } else if (n == 't') {
-                                    if (
-                                        *tmp++ != 'c' ||
-                                        *tmp++ != 'h'
-                                    ) {
-                                        tp = tt_identifier;
-                                    }
-                                } else tp = tt_identifier;
-                            } else if (n == 'l') {
-                                if (
-                                    *tmp++ != 'a' ||
-                                    *tmp++ != 's' ||
-                                    *tmp++ != 's'
-                                ) {
-                                    tp = tt_identifier;
-                                }
-                            } else if (n == 'o') {
-                                n = *tmp++;
-                                if (n != 'n') tp = tt_identifier;
-                                else {
-                                    n = *tmp++;
-                                    if (n == 's') {
-                                        if (*tmp++ != 't') tp = tt_identifier;
-                                    } else if (n == 't') {
-                                        if (
-                                            *tmp++ != 'i' ||
-                                            *tmp++ != 'n' ||
-                                            *tmp++ != 'u' ||
-                                            *tmp++ != 'e'
-                                        ) {
-                                            tp = tt_identifier;
-                                        }
-                                    } else tp = tt_identifier;
-                                }
-                            } else tp = tt_identifier;
-                            break;
-                        }
-                        case 'd': {
-                            // do, default, delete
-                            n = *tmp++;
-                            if (n == 'o') {
-                                // tp is already tt_keyword
-                            } else if (n == 'e') {
-                                n = *tmp++;
-                                if (n == 'l') {
-                                    if (
-                                        *tmp++ != 'e' ||
-                                        *tmp++ != 't' ||
-                                        *tmp++ != 'e'
-                                    ) {
-                                        tp = tt_identifier;
-                                    }
-                                } else if (n == 'f') {
-                                    if (
-                                        *tmp++ != 'a' ||
-                                        *tmp++ != 'u' ||
-                                        *tmp++ != 'l' ||
-                                        *tmp++ != 't'
-                                    ) {
-                                        tp = tt_identifier;
-                                    }
-                                }
-                            } else tp = tt_identifier;
-                            break;
-                        }
-                        case 'e': {
-                            // else, enum, export, extends
-                            n = *tmp++;
-                            if (n == 'l') {
-                                if (
-                                    *tmp++ != 's' ||
-                                    *tmp++ != 'e'
-                                ) {
-                                    tp = tt_identifier;
-                                }
-                            } else if (n == 'n') {
-                                if (
-                                    *tmp++ != 'u' ||
-                                    *tmp++ != 'm'
-                                ) {
-                                    tp = tt_identifier;
-                                }
-                            } else if (n == 'x') {
-                                n = *tmp++;
-                                if (n == 'p') {
-                                    if (
-                                        *tmp++ != 'o' ||
-                                        *tmp++ != 'r' ||
-                                        *tmp++ != 't'
-                                    ) {
-                                        tp = tt_identifier;
-                                    }
-                                } else if (n == 't') {
-                                    if (
-                                        *tmp++ != 'e' ||
-                                        *tmp++ != 'n' ||
-                                        *tmp++ != 'd' ||
-                                        *tmp++ != 's'
-                                    ) {
-                                        tp = tt_identifier;
-                                    }
-                                } else tp = tt_identifier;
-                            } else tp = tt_identifier;
-                            break;
-                        }
-                        case 'f': {
-                            // false, for, from, function
-                            n = *tmp++;
-                            if (n == 'a') {
-                                if (
-                                    *tmp++ != 'l' ||
-                                    *tmp++ != 's' ||
-                                    *tmp++ != 'e'
-                                ) {
-                                    tp = tt_identifier;
-                                }
-                            } else if (n == 'o') {
-                                if (*tmp++ != 'r') {
-                                    tp = tt_identifier;
-                                }
-                            } else if (n == 'r') {
-                                if (
-                                    *tmp++ != 'o' ||
-                                    *tmp++ != 'm'
-                                ) {
-                                    tp = tt_identifier;
-                                }
-                            } else if (n == 'u') {
-                                if (
-                                    *tmp++ != 'n' ||
-                                    *tmp++ != 'c' ||
-                                    *tmp++ != 't' ||
-                                    *tmp++ != 'i' ||
-                                    *tmp++ != 'o' ||
-                                    *tmp++ != 'n'
-                                ) {
-                                    tp = tt_identifier;
-                                }
-                            } else tp = tt_identifier;
-                            break;
-                        }
-                        case 'g': {
-                            // get
-                            if (
-                                *tmp++ != 'e' ||
-                                *tmp++ != 't'
-                            ) {
-                                tp = tt_identifier;
-                            }
-                            break;
-                        }
-                        case 'i': {
-                            // if, import
-                            n = *tmp++;
-                            if (n == 'f') {
-                                // tp is already tt_keyword
-                            } else if (n == 'm') {
-                                if (
-                                    *tmp++ != 'p' ||
-                                    *tmp++ != 'o' ||
-                                    *tmp++ != 'r' ||
-                                    *tmp++ != 't'
-                                ) {
-                                    tp = tt_identifier;
-                                }
-                            } else tp = tt_identifier;
-                            break;
-                        }
-                        case 'l': {
-                            // let,
-                            if (
-                                *tmp++ != 'e' ||
-                                *tmp++ != 't'
-                            ) {
-                                tp = tt_identifier;
-                            }
-                            break;
-                        }
-                        case 'n': {
-                            // null, new
-                            n = *tmp++;
-                            if (n == 'u') {
-                                if (
-                                    *tmp++ != 'l' ||
-                                    *tmp++ != 'l'
-                                ) {
-                                    tp = tt_identifier;
-                                }
-                            } else if (n == 'e') {
-                                if (*tmp++ != 'w') {
-                                    tp = tt_identifier;
-                                }
-                            } else tp = tt_identifier;
-                            break;
-                        }
-                        case 'o': {
-                            // operator
-                            if (*tmp++ != 'p' ||
-                                *tmp++ != 'e' ||
-                                *tmp++ != 'r' ||
-                                *tmp++ != 'a' ||
-                                *tmp++ != 't' ||
-                                *tmp++ != 'o' ||
-                                *tmp++ != 'r'
-                            ) {
-                                tp = tt_identifier;
-                            }
-                            break;
-                        }
-                        case 'p': {
-                            // private, public
-                            n = *tmp++;
-                            if (n == 'u') {
-                                if (
-                                    *tmp++ != 'b' ||
-                                    *tmp++ != 'l' ||
-                                    *tmp++ != 'i' ||
-                                    *tmp++ != 'c'
-                                ) {
-                                    tp = tt_identifier;
-                                }
-                            } else if (n == 'r') {
-                                if (
-                                    *tmp++ != 'i' ||
-                                    *tmp++ != 'v' ||
-                                    *tmp++ != 'a' ||
-                                    *tmp++ != 't' ||
-                                    *tmp++ != 'e'
-                                ) {
-                                    tp = tt_identifier;
-                                }
-                            } else tp = tt_identifier;
-                            break;
-                        }
-                        case 'r': {
-                            // return
-                            if (*tmp++ != 'e' ||
-                                *tmp++ != 't' ||
-                                *tmp++ != 'u' ||
-                                *tmp++ != 'r' ||
-                                *tmp++ != 'n'
-                            ) {
-                                tp = tt_identifier;
-                            }
-                            break;
-                        }
-                        case 's': {
-                            // set, static, switch, sizeof
-                            n = *tmp++;
-                            if (n == 'e') {
-                                if (*tmp++ != 't') tp = tt_identifier;
-                            } else if (n == 't') {
-                                if (
-                                    *tmp++ != 'a' ||
-                                    *tmp++ != 't' ||
-                                    *tmp++ != 'i' ||
-                                    *tmp++ != 'c'
-                                ) {
-                                    tp = tt_identifier;
-                                }
-                            } else if (n == 'w') {
-                                if (
-                                    *tmp++ != 'i' ||
-                                    *tmp++ != 't' ||
-                                    *tmp++ != 'c' ||
-                                    *tmp++ != 'h'
-                                ) {
-                                    tp = tt_identifier;
-                                }
-                            } else if (n == 'i') {
-                                if (
-                                    *tmp++ != 'z' ||
-                                    *tmp++ != 'e' ||
-                                    *tmp++ != 'o' ||
-                                    *tmp++ != 'f'
-                                ) {
-                                    tp = tt_identifier;
-                                }
-                            } else tp = tt_identifier;
-                            break;
-                        }
-                        case 't': {
-                            // type, try, true, this, throw
-                            n = *tmp++;
-                            if (n == 'y') {
-                                if (
-                                    *tmp++ != 'p' ||
-                                    *tmp++ != 'e'
-                                ) {
-                                    tp = tt_identifier;
-                                }
-                            } else if (n == 'r') {
-                                n = *tmp++;
-                                if (n == 'y') {
-                                    // already tt_keyword
-                                } else if (n == 'u') {
-                                    if (*tmp++ != 'e') {
-                                        tp = tt_identifier;
-                                    }
-                                } else tp = tt_identifier;
-                            } else if (n == 'h') {
-                                n = *tmp++;
-                                if (n == 'r') {
-                                    if (
-                                        *tmp++ != 'o' ||
-                                        *tmp++ != 'w'
-                                    ) {
-                                        tp = tt_identifier;
-                                    }
-                                } else if (n == 'i') {
-                                    if (*tmp++ != 's') {
-                                        tp = tt_identifier;
-                                    }
-                                }
-                            } else tp = tt_identifier;
-                            break;
-                        }
-                        case 'w': {
-                            // while
-                            if (
-                                *tmp++ != 'h' ||
-                                *tmp++ != 'i' ||
-                                *tmp++ != 'l' ||
-                                *tmp++ != 'e'
-                            ) {
-                                tp = tt_identifier;
-                            }
-                            break;
-                        }
-                        default: tp = tt_identifier;
-                    }
+                    i32 matchIdx = stringMatchesOne<keywordCount>(allKeywords, begin, &tmp);
 
-                    if (tp == tt_keyword && (isalnum(*tmp) || *tmp == '_')) tp = tt_identifier;
+                    if (matchIdx == -1) tp = tt_identifier;
+                    else if (isalnum(*tmp) || *tmp == '_') tp = tt_identifier;
                 } else if (isdigit(*begin) || (*begin == '-' && isdigit(*(begin + 1)))) {
                     if (*begin == '-') {
                         end++;
@@ -523,6 +210,7 @@ namespace tsn {
                                 case '\\': { str += '\\'; break; }
                                 case '\'': { str += '\''; break; }
                                 case '"' : { str += '"' ; break; }
+                                case '$' : { str += '$' ; break; }
                                 case '`' : { str += '`' ; break; }
                                 default  : {
                                     // todo: Unknown escape sequence warning

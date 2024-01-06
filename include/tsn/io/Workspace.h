@@ -36,7 +36,7 @@ namespace tsn {
             bool persist();
 
             script_metadata* getScript(const std::string& path);
-            void onFileDiscovered(const std::string& path, size_t size, u64 modifiedTimestamp, bool trusted);
+            script_metadata* onFileDiscovered(const std::string& path, size_t size, u64 modifiedTimestamp, bool trusted);
             void onFileChanged(script_metadata* script, size_t size, u64 modifiedTimestamp);
 
             /** Returns true if the compilation output was cached */
@@ -54,6 +54,7 @@ namespace tsn {
             void service();
 
             Module* getModule(const utils::String& path, const utils::String& fromDir = utils::String());
+            script_metadata* createMeta(const utils::String& path, size_t size, u64 modifiedTimestamp, bool trusted);
             PersistenceDatabase* getPersistor() const;
 
         protected:

@@ -3,8 +3,10 @@
 #include <tsn/common/Module.h>
 #include <tsn/common/Config.h>
 #include <tsn/ffi/Function.h>
+#include <tsn/ffi/DataType.h>
 #include <tsn/ffi/FunctionRegistry.h>
 #include <tsn/ffi/DataTypeRegistry.h>
+#include <tsn/compiler/TemplateContext.h>
 #include <tsn/compiler/Lexer.h>
 #include <tsn/compiler/Parser.h>
 #include <tsn/compiler/Compiler.h>
@@ -77,17 +79,15 @@ namespace tsn {
         m_optimizations.push(rootStep);
     }
     
-    void Pipeline::addOptimizationStep(optimize::IOptimizationStep* step) {
+    void Pipeline::addOptimizationStep(optimize::IOptimizationStep* step, bool isRequired) {
         optimize::OptimizationGroup* rootStep = ((optimize::OptimizationGroup*)m_optimizations[0]);
-        rootStep->addStep(step);
+        rootStep->addStep(step, isRequired);
     }
 
     Module* Pipeline::buildFromSource(script_metadata* script) {
         if (m_isCompiling) {
             Pipeline child = Pipeline(m_ctx, this, m_root);
-            Module* m = child.buildFromSource(script);
-            if (m) return m;
-            return nullptr;
+            return child.buildFromSource(script);
         }
         m_isCompiling = true;
 
@@ -129,89 +129,23 @@ namespace tsn {
 
         m_compiler = new compiler::Compiler(m_ctx, getLogger(), m_ast, script);
 
-        compiler::OutputBuilder* out = m_compiler->compile();
+        compiler::OutputBuilder* out = m_compiler->compileAll();
         if (!out) {
             m_isCompiling = false;
             return nullptr;
         }
         
-        Module* mod = out->getModule();
-        if (mod) {
-            mod->setSrc(m_source);
-            // source code ownership was taken by the Module
-            m_source = nullptr;
-        }
-
-        bool didError = m_logger->hasErrors();
-
-        m_compOutput = new compiler::Output(out);
-        if (!didError) {
-            auto& funcs = m_compOutput->getCode();
-            funcs.each([this](compiler::CodeHolder* ch) {
-                ffi::Function* fn = ch->owner;
-                if (!fn) return;
-                ch->rebuildAll();
-
-                this->m_ctx->getFunctions()->registerFunction(fn);
-                this->m_compiler->getOutput()->getModule()->addFunction(fn);
-
-                if (!this->m_ctx->getConfig()->disableOptimizations) {
-                    this->m_optimizations.each([this, ch](optimize::IOptimizationStep* step) {
-                        for (auto& b : ch->cfg.blocks) {
-                            while (step->execute(ch, &b, this));
-                        }
-                        
-                        while (step->execute(ch, this));
-                    });
-                }
-
-                // Update call instruction operands to make imm FunctionDef operands imm function_ids
-                // ...Also update types, in case the signature was not defined at the time that the
-                // call instruction was emitted...
-                auto& code = ch->code;
-                for (u32 i = 0;i < code.size();i++) {
-                    if (code[i].op == compiler::ir_call && code[i].operands[0].isImm()) {
-                        compiler::FunctionDef* callee = code[i].operands[0].getImm<compiler::FunctionDef*>();
-                        code[i].operands[0].setImm<function_id>(callee->getOutput()->getId());
-                        code[i].operands[0].setType(callee->getOutput()->getSignature());
-                        code[i].operands[0].getFlags().is_function_id = 1;
-                    }
-                }
-            });
-
-            const auto& types = m_compiler->getOutput()->getTypes();
-            types.each([this](ffi::DataType* tp) {
-                this->m_ctx->getTypes()->addForeignType(tp);
-                this->m_compiler->getOutput()->getModule()->addForeignType(tp);
-            });
-
-            m_compOutput->processInput();
-            if (!script->is_external && !m_ctx->getWorkspace()->getPersistor()->onScriptCompiled(script, m_compOutput)) {
-                m_logger->submit(
-                    compiler::log_type::lt_warn,
-                    compiler::iom_failed_to_cache_script,
-                    utils::String::Format("Failed to cache compiled script '%s'", script->path.c_str())
-                );
-            }
-        }
+        postCompile(script, true);
 
         m_isCompiling = false;
 
-        if (!didError && be) {
-            be->generate(this);
-        }
-
-        if (mod && be) mod->init();
-
-        return mod;
+        return out->getModule();
     }
 
     Module* Pipeline::buildFromCached(script_metadata* script) {
         if (m_isCompiling) {
             Pipeline child = Pipeline(m_ctx, this, m_root);
-            Module* m = child.buildFromCached(script);
-            if (m) return m;
-            return nullptr;
+            return child.buildFromCached(script);
         }
 
         reset();
@@ -235,48 +169,156 @@ namespace tsn {
             return nullptr;
         }
 
-        ModuleSource* src = new ModuleSource(code, script);
+        m_source = new ModuleSource(code, script);
         delete code;
 
-        m_source = src;
+        Module* mod = tryCache(script);
+        m_isCompiling = false;
 
-        utils::String cachePath = utils::String::Format(
-            "%s/%u.tsnc",
-            m_ctx->getConfig()->supportDir.c_str(),
-            script->module_id
+        return mod;
+    }
+    
+    ffi::DataType* Pipeline::specializeTemplate(ffi::TemplateType* type, const utils::Array<ffi::DataType*> templateArgs) {
+        if (m_isCompiling) {
+            Pipeline child = Pipeline(m_ctx, this, m_root);
+            return child.specializeTemplate(type, templateArgs);
+        }
+        m_isCompiling = true;
+
+        reset();
+        if (!m_logger) m_logger = new compiler::Logger();
+        
+        backend::IBackend* be = m_ctx->getBackend();
+        if (be) be->beforeCompile(this);
+
+        compiler::TemplateContext* tctx = type->getTemplateData();
+        Module* originalModule = tctx->getOrigin();
+        const script_metadata* originalMeta = originalModule->getInfo();
+        m_source = originalModule->getSource();
+
+        utils::String modName = generateTemplateModuleName(type, templateArgs);
+
+        script_metadata* meta = m_ctx->getWorkspace()->createMeta(
+            "<templates>/" + modName + ".tsn",
+            originalMeta->size,
+            0,
+            originalMeta->is_trusted
         );
 
-        utils::Buffer* cache = utils::Buffer::FromFile(cachePath);
-        if (!cache) {
+        // See if it's cached
+        Module* cached = tryCache(meta);
+        if (cached) {
+            ffi::DataType* outTp = cached->allTypes().find([type, &templateArgs](ffi::DataType* tp) {
+                return tp->isSpecializationOf(type, templateArgs);
+            });
+
+            m_isCompiling = false;
+            reset();
+
+            if (outTp) {
+                // template specializations should always be global.
+                // scripts won't be able to instantiate them without
+                // importing the original module that the template
+                // is defined in
+                m_ctx->getGlobal()->addForeignType(outTp);
+                m_ctx->getTypes()->addForeignType(outTp);
+            }
+
+            return outTp;
+        }
+
+        meta->modified_on = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+
+        m_ast = tctx->getAST();
+        m_compiler = new compiler::Compiler(m_ctx, getLogger(), m_ast, meta);
+
+        m_compiler->begin();
+
+        compiler::OutputBuilder* out = m_compiler->getOutput();
+        Module* mod = out->getModule();
+
+        if (!out) {
             m_isCompiling = false;
             return nullptr;
         }
-
-        m_compOutput = new compiler::Output(script, m_source);
-        if (!m_compOutput->deserialize(cache, m_ctx)) {
-            delete cache;
-            delete m_compOutput;
-            m_compOutput = nullptr;
-            m_isCompiling = false;
-            return nullptr;
-        }
-
-        delete cache;
         
-        Module* mod = m_compOutput->getModule();
-
-        if (mod) {
-            // source code ownership was taken by the Module in m_compOutput->deserialize()
-            m_source = nullptr;
+        out->addDependency(originalModule);
+        for (u32 i = 0;i < templateArgs.size();i++) {
+            Module* owner = templateArgs[i]->getSource();
+            if (!owner) continue;
+            out->addDependency(owner);
         }
+
+        compiler::Scope& s = m_compiler->scope().enter();
+
+        compiler::ParseNode* tp = m_ast->template_parameters;
+        bool didError = false;
+        for (u32 i = 0;i < templateArgs.size();i++) {
+            if (!tp) {
+                m_logger->submit(
+                    compiler::lt_error,
+                    compiler::log_message_code::cm_err_too_many_template_args,
+                    utils::String::Format("Attempted to instantiate object of type '%s' with too many template arguments", type->getName().c_str())
+                );
+                didError = true;
+                break;
+            }
+
+            s.add(tp->str(), templateArgs[i]);
+            tp = tp->next;
+        }
+
+        if (didError) {
+            m_isCompiling = false;
+            return nullptr;
+        }
+
+        if (tp) {
+            m_logger->submit(
+                compiler::lt_error,
+                compiler::log_message_code::cm_err_too_few_template_args,
+                utils::String::Format("Attempted to instantiate object of type '%s' with too few template arguments", type->getName().c_str())
+            );
+            m_isCompiling = false;
+            return nullptr;
+        }
+
+        m_compiler->pushTemplateContext(tctx);
+        
+        ffi::DataType* outTp = nullptr;
+        if (m_ast->tp == compiler::nt_type) {
+            outTp = m_compiler->resolveTypeSpecifier(m_ast->data_type);
+        } else if (m_ast->tp == compiler::nt_class) {
+            outTp = m_compiler->compileClass(m_ast, true);
+        }
+
+        m_compiler->popTemplateContext();
+        m_compiler->scope().exit();
+        m_compiler->end();
+
+        if (outTp) {
+            outTp->m_templateBase = type;
+            outTp->m_templateArgs = templateArgs;
+            outTp->m_sourceModule = mod;
+            mod->addForeignType(outTp);
+
+            // template specializations should always be global.
+            // scripts won't be able to instantiate them without
+            // importing the original module that the template
+            // is defined in
+            m_ctx->getGlobal()->addForeignType(outTp);
+            m_ctx->getTypes()->addForeignType(outTp);
+        }
+
+        postCompile(meta, false);
+
+        // ownership of the source belongs to the module that owns
+        // the template type being instantiated
+        m_source = nullptr;
 
         m_isCompiling = false;
 
-        if (!m_logger->hasErrors() && be) be->generate(this);
-
-        if (mod && be) mod->init();
-
-        return mod;
+        return outTp;
     }
 
     Pipeline* Pipeline::getParent() const {
@@ -305,5 +347,145 @@ namespace tsn {
 
     compiler::Output* Pipeline::getCompilerOutput() const {
         return m_compOutput;
+    }
+
+    utils::String Pipeline::generateTemplateModuleName(ffi::TemplateType* type, const utils::Array<ffi::DataType*> templateArgs) const {
+        utils::String modName = type->getFullyQualifiedName() + "(";
+        for (u32 i = 0;i < templateArgs.size();i++) {
+            if (i != 0) modName += ",";
+            modName += templateArgs[i]->getFullyQualifiedName();
+        }
+        modName += ")";
+        modName.replaceAll(':', '-');
+
+        return modName;
+    }
+
+    Module* Pipeline::tryCache(const script_metadata* script) {
+        utils::String cachePath = utils::String::Format(
+            "%s/%u.tsnc",
+            m_ctx->getConfig()->supportDir.c_str(),
+            script->module_id
+        );
+
+        utils::Buffer* cache = utils::Buffer::FromFile(cachePath);
+        if (!cache) {
+            return nullptr;
+        }
+
+        m_compOutput = new compiler::Output(script, m_source);
+        if (!m_compOutput->deserializeDependencies(cache, m_ctx)) {
+            delete cache;
+            delete m_compOutput;
+            m_compOutput = nullptr;
+            return nullptr;
+        }
+
+        // determine if any dependencies changed
+        const auto& deps = m_compOutput->getDependencies();
+        const auto& depVersions = m_compOutput->getDependencyVersions();
+
+        for (u32 i = 0;i < depVersions.size();i++) {
+            if (depVersions[i] != deps[i]->getInfo()->modified_on) {
+                // dependency was changed, code needs to be recompiled
+                delete cache;
+                delete m_compOutput;
+                m_compOutput = nullptr;
+                return nullptr;
+            }
+        }
+
+        if (!m_compOutput->deserialize(cache, m_ctx)) {
+            delete cache;
+            delete m_compOutput;
+            m_compOutput = nullptr;
+            return nullptr;
+        }
+
+
+        delete cache;
+        
+        Module* mod = m_compOutput->getModule();
+
+        if (mod) {
+            // source code ownership was taken by the Module in m_compOutput->deserialize()
+            m_source = nullptr;
+        }
+
+        backend::IBackend* be = m_ctx->getBackend();
+        if (!m_logger->hasErrors() && be) be->generate(this);
+
+        return mod;
+    }
+
+    void Pipeline::postCompile(script_metadata* script, bool takeOwnershipOfSource) {
+        compiler::OutputBuilder* out = m_compiler->getOutput();
+        Module* mod = out->getModule();
+
+        if (mod) {
+            mod->setSrc(m_source, takeOwnershipOfSource);
+            if (takeOwnershipOfSource) m_source = nullptr;
+        }
+
+        if (m_logger->hasErrors()) {
+            return;
+        }
+
+        m_compOutput = new compiler::Output(out);
+
+        auto& funcs = m_compOutput->getCode();
+        funcs.each([this, mod](compiler::CodeHolder* ch) {
+            ffi::Function* fn = ch->owner;
+            if (!fn) return;
+            ch->rebuildAll();
+
+            this->m_ctx->getFunctions()->registerFunction(fn);
+            this->m_compiler->getOutput()->getModule()->addFunction(fn);
+
+            bool optimizationsDisabled = m_ctx->getConfig()->disableOptimizations;
+            m_optimizations.each([this, ch, optimizationsDisabled](optimize::IOptimizationStep* step) {
+                if (optimizationsDisabled && !step->isRequired()) return;
+
+                for (auto& b : ch->cfg.blocks) {
+                    while (step->execute(ch, &b, this));
+                }
+                
+                while (step->execute(ch, this));
+            });
+
+            // Update call instruction operands to make imm FunctionDef operands imm function_ids
+            // ...Also update types, in case the signature was not defined at the time that the
+            // call instruction was emitted...
+            auto& code = ch->code;
+            for (u32 i = 0;i < code.size();i++) {
+                if (code[i].op == compiler::ir_call && code[i].operands[0].isImm()) {
+                    compiler::FunctionDef* callee = code[i].operands[0].getImm<compiler::FunctionDef*>();
+                    code[i].operands[0].setImm<function_id>(callee->getOutput()->getId());
+                    code[i].operands[0].setType(callee->getOutput()->getSignature());
+                    code[i].operands[0].getFlags().is_function_id = 1;
+                }
+            }
+        });
+
+        const auto& types = m_compiler->getOutput()->getTypes();
+        types.each([this, mod](ffi::DataType* tp) {
+            if (tp->getSource()) return;
+
+            m_ctx->getTypes()->addForeignType(tp);
+            m_compiler->getOutput()->getModule()->addForeignType(tp);
+            tp->m_sourceModule = mod;
+        });
+
+        m_compOutput->processInput();
+        if (!script->is_external && !m_ctx->getWorkspace()->getPersistor()->onScriptCompiled(script, m_compOutput)) {
+            m_logger->submit(
+                compiler::log_type::lt_warn,
+                compiler::iom_failed_to_cache_script,
+                utils::String::Format("Failed to cache compiled script '%s'", script->path.c_str())
+            );
+        }
+
+        backend::IBackend* be = m_ctx->getBackend();
+        if (be) be->generate(this);
     }
 };

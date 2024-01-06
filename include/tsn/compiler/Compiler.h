@@ -10,6 +10,7 @@
 
 namespace tsn {
     class Module;
+    class Pipeline;
     struct script_metadata;
 
     namespace ffi {
@@ -49,6 +50,9 @@ namespace tsn {
             /** Store the result in the module data */
             rsl_module_data,
 
+            /** Store the result in the current function's capture data */
+            rsl_capture_data_if_non_primitive,
+
             /** Store the result in the provided destination */
             rsl_specified_dest
         };
@@ -57,8 +61,11 @@ namespace tsn {
             /** Where the expression result should be stored */
             result_storage_location loc;
 
-            /** If loc == rsl_module_data, this is this is the name of the module data entry */
-            utils::String md_name;
+            /** If expression result is the initializer for a variable, this is the name of the variable */
+            utils::String var_name;
+
+            /** If expression result is the initializer for a variable, this is the scope the variable should be declared in */
+            Scope* decl_scope;
 
             /** If loc == rsl_module_data, this is this is the access modifier of the module data entry */
             access_modifier md_access;
@@ -123,7 +130,9 @@ namespace tsn {
 
                 const script_metadata* getScriptInfo() const;
                 OutputBuilder* getOutput();
-                OutputBuilder* compile();
+                void begin();
+                void end();
+                OutputBuilder* compileAll();
 
                 log_message& typeError(ffi::DataType* tp, log_message_code code, const char* msg, ...);
                 log_message& typeError(ParseNode* node, ffi::DataType* tp, log_message_code code, const char* msg, ...);
@@ -143,10 +152,13 @@ namespace tsn {
             protected:
                 friend class Value;
                 friend class ScopeManager;
+                friend class FunctionDef;
+                friend class Pipeline;
 
                 InstructionRef add(ir_instruction inst);
                 Value getStorageForExpr(ffi::DataType* tp);
                 Value copyValueToExprStorage(const Value& result);
+                bool maybeConstructVectorType(const Value& dest, ffi::DataType* tp, const utils::Array<Value>& args, const utils::Array<ffi::DataType*>& argTps);
                 void constructObject(const Value& dest, ffi::DataType* tp, const utils::Array<Value>& args);
                 void constructObject(const Value& dest, const utils::Array<Value>& args);
                 Value constructObject(ffi::DataType* tp, const utils::Array<Value>& args);
@@ -155,11 +167,13 @@ namespace tsn {
                 Value typeValue(ffi::DataType* tp);
                 Value moduleValue(Module* mod);
                 Value moduleData(Module* m, u32 slot);
-                Value newClosure(function_id target, Value* captures = nullptr, Value* captureTypeIds = nullptr, Value* captureCount = nullptr);
-                Value newClosureRef(const Value& closure, ffi::DataType* signature);
-                Value newClosureRef(const Value& fnImm);
-                Value newClosureRef(ffi::Function* fn);
-                Value newClosureRef(FunctionDef* fn);
+                Value newCaptureData(function_id target, Value* captureData = nullptr);
+                void findCaptures(ParseNode* node, utils::Array<Value>& outCaptures, utils::Array<u32>& outCaptureOffsets, u32 scopeIdx);
+                bool isVarCaptured(ParseNode* n, const utils::String& name, u32 closureDepth = 0);
+                Value newClosure(const Value& closure, ffi::DataType* signature);
+                Value newClosure(const Value& fnImm);
+                Value newClosure(ffi::Function* fn);
+                Value newClosure(FunctionDef* fn);
                 Value generateCall(const Value& fn, const utils::String& name, bool returnsPointer, ffi::DataType* retTp, const utils::Array<ffi::function_argument>& fargs, const utils::Array<Value>& params, const Value* self = nullptr);
                 Value generateCall(ffi::Function* fn, const utils::Array<Value>& args, const Value* self = nullptr);
                 Value generateCall(FunctionDef* fn, const utils::Array<Value>& args, const Value* self = nullptr);
@@ -189,6 +203,7 @@ namespace tsn {
                 Value compileArrowFunction(ParseNode* n);
                 Value compileObjectLiteral(ParseNode* n);
                 Value compileArrayLiteral(ParseNode* n);
+                Value maybeEvaluateBuiltinVectorMethod(const Value& self, FunctionDef* fn, const utils::Array<Value>& args, bool* wasBuiltin);
                 Value compileExpressionInner(ParseNode* n);
                 Value compileExpression(ParseNode* n);
                 void compileIfStatement(ParseNode* n);

@@ -150,8 +150,8 @@ namespace tsn {
         return it->second;
     }
 
-    void PersistenceDatabase::onFileDiscovered(const std::string& path, size_t size, u64 modifiedTimestamp, bool trusted) {
-        m_scripts[path] = new script_metadata({
+    script_metadata* PersistenceDatabase::onFileDiscovered(const std::string& path, size_t size, u64 modifiedTimestamp, bool trusted) {
+        script_metadata* out = new script_metadata({
             path,
             (u32)std::hash<utils::String>()(path),
             size,
@@ -160,6 +160,9 @@ namespace tsn {
             trusted,
             false
         });
+        
+        m_scripts[path] = out;
+        return out;
     }
 
     void PersistenceDatabase::onFileChanged(script_metadata* script, size_t size, u64 modifiedTimestamp) {
@@ -249,6 +252,13 @@ namespace tsn {
         if (std::filesystem::exists(p)) return loadModule(p.string());
 
         return nullptr;
+    }
+    
+    script_metadata* Workspace::createMeta(const utils::String& path, size_t size, u64 modifiedTimestamp, bool trusted) {
+        script_metadata* meta = m_db->getScript(path);
+        if (meta) return meta;
+
+        return m_db->onFileDiscovered(path, size, modifiedTimestamp, trusted);
     }
     
     PersistenceDatabase* Workspace::getPersistor() const {

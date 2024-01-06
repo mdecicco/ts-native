@@ -133,6 +133,19 @@ namespace tsn {
 
         return *this;
     }
+    
+    void SourceLocation::offset(const SourceLocation& by) {
+        if (by.m_ref != m_ref) m_ref = by.m_ref;
+        m_line += by.m_line;
+        m_col += by.m_col;
+        m_endLine += by.m_line;
+        m_endCol += by.m_col;
+
+        const utils::String& ln = m_ref->getLine(m_line);
+        m_lineLen = ln.size();
+        m_linePtr = ln.c_str();
+        m_offset = u32(m_ref->getLine(m_line).c_str() - m_ref->getCode().c_str()) + m_col;
+    }
 
     bool SourceLocation::serialize(utils::Buffer* out, Context* ctx) const {
         if (!out->write(m_length)) return false;

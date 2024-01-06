@@ -12,49 +12,48 @@ namespace tsn {
         class Function;
         class ExecutionContext;
 
-        class Closure;
-        class ClosureRef {
+        class CaptureData;
+        class Closure {
             public:
-                ClosureRef();
-                ClosureRef(const ClosureRef& closure);
-                ClosureRef(Closure* closure);
-                ~ClosureRef();
+                Closure();
+                Closure(const Closure& closure);
+                Closure(CaptureData* closure);
+                ~Closure();
 
                 ffi::Function* getTarget() const;
                 void* getSelf() const;
 
-                void operator=(const ClosureRef& rhs);
-                void operator=(Closure* rhs);
+                void operator=(const Closure& rhs);
+                void operator=(CaptureData* rhs);
 
                 template <typename ...Args>
                 Object call(Args&&... args);
                 
             protected:
                 friend class compiler::Compiler;
-                Closure* m_ref;
+                void* m_captureData;
+                CaptureData* m_ref;
         };
 
-        class Closure : public IContextual {
+        class CaptureData : public IContextual {
             public:
-                Closure(ExecutionContext* ectx, function_id targetId, void* captures, void* captureTypeIds, u32 captureCount);
-                Closure(const Closure& c) = delete;
-                ~Closure();
+                CaptureData(ExecutionContext* ectx, function_id targetId, void* captureData);
+                CaptureData(const CaptureData& c);
+                ~CaptureData();
 
                 void bind(void* self);
                 ffi::Function* getTarget() const;
                 void* getSelf() const;
 
-                void operator=(const Closure& rhs) = delete;
+                void operator=(const CaptureData& rhs) = delete;
 
             protected:
-                friend class ClosureRef;
+                friend class Closure;
                 friend class compiler::Compiler;
 
                 void* m_self;
                 void* m_captureData;
                 ffi::Function* m_target;
-                type_id* m_captureDataTypeIds;
-                u32 m_captureDataCount;
                 u32 m_refCount;
         };
     };

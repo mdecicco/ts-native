@@ -28,6 +28,7 @@ namespace tsn {
             m_mod = nullptr;
             m_src = src;
             m_meta = meta;
+            m_didDeserializeDeps = false;
         }
 
         Output::Output(OutputBuilder* in) {
@@ -59,6 +60,8 @@ namespace tsn {
         }
 
         void Output::processInput() {
+            ffi::DataType* offsetTp = m_mod->getContext()->getTypes()->getUInt32();
+
             for (u32 i = 0;i < m_output.size();i++) {
                 const auto& code = m_output[i]->code;
 
@@ -74,15 +77,30 @@ namespace tsn {
                     const auto& info = instruction_info(code[c].op);
                     inst.op = code[c].op;
                     
-                    for (u8 o = 0;o < code[c].oCnt;o++) {
+                    for (u8 o = 0;o < info.operand_count;o++) {
                         auto& v = inst.operands[o];
                         const auto& s = code[c].operands[o];
-                        v.data_type = s.getType();
-                        v.flags.is_reg = s.isReg() ? 1 : 0;
-                        v.flags.is_stack = s.isStack() ? 1 : 0;
-                        v.flags.is_func = s.isFunction() ? 1 : 0;
-                        v.flags.is_imm = s.isImm() ? 1 : 0;
-                        v.flags.is_arg = s.isArg() ? 1 : 0;
+
+                        if (o == 2 && (inst.op == ir_load || inst.op == ir_store) && !s.isValid()) {
+                            // We don't store the operand count to conserve space so optional parameters
+                            // which are undefined must be converted into ineffectual defaults
+                            v.data_type = offsetTp;
+                            v.flags.is_reg = 0;
+                            v.flags.is_stack = 0;
+                            v.flags.is_func = 0;
+                            v.flags.is_imm = 1;
+                            v.flags.is_arg = 0;
+                            v.flags.is_pointer = 0;
+                            v.value.imm_u = 0;
+                        } else {
+                            v.data_type = s.getType();
+                            v.flags.is_reg = s.isReg() ? 1 : 0;
+                            v.flags.is_stack = s.isStack() ? 1 : 0;
+                            v.flags.is_func = s.isFunction() ? 1 : 0;
+                            v.flags.is_imm = s.isImm() ? 1 : 0;
+                            v.flags.is_arg = s.isArg() ? 1 : 0;
+                            v.flags.is_pointer = s.getFlags().is_pointer;
+                        }
 
                         if (s.isReg()) v.value.reg_id = s.getRegId();
                         else if (s.isArg()) v.value.arg_idx = s.getImm<u32>();
@@ -110,16 +128,27 @@ namespace tsn {
         const utils::Array<compiler::CodeHolder*>& Output::getCode() const {
             return m_output;
         }
+        
+        const utils::Array<Module*>& Output::getDependencies() const {
+            return m_dependencies;
+        }
+        
+        const utils::Array<u64>& Output::getDependencyVersions() const {
+            return m_dependencyVersions;
+        }
 
         bool Output::serialize(utils::Buffer* out, Context* ctx) const {
-            if (!out->write(m_mod->getId())) return false;
-            if (!out->write(m_mod->getName())) return false;
-            if (!out->write(m_mod->getPath())) return false;
-
             if (!out->write(m_dependencies.size())) return false;
             for (u32 i = 0;i < m_dependencies.size();i++) {
                 if (!out->write(m_dependencies[i]->getPath())) return false;
+
+                u64 version = m_dependencies[i]->getInfo()->modified_on;
+                if (!out->write(version)) return false;
             }
+
+            if (!out->write(m_mod->getId())) return false;
+            if (!out->write(m_mod->getName())) return false;
+            if (!out->write(m_mod->getPath())) return false;
 
             // Minus one because first function in IFunctionHolder is always null
             const auto funcs = m_mod->allFunctions();
@@ -169,12 +198,53 @@ namespace tsn {
             return true;
         }
 
+        bool Output::deserializeDependencies(utils::Buffer* in, Context* ctx) {
+            u32 count;
+            if (!in->read(count)) return false;
+            for (u32 i = 0;i < count;i++) {
+                utils::String path = in->readStr();
+                if (path.size() == 0) return false;
+
+                u64 version;
+                if (!in->read(version)) return false;
+
+                Module* mod = ctx->getModule(path);
+                if (!mod) return false;
+
+                m_dependencies.push(mod);
+                m_dependencyVersions.push(version);
+            }
+
+            m_didDeserializeDeps = true;
+
+            return true;
+        }
+
         bool Output::deserialize(utils::Buffer* in, Context* ctx) {
+            if (!m_didDeserializeDeps) {
+                u32 count;
+                if (!in->read(count)) return false;
+                for (u32 i = 0;i < count;i++) {
+                    utils::String path = in->readStr();
+                    if (path.size() == 0) return false;
+
+                    u64 version;
+                    if (!in->read(version)) return false;
+
+                    Module* mod = ctx->getModule(path);
+                    if (!mod) return false;
+
+                    m_dependencies.push(mod);
+                    m_dependencyVersions.push(version);
+                }
+            }
+
             utils::Array<proto_function> proto_funcs;
             utils::Array<proto_type> proto_types;
             utils::Array<TemplateContext*> tcontexts;
             ffi::FunctionRegistry* freg = ctx->getFunctions();
             ffi::DataTypeRegistry* treg = ctx->getTypes();
+            u32 count;
 
             u32 mid;
             if (!in->read(mid)) return false;
@@ -186,18 +256,6 @@ namespace tsn {
             m_mod = ctx->createModule(name, path, m_meta);
             if (m_mod->getId() != mid) return false;
             m_mod->setSrc(m_src);
-
-            u32 count;
-            if (!in->read(count)) return false;
-            for (u32 i = 0;i < count;i++) {
-                utils::String path = in->readStr();
-                if (path.size() == 0) return false;
-
-                Module* mod = ctx->getModule(path);
-                if (!mod) return false;
-
-                m_dependencies.push(mod);
-            }
 
             // read functions
             if (!in->read(count)) return false;
@@ -302,6 +360,7 @@ namespace tsn {
                     case ffi::dti_plain: break;
                     case ffi::dti_function: {
                         if (!in->read(pt.returnTypeId)) return false;
+                        if (!in->read(pt.thisTypeId)) return false;
                         if (!in->read(pt.returnsPointer)) return false;
                         u32 acount;
                         if (!in->read(acount)) return false;
@@ -447,6 +506,7 @@ namespace tsn {
                         flags.is_argument = vi.flags.is_arg;
                         flags.is_immediate = vi.flags.is_imm;
                         flags.is_function = vi.flags.is_func;
+                        flags.is_pointer = vi.flags.is_pointer;
                         if (flags.is_function) flags.is_function_id = 1;
 
                         v.setType(vi.data_type);
@@ -478,10 +538,10 @@ namespace tsn {
                 ffi::Function* f = nullptr;
                 if (pf.isMethod) {
                     if (pf.isTemplate) f = new ffi::TemplateMethod(pf.name, "", pf.access, pf.baseOffset, pf.tctx);
-                    else f = new ffi::Method(pf.name, "", nullptr, pf.access, nullptr, nullptr, pf.baseOffset);
+                    else f = new ffi::Method(pf.name, "", nullptr, pf.access, nullptr, nullptr, pf.baseOffset, m_mod);
                 } else {
                     if (pf.isTemplate) f = new ffi::TemplateFunction(pf.name, "", pf.access, pf.tctx);
-                    else f = new ffi::Function(pf.name, "", nullptr, pf.access, nullptr, nullptr);
+                    else f = new ffi::Function(pf.name, "", nullptr, pf.access, nullptr, nullptr, m_mod);
                 }
 
                 f->m_fullyQualifiedName = pf.fullyQualifiedName;
@@ -569,6 +629,7 @@ namespace tsn {
                     case ffi::dti_function: {
                         ffi::FunctionType* ft = (ffi::FunctionType*)tp;
                         ft->m_returnType = pt.returnTypeId == 0 ? nullptr : treg->getType(pt.returnTypeId);
+                        ft->m_thisType = pt.thisTypeId == 0 ? nullptr : treg->getType(pt.thisTypeId);
                         ft->m_returnsPointer = pt.returnsPointer;
                         
                         for (u32 a = 0;a < pt.args.size();a++) {

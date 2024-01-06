@@ -72,6 +72,7 @@ namespace tsn {
                     bool excludePrivate = false,
                     bool doError = true
                 );
+                Value callMethod(const utils::String& name, ffi::DataType* retTp, const utils::Array<Value>& args);
 
 
                 template <typename T>
@@ -92,9 +93,16 @@ namespace tsn {
                 void setType(ffi::DataType* to);
                 void setRegId(vreg_id reg);
                 void setStackAllocId(alloc_id id);
+                void setStackSrc(const Value& src);
+                void setSrcPtr(const Value& src);
 
                 bool isValid() const;
                 bool isArg() const;
+
+                // If the value referred to is actually floating point
+                // data. For example, if flags.is_pointer == 1 then
+                // this returns false
+                bool isFloatingPoint() const;
                 
                 // Only one of these can be true
                 bool isReg() const;

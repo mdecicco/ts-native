@@ -18,6 +18,11 @@ namespace tsn {
     namespace optimize {
         class IOptimizationStep;
     };
+
+    namespace ffi {
+        class DataType;
+        class TemplateType;
+    }
     
     struct script_metadata;
     class ModuleSource;
@@ -29,10 +34,12 @@ namespace tsn {
             ~Pipeline();
 
             void reset();
-            void addOptimizationStep(optimize::IOptimizationStep* step);
+            void addOptimizationStep(optimize::IOptimizationStep* step, bool isRequired = false);
 
             Module* buildFromSource(script_metadata* script);
             Module* buildFromCached(script_metadata* script);
+            ffi::DataType* specializeTemplate(ffi::TemplateType* type, const utils::Array<ffi::DataType*> templateArgs);
+            ffi::DataType* tryInstantiateTemplateFromCache(script_metadata* script);
 
             Pipeline* getParent() const;
             compiler::Logger* getLogger() const;
@@ -44,6 +51,10 @@ namespace tsn {
             compiler::Output* getCompilerOutput() const;
         
         protected:
+            utils::String generateTemplateModuleName(ffi::TemplateType* type, const utils::Array<ffi::DataType*> templateArgs) const;
+            Module* tryCache(const script_metadata* script);
+            void postCompile(script_metadata* script, bool takeOwnershipOfSource);
+
             bool m_isCompiling;
             Pipeline* m_parent;
             Pipeline* m_root;

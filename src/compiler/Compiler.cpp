@@ -1,6 +1,7 @@
 #include <tsn/compiler/Compiler.h>
 #include <tsn/compiler/FunctionDef.hpp>
 #include <tsn/compiler/Parser.h>
+#include <tsn/compiler/Lexer.hpp>
 #include <tsn/common/Context.h>
 #include <tsn/common/Module.h>
 #include <tsn/ffi/Function.h>
@@ -25,6 +26,23 @@ using namespace tsn::ffi;
 
 namespace tsn {
     namespace compiler {
+        static const char* typeInfoProps[] = {
+            "is_pod",
+            "is_trivially_constructible",
+            "is_trivially_copyable",
+            "is_trivially_destructible",
+            "is_primitive",
+            "is_floating_point",
+            "is_integral",
+            "is_unsigned",
+            "is_function",
+            "is_template",
+            "is_alias",
+            "is_host",
+            "is_anonymous"
+        };
+        constexpr u32 typeInfoPropCount = sizeof(typeInfoProps) / sizeof(const char*);
+
         utils::String argListStr(const utils::Array<Value>& args) {
             if (args.size() == 0) return "()";
             utils::String out = "(";
@@ -114,9 +132,9 @@ namespace tsn {
         }
 
         void Compiler::enterFunction(FunctionDef* fn) {
-            m_scopeMgr.enter();
             m_funcStack.push(fn);
             m_curFunc = fn;
+            m_scopeMgr.enter();
             fn->onEnter();
         }
 
@@ -205,7 +223,9 @@ namespace tsn {
             return m_output;
         }
 
-        OutputBuilder* Compiler::compile() {
+        void Compiler::begin() {
+            if (m_output) return;
+
             Module* m = m_ctx->createModule(
                 std::filesystem::path(m_meta->path).filename().replace_extension("").string(),
                 m_meta->path,
@@ -237,14 +257,22 @@ namespace tsn {
                 }
                 n = n->next;
             }
+        }
 
-            n = m_program->body;
+        void Compiler::end() {
+            exitFunction();
+        }
+
+        OutputBuilder* Compiler::compileAll() {
+            begin();
+
+            ParseNode* n = m_program->body;
             while (n) {
                 compileAny(n);
                 n = n->next;
             }
 
-            exitFunction();
+            end();
             return m_output;
         }
         
@@ -569,13 +597,21 @@ namespace tsn {
             auto* cf = currentFunction();
             auto* exp = currentExpr();
             if (!exp || exp->loc == rsl_auto) {
-                if (tp->getInfo().is_primitive || tp->getInfo().size == 0) return currentFunction()->val(tp);
+                if (tp->getInfo().is_primitive || tp->getInfo().size == 0) return cf->val(tp);
                 else return cf->stack(tp);
             } else if (exp->loc == rsl_stack) {
                 return cf->stack(tp);
             } else if (exp->loc == rsl_module_data) {
-                u32 slot = m_output->getModule()->addData(exp->md_name, tp, exp->md_access);
+                u32 slot = m_output->getModule()->addData(exp->var_name, tp, exp->md_access);
                 return cf->val(m_output->getModule(), slot);
+            } else if (exp->loc == rsl_capture_data_if_non_primitive) {
+                Value& var = cf->val(exp->var_name, tp, exp->decl_scope);
+                if (tp->getInfo().is_primitive) return var;
+
+                u32 offset = cf->capture(var);
+                add(ir_uadd).op(var).op(cf->getOwnCaptureData()).op(cf->imm(offset));
+
+                return var;
             }
 
             return *exp->destination;
@@ -594,30 +630,156 @@ namespace tsn {
                 return result;
             }
 
+            if (result.isImm() && result.isFunction()) {
+                exp->targetNextConstructor = true;
+                newClosure(result);
+                return result;
+            }
+
             constructObject(storage, { result });
             
             return result;
         }
         
+        bool Compiler::maybeConstructVectorType(const Value& dest, ffi::DataType* tp, const utils::Array<Value>& args, const utils::Array<ffi::DataType*>& argTps) {
+            DataType* v2f = m_ctx->getTypes()->getVec2f();
+            DataType* v2d = m_ctx->getTypes()->getVec2d();
+            DataType* v3f = m_ctx->getTypes()->getVec3f();
+            DataType* v3d = m_ctx->getTypes()->getVec3d();
+            DataType* v4f = m_ctx->getTypes()->getVec4f();
+            DataType* v4d = m_ctx->getTypes()->getVec4d();
+            DataType* ft = m_ctx->getTypes()->getFloat32();
+            DataType* dt = m_ctx->getTypes()->getFloat64();
+            FunctionDef* cf = currentFunction();
+
+            if (tp == v2f) {
+                if (args.size() == 0) {
+                    add(ir_store).op(cf->imm(0.0f)).op(dest);
+                    add(ir_store).op(cf->imm(0.0f)).op(dest).op(cf->imm<u32>(sizeof(f32)));
+                    return true;
+                } else if (args.size() == 1 && argTps[0] == v2f) {
+                    add(ir_vset).op(dest).op(args[0]);
+                    return true;
+                } else if (args.size() == 2 && argTps[0] == ft && argTps[1] == ft) {
+                    if (args[0].getFlags().is_pointer) add(ir_store).op(*args[0]).op(dest);
+                    else add(ir_store).op(args[0]).op(dest);
+                    if (args[1].getFlags().is_pointer) add(ir_store).op(*args[1]).op(dest).op(cf->imm<u32>(sizeof(f32)));
+                    else add(ir_store).op(args[1]).op(dest).op(cf->imm<u32>(sizeof(f32)));
+                    return true;
+                }
+            } else if (tp == v2d) {
+                if (args.size() == 0) {
+                    add(ir_store).op(cf->imm(0.0)).op(dest);
+                    add(ir_store).op(cf->imm(0.0)).op(dest).op(cf->imm<u32>(sizeof(f64)));
+                    return true;
+                } else if (args.size() == 1 && argTps[0] == v2d) {
+                    add(ir_vset).op(dest).op(args[0]);
+                    return true;
+                } else if (args.size() == 2 && argTps[0] == dt && argTps[1] == dt) {
+                    if (args[0].getFlags().is_pointer) add(ir_store).op(*args[0]).op(dest);
+                    else add(ir_store).op(args[0]).op(dest);
+                    if (args[1].getFlags().is_pointer) add(ir_store).op(*args[1]).op(dest).op(cf->imm<u32>(sizeof(f64)));
+                    else add(ir_store).op(args[1]).op(dest).op(cf->imm<u32>(sizeof(f64)));
+                    return true;
+                }
+            } else if (tp == v3f) {
+                if (args.size() == 0) {
+                    add(ir_store).op(cf->imm(0.0f)).op(dest);
+                    add(ir_store).op(cf->imm(0.0f)).op(dest).op(cf->imm<u32>(sizeof(f32)));
+                    add(ir_store).op(cf->imm(0.0f)).op(dest).op(cf->imm<u32>(sizeof(f32) * 2));
+                    return true;
+                } else if (args.size() == 1 && argTps[0] == v3f) {
+                    add(ir_vset).op(dest).op(args[0]);
+                    return true;
+                } else if (args.size() == 3 && argTps[0] == ft && argTps[1] == ft && argTps[2] == ft) {
+                    if (args[0].getFlags().is_pointer) add(ir_store).op(*args[0]).op(dest);
+                    else add(ir_store).op(args[0]).op(dest);
+                    if (args[1].getFlags().is_pointer) add(ir_store).op(*args[1]).op(dest).op(cf->imm<u32>(sizeof(f32)));
+                    else add(ir_store).op(args[1]).op(dest).op(cf->imm<u32>(sizeof(f32)));
+                    if (args[2].getFlags().is_pointer) add(ir_store).op(*args[2]).op(dest).op(cf->imm<u32>(sizeof(f32) * 2));
+                    else add(ir_store).op(args[2]).op(dest).op(cf->imm<u32>(sizeof(f32) * 2));
+                    return true;
+                }
+            } else if (tp == v3d) {
+                if (args.size() == 0) {
+                    add(ir_store).op(cf->imm(0.0)).op(dest);
+                    add(ir_store).op(cf->imm(0.0)).op(dest).op(cf->imm<u32>(sizeof(f64)));
+                    add(ir_store).op(cf->imm(0.0)).op(dest).op(cf->imm<u32>(sizeof(f64) * 2));
+                    return true;
+                } else if (args.size() == 1 && argTps[0] == v3d) {
+                    add(ir_vset).op(dest).op(args[0]);
+                    return true;
+                } else if (args.size() == 3 && argTps[0] == dt && argTps[1] == dt && argTps[2] == dt) {
+                    if (args[0].getFlags().is_pointer) add(ir_store).op(*args[0]).op(dest);
+                    else add(ir_store).op(args[0]).op(dest);
+                    if (args[1].getFlags().is_pointer) add(ir_store).op(*args[1]).op(dest).op(cf->imm<u32>(sizeof(f64)));
+                    else add(ir_store).op(args[1]).op(dest).op(cf->imm<u32>(sizeof(f64)));
+                    if (args[2].getFlags().is_pointer) add(ir_store).op(*args[2]).op(dest).op(cf->imm<u32>(sizeof(f64) * 2));
+                    else add(ir_store).op(args[2]).op(dest).op(cf->imm<u32>(sizeof(f64) * 2));
+                    return true;
+                }
+            } else if (tp == v4f) {
+                if (args.size() == 0) {
+                    add(ir_store).op(cf->imm(0.0f)).op(dest);
+                    add(ir_store).op(cf->imm(0.0f)).op(dest).op(cf->imm<u32>(sizeof(f32)));
+                    add(ir_store).op(cf->imm(0.0f)).op(dest).op(cf->imm<u32>(sizeof(f32) * 2));
+                    add(ir_store).op(cf->imm(0.0f)).op(dest).op(cf->imm<u32>(sizeof(f32) * 3));
+                    return true;
+                } else if (args.size() == 1 && argTps[0] == v4f) {
+                    add(ir_vset).op(dest).op(args[0]);
+                    return true;
+                } else if (args.size() == 4 && argTps[0] == ft && argTps[1] == ft && argTps[2] == ft && argTps[3] == ft) {
+                    if (args[0].getFlags().is_pointer) add(ir_store).op(*args[0]).op(dest);
+                    else add(ir_store).op(args[0]).op(dest);
+                    if (args[1].getFlags().is_pointer) add(ir_store).op(*args[1]).op(dest).op(cf->imm<u32>(sizeof(f32)));
+                    else add(ir_store).op(args[1]).op(dest).op(cf->imm<u32>(sizeof(f32)));
+                    if (args[2].getFlags().is_pointer) add(ir_store).op(*args[2]).op(dest).op(cf->imm<u32>(sizeof(f32) * 2));
+                    else add(ir_store).op(args[2]).op(dest).op(cf->imm<u32>(sizeof(f32) * 2));
+                    if (args[2].getFlags().is_pointer) add(ir_store).op(*args[3]).op(dest).op(cf->imm<u32>(sizeof(f32) * 3));
+                    else add(ir_store).op(args[3]).op(dest).op(cf->imm<u32>(sizeof(f32) * 3));
+                    return true;
+                }
+            } else if (tp == v4d) {
+                if (args.size() == 0) {
+                    add(ir_store).op(cf->imm(0.0)).op(dest);
+                    add(ir_store).op(cf->imm(0.0)).op(dest).op(cf->imm<u32>(sizeof(f64)));
+                    add(ir_store).op(cf->imm(0.0)).op(dest).op(cf->imm<u32>(sizeof(f64) * 2));
+                    add(ir_store).op(cf->imm(0.0)).op(dest).op(cf->imm<u32>(sizeof(f64) * 3));
+                    return true;
+                } else if (args.size() == 1 && argTps[0] == v4d) {
+                    add(ir_vset).op(dest).op(args[0]);
+                    return true;
+                } else if (args.size() == 4 && argTps[0] == dt && argTps[1] == dt && argTps[2] == dt && argTps[3] == dt) {
+                    if (args[0].getFlags().is_pointer) add(ir_store).op(*args[0]).op(dest);
+                    else add(ir_store).op(args[0]).op(dest);
+                    if (args[1].getFlags().is_pointer) add(ir_store).op(*args[1]).op(dest).op(cf->imm<u32>(sizeof(f64)));
+                    else add(ir_store).op(args[1]).op(dest).op(cf->imm<u32>(sizeof(f64)));
+                    if (args[2].getFlags().is_pointer) add(ir_store).op(*args[2]).op(dest).op(cf->imm<u32>(sizeof(f64) * 2));
+                    else add(ir_store).op(args[2]).op(dest).op(cf->imm<u32>(sizeof(f64) * 2));
+                    if (args[2].getFlags().is_pointer) add(ir_store).op(*args[3]).op(dest).op(cf->imm<u32>(sizeof(f64) * 3));
+                    else add(ir_store).op(args[3]).op(dest).op(cf->imm<u32>(sizeof(f64) * 3));
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         void Compiler::constructObject(const Value& dest, ffi::DataType* tp, const utils::Array<Value>& args) {
+            FunctionDef* cf = currentFunction();
             Array<DataType*> argTps = args.map([](const Value& v) { return v.getType(); });
 
+            if (maybeConstructVectorType(dest, tp, args, argTps)) return;
+
             if (tp->getInfo().is_primitive) {
-                if (args.size() > 1) {
-                    functionError(
-                        tp,
-                        nullptr,
-                        args,
-                        cm_err_no_matching_constructor,
-                        "Type '%s' has no constructor with arguments matching '%s'",
-                        tp->getName().c_str(),
-                        argListStr(args).c_str()
-                    );
-                } else if (args.size() == 1) {
+                if (args.size() == 1) {
                     Value v = args[0].convertedTo(tp);
-                    currentFunction()->add(ir_store).op(v).op(dest);
+                    cf->add(ir_store).op(v).op(dest);
+                    return;
+                } else if (args.size() == 0) {
+                    cf->add(ir_store).op(cf->imm<u64>(0).convertedTo(tp)).op(dest);
+                    return;
                 }
-                return;
             }
 
             ffi::DataType* curClass = currentClass();
@@ -779,40 +941,116 @@ namespace tsn {
             return currentFunction()->val(m, slot);
         }
 
-        Value Compiler::newClosure(function_id target, Value* captures, Value* captureTypeIds, Value* captureCount) {
+        Value Compiler::newCaptureData(function_id target, Value* captureData) {
             FunctionDef* cf = currentFunction();
 
-            ffi::DataType* ct = m_ctx->getTypes()->getClosure();
-            ffi::Function* newMem = m_ctx->getModule("<host>/memory.tsn")->allFunctions().find([](const ffi::Function* fn) {
-                return fn && fn->getName() == "newMem";
+            ffi::Function* newCaptureData = m_ctx->getModule("<host>/memory.tsn")->allFunctions().find([](const ffi::Function* fn) {
+                return fn && fn->getName() == "$newCaptureData";
             });
 
             m_trustEnable = true;
-            Value mem = generateCall(newMem, { cf->imm<u64>(ct->getInfo().size) });
+            Value closure = generateCall(newCaptureData, {
+                cf->imm(target),
+                captureData ? *captureData : cf->getNull()
+            });
             m_trustEnable = false;
-            constructObject(
-                mem,
-                ct,
-                {
-                    cf->getECtx(),
-                    cf->imm(target),
-                    captures ? *captures : cf->getNull(),
-                    captureTypeIds ? *captureTypeIds : cf->getNull(),
-                    captureCount ? *captureCount : cf->imm<u32>(0)
-                }
-            );
-            mem.setType(ct);
-            return mem;
+
+            // result is a Pointer<CaptureData*>
+            // Pointer will be destructed automatically, just return the raw CaptureData*
+            add(ir_load).op(closure).op(closure);
+            closure.setType(m_ctx->getTypes()->getCaptureData());
+            closure.getFlags().is_pointer = 1;
+
+            return closure;
         }
 
-        Value Compiler::newClosureRef(const Value& closure, ffi::DataType* signature) {
-            Value cr = constructObject(m_ctx->getTypes()->getClosureRef(), { closure });
+        void Compiler::findCaptures(ParseNode* node, utils::Array<Value>& outCaptures, utils::Array<u32>& outCaptureOffsets, u32 scopeIdx) {
+            ParseNode* n = node;
+
+            while (n) {
+                u32 nestedScopeIdx = scopeIdx;
+                bool ignoreBody = false;
+
+                if (n->tp == nt_function) {
+                    nestedScopeIdx = scopeIdx + 1;
+                } else if (n->tp == nt_identifier) {
+                    symbol* s = scope().get(n->str());
+                    if (s && s->value && !s->value->isImm()) {
+                        outCaptures.push(*s->value);
+                        u32 offset = currentFunction()->capture(*s->value);
+                        outCaptureOffsets.push(offset);
+                    }
+                    
+                    n = n->next;
+                    continue;
+                } else if (n->tp == nt_type_specifier) {
+                    ignoreBody = n->body && n->body->tp == nt_identifier;
+                } else if (n->tp == nt_scoped_block) nestedScopeIdx = scopeIdx + 1;
+                else if (n->tp == nt_loop) nestedScopeIdx = scopeIdx + 1;
+                else if (n->tp == nt_if) nestedScopeIdx = scopeIdx + 1;
+
+                if (n->data_type) findCaptures(n->data_type, outCaptures, outCaptureOffsets, nestedScopeIdx);
+                if (n->lvalue) findCaptures(n->lvalue, outCaptures, outCaptureOffsets, nestedScopeIdx);
+                if (n->rvalue) findCaptures(n->rvalue, outCaptures, outCaptureOffsets, nestedScopeIdx);
+                if (n->cond) findCaptures(n->cond, outCaptures, outCaptureOffsets, nestedScopeIdx);
+                if (n->body && !ignoreBody) findCaptures(n->body, outCaptures, outCaptureOffsets, nestedScopeIdx);
+                if (n->else_body) findCaptures(n->else_body, outCaptures, outCaptureOffsets, nestedScopeIdx);
+                if (n->initializer) findCaptures(n->initializer, outCaptures, outCaptureOffsets, nestedScopeIdx);
+                if (n->parameters && n->tp != nt_function) findCaptures(n->parameters, outCaptures, outCaptureOffsets, nestedScopeIdx);
+                if (n->modifier) findCaptures(n->modifier, outCaptures, outCaptureOffsets, nestedScopeIdx);
+
+                n = n->next;
+            }
+        }
+        
+        bool Compiler::isVarCaptured(ParseNode* n, const utils::String& name, u32 closureDepth) {
+            while (n) {
+                bool ignoreBody = false;
+
+                if (closureDepth > 0) {
+                    if (n->tp == nt_identifier) {
+                        if (n->str() == name) return true;
+                        n = n->next;
+                        continue;
+                    }
+                } else {
+                    if (n->tp == nt_function) {
+                        ParseNode* p = n->parameters;
+                        while (p) {
+                            if (p->str() == name) return false;
+                            p = p->next;
+                        }
+
+                        return isVarCaptured(n->body, name, closureDepth + 1);
+                    } else if (n->tp == nt_type_specifier) {
+                        ignoreBody = n->body && n->body->tp == nt_identifier;
+                    }
+                }
+
+                if (n->data_type && isVarCaptured(n->data_type, name, closureDepth)) return true;
+                if (n->lvalue && isVarCaptured(n->lvalue, name, closureDepth)) return true;
+                if (n->rvalue && isVarCaptured(n->rvalue, name, closureDepth)) return true;
+                if (n->cond && isVarCaptured(n->cond, name, closureDepth)) return true;
+                if (n->body && !ignoreBody && isVarCaptured(n->body, name, closureDepth)) return true;
+                if (n->else_body && isVarCaptured(n->else_body, name, closureDepth)) return true;
+                if (n->initializer && isVarCaptured(n->initializer, name, closureDepth)) return true;
+                if (n->parameters && n->tp != nt_function && isVarCaptured(n->parameters, name, closureDepth)) return true;
+                if (n->modifier && isVarCaptured(n->modifier, name, closureDepth)) return true;
+
+                n = n->next;
+            }
+
+            return false;
+        }
+
+        Value Compiler::newClosure(const Value& closure, ffi::DataType* signature) {
+            Value cr = constructObject(m_ctx->getTypes()->getClosure(), { closure });
             cr.setType(signature);
             cr.getFlags().is_function = 1;
             return cr;
         }
 
-        Value Compiler::newClosureRef(const Value& fnImm) {
+        Value Compiler::newClosure(const Value& fnImm) {
             FunctionDef* cf = currentFunction();
 
             if (!fnImm.isImm() || !fnImm.isFunction()) {
@@ -835,22 +1073,35 @@ namespace tsn {
             }
 
             enterExpr();
-            // Closure is ref counted and freed when the last closureRef is destroyed
-            Value closure = newClosure(fn->getId());
+            // CaptureData is ref counted and freed when the last closureRef is destroyed
+
+            bool targetNextCtor = false;
+            bool targetNextCall = false;
+            expression_context* expr = currentExpr();
+            if (expr) {
+                targetNextCtor = expr->targetNextConstructor;
+                targetNextCall = expr->targetNextCall;
+                expr->targetNextConstructor = false;
+                expr->targetNextCall = false;
+            }
+
+            Value closure = newCaptureData(fn->getId());
             Value* self = fnImm.getSrcSelf();
             if (self) {
                 // set self ptr on closure
-                Value selfPtr = cf->val(m_ctx->getTypes()->getVoidPtr());
-                add(ir_uadd).op(selfPtr).op(closure).op(cf->imm<u64>(offsetof(Closure, m_self)));
-                add(ir_store).op(*self).op(selfPtr);
+                add(ir_store).op(*self).op(closure).op(cf->imm<u64>(offsetof(CaptureData, m_self)));
             }
             
             exitExpr();
 
-            return newClosureRef(closure, sig);
+            if (expr) {
+                expr->targetNextConstructor = targetNextCtor;
+                expr->targetNextCall = targetNextCall;
+            }
+            return newClosure(closure, sig);
         }
 
-        Value Compiler::newClosureRef(ffi::Function* fn) {
+        Value Compiler::newClosure(ffi::Function* fn) {
             ffi::DataType* sig = fn ? fn->getSignature() : nullptr;
 
             if (!fn || !sig) {
@@ -864,14 +1115,14 @@ namespace tsn {
             }
 
             enterExpr();
-            // Closure is ref counted and freed when the last closureRef is destroyed
-            Value closure = newClosure(fn->getId());
+            // CaptureData is ref counted and freed when the last closureRef is destroyed
+            Value closure = newCaptureData(fn->getId());
             exitExpr();
 
-            return newClosureRef(closure, sig);
+            return newClosure(closure, sig);
         }
 
-        Value Compiler::newClosureRef(FunctionDef* fd) {
+        Value Compiler::newClosure(FunctionDef* fd) {
             ffi::Function* fn = fd->getOutput();
             ffi::DataType* sig = fn ? fn->getSignature() : nullptr;
 
@@ -886,30 +1137,40 @@ namespace tsn {
             }
 
             enterExpr();
-            // Closure is ref counted and freed when the last closureRef is destroyed
-            Value closure = newClosure(fn->getId());
+            // CaptureData is ref counted and freed when the last closureRef is destroyed
+            Value closure = newCaptureData(fn->getId());
             exitExpr();
 
-            return newClosureRef(closure, sig);
+            return newClosure(closure, sig);
         }
 
         Value Compiler::generateCall(const Value& fn, const utils::String& name, bool returnsPointer, ffi::DataType* retTp, const utils::Array<function_argument>& fargs, const utils::Array<Value>& params, const Value* self) {
             FunctionDef* cf = currentFunction();
+            DataType* voidp = m_ctx->getTypes()->getVoidPtr();
 
             ffi::DataType* origRetTp = retTp;
             if (returnsPointer) {
                 retTp = getPointerType(retTp);
             }
 
-            if (fn.isImm()) {
-                FunctionDef* vfd = fn.getImm<FunctionDef*>();
+            Value callee = fn;
+            Value capturePtr = cf->imm<u64>(0);
+
+            add(ir_noop).comment(utils::String::Format("-------- call %s --------", fn.toString(m_ctx).c_str()));
+
+            if (callee.isImm()) {
+                FunctionDef* vfd = callee.getImm<FunctionDef*>();
                 if (vfd->getOutput()) {
                     Function* f = vfd->getOutput();
                     if (f && f->getAccessModifier() == trusted_access && !isTrusted()) {
                         error(cm_err_not_trusted, "Function '%s' is only accessible to trusted scripts", f->getFullyQualifiedName().c_str());
+                        add(ir_noop).comment(utils::String::Format("-------- end call %s --------", fn.toString(m_ctx).c_str()));
                         return currentFunction()->getPoison();
                     }
                 }
+            } else {
+                capturePtr.reset(cf->val(voidp));
+                add(ir_load).op(capturePtr).op(fn).comment("Load pointer to capture data");
             }
 
             u8 argc = 0;
@@ -945,6 +1206,7 @@ namespace tsn {
                     );
                 }
 
+                add(ir_noop).comment(utils::String::Format("-------- end call %s --------", fn.toString(m_ctx).c_str()));
                 return cf->getPoison();
             }
 
@@ -982,6 +1244,7 @@ namespace tsn {
                         aidx + 1
                     );
 
+                    add(ir_noop).comment(utils::String::Format("-------- end call %s --------", fn.toString(m_ctx).c_str()));
                     return cf->getPoison();
                 }
                 aidx++;
@@ -997,24 +1260,21 @@ namespace tsn {
                 }
             }
 
+            Value primitiveSelfPtr;
             Value resultStack;
             Value resultPtr;
             
             if (resultHandledInternally && retTp->getInfo().size != 0) {
                 // unscoped because it will either be freed or added to the scope later
-                resultStack.reset(cf->stack(retTp, true));
+                resultStack.reset(cf->stack(retTp, true, "Allocate stack space for return value"));
                 resultPtr.reset(cf->val(retTp));
-                add(ir_stack_ptr).op(resultPtr).op(cf->imm(resultStack.getStackAllocId()));
+                add(ir_stack_ptr).op(resultPtr).op(cf->imm(resultStack.getStackAllocId())).comment("Get return pointer for function call");
 
                 if (returnsPointer) {
                     // retTp is a Pointer<T>. Construct it manually, setting '_external' property to true
-                    Value tmp = Value(resultPtr);
-                    tmp.setType(m_ctx->getTypes()->getVoidPtr());
-                    add(ir_store).op(cf->getNull()).op(tmp);
-                    add(ir_uadd).op(tmp).op(tmp).op(cf->imm<u64>(sizeof(void*)));
-                    add(ir_store).op(cf->getNull()).op(tmp);
-                    add(ir_uadd).op(tmp).op(tmp).op(cf->imm<u64>(sizeof(void*)));
-                    add(ir_store).op(cf->imm<bool>(true)).op(tmp);
+                    add(ir_store).op(cf->getNull()      ).op(resultPtr).op(cf->imm<u64>(sizeof(void*) * 0));
+                    add(ir_store).op(cf->getNull()      ).op(resultPtr).op(cf->imm<u64>(sizeof(void*) * 1));
+                    add(ir_store).op(cf->imm<bool>(true)).op(resultPtr).op(cf->imm<u64>(sizeof(void*) * 2));
 
                     // first property of Pointer<T> is _data, meaning resultPtr is _already_ a pointer to that pointer.
                     // Function will store a pointer in resultType, ie: Pointer<T>._data = ret
@@ -1024,13 +1284,9 @@ namespace tsn {
 
                 if (returnsPointer) {
                     // retTp is a Pointer<T>. Construct it manually, setting '_external' property to true
-                    Value tmp = cf->val(m_ctx->getTypes()->getVoidPtr());
-                    add(ir_assign).op(tmp).op(resultPtr);
-                    add(ir_store).op(cf->getNull()).op(tmp);
-                    add(ir_uadd).op(tmp).op(tmp).op(cf->imm<u64>(sizeof(void*)));
-                    add(ir_store).op(cf->getNull()).op(tmp);
-                    add(ir_uadd).op(tmp).op(tmp).op(cf->imm<u64>(sizeof(void*)));
-                    add(ir_store).op(cf->imm<bool>(true)).op(tmp);
+                    add(ir_store).op(cf->getNull()      ).op(resultPtr).op(cf->imm<u64>(sizeof(void*) * 0));
+                    add(ir_store).op(cf->getNull()      ).op(resultPtr).op(cf->imm<u64>(sizeof(void*) * 1));
+                    add(ir_store).op(cf->imm<bool>(true)).op(resultPtr).op(cf->imm<u64>(sizeof(void*) * 2));
 
                     // first property of Pointer<T> is _data, meaning resultPtr is _already_ a pointer to that pointer.
                     // Function will store a pointer in resultType, ie: Pointer<T>._data = ret
@@ -1046,32 +1302,63 @@ namespace tsn {
             for (u8 a = 0;a < fargs.size();a++) {
                 const auto& arg = fargs[a];
                 if (arg.isImplicit()) {
-                    if (arg.argType == arg_type::context_ptr) finalParams.push(cf->getECtx());
-                    else if (arg.argType == arg_type::func_ptr) finalParams.push(cf->imm<u64>(0));
-                    else if (arg.argType == arg_type::ret_ptr) finalParams.push(resultPtr);
-                    else if (arg.argType == arg_type::this_ptr) {
-                        if (!self) {
-                            // TODO
-                            // error
-                            finalParams.push(cf->imm<u64>(0));
-                        } else finalParams.push(*self);
+                    if (arg.argType == arg_type::context_ptr) {
+                        alloc_id stackId = cf->reserveStackId();
+                        add(ir_stack_allocate)
+                            .op(cf->imm(sizeof(call_context)))
+                            .op(cf->imm(stackId))
+                            .comment("Allocate stack space for call context")
+                        ;
+
+                        Value cctx_s = cf->val(voidp);
+                        cctx_s.setStackAllocId(stackId);
+                        tempStackArgs.push(cctx_s);
+                        
+                        Value cctx = cf->val(voidp);
+                        add(ir_stack_ptr).op(cctx).op(cf->imm(stackId));
+
+                        Value retPtr = resultPtr;
+                        Value selfPtr = self ? *self : cf->imm<u64>(0);
+
+                        if (self && !self->getFlags().is_pointer && self->getType()->getInfo().is_primitive) {
+                            // calling pseudo-method of primitive type, must pass pointer to primitive as
+                            // 'this' pointer
+                            Value selfStack = cf->stack(self->getType(), true);
+                            tempStackArgs.push(selfStack);
+                            primitiveSelfPtr.reset(cf->val(voidp));
+                            add(ir_stack_ptr).op(primitiveSelfPtr).op(cf->imm(selfStack.getStackAllocId()));
+                            add(ir_store).op(*self).op(primitiveSelfPtr);
+                            selfPtr.reset(primitiveSelfPtr);
+                        }
+
+                        retPtr.setType(voidp);
+                        selfPtr.setType(voidp);
+
+                        add(ir_store).op(cf->getECtx()  ).op(cctx).op(cf->imm<u32>(offsetof(call_context, ectx)));
+                        add(ir_store).op(cf->imm<u64>(0)).op(cctx).op(cf->imm<u32>(offsetof(call_context, funcPtr)));
+                        add(ir_store).op(retPtr         ).op(cctx).op(cf->imm<u32>(offsetof(call_context, retPtr)));
+                        add(ir_store).op(selfPtr        ).op(cctx).op(cf->imm<u32>(offsetof(call_context, thisPtr)));
+                        add(ir_store).op(capturePtr     ).op(cctx).op(cf->imm<u32>(offsetof(call_context, capturePtr)));
+
+                        finalParams.push(cctx);
                     }
                     continue;
                 }
 
                 const Value& p = params[aidx++];
-                if (arg.argType == arg_type::value && !arg.dataType->isEqualTo(m_ctx->getTypes()->getVoidPtr())) {
+                if (arg.argType == arg_type::value && !arg.dataType->isEqualTo(voidp)) {
                     if (p.getFlags().is_pointer) finalParams.push(*p);
                     else finalParams.push(p);
                 } else {
-                    if (p.getFlags().is_pointer || !p.getType()->getInfo().is_primitive) finalParams.push(p);
-                    else {
-                        Value s = cf->stack(p.getType(), true);
-                        add(ir_assign).op(s).op(p);
+                    if (p.getFlags().is_pointer || !p.getType()->getInfo().is_primitive || p.getType()->isEqualTo(voidp)) {
+                        finalParams.push(p);
+                    } else {
+                        Value s = cf->stack(p.getType(), true, utils::String::Format("Copy value of parameter %d to stack to get pointer", a));
                         tempStackArgs.push(s);
 
                         Value a = cf->val(p.getType());
                         add(ir_stack_ptr).op(a).op(cf->imm<alloc_id>(s.getStackAllocId()));
+                        add(ir_store).op(p).op(a);
                         finalParams.push(a);
                     }
                 }
@@ -1082,10 +1369,20 @@ namespace tsn {
                 add(ir_param).op(finalParams[a]).op(cf->imm<u8>(u8(arg.argType)));
             }
 
-            auto call = add(ir_call).op(fn);
+            auto call = add(ir_call).op(callee);
 
-            for (u32 i = 0;i < tempStackArgs.size();i++) {
-                add(ir_stack_free).op(cf->imm<alloc_id>(tempStackArgs[i].getStackAllocId()));
+            if (self && !self->isImm() && !self->getFlags().is_pointer && self->getType()->getInfo().is_primitive) {
+                // calling pseudo-method of primitive type, call might've modified the value of
+                // the 'this' pointer. Load it and overwrite self if it's not an imm
+                add(ir_load).op(*self).op(primitiveSelfPtr);
+            }
+
+            if (tempStackArgs.size() > 0) {
+                add(ir_noop).comment("Free temporary stack slots");
+
+                for (u32 i = 0;i < tempStackArgs.size();i++) {
+                    add(ir_stack_free).op(cf->imm<alloc_id>(tempStackArgs[i].getStackAllocId()));
+                }
             }
 
             Value result;
@@ -1094,6 +1391,7 @@ namespace tsn {
             } else {
                 if (resultHandledInternally && !resultShouldBeHandledInternally) {
                     // Result needs to be moved to expression result storage
+                    add(ir_noop).comment("Result needs to be moved to expression result storage");
 
                     if (returnsPointer) {
                         // resultPtr = Pointer<origRetTp>
@@ -1107,7 +1405,7 @@ namespace tsn {
 
                         // value must be loaded from resultPtr
                         Value tmp = Value(resultPtr);
-                        tmp.setType(m_ctx->getTypes()->getVoidPtr());
+                        tmp.setType(voidp);
                         result.reset(cf->val(retTp));
                         add(ir_load).op(result).op(tmp);
 
@@ -1129,6 +1427,7 @@ namespace tsn {
                     if (returnsPointer) {
                         // resultPtr = Pointer<origRetTp>
                         result.reset(resultPtr);
+                        result.setStackSrc(resultStack);
 
                         // resultStack will be destroyed at the end of the scope
                         scope().get().addToStack(resultStack);
@@ -1138,8 +1437,8 @@ namespace tsn {
 
                         // value must be loaded from resultPtr
                         Value tmp = Value(resultPtr);
-                        tmp.setType(m_ctx->getTypes()->getVoidPtr());
-                        add(ir_load).op(result).op(tmp);
+                        tmp.setType(voidp);
+                        add(ir_load).op(result).op(tmp).comment("Load result from stack");
 
                         // resultStack should be freed, the value now exists elsewhere
                         add(ir_stack_free).op(cf->imm(resultStack.getStackAllocId()));
@@ -1147,6 +1446,7 @@ namespace tsn {
                         // resultPtr = retTp* (non-primitive)
 
                         result.reset(resultPtr);
+                        result.setStackSrc(resultStack);
 
                         // resultStack will be destroyed at the end of the scope
                         scope().get().addToStack(resultStack);
@@ -1163,8 +1463,8 @@ namespace tsn {
 
                         // value must be loaded from resultPtr
                         Value tmp = Value(resultPtr);
-                        tmp.setType(m_ctx->getTypes()->getVoidPtr());
-                        add(ir_load).op(result).op(tmp);
+                        tmp.setType(voidp);
+                        add(ir_load).op(result).op(tmp).comment("Load result from return pointer");;
                     } else {
                         // resultPtr = retTp* (non-primitive)
 
@@ -1178,6 +1478,7 @@ namespace tsn {
                 exp->targetNextConstructor = false;
             }
 
+            add(ir_noop).comment(utils::String::Format("-------- end call %s --------", fn.toString(m_ctx).c_str()));
             return result;
         }
         
@@ -1234,46 +1535,29 @@ namespace tsn {
 
             if (s) {
                 DataType* tp = getTypeFromSymbol(s);
-                if (tp) return tp;
-                else {
-                    error(
-                        cm_err_internal,
-                        "'Array<%s>' does not name a data type",
-                        elemTp->getName().c_str()
-                    );
-
-                    return currentFunction()->getPoison().getType();
+                if (tp) {
+                    m_output->addDependency(tp->getSource());
+                    return tp;
                 }
-            } else {
-                String fullName = "Array<" + elemTp->getFullyQualifiedName() + ">";
-                TemplateType* at = m_ctx->getTypes()->getArray();
-                TemplateContext* tctx = at->getTemplateData();
-                ParseNode* arrayAst = tctx->getAST();
-                Scope& tscope = scope().enter();
-                DataType* outTp = nullptr;
 
-                // Add the array element type to the symbol table as the template argument name
-                tscope.add(arrayAst->template_parameters->str(), elemTp);
+                error(
+                    cm_err_internal,
+                    "'Array<%s>' does not name a data type",
+                    elemTp->getName().c_str()
+                );
 
-                pushTemplateContext(tctx);
-
-                if (arrayAst->tp == nt_type) {
-                    outTp = resolveTypeSpecifier(arrayAst->data_type);
-                } else if (arrayAst->tp == nt_class) {
-                    outTp = compileClass(arrayAst, true);
-                }
-                outTp->m_templateBase = at;
-                outTp->m_templateArgs.push(elemTp);
-
-                popTemplateContext();
-                
-                getOutput()->getModule()->addForeignType(outTp);
-
-                scope().exit();
-                return outTp;
+                return currentFunction()->getPoison().getType();
             }
 
-            return nullptr;
+            TemplateType* arrTp = m_ctx->getTypes()->getArray();
+            if (!arrTp) return currentFunction()->getPoison().getType();
+
+            DataType* outTp = m_ctx->getPipeline()->specializeTemplate(arrTp, { elemTp });
+            if (!outTp) return currentFunction()->getPoison().getType();
+            
+            scope().getBase().add(name, outTp);
+            m_output->addDependency(arrTp->getSource());
+            return outTp;
         }
         DataType* Compiler::getPointerType(DataType* destTp) {
             String name = "Pointer<" + destTp->getName() + ">";
@@ -1281,7 +1565,10 @@ namespace tsn {
             
             if (s) {
                 DataType* tp = getTypeFromSymbol(s);
-                if (tp) return tp;
+                if (tp) {
+                    m_output->addDependency(tp->getSource());
+                    return tp;
+                }
                 
                 error(
                     cm_err_internal,
@@ -1290,37 +1577,17 @@ namespace tsn {
                 );
 
                 return currentFunction()->getPoison().getType();
-            } else {
-                String fullName = "Pointer<" + destTp->getFullyQualifiedName() + ">";
-                TemplateType* pt = m_ctx->getTypes()->getPointer();
-                TemplateContext* tctx = pt->getTemplateData();
-                ParseNode* pointerAst = tctx->getAST();
-                Scope& tscope = scope().enter();
-
-                // Add the pointer destination type to the symbol table as the template argument name
-                tscope.add(pointerAst->template_parameters->str(), destTp);
-
-                pushTemplateContext(tctx);
-
-                DataType* outTp = nullptr;
-                if (pointerAst->tp == nt_type) {
-                    outTp = resolveTypeSpecifier(pointerAst->data_type);
-                } else if (pointerAst->tp == nt_class) {
-                    outTp = compileClass(pointerAst, true);
-                }
-                outTp->m_templateBase = pt;
-                outTp->m_templateArgs.push(destTp);
-
-                popTemplateContext();
-
-                getOutput()->getModule()->addForeignType(outTp);
-
-                scope().exit();
-
-                return outTp;
             }
 
-            return nullptr;
+            TemplateType* ptrTp = m_ctx->getTypes()->getPointer();
+            if (!ptrTp) return currentFunction()->getPoison().getType();
+
+            DataType* outTp = m_ctx->getPipeline()->specializeTemplate(ptrTp, { destTp });
+            if (!outTp) return currentFunction()->getPoison().getType();
+            
+            scope().getBase().add(name, outTp);
+            m_output->addDependency(ptrTp->getSource());
+            return outTp;
         }
         DataType* Compiler::resolveTemplateTypeSubstitution(ParseNode* templateArgs, DataType* _type) {
             if (!_type->getInfo().is_template) {
@@ -1339,10 +1606,8 @@ namespace tsn {
             TemplateContext* tctx = type->getTemplateData();
             ParseNode* tpAst = tctx->getAST();
             enterNode(tpAst);
-            Scope& s = scope().enter();
 
-            // Add template parameters to symbol table, representing the provided arguments
-            // ...Also construct type name
+            // Construct type name
             String name = _type->getName();
             String fullName = _type->getFullyQualifiedName();
             utils::Array<DataType*> targs;
@@ -1355,7 +1620,6 @@ namespace tsn {
                 enterNode(n);
                 DataType* pt = resolveTypeSpecifier(templateArgs);
                 targs.push(pt);
-                s.add(n->str(), pt);
                 name += pt->getName();
                 fullName += pt->getFullyQualifiedName();
                 if (n != tpAst->template_parameters) {
@@ -1386,7 +1650,7 @@ namespace tsn {
                         pc == 1 ? "was" : "were"
                     );
 
-                    scope().exit();
+                    exitNode();
                     exitNode();
                     return currentFunction()->getPoison().getType();
                 }
@@ -1414,7 +1678,7 @@ namespace tsn {
                     pc,
                     pc == 1 ? "was" : "were"
                 );
-                scope().exit();
+
                 exitNode();
                 return currentFunction()->getPoison().getType();
             }
@@ -1430,36 +1694,26 @@ namespace tsn {
                         "Symbol '%s' already exists and it is not a data type",
                         name.c_str()
                     );
-                    scope().exit();
                     exitNode();
                     return currentFunction()->getPoison().getType();
                 }
 
-                scope().exit();
                 exitNode();
                 return etp;
             }
 
-            pushTemplateContext(tctx);
+            DataType* tp = m_ctx->getPipeline()->specializeTemplate(type, targs);
+            if (!tp) {
+                exitNode();
+                return currentFunction()->getPoison().getType();
+            }
 
-            DataType* tp = nullptr;
             if (tpAst->tp == nt_type) {
-                tp = resolveTypeSpecifier(tpAst->data_type);
-                tp->m_templateBase = type;
-                tp->m_templateArgs = targs;
-
                 tp = new AliasType(name, fullName, tp);
                 tp->setAccessModifier(private_access);
                 m_output->add(tp);
-            } else if (tpAst->tp == nt_class) {
-                tp = compileClass(tpAst, true);
-                tp->m_templateBase = type;
-                tp->m_templateArgs = targs;
             }
-            
-            popTemplateContext();
 
-            scope().exit();
             exitNode();
             return tp;
         }
@@ -1547,8 +1801,6 @@ namespace tsn {
             DataType* retTp = resolveTypeSpecifier(n->data_type);
             DataType* ptrTp = m_ctx->getTypes()->getVoidPtr();
             Array<function_argument> args;
-            args.push({ arg_type::func_ptr, ptrTp });
-            args.push({ arg_type::ret_ptr, retTp });
             args.push({ arg_type::context_ptr, ptrTp });
 
             ParseNode* a = n->parameters;
@@ -1561,7 +1813,7 @@ namespace tsn {
                 a = a->next;
             }
 
-            DataType* tp = new FunctionType(retTp, args, false);
+            DataType* tp = new FunctionType(nullptr, retTp, args, false);
             
             // function types are always public
             tp->setAccessModifier(public_access);
@@ -1626,6 +1878,7 @@ namespace tsn {
 
             return applyTypeModifiers(tp, n->modifier);
         }
+        
         void Compiler::importTemplateContext(TemplateContext* tctx) {
             const auto& moduleData = tctx->getModuleDataImports();
             const auto& modules = tctx->getModuleImports();
@@ -1633,21 +1886,20 @@ namespace tsn {
             const auto& types = tctx->getTypeImports();
 
             for (u32 i = 0;i < moduleData.size();i++) {
-                scope().add(
-                    moduleData[i].alias,
-                    m_ctx->getModule(moduleData[i].module_id),
-                    moduleData[i].slot_id
-                );
+                Module* m = m_ctx->getModule(moduleData[i].module_id);
+                m_output->addDependency(m);
+                scope().add(moduleData[i].alias, m, moduleData[i].slot_id);
             }
 
             for (u32 i = 0;i < modules.size();i++) {
-                scope().add(
-                    modules[i].alias,
-                    m_ctx->getModule(modules[i].id)
-                );
+                Module* m = m_ctx->getModule(modules[i].id);
+                m_output->addDependency(m);
+                scope().add(modules[i].alias, m);
             }
 
             for (u32 i = 0;i < funcs.size();i++) {
+                Module* m = funcs[i].fn->getSourceModule();
+                if (m) m_output->addDependency(m);
                 scope().add(
                     funcs[i].alias,
                     getOutput()->getFunctionDef(funcs[i].fn)
@@ -1655,6 +1907,8 @@ namespace tsn {
             }
 
             for (u32 i = 0;i < types.size();i++) {
+                Module* m = types[i].tp->getSource();
+                if (m) m_output->addDependency(m);
                 scope().add(
                     types[i].alias,
                     types[i].tp
@@ -1717,12 +1971,9 @@ namespace tsn {
             DataType* voidTp = m_ctx->getTypes()->getVoid();
             DataType* ptrTp = m_ctx->getTypes()->getVoidPtr();
             utils::Array<function_argument> args;
-            args.push({ arg_type::func_ptr, ptrTp });
-            args.push({ arg_type::ret_ptr, voidTp });
             args.push({ arg_type::context_ptr, ptrTp });
-            args.push({ arg_type::this_ptr, forTp });
             
-            FunctionType* sig = new FunctionType(voidTp, args, false);
+            FunctionType* sig = new FunctionType(forTp, voidTp, args, false);
             // function types are always public
             sig->setAccessModifier(public_access);
 
@@ -1764,7 +2015,8 @@ namespace tsn {
                 public_access,
                 nullptr,
                 nullptr,
-                thisOffset
+                thisOffset,
+                m_output->getModule()
             );
 
             m_output->newFunc(m, nullptr, true);
@@ -1847,6 +2099,9 @@ namespace tsn {
             DataType* voidTp = m_ctx->getTypes()->getVoid();
             DataType* ptrTp = m_ctx->getTypes()->getVoidPtr();
 
+            if (n->flags.is_getter) name = "$get_" + name;
+            else if (n->flags.is_setter) name = "$set_" + name;
+
             bool isOperator = false;
             if (name == "operator") {
                 isOperator = true;
@@ -1924,7 +2179,7 @@ namespace tsn {
 
             bool isCtor = false;
             if (name == "destructor") {
-                *wasDtor = true;
+                if (wasDtor) *wasDtor = true;
                 if (dtorExists) {
                     error(
                         cm_err_dtor_already_exists,
@@ -1939,15 +2194,15 @@ namespace tsn {
             DataType* ret = voidTp;
             if (n->data_type) {
                 ret = resolveTypeSpecifier(n->data_type);
+
+                if (!ret) {
+                    // function must return a value and an error was already emitted
+                    ret = voidTp;
+                }
             }
 
             utils::Array<function_argument> args;
-            args.push({ arg_type::func_ptr, ptrTp });
-            args.push({ arg_type::ret_ptr, ret });
             args.push({ arg_type::context_ptr, ptrTp });
-
-            // This type will be assigned later
-            args.push({ arg_type::this_ptr, ptrTp });
 
             ParseNode* p = n->parameters;
             u8 a = u8(args.size());
@@ -1974,7 +2229,7 @@ namespace tsn {
                 a++;
             }
 
-            FunctionType* sig = new FunctionType(ret, args, false);
+            FunctionType* sig = new FunctionType(currentClass(), ret, args, false);
             
             // function types are always public
             sig->setAccessModifier(public_access);
@@ -2017,7 +2272,8 @@ namespace tsn {
                 n->flags.is_private ? private_access : public_access,
                 nullptr,
                 nullptr,
-                thisOffset
+                thisOffset,
+                m_output->getModule()
             );
 
             m_output->newFunc(m, n, n->data_type != nullptr);
@@ -2028,6 +2284,9 @@ namespace tsn {
             enterNode(n);
             utils::String name = n->str();
             String fullName = generateFullQualifierPrefix() + name;
+
+            TemplateType* templateBase = nullptr;
+            Array<DataType*> templateArgs;
             
             if (n->template_parameters) {
                 if (!templatesDefined) {
@@ -2038,6 +2297,8 @@ namespace tsn {
                     exitNode();
                     return tp;
                 }
+
+                templateBase = (TemplateType*)getTypeFromSymbol(scope().get(name));
 
                 name += '<';
                 fullName += '<';
@@ -2055,6 +2316,7 @@ namespace tsn {
                         fullName += ", ";
                     }
 
+                    templateArgs.push(pt);
                     arg = arg->next;
                 }
 
@@ -2067,24 +2329,149 @@ namespace tsn {
             enterClass(tp);
             m_output->add(tp);
             scope().enter();
+
+            if (n->template_parameters && templatesDefined) {
+                tp->m_templateBase = templateBase;
+                tp->m_templateArgs = templateArgs;
+            }
             
             ParseNode* inherits = n->inheritance;
+            robin_hood::unordered_map<utils::String, DataType*> propMap;
             while (inherits) {
                 // todo: Check added properties don't have name collisions with
                 //       existing properties
 
                 DataType* t = resolveTypeSpecifier(inherits);
                 tp->addBase(t, public_access);
+
+                const auto& props = tp->getProperties();
+                for (u32 i = 0;i < props.size();i++) {
+                    auto pp = propMap.find(props[i].name);
+                    if (pp != propMap.end()) {
+                        error(
+                            cm_err_property_already_defined,
+                            "Property '%s' defined more than once, previously inherited from '%s'",
+                            props[i].name.c_str(),
+                            pp->second->getName().c_str()
+                        );
+                        continue;
+                    }
+
+                    propMap[props[i].name] = t;
+                }
+
                 inherits = inherits->next;
             }
+
+            struct deferred_prop {
+                String name;
+                ParseNode* getter;
+                ParseNode* setter;
+            };
+
+            Array<deferred_prop> deferredProps;
+            Array<ParseNode*> methodNodes;
 
             ParseNode* prop = n->body;
             u64 thisOffset = tp->getInfo().size;
             while (prop) {
+                if (prop->tp == nt_function && (prop->flags.is_getter || prop->flags.is_setter)) {
+                    utils::String pName = prop->str();
+                    auto pp = propMap.find(pName);
+                    if (pp != propMap.end()) {
+                        if (pp->second) {
+                            error(
+                                cm_err_property_already_defined,
+                                "Property '%s' defined more than once, previously inherited from '%s'",
+                                pName.c_str(),
+                                pp->second->getName().c_str()
+                            );
+                        } else {
+                            error(
+                                cm_err_property_already_defined,
+                                "Property '%s' defined more than once",
+                                pName.c_str()
+                            );
+                        }
+                        prop = prop->next;
+                        continue;
+                    }
+
+                    deferred_prop* dp = deferredProps.find([&pName](const deferred_prop& p) {
+                        return p.name == pName;
+                    });
+
+                    if (!dp) {
+                        deferredProps.emplace();
+                        deferred_prop& p = deferredProps.last();
+                        p.name = pName;
+                        if (prop->flags.is_getter) {
+                            p.getter = prop;
+                            p.setter = nullptr;
+                        } else {
+                            p.getter = nullptr;
+                            p.setter = prop;
+                        }
+                    } else {
+                        if (prop->flags.is_getter) {
+                            if (dp->getter) {
+                                error(
+                                    cm_err_property_getter_already_defined,
+                                    "Getter for property '%s' already defined",
+                                    pName.c_str()
+                                );
+                                prop = prop->next;
+                                continue;
+                            }
+
+                            dp->getter = prop;
+                            dp->setter = nullptr;
+                        } else {
+                            if (dp->setter) {
+                                error(
+                                    cm_err_property_setter_already_defined,
+                                    "Getter for property '%s' already defined",
+                                    pName.c_str()
+                                );
+                                prop = prop->next;
+                                continue;
+                            }
+
+                            dp->getter = nullptr;
+                            dp->setter = prop;
+                        }
+                    }
+
+                    prop = prop->next;
+                    continue;
+                }
+
                 if (prop->tp != nt_property) {
                     prop = prop->next;
                     continue;
                 }
+                
+                utils::String pName = prop->str();
+                auto pp = propMap.find(pName);
+                if (pp != propMap.end()) {
+                    if (pp->second) {
+                        error(
+                            cm_err_property_already_defined,
+                            "Property '%s' defined more than once, previously inherited from '%s'",
+                            pName.c_str(),
+                            pp->second->getName().c_str()
+                        );
+                    } else {
+                        error(
+                            cm_err_property_already_defined,
+                            "Property '%s' defined more than once",
+                            pName.c_str()
+                        );
+                    }
+                    continue;
+                }
+
+                propMap[pName] = nullptr;
 
                 value_flags f = { 0 };
                 f.can_read = 1;
@@ -2094,7 +2481,7 @@ namespace tsn {
 
                 DataType* t = resolveTypeSpecifier(prop->data_type);
                 tp->addProperty(
-                    prop->str(),
+                    pName,
                     t,
                     f,
                     prop->flags.is_private ? private_access : public_access,
@@ -2103,6 +2490,60 @@ namespace tsn {
                 );
 
                 prop = prop->next;
+            }
+
+            for (u32 i = 0;i < deferredProps.size();i++) {
+                auto& dp = deferredProps[i];
+
+                if (dp.getter && dp.setter && dp.getter->flags.is_static != dp.setter->flags.is_static) {
+                    error(
+                        cm_err_getter_setter_static_mismatch,
+                        "Getter and setter for property '%s' must either both be static or both be non-static",
+                        dp.name.c_str()
+                    );
+                    
+                    // Add dummy property to prevent further errors
+                    value_flags f = { 0 };
+                    f.can_read = f.can_write = 1;
+                    tp->addProperty(
+                        dp.name,
+                        currentFunction()->getPoison().getType(),
+                        f,
+                        public_access,
+                        nullptr,
+                        nullptr
+                    );
+                    continue;
+                }
+
+                Method* getter = nullptr;
+                Method* setter = nullptr;
+                value_flags f = { 0 };
+
+                if (dp.getter) {
+                    methodNodes.push(dp.getter);
+                    getter = compileMethodDecl(dp.getter, thisOffset, nullptr, false, tp->getDestructor() != nullptr);
+                    tp->addMethod(getter);
+                    f.can_read = 1;
+                }
+
+                if (dp.setter) {
+                    methodNodes.push(dp.setter);
+                    setter = compileMethodDecl(dp.setter, thisOffset, nullptr, false, tp->getDestructor() != nullptr);
+                    tp->addMethod(setter);
+                    f.can_write = 1;
+                }
+
+                bool isPrivate = (dp.getter && dp.getter->flags.is_private) || (dp.setter && dp.setter->flags.is_private);
+
+                tp->addProperty(
+                    dp.name,
+                    getter->getSignature()->getReturnType(),
+                    f,
+                    isPrivate ? private_access : public_access,
+                    getter,
+                    setter
+                );
             }
 
             if (tp->m_info.size == 0) {
@@ -2130,26 +2571,30 @@ namespace tsn {
                 if (isDtor) {
                     tp->setDestructor(m);
                     dtor = meth;
+                } else {
+                    methodNodes.push(meth);
+                    tp->addMethod(m);
                 }
-                else tp->addMethod(m);
 
                 meth = meth->next;
             }
 
             u32 midx = 0;
             const auto& methods = tp->getMethods();
-            meth = n->body;
-            while (meth) {
-                if (meth->tp != nt_function) {
-                    meth = meth->next;
-                    continue;
+
+            for (u32 i = 0;i < methodNodes.size();i++) {
+                meth = methodNodes[i];
+                Method* m = (Method*)methods[i];
+                if (!m->isTemplate()) {
+                    compileMethodDef(methodNodes[i], tp, m);
                 }
+            }
 
-                Method* m = (Method*)(meth == dtor ? tp->getDestructor() : methods[midx++]);
-
-                if (!m->isTemplate()) compileMethodDef(meth, tp, m);
-                
-                meth = meth->next;
+            if (dtor) {
+                Method* m = (Method*)tp->getDestructor();
+                if (!m->isTemplate()) {
+                    compileMethodDef(dtor, tp, m);
+                }
             }
 
             if (!hasDefaultCtor) compileDefaultConstructor(tp, thisOffset);
@@ -2277,6 +2722,8 @@ namespace tsn {
                 exitNode();
                 return;
             }
+
+            m->init();
 
             m_output->addDependency(m);
 
@@ -2482,13 +2929,59 @@ namespace tsn {
             if (n->lvalue->tp == nt_expression) {
                 if (n->lvalue->op == op_member) lv.reset(compileMemberExpr(n->lvalue, false, hints));
                 else lv.reset(compileExpression(n->lvalue));
+            } else if (n->lvalue->tp == nt_typeinfo) {
+                DataType* tp = resolveTypeSpecifier(n->lvalue->data_type);
+                if (!tp) {
+                    exitNode();
+                    exitExpr();
+                    return currentFunction()->getPoison();
+                }
+
+                utils::String prop = n->rvalue->str();
+
+
+                i32 propIdx = stringMatchesOne<typeInfoPropCount>(typeInfoProps, prop.c_str());
+                if (propIdx == -1) {
+                    error(cm_err_property_not_found, "typeinfo has no property named '%s'", prop.c_str());
+                    exitNode();
+                    exitExpr();
+                    return currentFunction()->getPoison();
+                }
+
+                const type_meta& ti = tp->getInfo();
+                bool value = false;
+                switch (propIdx) {
+                    case 0: { value = ti.is_pod; break; }
+                    case 1: { value = ti.is_trivially_constructible; break; }
+                    case 2: { value = ti.is_trivially_copyable; break; }
+                    case 3: { value = ti.is_trivially_destructible; break; }
+                    case 4: { value = ti.is_primitive; break; }
+                    case 5: { value = ti.is_floating_point; break; }
+                    case 6: { value = ti.is_integral; break; }
+                    case 7: { value = ti.is_unsigned; break; }
+                    case 8: { value = ti.is_function; break; }
+                    case 9: { value = ti.is_template; break; }
+                    case 10: { value = ti.is_alias; break; }
+                    case 11: { value = ti.is_host; break; }
+                    case 12: { value = ti.is_anonymous; break; }
+                    default: {
+                        // other values impossible, this just satisfies the compiler
+                        break;
+                    }
+                }
+
+                exitNode();
+                exitExpr();
+                return currentFunction()->imm(value);
             } else lv.reset(compileExpressionInner(n->lvalue));
             exitNode();
-            
+
+            utils::String pName = n->rvalue->str();
+
             enterNode(n->rvalue);
             ffi::DataType* curClass = currentClass();
             Value out = lv.getProp(
-                n->rvalue->str(),
+                pName,
                 false,                                                                          // exclude inherited
                 !curClass || lv.getFlags().is_module || !lv.getType()->isEqualTo(curClass),     // exclude private
                 false,                                                                          // exclude methods
@@ -2508,11 +3001,80 @@ namespace tsn {
         Value Compiler::compileArrowFunction(ParseNode* n) {
             enterExpr();
 
-            // todo
-            Value ret = currentFunction()->getPoison();
+            utils::Array<Value> captures;
+            utils::Array<u32> captureOffsets;
+            findCaptures(n->body, captures, captureOffsets, 0);
+
+            Function* closureFunc = nullptr;
+            {
+                enterNode(n);
+                utils::String name = utils::String::Format("$anon_%x_%x", uintptr_t(n), rand() % UINT16_MAX);
+
+                FunctionDef* fd = getOutput()->getFuncs().find([&name](FunctionDef* fd) { return fd->getName() == name; });
+                if (!fd) fd = getOutput()->newFunc(name, n);
+
+                enterFunction(fd);
+
+                DataType* voidp = m_ctx->getTypes()->getVoidPtr();
+                Value& capPtr = fd->getCaptures();
+                Scope& s = scope().get();
+                for (u32 i = 0;i < captures.size();i++) {
+                    DataType* tp = captures[i].getType();
+                    Value& c = fd->val(captures[i].getName(), tp);
+
+                    if (tp->getInfo().is_primitive) {
+                        Value srcPtr = fd->val(voidp);
+                        fd->add(ir_uadd).op(srcPtr).op(capPtr).op(fd->imm(captureOffsets[i]));
+                        fd->add(ir_load).op(c).op(srcPtr);
+                        c.setSrcPtr(srcPtr);
+                    } else {
+                        fd->add(ir_uadd).op(c).op(capPtr).op(fd->imm(captureOffsets[i]));
+                    }
+                }
+
+                if (n->data_type) {
+                    fd->setReturnType(resolveTypeSpecifier(n->data_type));
+                }
+
+                ParseNode* p = n->parameters;
+                DataType* poisonTp = currentFunction()->getPoison().getType();
+                while (p && p->tp != nt_empty) {
+                    DataType* tp = poisonTp;
+                    utils::String pName = p->str();
+
+                    if (!p->data_type) {
+                        error(
+                            cm_err_expected_function_argument_type,
+                            "No type specified for argument '%s' of arrow function",
+                            pName.c_str()
+                        );
+                    } else tp = resolveTypeSpecifier(p->data_type);
+
+                    symbol* s = scope().get(pName);
+                    if (s) {
+                        error(
+                            cm_err_duplicate_name,
+                            "Argument '%s' of arrow function has a name that collides with existing symbol '%s'",
+                            pName.c_str(),
+                            s->value->toString(m_ctx).c_str()
+                        );
+                    }
+
+                    fd->addArg(pName, tp);
+                    p = p->next;
+                }
+
+                compileBlock(n->body);
+                
+                closureFunc = exitFunction();
+                exitNode();
+            }
+
+            Value closure = newCaptureData(closureFunc->getId(), &currentFunction()->getOwnCaptureData());
+            Value closureRef = newClosure(closure, closureFunc->getSignature());
 
             exitExpr();
-            return ret;
+            return closureRef;
         }
         Value Compiler::compileObjectLiteral(ParseNode* n) {
             Array<Value> values;
@@ -2642,7 +3204,7 @@ namespace tsn {
             u32 idx = 0;
 
             auto* exp = currentExpr();
-            if (exp->expectedType && exp->expectedType->isInstantiationOf(m_ctx->getTypes()->getArray())) {
+            if (exp->expectedType && exp->expectedType->isSpecializationOf(m_ctx->getTypes()->getArray())) {
                 // type known ahead of time, construct the array and initialize the array element pointer
                 arrTp = exp->expectedType->getEffectiveType();
                 tp = exp->expectedType->getTemplateArguments()[0];
@@ -2703,6 +3265,122 @@ namespace tsn {
             }
 
             return out;
+        }
+        Value Compiler::maybeEvaluateBuiltinVectorMethod(const Value& self, FunctionDef* fn, const utils::Array<Value>& args, bool* wasBuiltin) {
+            if (!fn->getOutput()) {
+                *wasBuiltin = false;
+                return currentFunction()->getPoison();
+            }
+
+            DataType* v2f = m_ctx->getTypes()->getVec2f();
+            DataType* v2d = m_ctx->getTypes()->getVec2d();
+            DataType* v3f = m_ctx->getTypes()->getVec3f();
+            DataType* v3d = m_ctx->getTypes()->getVec3d();
+            DataType* v4f = m_ctx->getTypes()->getVec4f();
+            DataType* v4d = m_ctx->getTypes()->getVec4d();
+            DataType* stp = self.getType();
+
+            if (stp == v2f || stp == v3f || stp == v4f) {
+                DataType* ft = m_ctx->getTypes()->getFloat32();
+                const utils::String& name = fn->getOutput()->getName();
+
+                if (name == "dot") {
+                    if (args.size() == 1 && args[0].getType() == stp) {
+                        Value result = currentFunction()->val(ft);
+                        add(ir_vdot).op(result).op(self).op(args[0]);
+                        *wasBuiltin = true;
+                        return result;
+                    }
+                } else if (name == "cross") {
+                    if (args.size() == 1 && args[0].getType() == stp) {
+                        Value result = currentFunction()->stack(stp);
+                        add(ir_vcross).op(result).op(self).op(args[0]);
+                        *wasBuiltin = true;
+                        return result;
+                    }
+                } else if (name == "length") {
+                    if (args.size() == 0) {
+                        Value result = currentFunction()->val(ft);
+                        add(ir_vmag).op(result).op(self);
+                        *wasBuiltin = true;
+                        return result;
+                    }
+                } else if (name == "lengthSq") {
+                    if (args.size() == 0) {
+                        Value result = currentFunction()->val(ft);
+                        add(ir_vmagsq).op(result).op(self);
+                        *wasBuiltin = true;
+                        return result;
+                    }
+                } else if (name == "normalize") {
+                    if (args.size() == 0) {
+                        Value result = self;
+                        add(ir_vnorm).op(self);
+                        *wasBuiltin = true;
+                        return result;
+                    }
+                } else if (name == "normalized") {
+                    if (args.size() == 0) {
+                        Value result = currentFunction()->stack(stp);
+                        maybeConstructVectorType(result, stp, { self }, { stp });
+                        add(ir_vnorm).op(result);
+                        *wasBuiltin = true;
+                        return result;
+                    }
+                }
+            } else if (stp == v2d || stp == v3d || stp == v4d) {
+                DataType* dt = m_ctx->getTypes()->getFloat64();
+                DataType* ft = m_ctx->getTypes()->getFloat32();
+                const utils::String& name = fn->getOutput()->getName();
+
+                if (name == "dot") {
+                    if (args.size() == 1 && args[0].getType() == stp) {
+                        Value result = currentFunction()->val(ft);
+                        add(ir_vdot).op(result).op(self).op(args[0]);
+                        *wasBuiltin = true;
+                        return result;
+                    }
+                } else if (name == "cross") {
+                    if (args.size() == 1 && args[0].getType() == stp) {
+                        Value result = currentFunction()->stack(stp);
+                        add(ir_vcross).op(result).op(self).op(args[0]);
+                        *wasBuiltin = true;
+                        return result;
+                    }
+                } else if (name == "length") {
+                    if (args.size() == 0) {
+                        Value result = currentFunction()->val(ft);
+                        add(ir_vmag).op(result).op(self);
+                        *wasBuiltin = true;
+                        return result;
+                    }
+                } else if (name == "lengthSq") {
+                    if (args.size() == 0) {
+                        Value result = currentFunction()->val(ft);
+                        add(ir_vmagsq).op(result).op(self);
+                        *wasBuiltin = true;
+                        return result;
+                    }
+                } else if (name == "normalize") {
+                    if (args.size() == 0) {
+                        Value result = self;
+                        add(ir_vnorm).op(self);
+                        *wasBuiltin = true;
+                        return result;
+                    }
+                } else if (name == "normalized") {
+                    if (args.size() == 0) {
+                        Value result = currentFunction()->stack(stp);
+                        maybeConstructVectorType(result, stp, { self }, { stp });
+                        add(ir_vnorm).op(result);
+                        *wasBuiltin = true;
+                        return result;
+                    }
+                }
+            }
+
+            *wasBuiltin = false;
+            return currentFunction()->getPoison();
         }
         Value Compiler::compileExpressionInner(ParseNode* n) {
             // name shortened to reduce clutter
@@ -2772,7 +3450,47 @@ namespace tsn {
                         return ret;
                     }
                     case lt_template_string: {
-                        return currentFunction()->getPoison(); // todo
+                        DataType* strTp = m_ctx->getTypes()->getString();
+                        auto* exp = currentExpr();
+                        if (exp) exp->targetNextConstructor = true;
+                        m_trustEnable = true;
+                        Value ret = constructObject(strTp, {});
+                        m_trustEnable = false;
+                        if (exp) exp->targetNextConstructor = false;
+
+                        ParseNode* f = n->body;
+                        while (f) {
+                            scope().enter();
+
+                            if (f->tp == nt_literal && f->value_tp == lt_string) {
+                                u32 slot = m_output->getModule()->getData().size();
+                                m_output->getModule()->addData(utils::String::Format("$str_%u", slot), f->str_len);
+                                char* s = (char*)m_output->getModule()->getDataInfo(slot).ptr;
+                                memcpy(s, f->value.s, f->str_len);
+
+                                Value d = currentFunction()->val(m_output->getModule(), slot);
+                                ret.callMethod("append", nullptr, { d, currentFunction()->imm(f->str_len) });
+                            } else {
+                                auto* exp = enterExpr();
+                                Value frag = compileExpression(f);
+                                exitExpr();
+
+                                if (frag.getType() == strTp) {
+                                    ret.callMethod("append", nullptr, { frag });
+                                } else {
+                                    enterNode(f);
+                                    ret.callMethod("append", nullptr, {
+                                        frag.callMethod("toString", strTp, {})
+                                    });
+                                    exitNode();
+                                }
+                            }
+
+                            scope().exit();
+                            f = f->next;
+                        }
+
+                        return ret;
                     }
                     case lt_object: return compileObjectLiteral(n);
                     case lt_array: return compileArrayLiteral(n);
@@ -2786,6 +3504,9 @@ namespace tsn {
                 DataType* tp = resolveTypeSpecifier(n->data_type);
                 if (tp) return vs(currentFunction()->imm(tp->getInfo().size));
 
+                return currentFunction()->getPoison();
+            } else if (n->tp == nt_typeinfo) {
+                error(n, cm_err_typeinfo_used_as_value, "'typeinfo' on its own may not be used as all or part of an expression");
                 return currentFunction()->getPoison();
             } else if (n->tp == nt_this) {
                 if (!currentClass()) {
@@ -3322,6 +4043,7 @@ namespace tsn {
 
                     Array<Value> args;
                     ParseNode* p = n->parameters;
+                    if (p->tp == nt_expression_sequence) p = p->body;
                     enterExpr();
                     while (p && p->tp != nt_empty) {
                         args.push(compileExpression(p));
@@ -3377,19 +4099,27 @@ namespace tsn {
 
                     exitExpr();
 
+                    if (h.self && callee.isFunction() && callee.isImm()) {
+                        bool wasBuiltin = false;
+                        Value result = maybeEvaluateBuiltinVectorMethod(*h.self, callee.getImm<FunctionDef*>(), h.args, &wasBuiltin);
+
+                        if (wasBuiltin) {
+                            delete h.self;
+                            return result;
+                        }
+                    }
+
                     auto* exp = currentExpr();
                     if (exp) exp->targetNextCall = true;
 
                     if (callee.isFunction() && !callee.isImm() && !h.self) {
                         DataType* selfTp = ((FunctionType*)callee.getType())->getThisType();
                         if (selfTp) {
-                            // Get 'self' argument from ClosureRef
+                            // Get 'self' argument from Closure
                             FunctionDef* cf = currentFunction();
                             Value self = cf->val(selfTp);
-                            add(ir_uadd).op(self).op(callee).op(cf->imm<u64>(offsetof(ClosureRef, m_ref)));
-                            add(ir_load).op(self).op(self);
-                            add(ir_uadd).op(self).op(self).op(cf->imm<u64>(offsetof(Closure, m_self)));
-                            add(ir_load).op(self).op(self);
+                            add(ir_load).op(self).op(callee).op(cf->imm<u64>(offsetof(Closure, m_ref)));
+                            add(ir_load).op(self).op(self).op(cf->imm<u64>(offsetof(CaptureData, m_self)));
                             h.self = new Value(self);
                         }
                     }
@@ -3431,6 +4161,15 @@ namespace tsn {
 
             scope().enter();
             Value cond = compileExpression(n->cond);
+            if (cond.isImm()) {
+                // don't branch on values known at compile time
+                if (cond.getImm<u64>()) compileAny(n->body);
+                else if (n->else_body) compileAny(n->else_body);
+                scope().exit();
+                exitNode();
+                return;
+            }
+
             Value condBool = cond.convertedTo(m_ctx->getTypes()->getBoolean());
             scope().exit(condBool);
 
@@ -3483,6 +4222,7 @@ namespace tsn {
                     exp->destination = &cf->getRetPtr();
                     exp->loc = rsl_specified_dest;
                     compileExpression(n->body);
+                    scope().emitReturnInstructions();
                     add(ir_ret);
                     exitExpr();
                     exitNode();
@@ -3495,6 +4235,7 @@ namespace tsn {
                 Value rptr = cf->getRetPtr();
                 constructObject(rptr, { ret });
 
+                scope().emitReturnInstructions();
                 add(ir_ret);
                 exitNode();
                 return;
@@ -3507,12 +4248,14 @@ namespace tsn {
                     cf->getName().c_str(),
                     retTp->getName().c_str()
                 );
+                scope().emitReturnInstructions();
                 add(ir_ret);
                 exitNode();
                 return;
             }
 
             cf->setReturnType(m_ctx->getTypes()->getVoid());
+            scope().emitReturnInstructions();
             add(ir_ret);
             exitNode();
         }
@@ -3526,8 +4269,16 @@ namespace tsn {
             // todo
         }
         Value& Compiler::compileVarDecl(ParseNode* n, bool isExported) {
-            FunctionDef* cf = currentFunction();
+            // todo:
+            // - non-moduledata variables need to be checked against closures
+            //     - if they are captured, they must be stored in the current function's closure data
+            // - when a captured variable is declared:
+            //     - Look up the offset in the capture data where the variable should be stored
+            //     - Create the named value that points to the offset of the variable in the
+            //       closure data
+            //
 
+            FunctionDef* cf = currentFunction();
             enterNode(n);
 
             DataType* dt = nullptr;
@@ -3543,34 +4294,69 @@ namespace tsn {
                 }
             }
 
+            utils::String name = n->body->str();
+            symbol* s = scope().get(name);
+            if (s) {
+                error(
+                    cm_err_duplicate_name,
+                    "Cannot declare variable with name '%s' that collides with existing symbol '%s'",
+                    name.c_str(),
+                    s->value->toString(m_ctx).c_str()
+                );
+            }
+
             if (n->initializer) {
+                Value init;
+
                 auto* ctx = enterExpr();
                 ctx->expectedType = dt;
-                ctx->loc = inInitFunction() ? rsl_module_data : rsl_auto;
-                ctx->md_name = n->body->str();
+                ctx->loc = rsl_auto;
+                ctx->decl_scope = &scope().get();
+                ctx->var_name = name;
                 ctx->md_access = isExported ? public_access : private_access;
 
-                Value init = compileExpression(n->initializer);
+                if (inInitFunction()) {
+                    ctx->loc = rsl_module_data;
+                    init.reset(compileExpression(n->initializer));
+                } else if (isVarCaptured(n->next, name)) {
+                    ctx->loc = rsl_capture_data_if_non_primitive;
+                    init.reset(compileExpression(n->initializer));
+
+                    symbol* s = scope().get(name);
+                    if (s) {
+                        exitExpr();
+                        exitNode();
+                        return *s->value;
+                    }
+                } else {
+                    init.reset(compileExpression(n->initializer));
+                }
 
                 exitExpr();
                 exitNode();
 
-                if (init.isImm() && init.isFunction()) {
-                    init.reset(newClosureRef(init));
-                }
-
-                return cf->promote(init, n->body->str());
+                return cf->promote(init, name);
             }
             
             Value* v = nullptr;
             if (inInitFunction()) {
-                u32 slot = m_output->getModule()->addData(n->body->str(), dt, private_access);
+                u32 slot = m_output->getModule()->addData(name, dt, private_access);
                 if (isExported) {
                     m_output->getModule()->setDataAccess(slot, public_access);
                 }
-                v = &cf->val(n->body->str(), slot);
+                v = &cf->val(name, slot);
+            } else if (isVarCaptured(n->next, name) && !dt->getInfo().is_primitive) {
+                // Non-primitive captures must be immediately stored in the capture data
+                // primitive captures can wait to be stored until right before the first
+                // closure that references it is defined
+                Value& var = cf->val(name, dt);
+                u32 offset = cf->capture(var);
+                add(ir_uadd).op(var).op(cf->getOwnCaptureData()).op(cf->imm(offset));
+                constructObject(var, {});
+                exitNode();
+                return var;
             } else {
-                v = &cf->val(n->body->str(), dt);
+                v = &cf->val(name, dt);
             }
 
             if (!dt->getInfo().is_primitive) constructObject(*v, {});
@@ -3586,21 +4372,48 @@ namespace tsn {
             
             ParseNode* p = n->body;
             while (p) {
+                utils::String pName = p->str();
+                symbol* s = scope().get(pName);
+                if (s) {
+                    error(
+                        cm_err_duplicate_name,
+                        "Cannot declare variable with name '%s' that collides with existing symbol '%s'",
+                        pName.c_str(),
+                        s->value->toString(m_ctx).c_str()
+                    );
+                }
+                
                 enterNode(p);
-                Value init = source.getProp(p->str());
-
-                DataType* dt = p->data_type ? resolveTypeSpecifier(p->data_type) : init.getType();
-                Value* v = nullptr;
-
-                if (inInitFunction()) {
-                    u32 slot = m_output->getModule()->addData(n->body->str(), dt, private_access);
-                    v = &currentFunction()->val(p->str(), slot);
-                } else {
-                    v = &currentFunction()->val(p->str(), dt);
+                const type_property* propInfo = source.getType()->getProp(pName);
+                if (!propInfo) {
+                    // trigger error
+                    source.getProp(pName);
+                    cf->val(pName, cf->getPoison().getType());
+                    continue;
                 }
 
-                if (dt->getInfo().is_primitive) *v = init.convertedTo(dt);
-                else constructObject(*v, { init });
+                DataType* dt = p->data_type ? resolveTypeSpecifier(p->data_type) : propInfo->type;
+
+                Value v;
+
+                if (inInitFunction()) {
+                    u32 slot = m_output->getModule()->addData(pName, dt, private_access);
+                    v.reset(cf->val(pName, slot));
+                } else if (isVarCaptured(n->next, pName) && !dt->getInfo().is_primitive) {
+                    // Non-primitive captures must be immediately stored in the capture data
+                    // primitive captures can wait to be stored until right before the first
+                    // closure that references it is defined
+                    Value& var = cf->val(pName, dt);
+                    u32 offset = cf->capture(var);
+                    add(ir_uadd).op(var).op(cf->getOwnCaptureData()).op(cf->imm(offset));
+                    
+                    v.reset(var);
+                } else {
+                    v.reset(cf->val(pName, dt));
+                }
+
+                if (dt->getInfo().is_primitive) v = source.getProp(pName);
+                else constructObject(v, { source.getProp(pName) });
 
                 exitNode();
                 p = p->next;

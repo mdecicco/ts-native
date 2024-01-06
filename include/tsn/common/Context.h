@@ -42,6 +42,9 @@ namespace tsn {
             /** Gets the version number of the user-defined script API */
             u32 getExtendedApiVersion() const;
 
+            void init(backend::IBackend* backend);
+            void shutdown();
+
             const Config* getConfig() const;
             ffi::DataTypeRegistry* getTypes() const;
             ffi::FunctionRegistry* getFunctions() const;
