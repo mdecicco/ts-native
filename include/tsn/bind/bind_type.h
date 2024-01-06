@@ -141,6 +141,10 @@ namespace tsn {
 
                 ObjectTypeBinder<Cls>& dtor(access_modifier access = public_access);
 
+                // fake instance method
+                template <typename Ret, typename... Args>
+                ObjectTypeBinder<Cls>& method(const utils::String& name, Ret (*method)(Cls*, Args...), access_modifier access = public_access);
+
                 template <typename Ret, typename... Args>
                 ObjectTypeBinder<Cls>& method(const utils::String& name, Ret (Cls::*method)(Args...), access_modifier access = public_access);
 
@@ -198,6 +202,10 @@ namespace tsn {
             public:
                 ObjectTypeExtender(Module* mod, FunctionRegistry* freg, DataTypeRegistry* treg);
                 ~ObjectTypeExtender();
+
+                // fake instance method
+                template <typename Ret, typename... Args>
+                ObjectTypeExtender<Cls>& method(const utils::String& name, Ret (*method)(Cls*, Args...), access_modifier access = public_access);
                 
                 template <typename Ret, typename... Args>
                 ObjectTypeExtender<Cls>& method(const utils::String& name, Ret (Cls::*method)(Args...), access_modifier access = public_access);

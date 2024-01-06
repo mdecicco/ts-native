@@ -140,6 +140,19 @@ namespace tsn {
             // Operand 2 will be the label to jump to if op 0 is false
             ir_branch,
 
+            ir_vset,    // op0[0] = (op1[0] | op1), ..., op0[N] = (op1[N] | op1)
+            ir_vadd,    // op0[0] = op0[0] + (op1[0] | op1), ..., op0[N] = op0[N] + (op1[N] | op1)
+            ir_vsub,    // op0[0] = op0[0] - (op1[0] | op1), ..., op0[N] = op0[N] - (op1[N] | op1)
+            ir_vmul,    // op0[0] = op0[0] * (op1[0] | op1), ..., op0[N] = op0[N] * (op1[N] | op1)
+            ir_vdiv,    // op0[0] = op0[0] / (op1[0] | op1), ..., op0[N] = op0[N] / (op1[N] | op1)
+            ir_vmod,    // op0[0] = op0[0] % (op1[0] | op1), ..., op0[N] = op0[N] % (op1[N] | op1)
+            ir_vneg,    // op0[0] = -op0[0], ..., op0[N] = -op0[N]
+            ir_vdot,    // op0 = dot(op1[0], op2[0])
+            ir_vmag,    // op0 = length(op1)
+            ir_vmagsq,  // op0 = lengthSq(op1)
+            ir_vnorm,   // op0[0] = op0[0] / length(op0), ..., op0[N] = op0[N] / length(op0)
+            ir_vcross,  // op0[0] = cross(op1, op2)[0], ..., op0[N] = cross(op1, op2)[N]
+
             ir_iadd,  // op0 = op1 + op2 (signed integer)
             ir_uadd,  // op0 = op1 + op2 (unsigned integer)
             ir_fadd,  // op0 = op1 + op2 (32 bit floating point)

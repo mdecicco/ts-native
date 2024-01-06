@@ -210,6 +210,7 @@ namespace tsn {
                                 case '\\': { str += '\\'; break; }
                                 case '\'': { str += '\''; break; }
                                 case '"' : { str += '"' ; break; }
+                                case '$' : { str += '$' ; break; }
                                 case '`' : { str += '`' ; break; }
                                 default  : {
                                     // todo: Unknown escape sequence warning

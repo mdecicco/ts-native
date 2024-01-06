@@ -519,8 +519,19 @@ i32 handleResult(Context* ctx, Module* mod, const script_metadata& meta, const t
                 json& oc = func["code"] = json::array();
 
                 const auto& code = output[i]->code;
+                u32 digitCount = 0;
+                u32 x = code.size();
+                while (x) {
+                    x /= 10;
+                    digitCount++;
+                }
+
+                char lnFmt[16] = { 0 };
+                snprintf(lnFmt, 16, "[%%-%dd] %%s", digitCount);
+
                 for (u32 c = 0;c < code.size();c++) {
-                    oc.push_back(code[c].toString(ctx).c_str());
+                    utils::String s = utils::String::Format(lnFmt, c, code[c].toString(ctx).c_str());
+                    oc.push_back(s.c_str());
                 }
 
                 o.push_back(func);

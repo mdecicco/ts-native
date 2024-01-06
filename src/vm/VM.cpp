@@ -206,6 +206,1015 @@ namespace tsn {
                         GR64(_O2) = GR64(_O1);
                         break;
                     }
+                    case vmi::v2fset: {
+                        *GRx(_O1, u64*) = *GRx(_O2, u64*);
+                        break;
+                    }
+                    case vmi::v2fsets: {
+                        f32* v = GRx(_O1, f32*);
+                        v[0] = v[1] = GRf(_O2);
+                        break;
+                    }
+                    case vmi::v2fsetsi: {
+                        f32* v = GRx(_O1, f32*);
+                        v[0] = v[1] = (f32)i.imm_f();
+                        break;
+                    }
+                    case vmi::v2dset: {
+                        f64* vd = GRx(_O1, f64*);
+                        f64* vs = GRx(_O2, f64*);
+                        vd[0] = vs[0];
+                        vd[1] = vs[1];
+                        break;
+                    }
+                    case vmi::v2dsets: {
+                        f64* v = GRx(_O1, f64*);
+                        v[0] = v[1] = GRd(_O2);
+                        break;
+                    }
+                    case vmi::v2dsetsi: {
+                        f64* v = GRx(_O1, f64*);
+                        v[0] = v[1] = i.imm_f();
+                        break;
+                    }
+                    case vmi::v2fadd: {
+                        f32* a = GRx(_O1, f32*);
+                        f32* b = GRx(_O1, f32*);
+                        a[0] += b[0];
+                        a[1] += b[1];
+                        break;
+                    }
+                    case vmi::v2fadds: {
+                        f32* v = GRx(_O1, f32*);
+                        f32 s = f32(GRf(_O2));
+                        v[0] += s;
+                        v[1] += s;
+                        break;
+                    }
+                    case vmi::v2faddsi: {
+                        f32* v = GRx(_O1, f32*);
+                        f32 s = (f32)i.imm_f();
+                        v[0] += s;
+                        v[1] += s;
+                        break;
+                    }
+                    case vmi::v2dadd: {
+                        f64* a = GRx(_O1, f64*);
+                        f64* b = GRx(_O1, f64*);
+                        a[0] += b[0];
+                        a[1] += b[1];
+                        break;
+                    }
+                    case vmi::v2dadds: {
+                        f64* v = GRx(_O1, f64*);
+                        f64 s = f64(GRf(_O2));
+                        v[0] += s;
+                        v[1] += s;
+                        break;
+                    }
+                    case vmi::v2daddsi: {
+                        f64* v = GRx(_O1, f64*);
+                        f64 s = i.imm_f();
+                        v[0] += s;
+                        v[1] += s;
+                        break;
+                    }
+                    case vmi::v2fsub: {
+                        f32* a = GRx(_O1, f32*);
+                        f32* b = GRx(_O1, f32*);
+                        a[0] -= b[0];
+                        a[1] -= b[1];
+                        break;
+                    }
+                    case vmi::v2fsubs: {
+                        f32* v = GRx(_O1, f32*);
+                        f32 s = f32(GRf(_O2));
+                        v[0] -= s;
+                        v[1] -= s;
+                        break;
+                    }
+                    case vmi::v2fsubsi: {
+                        f32* v = GRx(_O1, f32*);
+                        f32 s = (f32)i.imm_f();
+                        v[0] -= s;
+                        v[1] -= s;
+                        break;
+                    }
+                    case vmi::v2dsub: {
+                        f64* a = GRx(_O1, f64*);
+                        f64* b = GRx(_O1, f64*);
+                        a[0] -= b[0];
+                        a[1] -= b[1];
+                        break;
+                    }
+                    case vmi::v2dsubs: {
+                        f64* v = GRx(_O1, f64*);
+                        f64 s = f64(GRf(_O2));
+                        v[0] -= s;
+                        v[1] -= s;
+                        break;
+                    }
+                    case vmi::v2dsubsi: {
+                        f64* v = GRx(_O1, f64*);
+                        f64 s = i.imm_f();
+                        v[0] -= s;
+                        v[1] -= s;
+                        break;
+                    }
+                    case vmi::v2fmul: {
+                        f32* a = GRx(_O1, f32*);
+                        f32* b = GRx(_O1, f32*);
+                        a[0] *= b[0];
+                        a[1] *= b[1];
+                        break;
+                    }
+                    case vmi::v2fmuls: {
+                        f32* v = GRx(_O1, f32*);
+                        f32 s = f32(GRf(_O2));
+                        v[0] *= s;
+                        v[1] *= s;
+                        break;
+                    }
+                    case vmi::v2fmulsi: {
+                        f32* v = GRx(_O1, f32*);
+                        f32 s = (f32)i.imm_f();
+                        v[0] *= s;
+                        v[1] *= s;
+                        break;
+                    }
+                    case vmi::v2dmul: {
+                        f64* a = GRx(_O1, f64*);
+                        f64* b = GRx(_O1, f64*);
+                        a[0] *= b[0];
+                        a[1] *= b[1];
+                        break;
+                    }
+                    case vmi::v2dmuls: {
+                        f64* v = GRx(_O1, f64*);
+                        f64 s = f64(GRf(_O2));
+                        v[0] *= s;
+                        v[1] *= s;
+                        break;
+                    }
+                    case vmi::v2dmulsi: {
+                        f64* v = GRx(_O1, f64*);
+                        f64 s = i.imm_f();
+                        v[0] *= s;
+                        v[1] *= s;
+                        break;
+                    }
+                    case vmi::v2fdiv: {
+                        f32* a = GRx(_O1, f32*);
+                        f32* b = GRx(_O1, f32*);
+                        a[0] /= b[0];
+                        a[1] /= b[1];
+                        break;
+                    }
+                    case vmi::v2fdivs: {
+                        f32* v = GRx(_O1, f32*);
+                        f32 s = f32(GRf(_O2));
+                        v[0] /= s;
+                        v[1] /= s;
+                        break;
+                    }
+                    case vmi::v2fdivsi: {
+                        f32* v = GRx(_O1, f32*);
+                        f32 s = (f32)i.imm_f();
+                        v[0] /= s;
+                        v[1] /= s;
+                        break;
+                    }
+                    case vmi::v2ddiv: {
+                        f64* a = GRx(_O1, f64*);
+                        f64* b = GRx(_O1, f64*);
+                        a[0] /= b[0];
+                        a[1] /= b[1];
+                        break;
+                    }
+                    case vmi::v2ddivs: {
+                        f64* v = GRx(_O1, f64*);
+                        f64 s = f64(GRf(_O2));
+                        v[0] /= s;
+                        v[1] /= s;
+                        break;
+                    }
+                    case vmi::v2ddivsi: {
+                        f64* v = GRx(_O1, f64*);
+                        f64 s = i.imm_f();
+                        v[0] /= s;
+                        v[1] /= s;
+                        break;
+                    }
+                    case vmi::v2fmod: {
+                        f32* a = GRx(_O1, f32*);
+                        f32* b = GRx(_O1, f32*);
+                        a[0] = fmodf(a[0], b[0]);
+                        a[1] = fmodf(a[1], b[1]);
+                        break;
+                    }
+                    case vmi::v2fmods: {
+                        f32* v = GRx(_O1, f32*);
+                        f32 s = f32(GRf(_O2));
+                        v[0] = fmodf(v[0], s);
+                        v[1] = fmodf(v[1], s);
+                        break;
+                    }
+                    case vmi::v2fmodsi: {
+                        f32* v = GRx(_O1, f32*);
+                        f32 s = (f32)i.imm_f();
+                        v[0] = fmodf(v[0], s);
+                        v[1] = fmodf(v[1], s);
+                        break;
+                    }
+                    case vmi::v2dmod: {
+                        f64* a = GRx(_O1, f64*);
+                        f64* b = GRx(_O1, f64*);
+                        a[0] = fmod(a[0], b[0]);
+                        a[1] = fmod(a[1], b[1]);
+                        break;
+                    }
+                    case vmi::v2dmods: {
+                        f64* v = GRx(_O1, f64*);
+                        f64 s = f64(GRf(_O2));
+                        v[0] = fmod(v[0], s);
+                        v[1] = fmod(v[1], s);
+                        break;
+                    }
+                    case vmi::v2dmodsi: {
+                        f64* v = GRx(_O1, f64*);
+                        f64 s = i.imm_f();
+                        v[0] = fmod(v[0], s);
+                        v[1] = fmod(v[1], s);
+                        break;
+                    }
+                    case vmi::v2fneg: {
+                        f32* v = GRx(_O1, f32*);
+                        v[0] = -v[0];
+                        v[1] = -v[1];
+                        break;
+                    }
+                    case vmi::v2dneg: {
+                        f64* v = GRx(_O1, f64*);
+                        v[0] = -v[0];
+                        v[1] = -v[1];
+                        break;
+                    }
+                    case vmi::v2fdot: {
+                        f32* a = GRx(_O2, f32*);
+                        f32* b = GRx(_O3, f32*);
+                        GRf(_O1) = (a[0] * b[0]) + (a[1] * b[1]);
+                        break;
+                    }
+                    case vmi::v2ddot: {
+                        f64* a = GRx(_O2, f64*);
+                        f64* b = GRx(_O3, f64*);
+                        GRd(_O1) = (a[0] * b[0]) + (a[1] * b[1]);
+                        break;
+                    }
+                    case vmi::v2fmag: {
+                        f32* a = GRx(_O2, f32*);
+                        GRf(_O1) = sqrtf((a[0] * a[0]) + (a[1] * a[1]));
+                        break;
+                    }
+                    case vmi::v2dmag: {
+                        f64* a = GRx(_O2, f64*);
+                        GRd(_O1) = sqrt((a[0] * a[0]) + (a[1] * a[1]));
+                        break;
+                    }
+                    case vmi::v2fmagsq: {
+                        f32* a = GRx(_O2, f32*);
+                        GRf(_O1) = (a[0] * a[0]) + (a[1] * a[1]);
+                        break;
+                    }
+                    case vmi::v2dmagsq: {
+                        f64* a = GRx(_O2, f64*);
+                        GRd(_O1) = (a[0] * a[0]) + (a[1] * a[1]);
+                        break;
+                    }
+                    case vmi::v2fnorm: {
+                        f32* v = GRx(_O1, f32*);
+                        f32 ilen = 1.0f / sqrtf((v[0] * v[0]) + (v[1] * v[1]));
+                        v[0] *= ilen;
+                        v[1] *= ilen;
+                        break;
+                    }
+                    case vmi::v2dnorm: {
+                        f64* v = GRx(_O1, f64*);
+                        f64 ilen = 1.0 / sqrt((v[0] * v[0]) + (v[1] * v[1]));
+                        v[0] *= ilen;
+                        v[1] *= ilen;
+                        break;
+                    }
+                    case vmi::v3fset: {
+                        f32* vd = GRx(_O1, f32*);
+                        f32* vs = GRx(_O2, f32*);
+                        vd[0] = vs[0];
+                        vd[1] = vs[1];
+                        vd[2] = vs[2];
+                        break;
+                    }
+                    case vmi::v3fsets: {
+                        f32* v = GRx(_O1, f32*);
+                        v[0] = v[1] = v[2] = GRf(_O2);
+                        break;
+                    }
+                    case vmi::v3fsetsi: {
+                        f32* v = GRx(_O1, f32*);
+                        v[0] = v[1] = v[2] = (f32)i.imm_f();
+                        break;
+                    }
+                    case vmi::v3dset: {
+                        f64* vd = GRx(_O1, f64*);
+                        f64* vs = GRx(_O2, f64*);
+                        vd[0] = vs[0];
+                        vd[1] = vs[1];
+                        vd[2] = vs[2];
+                        break;
+                    }
+                    case vmi::v3dsets: {
+                        f64* v = GRx(_O1, f64*);
+                        v[0] = v[1] = v[2] = GRd(_O2);
+                        break;
+                    }
+                    case vmi::v3dsetsi: {
+                        f64* v = GRx(_O1, f64*);
+                        v[0] = v[1] = v[2] = i.imm_f();
+                        break;
+                    }
+                    case vmi::v3fadd: {
+                        f32* a = GRx(_O1, f32*);
+                        f32* b = GRx(_O1, f32*);
+                        a[0] += b[0];
+                        a[1] += b[1];
+                        a[2] += b[2];
+                        break;
+                    }
+                    case vmi::v3fadds: {
+                        f32* v = GRx(_O1, f32*);
+                        f32 s = f32(GRf(_O2));
+                        v[0] += s;
+                        v[1] += s;
+                        v[2] += s;
+                        break;
+                    }
+                    case vmi::v3faddsi: {
+                        f32* v = GRx(_O1, f32*);
+                        f32 s = (f32)i.imm_f();
+                        v[0] += s;
+                        v[1] += s;
+                        v[2] += s;
+                        break;
+                    }
+                    case vmi::v3dadd: {
+                        f64* a = GRx(_O1, f64*);
+                        f64* b = GRx(_O1, f64*);
+                        a[0] += b[0];
+                        a[1] += b[1];
+                        a[2] += b[2];
+                        break;
+                    }
+                    case vmi::v3dadds: {
+                        f64* v = GRx(_O1, f64*);
+                        f64 s = f64(GRf(_O2));
+                        v[0] += s;
+                        v[1] += s;
+                        v[2] += s;
+                        break;
+                    }
+                    case vmi::v3daddsi: {
+                        f64* v = GRx(_O1, f64*);
+                        f64 s = i.imm_f();
+                        v[0] += s;
+                        v[1] += s;
+                        v[2] += s;
+                        break;
+                    }
+                    case vmi::v3fsub: {
+                        f32* a = GRx(_O1, f32*);
+                        f32* b = GRx(_O1, f32*);
+                        a[0] -= b[0];
+                        a[1] -= b[1];
+                        a[2] -= b[2];
+                        break;
+                    }
+                    case vmi::v3fsubs: {
+                        f32* v = GRx(_O1, f32*);
+                        f32 s = f32(GRf(_O2));
+                        v[0] -= s;
+                        v[1] -= s;
+                        v[2] -= s;
+                        break;
+                    }
+                    case vmi::v3fsubsi: {
+                        f32* v = GRx(_O1, f32*);
+                        f32 s = (f32)i.imm_f();
+                        v[0] -= s;
+                        v[1] -= s;
+                        v[2] -= s;
+                        break;
+                    }
+                    case vmi::v3dsub: {
+                        f64* a = GRx(_O1, f64*);
+                        f64* b = GRx(_O1, f64*);
+                        a[0] -= b[0];
+                        a[1] -= b[1];
+                        a[2] -= b[2];
+                        break;
+                    }
+                    case vmi::v3dsubs: {
+                        f64* v = GRx(_O1, f64*);
+                        f64 s = f64(GRf(_O2));
+                        v[0] -= s;
+                        v[1] -= s;
+                        v[2] -= s;
+                        break;
+                    }
+                    case vmi::v3dsubsi: {
+                        f64* v = GRx(_O1, f64*);
+                        f64 s = i.imm_f();
+                        v[0] -= s;
+                        v[1] -= s;
+                        v[2] -= s;
+                        break;
+                    }
+                    case vmi::v3fmul: {
+                        f32* a = GRx(_O1, f32*);
+                        f32* b = GRx(_O1, f32*);
+                        a[0] *= b[0];
+                        a[1] *= b[1];
+                        a[2] *= b[2];
+                        break;
+                    }
+                    case vmi::v3fmuls: {
+                        f32* v = GRx(_O1, f32*);
+                        f32 s = f32(GRf(_O2));
+                        v[0] *= s;
+                        v[1] *= s;
+                        v[2] *= s;
+                        break;
+                    }
+                    case vmi::v3fmulsi: {
+                        f32* v = GRx(_O1, f32*);
+                        f32 s = (f32)i.imm_f();
+                        v[0] *= s;
+                        v[1] *= s;
+                        v[2] *= s;
+                        break;
+                    }
+                    case vmi::v3dmul: {
+                        f64* a = GRx(_O1, f64*);
+                        f64* b = GRx(_O1, f64*);
+                        a[0] *= b[0];
+                        a[1] *= b[1];
+                        a[2] *= b[2];
+                        break;
+                    }
+                    case vmi::v3dmuls: {
+                        f64* v = GRx(_O1, f64*);
+                        f64 s = f64(GRf(_O2));
+                        v[0] *= s;
+                        v[1] *= s;
+                        v[2] *= s;
+                        break;
+                    }
+                    case vmi::v3dmulsi: {
+                        f64* v = GRx(_O1, f64*);
+                        f64 s = i.imm_f();
+                        v[0] *= s;
+                        v[1] *= s;
+                        v[2] *= s;
+                        break;
+                    }
+                    case vmi::v3fdiv: {
+                        f32* a = GRx(_O1, f32*);
+                        f32* b = GRx(_O1, f32*);
+                        a[0] /= b[0];
+                        a[1] /= b[1];
+                        a[2] /= b[2];
+                        break;
+                    }
+                    case vmi::v3fdivs: {
+                        f32* v = GRx(_O1, f32*);
+                        f32 s = f32(GRf(_O2));
+                        v[0] /= s;
+                        v[1] /= s;
+                        v[2] /= s;
+                        break;
+                    }
+                    case vmi::v3fdivsi: {
+                        f32* v = GRx(_O1, f32*);
+                        f32 s = (f32)i.imm_f();
+                        v[0] /= s;
+                        v[1] /= s;
+                        v[2] /= s;
+                        break;
+                    }
+                    case vmi::v3ddiv: {
+                        f64* a = GRx(_O1, f64*);
+                        f64* b = GRx(_O1, f64*);
+                        a[0] /= b[0];
+                        a[1] /= b[1];
+                        a[2] /= b[2];
+                        break;
+                    }
+                    case vmi::v3ddivs: {
+                        f64* v = GRx(_O1, f64*);
+                        f64 s = f64(GRf(_O2));
+                        v[0] /= s;
+                        v[1] /= s;
+                        v[2] /= s;
+                        break;
+                    }
+                    case vmi::v3ddivsi: {
+                        f64* v = GRx(_O1, f64*);
+                        f64 s = i.imm_f();
+                        v[0] /= s;
+                        v[1] /= s;
+                        v[2] /= s;
+                        break;
+                    }
+                    case vmi::v3fmod: {
+                        f32* a = GRx(_O1, f32*);
+                        f32* b = GRx(_O1, f32*);
+                        a[0] = fmodf(a[0], b[0]);
+                        a[1] = fmodf(a[1], b[1]);
+                        a[2] = fmodf(a[2], b[2]);
+                        break;
+                    }
+                    case vmi::v3fmods: {
+                        f32* v = GRx(_O1, f32*);
+                        f32 s = f32(GRf(_O2));
+                        v[0] = fmodf(v[0], s);
+                        v[1] = fmodf(v[1], s);
+                        v[2] = fmodf(v[2], s);
+                        break;
+                    }
+                    case vmi::v3fmodsi: {
+                        f32* v = GRx(_O1, f32*);
+                        f32 s = (f32)i.imm_f();
+                        v[0] = fmodf(v[0], s);
+                        v[1] = fmodf(v[1], s);
+                        v[2] = fmodf(v[2], s);
+                        break;
+                    }
+                    case vmi::v3dmod: {
+                        f64* a = GRx(_O1, f64*);
+                        f64* b = GRx(_O1, f64*);
+                        a[0] = fmod(a[0], b[0]);
+                        a[1] = fmod(a[1], b[1]);
+                        a[2] = fmod(a[2], b[2]);
+                        break;
+                    }
+                    case vmi::v3dmods: {
+                        f64* v = GRx(_O1, f64*);
+                        f64 s = f64(GRf(_O2));
+                        v[0] = fmod(v[0], s);
+                        v[1] = fmod(v[1], s);
+                        v[2] = fmod(v[2], s);
+                        break;
+                    }
+                    case vmi::v3dmodsi: {
+                        f64* v = GRx(_O1, f64*);
+                        f64 s = i.imm_f();
+                        v[0] = fmod(v[0], s);
+                        v[1] = fmod(v[1], s);
+                        v[2] = fmod(v[2], s);
+                        break;
+                    }
+                    case vmi::v3fneg: {
+                        f32* v = GRx(_O1, f32*);
+                        v[0] = -v[0];
+                        v[1] = -v[1];
+                        v[2] = -v[2];
+                        break;
+                    }
+                    case vmi::v3dneg: {
+                        f64* v = GRx(_O1, f64*);
+                        v[0] = -v[0];
+                        v[1] = -v[1];
+                        v[2] = -v[2];
+                        break;
+                    }
+                    case vmi::v3fdot: {
+                        f32* a = GRx(_O2, f32*);
+                        f32* b = GRx(_O3, f32*);
+                        GRf(_O1) = (a[0] * b[0]) + (a[1] * b[1]) + (a[2] * b[2]);
+                        break;
+                    }
+                    case vmi::v3ddot: {
+                        f64* a = GRx(_O2, f64*);
+                        f64* b = GRx(_O3, f64*);
+                        GRd(_O1) = (a[0] * b[0]) + (a[1] * b[1]) + (a[2] * b[2]);
+                        break;
+                    }
+                    case vmi::v3fmag: {
+                        f32* a = GRx(_O2, f32*);
+                        GRf(_O1) = sqrtf((a[0] * a[0]) + (a[1] * a[1]) + (a[2] * a[2]));
+                        break;
+                    }
+                    case vmi::v3dmag: {
+                        f64* a = GRx(_O2, f64*);
+                        GRd(_O1) = sqrt((a[0] * a[0]) + (a[1] * a[1]) + (a[2] * a[2]));
+                        break;
+                    }
+                    case vmi::v3fmagsq: {
+                        f32* a = GRx(_O2, f32*);
+                        GRf(_O1) = (a[0] * a[0]) + (a[1] * a[1]) + (a[2] * a[2]);
+                        break;
+                    }
+                    case vmi::v3dmagsq: {
+                        f64* a = GRx(_O2, f64*);
+                        GRd(_O1) = (a[0] * a[0]) + (a[1] * a[1]) + (a[2] * a[2]);
+                        break;
+                    }
+                    case vmi::v3fnorm: {
+                        f32* v = GRx(_O1, f32*);
+                        f32 ilen = 1.0f / sqrtf((v[0] * v[0]) + (v[1] * v[1]) + (v[2] * v[2]));
+                        v[0] *= ilen;
+                        v[1] *= ilen;
+                        v[2] *= ilen;
+                        break;
+                    }
+                    case vmi::v3dnorm: {
+                        f64* v = GRx(_O1, f64*);
+                        f64 ilen = 1.0 / sqrt((v[0] * v[0]) + (v[1] * v[1]) + (v[2] * v[2]));
+                        v[0] *= ilen;
+                        v[1] *= ilen;
+                        v[2] *= ilen;
+                        break;
+                    }
+                    case vmi::v3fcross: {
+                        f32* a = GRx(_O1, f32*);
+                        f32* b = GRx(_O2, f32*);
+                        f32* c = GRx(_O3, f32*);
+                        a[0] = (b[1] * c[2]) + (b[2] * c[1]);
+                        a[1] = (b[2] * c[0]) + (b[0] * c[2]);
+                        a[2] = (b[0] * c[1]) + (b[1] * c[0]);
+                        break;
+                    }
+                    case vmi::v3dcross: {
+                        f64* a = GRx(_O1, f64*);
+                        f64* b = GRx(_O2, f64*);
+                        f64* c = GRx(_O3, f64*);
+                        a[0] = (b[1] * c[2]) + (b[2] * c[1]);
+                        a[1] = (b[2] * c[0]) + (b[0] * c[2]);
+                        a[2] = (b[0] * c[1]) + (b[1] * c[0]);
+                        break;
+                    }
+                    case vmi::v4fadd: {
+                        f32* a = GRx(_O1, f32*);
+                        f32* b = GRx(_O1, f32*);
+                        a[0] += b[0];
+                        a[1] += b[1];
+                        a[2] += b[2];
+                        a[3] += b[3];
+                        break;
+                    }
+                    case vmi::v4fadds: {
+                        f32* v = GRx(_O1, f32*);
+                        f32 s = f32(GRf(_O2));
+                        v[0] += s;
+                        v[1] += s;
+                        v[2] += s;
+                        v[3] += s;
+                        break;
+                    }
+                    case vmi::v4faddsi: {
+                        f32* v = GRx(_O1, f32*);
+                        f32 s = (f32)i.imm_f();
+                        v[0] += s;
+                        v[1] += s;
+                        v[2] += s;
+                        v[3] += s;
+                        break;
+                    }
+                    case vmi::v4dadd: {
+                        f64* a = GRx(_O1, f64*);
+                        f64* b = GRx(_O1, f64*);
+                        a[0] += b[0];
+                        a[1] += b[1];
+                        a[2] += b[2];
+                        a[3] += b[3];
+                        break;
+                    }
+                    case vmi::v4dadds: {
+                        f64* v = GRx(_O1, f64*);
+                        f64 s = f64(GRf(_O2));
+                        v[0] += s;
+                        v[1] += s;
+                        v[2] += s;
+                        v[3] += s;
+                        break;
+                    }
+                    case vmi::v4daddsi: {
+                        f64* v = GRx(_O1, f64*);
+                        f64 s = i.imm_f();
+                        v[0] += s;
+                        v[1] += s;
+                        v[2] += s;
+                        v[3] += s;
+                        break;
+                    }
+                    case vmi::v4fsub: {
+                        f32* a = GRx(_O1, f32*);
+                        f32* b = GRx(_O1, f32*);
+                        a[0] -= b[0];
+                        a[1] -= b[1];
+                        a[2] -= b[2];
+                        a[3] -= b[3];
+                        break;
+                    }
+                    case vmi::v4fsubs: {
+                        f32* v = GRx(_O1, f32*);
+                        f32 s = f32(GRf(_O2));
+                        v[0] -= s;
+                        v[1] -= s;
+                        v[2] -= s;
+                        v[3] -= s;
+                        break;
+                    }
+                    case vmi::v4fsubsi: {
+                        f32* v = GRx(_O1, f32*);
+                        f32 s = (f32)i.imm_f();
+                        v[0] -= s;
+                        v[1] -= s;
+                        v[2] -= s;
+                        v[3] -= s;
+                        break;
+                    }
+                    case vmi::v4dsub: {
+                        f64* a = GRx(_O1, f64*);
+                        f64* b = GRx(_O1, f64*);
+                        a[0] -= b[0];
+                        a[1] -= b[1];
+                        a[2] -= b[2];
+                        a[3] -= b[3];
+                        break;
+                    }
+                    case vmi::v4dsubs: {
+                        f64* v = GRx(_O1, f64*);
+                        f64 s = f64(GRf(_O2));
+                        v[0] -= s;
+                        v[1] -= s;
+                        v[2] -= s;
+                        v[3] -= s;
+                        break;
+                    }
+                    case vmi::v4dsubsi: {
+                        f64* v = GRx(_O1, f64*);
+                        f64 s = i.imm_f();
+                        v[0] -= s;
+                        v[1] -= s;
+                        v[2] -= s;
+                        v[3] -= s;
+                        break;
+                    }
+                    case vmi::v4fmul: {
+                        f32* a = GRx(_O1, f32*);
+                        f32* b = GRx(_O1, f32*);
+                        a[0] *= b[0];
+                        a[1] *= b[1];
+                        a[2] *= b[2];
+                        a[3] *= b[3];
+                        break;
+                    }
+                    case vmi::v4fmuls: {
+                        f32* v = GRx(_O1, f32*);
+                        f32 s = f32(GRf(_O2));
+                        v[0] *= s;
+                        v[1] *= s;
+                        v[2] *= s;
+                        v[3] *= s;
+                        break;
+                    }
+                    case vmi::v4fmulsi: {
+                        f32* v = GRx(_O1, f32*);
+                        f32 s = (f32)i.imm_f();
+                        v[0] *= s;
+                        v[1] *= s;
+                        v[2] *= s;
+                        v[3] *= s;
+                        break;
+                    }
+                    case vmi::v4dmul: {
+                        f64* a = GRx(_O1, f64*);
+                        f64* b = GRx(_O1, f64*);
+                        a[0] *= b[0];
+                        a[1] *= b[1];
+                        a[2] *= b[2];
+                        a[3] *= b[3];
+                        break;
+                    }
+                    case vmi::v4dmuls: {
+                        f64* v = GRx(_O1, f64*);
+                        f64 s = f64(GRf(_O2));
+                        v[0] *= s;
+                        v[1] *= s;
+                        v[2] *= s;
+                        v[3] *= s;
+                        break;
+                    }
+                    case vmi::v4dmulsi: {
+                        f64* v = GRx(_O1, f64*);
+                        f64 s = i.imm_f();
+                        v[0] *= s;
+                        v[1] *= s;
+                        v[2] *= s;
+                        v[3] *= s;
+                        break;
+                    }
+                    case vmi::v4fdiv: {
+                        f32* a = GRx(_O1, f32*);
+                        f32* b = GRx(_O1, f32*);
+                        a[0] /= b[0];
+                        a[1] /= b[1];
+                        a[2] /= b[2];
+                        a[3] /= b[3];
+                        break;
+                    }
+                    case vmi::v4fdivs: {
+                        f32* v = GRx(_O1, f32*);
+                        f32 s = f32(GRf(_O2));
+                        v[0] /= s;
+                        v[1] /= s;
+                        v[2] /= s;
+                        v[3] /= s;
+                        break;
+                    }
+                    case vmi::v4fdivsi: {
+                        f32* v = GRx(_O1, f32*);
+                        f32 s = (f32)i.imm_f();
+                        v[0] /= s;
+                        v[1] /= s;
+                        v[2] /= s;
+                        v[3] /= s;
+                        break;
+                    }
+                    case vmi::v4ddiv: {
+                        f64* a = GRx(_O1, f64*);
+                        f64* b = GRx(_O1, f64*);
+                        a[0] /= b[0];
+                        a[1] /= b[1];
+                        a[2] /= b[2];
+                        a[3] /= b[3];
+                        break;
+                    }
+                    case vmi::v4ddivs: {
+                        f64* v = GRx(_O1, f64*);
+                        f64 s = f64(GRf(_O2));
+                        v[0] /= s;
+                        v[1] /= s;
+                        v[2] /= s;
+                        v[3] /= s;
+                        break;
+                    }
+                    case vmi::v4ddivsi: {
+                        f64* v = GRx(_O1, f64*);
+                        f64 s = i.imm_f();
+                        v[0] /= s;
+                        v[1] /= s;
+                        v[2] /= s;
+                        v[3] /= s;
+                        break;
+                    }
+                    case vmi::v4fmod: {
+                        f32* a = GRx(_O1, f32*);
+                        f32* b = GRx(_O1, f32*);
+                        a[0] = fmodf(a[0], b[0]);
+                        a[1] = fmodf(a[1], b[1]);
+                        a[2] = fmodf(a[2], b[2]);
+                        a[3] = fmodf(a[3], b[3]);
+                        break;
+                    }
+                    case vmi::v4fmods: {
+                        f32* v = GRx(_O1, f32*);
+                        f32 s = f32(GRf(_O2));
+                        v[0] = fmodf(v[0], s);
+                        v[1] = fmodf(v[1], s);
+                        v[2] = fmodf(v[2], s);
+                        v[3] = fmodf(v[3], s);
+                        break;
+                    }
+                    case vmi::v4fmodsi: {
+                        f32* v = GRx(_O1, f32*);
+                        f32 s = (f32)i.imm_f();
+                        v[0] = fmodf(v[0], s);
+                        v[1] = fmodf(v[1], s);
+                        v[2] = fmodf(v[2], s);
+                        v[3] = fmodf(v[3], s);
+                        break;
+                    }
+                    case vmi::v4dmod: {
+                        f64* a = GRx(_O1, f64*);
+                        f64* b = GRx(_O1, f64*);
+                        a[0] = fmod(a[0], b[0]);
+                        a[1] = fmod(a[1], b[1]);
+                        a[2] = fmod(a[2], b[2]);
+                        a[3] = fmod(a[3], b[3]);
+                        break;
+                    }
+                    case vmi::v4dmods: {
+                        f64* v = GRx(_O1, f64*);
+                        f64 s = f64(GRf(_O2));
+                        v[0] = fmod(v[0], s);
+                        v[1] = fmod(v[1], s);
+                        v[2] = fmod(v[2], s);
+                        v[3] = fmod(v[3], s);
+                        break;
+                    }
+                    case vmi::v4dmodsi: {
+                        f64* v = GRx(_O1, f64*);
+                        f64 s = i.imm_f();
+                        v[0] = fmod(v[0], s);
+                        v[1] = fmod(v[1], s);
+                        v[2] = fmod(v[2], s);
+                        v[3] = fmod(v[3], s);
+                        break;
+                    }
+                    case vmi::v4fneg: {
+                        f32* v = GRx(_O1, f32*);
+                        v[0] = -v[0];
+                        v[1] = -v[1];
+                        v[2] = -v[2];
+                        v[3] = -v[3];
+                        break;
+                    }
+                    case vmi::v4dneg: {
+                        f64* v = GRx(_O1, f64*);
+                        v[0] = -v[0];
+                        v[1] = -v[1];
+                        v[2] = -v[2];
+                        v[3] = -v[3];
+                        break;
+                    }
+                    case vmi::v4fdot: {
+                        f32* a = GRx(_O2, f32*);
+                        f32* b = GRx(_O3, f32*);
+                        GRf(_O1) = (a[0] * b[0]) + (a[1] * b[1]) + (a[2] * b[2]) + (a[3] * b[3]);
+                        break;
+                    }
+                    case vmi::v4ddot: {
+                        f64* a = GRx(_O2, f64*);
+                        f64* b = GRx(_O3, f64*);
+                        GRd(_O1) = (a[0] * b[0]) + (a[1] * b[1]) + (a[2] * b[2]) + (a[3] * b[3]);
+                        break;
+                    }
+                    case vmi::v4fmag: {
+                        f32* a = GRx(_O2, f32*);
+                        GRf(_O1) = sqrtf((a[0] * a[0]) + (a[1] * a[1]) + (a[2] * a[2]) + (a[3] * a[3]));
+                        break;
+                    }
+                    case vmi::v4dmag: {
+                        f64* a = GRx(_O2, f64*);
+                        GRd(_O1) = sqrt((a[0] * a[0]) + (a[1] * a[1]) + (a[2] * a[2]) + (a[3] * a[3]));
+                        break;
+                    }
+                    case vmi::v4fmagsq: {
+                        f32* a = GRx(_O2, f32*);
+                        GRf(_O1) = (a[0] * a[0]) + (a[1] * a[1]) + (a[2] * a[2]) + (a[3] * a[3]);
+                        break;
+                    }
+                    case vmi::v4dmagsq: {
+                        f64* a = GRx(_O2, f64*);
+                        GRd(_O1) = (a[0] * a[0]) + (a[1] * a[1]) + (a[2] * a[2]) + (a[3] * a[3]);
+                        break;
+                    }
+                    case vmi::v4fnorm: {
+                        f32* v = GRx(_O1, f32*);
+                        f32 ilen = 1.0f / sqrtf((v[0] * v[0]) + (v[1] * v[1]) + (v[2] * v[2]) + (v[3] * v[3]));
+                        v[0] *= ilen;
+                        v[1] *= ilen;
+                        v[2] *= ilen;
+                        v[3] *= ilen;
+                        break;
+                    }
+                    case vmi::v4dnorm: {
+                        f64* v = GRx(_O1, f64*);
+                        f64 ilen = 1.0 / sqrt((v[0] * v[0]) + (v[1] * v[1]) + (v[2] * v[2]) + (v[3] * v[3]));
+                        v[0] *= ilen;
+                        v[1] *= ilen;
+                        v[2] *= ilen;
+                        v[3] *= ilen;
+                        break;
+                    }
+                    case vmi::v4fcross: {
+                        f32* a = GRx(_O1, f32*);
+                        f32* b = GRx(_O2, f32*);
+                        f32* c = GRx(_O3, f32*);
+                        a[0] = (b[1] * c[2]) + (b[2] * c[1]);
+                        a[1] = (b[2] * c[0]) + (b[0] * c[2]);
+                        a[2] = (b[0] * c[1]) + (b[1] * c[0]);
+                        break;
+                    }
+                    case vmi::v4dcross: {
+                        f64* a = GRx(_O1, f64*);
+                        f64* b = GRx(_O2, f64*);
+                        f64* c = GRx(_O3, f64*);
+                        a[0] = (b[1] * c[2]) + (b[2] * c[1]);
+                        a[1] = (b[2] * c[0]) + (b[0] * c[2]);
+                        a[2] = (b[0] * c[1]) + (b[1] * c[0]);
+                        break;
+                    }
                     case vmi::add: {
                         GRx(_O1, i64) = GRx(_O2, i64) + GRx(_O3, i64);
                         break;

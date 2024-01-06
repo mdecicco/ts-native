@@ -101,6 +101,26 @@ namespace tsn {
             tok.src.m_endCol = end.m_col;
         }
         
+        void ParseNode::offsetSourceLocations(const SourceLocation& offset) {
+            tok.src.offset(offset);
+            tok.text = utils::String::View(tok.src.getPointer() + tok.src.getCol(), tok.len);
+            if (str_len > 0) value.s = tok.text.c_str();
+
+            if (data_type) data_type->offsetSourceLocations(offset);
+            if (lvalue) lvalue->offsetSourceLocations(offset);
+            if (rvalue) rvalue->offsetSourceLocations(offset);
+            if (cond) cond->offsetSourceLocations(offset);
+            if (body) body->offsetSourceLocations(offset);
+            if (else_body) else_body->offsetSourceLocations(offset);
+            if (initializer) initializer->offsetSourceLocations(offset);
+            if (parameters) parameters->offsetSourceLocations(offset);
+            if (template_parameters) template_parameters->offsetSourceLocations(offset);
+            if (modifier) modifier->offsetSourceLocations(offset);
+            if (alias) alias->offsetSourceLocations(offset);
+            if (inheritance) inheritance->offsetSourceLocations(offset);
+            if (next) next->offsetSourceLocations(offset);
+        }
+        
         void ParseNode::rehydrateSourceRefs(ModuleSource* src) {
             tok.src.setSource(src);
             tok.text = utils::String::View(tok.src.getPointer() + tok.src.getCol(), tok.len);
@@ -444,8 +464,18 @@ namespace tsn {
             return new utils::FixedAllocator<ParseNode>(1024, 1024, true);
         }
 
-        Parser::Parser(Lexer* l, Logger* log) : IWithLogger(log), m_tokens(l->tokenize()), m_currentIdx(32), m_nodeAlloc(allocatorPageGenerator) {
+        Parser::Parser(Lexer* l, Logger* log) : IWithLogger(log), m_nodeAlloc(allocatorPageGenerator) {
+            m_tokens = l->tokenize();
+            m_currentIdx.reserve(32);
             m_currentIdx.push(0);
+            m_parent = nullptr;
+        }
+
+        Parser::Parser(Lexer* l, Parser* parent) : IWithLogger(parent->getLogger()), m_nodeAlloc(allocatorPageGenerator)  {
+            m_tokens = l->tokenize();
+            m_currentIdx.reserve(32);
+            m_currentIdx.push(0);
+            m_parent = parent;
         }
         
         Parser::~Parser() {
@@ -486,6 +516,8 @@ namespace tsn {
         }
         
         ParseNode* Parser::newNode(node_type tp, const token* src) {
+            if (m_parent) return m_parent->newNode(tp, src ? src : &get());
+
             ParseNode* n = m_nodeAlloc.alloc();
             n->tok = src ? *src : get();
             n->tp = tp;
@@ -1687,14 +1719,121 @@ namespace tsn {
         }
         ParseNode* templateStringLiteral(Parser* ps) {
             if (!ps->typeIs(tt_template_string)) return nullptr;
-            // todo...
 
             const token& t = ps->get();
             ps->consume();
             ParseNode* n = ps->newNode(nt_literal, &t);
-            n->value_tp = lt_string;
+            n->value_tp = lt_template_string;
             n->value.s = t.text.c_str();
             n->str_len = t.text.size();
+
+            struct fragment {
+                utils::String str;
+                bool isExpr;
+                SourceLocation src;
+            };
+
+            utils::Array<fragment> frags;
+            u32 fragBegin = 0;
+            u32 fragEnd = 0;
+            SourceLocation src = t.src;
+            src++; // '`'
+            SourceLocation fragBeginLoc = src;
+
+            for (u32 i = 0;i < t.text.size();i++, src++) {
+                if (t.text[i] == '$' && i < t.text.size() - 1 && t.text[i + 1] == '{') {
+                    src++;
+                    src++;
+
+                    if (fragEnd > fragBegin) {
+                        frags.push({
+                            utils::String::View(t.text.c_str() + fragBegin, (fragEnd - fragBegin) - 1),
+                            false,
+                            fragBeginLoc
+                        });
+                        fragBegin = fragEnd = 0;
+                    }
+
+                    u32 braceCount = 1;
+                    fragBeginLoc = src;
+                    for (u32 j = i + 2;j < t.text.size();j++, src++) {
+                        if (t.text[j] == '{') braceCount++;
+                        else if (t.text[j] == '}') {
+                            braceCount--;
+
+                            if (braceCount == 0) {
+                                if (j != i + 2) {
+                                    frags.push({
+                                        utils::String::View(t.text.c_str() + i + 2, j - (i + 2)),
+                                        true,
+                                        fragBeginLoc
+                                    });
+                                }
+                                i = j;
+                                fragBegin = fragEnd = j + 1;
+                                fragBeginLoc = src;
+                                fragBeginLoc++;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                fragEnd++;
+            }
+
+            if (fragEnd > fragBegin) {
+                frags.push({
+                    utils::String::View(t.text.c_str() + fragBegin, (fragEnd - fragBegin) - 1),
+                    false,
+                    fragBeginLoc
+                });
+            }
+            
+            ParseNode* f = nullptr;
+            for (u32 i = 0;i < frags.size();i++) {
+                if (frags[i].isExpr) {
+                    ModuleSource src(frags[i].str, nullptr);
+                    Lexer l(&src);
+                    Parser p(&l, ps);
+                    ParseNode* expr = expression(&p);
+
+                    if (!expr) {
+                        ps->error(pm_expected_expr, "Expected expression in template literal");
+                    } else {
+                        expr->offsetSourceLocations(frags[i].src);
+                        if (!f) {
+                            f = expr;
+                            n->body = f;
+                        } else {
+                            f->next = expr;
+                            f = expr;
+                        }
+                    }
+                } else {
+                    token lt;
+                    lt.tp = tt_string;
+                    lt.text = frags[i].str;
+                    lt.src = frags[i].src;
+                    lt.len = frags[i].str.size();
+
+                    if (!f) {
+                        f = ps->newNode(nt_literal, &lt);
+                        f->value_tp = lt_string;
+                        f->value.s = frags[i].str.c_str();
+                        f->str_len = frags[i].str.size();
+                        n->body = f;
+                    } else {
+                        ParseNode* fn = ps->newNode(nt_literal, &lt);
+                        fn->value_tp = lt_string;
+                        fn->value.s = frags[i].str.c_str();
+                        fn->str_len = frags[i].str.size();
+                        f->next = fn;
+                        f = fn;
+                    }
+                }
+            }
+
             return n;
         }
         ParseNode* arrayLiteral(Parser* ps) {
@@ -2112,7 +2251,7 @@ namespace tsn {
                 return errorNode(ps);
             }
 
-            n->parameters = parameterList(ps);
+            n->parameters = arguments(ps);
 
             return n;
         }

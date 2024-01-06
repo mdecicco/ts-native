@@ -5,6 +5,8 @@
 #include <tsn/ffi/Closure.h>
 #include <tsn/bind/bind.hpp>
 
+#include <utils/Math.hpp>
+
 using namespace tsn::ffi;
 
 namespace tsn {
@@ -54,6 +56,8 @@ namespace tsn {
         b.method("clone", &utils::String::clone, access_modifier::public_access);
         b.method("toUpperCase", &utils::String::toUpperCase, access_modifier::public_access);
         b.method("toLowerCase", &utils::String::toLowerCase, access_modifier::public_access);
+        b.method<void, const utils::String&>("append", &utils::String::append, access_modifier::public_access);
+        b.method<void, const void*, u32>("append", &utils::String::append, access_modifier::public_access);
         b.prop("length", &utils::String::size, public_access);
         
         b.finalize();
@@ -113,6 +117,108 @@ namespace tsn {
         ctx->getPipeline()->specializeTemplate(arr, { ctx->getTypes()->getBoolean() });
     }
 
+    void BindMath(Context* ctx) {
+        // most vector functionality synthesized at compile time
+        // to cut down on function calls
+        Module* m = ctx->createHostModule("math");
+        {
+            auto t = bind<utils::vec2f>(m, "vec2f");
+            t.prop("x", &utils::vec2f::x, public_access);
+            t.prop("y", &utils::vec2f::y, public_access);
+            t.method("length", &utils::vec2f::magnitude, public_access);
+            t.method("lengthSq", &utils::vec2f::magnitudeSq, public_access);
+            t.method("dot", &utils::vec2f::dot<f32>, public_access);
+            t.method("normalize", &utils::vec2f::normalize, public_access);
+            t.method("normalized", &utils::vec2f::normalized, public_access);
+            t.method("toString", +[](utils::vec2f* self) {
+                return utils::String::Format("%f, %f", self->x, self->y);
+            }, public_access);
+            t.finalize();
+        }
+        {
+            auto t = bind<utils::vec2d>(m, "vec2d");
+            t.prop("x", &utils::vec2d::x, public_access);
+            t.prop("y", &utils::vec2d::y, public_access);
+            t.method("length", &utils::vec2d::magnitude, public_access);
+            t.method("lengthSq", &utils::vec2d::magnitudeSq, public_access);
+            t.method("dot", &utils::vec2d::dot<f64>, public_access);
+            t.method("normalize", &utils::vec2d::normalize, public_access);
+            t.method("normalized", &utils::vec2d::normalized, public_access);
+            t.method("toString", +[](utils::vec2d* self) {
+                return utils::String::Format("%f, %f", self->x, self->y);
+            }, public_access);
+            t.finalize();
+        }
+        {
+            auto t = bind<utils::vec3f>(m, "vec3f");
+            t.prop("x", &utils::vec3f::x, public_access);
+            t.prop("y", &utils::vec3f::y, public_access);
+            t.prop("z", &utils::vec3f::z, public_access);
+            t.method("length", &utils::vec3f::magnitude, public_access);
+            t.method("lengthSq", &utils::vec3f::magnitudeSq, public_access);
+            t.method("cross", &utils::vec3f::cross<f32>, public_access);
+            t.method("dot", &utils::vec3f::dot<f32>, public_access);
+            t.method("normalize", &utils::vec3f::normalize, public_access);
+            t.method("normalized", &utils::vec3f::normalized, public_access);
+            t.method("toString", +[](utils::vec3f* self) {
+                return utils::String::Format("%f, %f, %f", self->x, self->y, self->z);
+            }, public_access);
+            t.finalize();
+        }
+        {
+            auto t = bind<utils::vec3d>(m, "vec3d");
+            t.prop("x", &utils::vec3d::x, public_access);
+            t.prop("y", &utils::vec3d::y, public_access);
+            t.prop("z", &utils::vec3d::z, public_access);
+            t.method("length", &utils::vec3d::magnitude, public_access);
+            t.method("lengthSq", &utils::vec3d::magnitudeSq, public_access);
+            t.method("cross", &utils::vec3d::cross<f64>, public_access);
+            t.method("dot", &utils::vec3d::dot<f64>, public_access);
+            t.method("normalize", &utils::vec3d::normalize, public_access);
+            t.method("normalized", &utils::vec3d::normalized, public_access);
+            t.method("toString", +[](utils::vec3d* self) {
+                return utils::String::Format("%f, %f, %f", self->x, self->y, self->z);
+            }, public_access);
+            t.finalize();
+        }
+        {
+            auto t = bind<utils::vec4f>(m, "vec4f");
+            t.prop("x", &utils::vec4f::x, public_access);
+            t.prop("y", &utils::vec4f::y, public_access);
+            t.prop("z", &utils::vec4f::z, public_access);
+            t.prop("w", &utils::vec4f::w, public_access);
+            t.method("length", &utils::vec4f::magnitude, public_access);
+            t.method("lengthSq", &utils::vec4f::magnitudeSq, public_access);
+            t.method<utils::vec3f, const utils::vec3f&>("cross", &utils::vec4f::cross<f32>, public_access);
+            t.method<utils::vec3f, const utils::vec4f&>("cross", &utils::vec4f::cross<f32>, public_access);
+            t.method("dot", &utils::vec4f::dot<f32>, public_access);
+            t.method("normalize", &utils::vec4f::normalize, public_access);
+            t.method("normalized", &utils::vec4f::normalized, public_access);
+            t.method("toString", +[](utils::vec4f* self) {
+                return utils::String::Format("%f, %f, %f, %f", self->x, self->y, self->z, self->w);
+            }, public_access);
+            t.finalize();
+        }
+        {
+            auto t = bind<utils::vec4d>(m, "vec4d");
+            t.prop("x", &utils::vec4d::x, public_access);
+            t.prop("y", &utils::vec4d::y, public_access);
+            t.prop("z", &utils::vec4d::z, public_access);
+            t.prop("w", &utils::vec4d::w, public_access);
+            t.method("length", &utils::vec4d::magnitude, public_access);
+            t.method("lengthSq", &utils::vec4d::magnitudeSq, public_access);
+            t.method<utils::vec3d, const utils::vec3d&>("cross", &utils::vec4d::cross<f64>, public_access);
+            t.method<utils::vec3d, const utils::vec4d&>("cross", &utils::vec4d::cross<f64>, public_access);
+            t.method("dot", &utils::vec4d::dot<f64>, public_access);
+            t.method("normalize", &utils::vec4d::normalize, public_access);
+            t.method("normalized", &utils::vec4d::normalized, public_access);
+            t.method("toString", +[](utils::vec4d* self) {
+                return utils::String::Format("%f, %f, %f, %f", self->x, self->y, self->z, self->w);
+            }, public_access);
+            t.finalize();
+        }
+    }
+
     void ExtendString(Context* ctx) {
         auto b = extend<utils::String>(ctx);
         b.method<utils::Array<u32>, const utils::String&>("indicesOf", &utils::String::indicesOf, access_modifier::public_access);
@@ -159,6 +265,7 @@ namespace tsn {
 
         BindString(ctx);
         BindMemory(ctx);
+        BindMath(ctx);
 
         bind(ctx, "print", print);
 

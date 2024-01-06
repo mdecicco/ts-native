@@ -6,6 +6,8 @@ namespace tsn {
         class IWithLogger {
             public:
                 IWithLogger(Logger* l);
+                
+                Logger* getLogger() const;
             
                 void beginLoggerTransaction();
                 void commitLoggerTransaction();

@@ -155,6 +155,7 @@ namespace tsn {
                 utils::String str() const;
                 void computeSourceLocationRange();
                 void manuallySpecifyRange(const token& end);
+                void offsetSourceLocations(const SourceLocation& offset);
                 void rehydrateSourceRefs(ModuleSource* src);
                 ParseNode* clone(bool copyNext = false);
 
@@ -219,6 +220,7 @@ namespace tsn {
         class Parser : public IWithLogger, ITransactional {
             public:
                 Parser(Lexer* l, Logger* logs);
+                Parser(Lexer* l, Parser* parent);
                 ~Parser();
 
                 virtual void begin();
@@ -245,6 +247,8 @@ namespace tsn {
 
             private:
                 static utils::FixedAllocator<ParseNode>* allocatorPageGenerator();
+
+                Parser* m_parent;
                 utils::Array<token> m_tokens;
                 utils::Array<u32> m_currentIdx;
                 utils::PagedAllocator<ParseNode, utils::FixedAllocator<ParseNode>> m_nodeAlloc;

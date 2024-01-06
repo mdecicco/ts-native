@@ -30,6 +30,18 @@
         || x == vmi::cvt_di               \
         || x == vmi::cvt_du               \
         || x == vmi::cvt_df               \
+        || x == vmi::v2fneg               \
+        || x == vmi::v2dneg               \
+        || x == vmi::v2fnorm              \
+        || x == vmi::v2dnorm              \
+        || x == vmi::v3fneg               \
+        || x == vmi::v3dneg               \
+        || x == vmi::v3fnorm              \
+        || x == vmi::v3dnorm              \
+        || x == vmi::v4fneg               \
+        || x == vmi::v4dneg               \
+        || x == vmi::v4fnorm              \
+        || x == vmi::v4dnorm              \
     )
 
 // b*, mptr
@@ -42,6 +54,42 @@
         || x == vmi::bltz                 \
         || x == vmi::bltez                \
         || x == vmi::mptr                 \
+        || x == vmi::v2fsetsi             \
+        || x == vmi::v2dsetsi             \
+        || x == vmi::v2faddsi             \
+        || x == vmi::v2daddsi             \
+        || x == vmi::v2fsubsi             \
+        || x == vmi::v2dsubsi             \
+        || x == vmi::v2fmulsi             \
+        || x == vmi::v2dmulsi             \
+        || x == vmi::v2fdivsi             \
+        || x == vmi::v2ddivsi             \
+        || x == vmi::v2fmodsi             \
+        || x == vmi::v2dmodsi             \
+        || x == vmi::v3fsetsi             \
+        || x == vmi::v3dsetsi             \
+        || x == vmi::v3faddsi             \
+        || x == vmi::v3daddsi             \
+        || x == vmi::v3fsubsi             \
+        || x == vmi::v3dsubsi             \
+        || x == vmi::v3fmulsi             \
+        || x == vmi::v3dmulsi             \
+        || x == vmi::v3fdivsi             \
+        || x == vmi::v3ddivsi             \
+        || x == vmi::v3fmodsi             \
+        || x == vmi::v3dmodsi             \
+        || x == vmi::v4fsetsi             \
+        || x == vmi::v4dsetsi             \
+        || x == vmi::v4faddsi             \
+        || x == vmi::v4daddsi             \
+        || x == vmi::v4fsubsi             \
+        || x == vmi::v4dsubsi             \
+        || x == vmi::v4fmulsi             \
+        || x == vmi::v4dmulsi             \
+        || x == vmi::v4fdivsi             \
+        || x == vmi::v4ddivsi             \
+        || x == vmi::v4fmodsi             \
+        || x == vmi::v4dmodsi             \
     )
 
 // mtfp, mffp, neg*
@@ -52,6 +100,90 @@
         || x == vmi::neg                  \
         || x == vmi::negf                 \
         || x == vmi::negd                 \
+        || x == vmi::v2fset               \
+        || x == vmi::v2fsets              \
+        || x == vmi::v2dset               \
+        || x == vmi::v2dsets              \
+        || x == vmi::v2fadd               \
+        || x == vmi::v2fadds              \
+        || x == vmi::v2dadd               \
+        || x == vmi::v2dadds              \
+        || x == vmi::v2fsub               \
+        || x == vmi::v2fsubs              \
+        || x == vmi::v2dsub               \
+        || x == vmi::v2dsubs              \
+        || x == vmi::v2fmul               \
+        || x == vmi::v2fmuls              \
+        || x == vmi::v2dmul               \
+        || x == vmi::v2dmuls              \
+        || x == vmi::v2fdiv               \
+        || x == vmi::v2fdivs              \
+        || x == vmi::v2ddiv               \
+        || x == vmi::v2ddivs              \
+        || x == vmi::v2fmod               \
+        || x == vmi::v2fmods              \
+        || x == vmi::v2dmod               \
+        || x == vmi::v2dmods              \
+        || x == vmi::v2fmag               \
+        || x == vmi::v2dmag               \
+        || x == vmi::v2fmagsq             \
+        || x == vmi::v2dmagsq             \
+        || x == vmi::v3fset               \
+        || x == vmi::v3fsets              \
+        || x == vmi::v3dset               \
+        || x == vmi::v3dsets              \
+        || x == vmi::v3fadd               \
+        || x == vmi::v3fadds              \
+        || x == vmi::v3dadd               \
+        || x == vmi::v3dadds              \
+        || x == vmi::v3fsub               \
+        || x == vmi::v3fsubs              \
+        || x == vmi::v3dsub               \
+        || x == vmi::v3dsubs              \
+        || x == vmi::v3fmul               \
+        || x == vmi::v3fmuls              \
+        || x == vmi::v3dmul               \
+        || x == vmi::v3dmuls              \
+        || x == vmi::v3fdiv               \
+        || x == vmi::v3fdivs              \
+        || x == vmi::v3ddiv               \
+        || x == vmi::v3ddivs              \
+        || x == vmi::v3fmod               \
+        || x == vmi::v3fmods              \
+        || x == vmi::v3dmod               \
+        || x == vmi::v3dmods              \
+        || x == vmi::v3fmag               \
+        || x == vmi::v3dmag               \
+        || x == vmi::v3fmagsq             \
+        || x == vmi::v3dmagsq             \
+        || x == vmi::v4fset               \
+        || x == vmi::v4fsets              \
+        || x == vmi::v4dset               \
+        || x == vmi::v4dsets              \
+        || x == vmi::v4fadd               \
+        || x == vmi::v4fadds              \
+        || x == vmi::v4dadd               \
+        || x == vmi::v4dadds              \
+        || x == vmi::v4fsub               \
+        || x == vmi::v4fsubs              \
+        || x == vmi::v4dsub               \
+        || x == vmi::v4dsubs              \
+        || x == vmi::v4fmul               \
+        || x == vmi::v4fmuls              \
+        || x == vmi::v4dmul               \
+        || x == vmi::v4dmuls              \
+        || x == vmi::v4fdiv               \
+        || x == vmi::v4fdivs              \
+        || x == vmi::v4ddiv               \
+        || x == vmi::v4ddivs              \
+        || x == vmi::v4fmod               \
+        || x == vmi::v4fmods              \
+        || x == vmi::v4dmod               \
+        || x == vmi::v4dmods              \
+        || x == vmi::v4fmag               \
+        || x == vmi::v4dmag               \
+        || x == vmi::v4fmagsq             \
+        || x == vmi::v4dmagsq             \
     )
 
 // ld*, st*
@@ -167,6 +299,16 @@
         || x == vmi::_xor                 \
         || x == vmi::sl                   \
         || x == vmi::sr                   \
+        || x == vmi::v2fdot               \
+        || x == vmi::v2ddot               \
+        || x == vmi::v3fdot               \
+        || x == vmi::v3ddot               \
+        || x == vmi::v3fcross             \
+        || x == vmi::v3dcross             \
+        || x == vmi::v4fdot               \
+        || x == vmi::v4ddot               \
+        || x == vmi::v4fcross             \
+        || x == vmi::v4dcross             \
     )
 
 #define first_operand_is_register(x)      \
@@ -226,6 +368,24 @@
         || x == vmi::ddivir               \
         || x == vmi::negf                 \
         || x == vmi::negd                 \
+        || x == vmi::v2fdot               \
+        || x == vmi::v2ddot               \
+        || x == vmi::v2fmag               \
+        || x == vmi::v2dmag               \
+        || x == vmi::v2fmagsq             \
+        || x == vmi::v2dmagsq             \
+        || x == vmi::v3fdot               \
+        || x == vmi::v3ddot               \
+        || x == vmi::v3fmag               \
+        || x == vmi::v3dmag               \
+        || x == vmi::v3fmagsq             \
+        || x == vmi::v3dmagsq             \
+        || x == vmi::v4fdot               \
+        || x == vmi::v4ddot               \
+        || x == vmi::v4fmag               \
+        || x == vmi::v4dmag               \
+        || x == vmi::v4fmagsq             \
+        || x == vmi::v4dmagsq             \
     )
 
 // cvt_*, ld*, st*
@@ -300,6 +460,82 @@
         || x == vmi::dncmp                \
         || x == vmi::negf                 \
         || x == vmi::negd                 \
+        || x == vmi::v2fsets              \
+        || x == vmi::v2dsets              \
+        || x == vmi::v2fadds              \
+        || x == vmi::v2dadds              \
+        || x == vmi::v2fsubs              \
+        || x == vmi::v2dsubs              \
+        || x == vmi::v2fmuls              \
+        || x == vmi::v2dmuls              \
+        || x == vmi::v2fdivs              \
+        || x == vmi::v2ddivs              \
+        || x == vmi::v2fmods              \
+        || x == vmi::v2dmods              \
+        || x == vmi::v3fsets              \
+        || x == vmi::v3dsets              \
+        || x == vmi::v3fadds              \
+        || x == vmi::v3dadds              \
+        || x == vmi::v3fsubs              \
+        || x == vmi::v3dsubs              \
+        || x == vmi::v3fmuls              \
+        || x == vmi::v3dmuls              \
+        || x == vmi::v3fdivs              \
+        || x == vmi::v3ddivs              \
+        || x == vmi::v3fmods              \
+        || x == vmi::v3dmods              \
+        || x == vmi::v4fsets              \
+        || x == vmi::v4dsets              \
+        || x == vmi::v4fadds              \
+        || x == vmi::v4dadds              \
+        || x == vmi::v4fsubs              \
+        || x == vmi::v4dsubs              \
+        || x == vmi::v4fmuls              \
+        || x == vmi::v4dmuls              \
+        || x == vmi::v4fdivs              \
+        || x == vmi::v4ddivs              \
+        || x == vmi::v4fmods              \
+        || x == vmi::v4dmods              \
+    )
+
+#define second_operand_must_be_fpi(x)     \
+    (                                     \
+        x == vmi::v2fsetsi                \
+        || x == vmi::v2dsetsi             \
+        || x == vmi::v2faddsi             \
+        || x == vmi::v2daddsi             \
+        || x == vmi::v2fsubsi             \
+        || x == vmi::v2dsubsi             \
+        || x == vmi::v2fmulsi             \
+        || x == vmi::v2dmulsi             \
+        || x == vmi::v2fdivsi             \
+        || x == vmi::v2ddivsi             \
+        || x == vmi::v2fmodsi             \
+        || x == vmi::v2dmodsi             \
+        || x == vmi::v3fsetsi             \
+        || x == vmi::v3dsetsi             \
+        || x == vmi::v3faddsi             \
+        || x == vmi::v3daddsi             \
+        || x == vmi::v3fsubsi             \
+        || x == vmi::v3dsubsi             \
+        || x == vmi::v3fmulsi             \
+        || x == vmi::v3dmulsi             \
+        || x == vmi::v3fdivsi             \
+        || x == vmi::v3ddivsi             \
+        || x == vmi::v3fmodsi             \
+        || x == vmi::v3dmodsi             \
+        || x == vmi::v4fsetsi             \
+        || x == vmi::v4dsetsi             \
+        || x == vmi::v4faddsi             \
+        || x == vmi::v4daddsi             \
+        || x == vmi::v4fsubsi             \
+        || x == vmi::v4dsubsi             \
+        || x == vmi::v4fmulsi             \
+        || x == vmi::v4dmulsi             \
+        || x == vmi::v4fdivsi             \
+        || x == vmi::v4ddivsi             \
+        || x == vmi::v4fmodsi             \
+        || x == vmi::v4dmodsi             \
     )
 
 #define third_operand_must_be_fpr(x)      \

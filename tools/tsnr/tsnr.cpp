@@ -424,7 +424,7 @@ i32 handleResult(Context* ctx, Module* mod, const script_metadata& meta, const t
             }
 
             char lnFmt[16] = { 0 };
-            snprintf(lnFmt, 16, "%%%dd | %%s\n", lineNumWidth);
+            snprintf(lnFmt, 16, "%%-%dd | %%s\n", lineNumWidth);
 
             for (u32 i = 0;i < lines.size();i++) {
                 u32 lineNum = lineNums[i];

@@ -32,6 +32,7 @@ namespace tsn {
             bool operator++(int);
             char operator*() const;
             SourceLocation& operator=(const SourceLocation& rhs);
+            void offset(const SourceLocation& by);
 
             virtual bool serialize(utils::Buffer* out, Context* ctx) const;
             virtual bool deserialize(utils::Buffer* in, Context* ctx);

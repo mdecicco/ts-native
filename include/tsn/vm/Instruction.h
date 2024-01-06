@@ -13,22 +13,23 @@ namespace tsn {
         /*
         * Anatomy of an encoded instruction
         *
-        * type 0  |  instruction  |---------------------------------------| flags |
-        * type 1  |  instruction  |---------------------------------------| flags |
-        * type 2  |  instruction  |  operand  |---------------------------| flags |
-        * type 3  |  instruction  |  operand  |---------------------------| flags |
-        * type 4  |  instruction  |  operand  |  operand  |---------------| flags |
-        * type 5  |  instruction  |  operand  |  operand  |---------------| flags |
-        * type 6  |  instruction  |  operand  |  operand  |---------------| flags |
-        * type 7  |  instruction  |  operand  |  operand  |  operand  |---| flags |
+        * type 0  |  instruction    |-------------------------------------| flags |
+        * type 1  |  instruction    |-------------------------------------| flags |
+        * type 2  |  instruction    |  operand  |-------------------------| flags |
+        * type 3  |  instruction    |  operand  |-------------------------| flags |
+        * type 4  |  instruction    |  operand  |  operand  |-------------| flags |
+        * type 5  |  instruction    |  operand  |  operand  |-------------| flags |
+        * type 6  |  instruction    |  operand  |  operand  |-------------| flags |
+        * type 7  |  instruction    |  operand  |  operand  |  operand  |-| flags |
         *         |0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0| (bits)
         *         |32             |24             |16             |8              | (bytes)
         */
 
-        constexpr tsn::u32 instr_shift = 24;
-        constexpr tsn::u32 op_1_shift  = 18;
-        constexpr tsn::u32 op_2_shift  = 12;
-        constexpr tsn::u32 op_3_shift  = 6; 
+        constexpr tsn::u32 instr_shift = 23;
+        constexpr tsn::u32 op_1_shift  = 17;
+        constexpr tsn::u32 op_2_shift  = 11;
+        constexpr tsn::u32 op_3_shift  = 5;
+        constexpr tsn::u32 instr_mask  = 0b11111111111111111111111000000000;
         constexpr tsn::u32 op_mask     = 0b11111111111111111111111111000000;
         constexpr tsn::u32 flag_mask   = 0b11111111111111111111111111110000;
 

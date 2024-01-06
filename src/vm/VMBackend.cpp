@@ -179,6 +179,13 @@ namespace tsn {
         }
         
         void Backend::generate(CodeHolder* ch) {
+            DataType* v2f = m_ctx->getTypes()->getVec2f();
+            DataType* v2d = m_ctx->getTypes()->getVec2d();
+            DataType* v3f = m_ctx->getTypes()->getVec3f();
+            DataType* v3d = m_ctx->getTypes()->getVec3d();
+            DataType* v4f = m_ctx->getTypes()->getVec4f();
+            DataType* v4d = m_ctx->getTypes()->getVec4d();
+
             robin_hood::unordered_map<alloc_id, u64> stack_addrs;
             robin_hood::unordered_map<label_id, address> label_map;
 
@@ -476,6 +483,220 @@ namespace tsn {
                         Module* m = m_ctx->getModule(o2.getImm<u32>());
                         void* ptr = m->getDataInfo(o3.getImm<u32>()).ptr;
                         m_instructions.push(encode(vmi::addui).operand(r1).operand(vmr::zero).operand(reinterpret_cast<u64>(ptr)));
+                        m_map.add(i.src.getLine(), i.src.getCol(), i.src.getLength());
+                        break;
+                    }
+                    case op::ir_vset: {
+                        if (o2.isImm()) {
+                            if (t1 == v2f) m_instructions.push(encode(vmi::v2fsetsi).operand(r1).operand(o2.getImm<f64>()));
+                            else if (t1 == v2d) m_instructions.push(encode(vmi::v2dsetsi).operand(r1).operand(o2.getImm<f64>()));
+                            else if (t1 == v3f) m_instructions.push(encode(vmi::v3fsetsi).operand(r1).operand(o2.getImm<f64>()));
+                            else if (t1 == v3d) m_instructions.push(encode(vmi::v3dsetsi).operand(r1).operand(o2.getImm<f64>()));
+                            else if (t1 == v4f) m_instructions.push(encode(vmi::v4fsetsi).operand(r1).operand(o2.getImm<f64>()));
+                            else if (t1 == v4d) m_instructions.push(encode(vmi::v4dsetsi).operand(r1).operand(o2.getImm<f64>()));
+                        } else if (t2->getInfo().is_primitive) {
+                            if (t1 == v2f) m_instructions.push(encode(vmi::v2fsets).operand(r1).operand(r2));
+                            else if (t1 == v2d) m_instructions.push(encode(vmi::v2dsets).operand(r1).operand(r2));
+                            else if (t1 == v3f) m_instructions.push(encode(vmi::v3fsets).operand(r1).operand(r2));
+                            else if (t1 == v3d) m_instructions.push(encode(vmi::v3dsets).operand(r1).operand(r2));
+                            else if (t1 == v4f) m_instructions.push(encode(vmi::v4fsets).operand(r1).operand(r2));
+                            else if (t1 == v4d) m_instructions.push(encode(vmi::v4dsets).operand(r1).operand(r2));
+                        } else {
+                            if (t1 == v2f) m_instructions.push(encode(vmi::v2fset).operand(r1).operand(r2));
+                            else if (t1 == v2d) m_instructions.push(encode(vmi::v2dset).operand(r1).operand(r2));
+                            else if (t1 == v3f) m_instructions.push(encode(vmi::v3fset).operand(r1).operand(r2));
+                            else if (t1 == v3d) m_instructions.push(encode(vmi::v3dset).operand(r1).operand(r2));
+                            else if (t1 == v4f) m_instructions.push(encode(vmi::v4fset).operand(r1).operand(r2));
+                            else if (t1 == v4d) m_instructions.push(encode(vmi::v4dset).operand(r1).operand(r2));
+                        }
+                        m_map.add(i.src.getLine(), i.src.getCol(), i.src.getLength());
+                        break;
+                    }
+                    case op::ir_vadd: {
+                        if (o2.isImm()) {
+                            if (t1 == v2f) m_instructions.push(encode(vmi::v2faddsi).operand(r1).operand(o2.getImm<f64>()));
+                            else if (t1 == v2d) m_instructions.push(encode(vmi::v2daddsi).operand(r1).operand(o2.getImm<f64>()));
+                            else if (t1 == v3f) m_instructions.push(encode(vmi::v3faddsi).operand(r1).operand(o2.getImm<f64>()));
+                            else if (t1 == v3d) m_instructions.push(encode(vmi::v3daddsi).operand(r1).operand(o2.getImm<f64>()));
+                            else if (t1 == v4f) m_instructions.push(encode(vmi::v4faddsi).operand(r1).operand(o2.getImm<f64>()));
+                            else if (t1 == v4d) m_instructions.push(encode(vmi::v4daddsi).operand(r1).operand(o2.getImm<f64>()));
+                        } else if (t2->getInfo().is_primitive) {
+                            if (t1 == v2f) m_instructions.push(encode(vmi::v2fadds).operand(r1).operand(r2));
+                            else if (t1 == v2d) m_instructions.push(encode(vmi::v2dadds).operand(r1).operand(r2));
+                            else if (t1 == v3f) m_instructions.push(encode(vmi::v3fadds).operand(r1).operand(r2));
+                            else if (t1 == v3d) m_instructions.push(encode(vmi::v3dadds).operand(r1).operand(r2));
+                            else if (t1 == v4f) m_instructions.push(encode(vmi::v4fadds).operand(r1).operand(r2));
+                            else if (t1 == v4d) m_instructions.push(encode(vmi::v4dadds).operand(r1).operand(r2));
+                        } else {
+                            if (t1 == v2f) m_instructions.push(encode(vmi::v2fadd).operand(r1).operand(r2));
+                            else if (t1 == v2d) m_instructions.push(encode(vmi::v2dadd).operand(r1).operand(r2));
+                            else if (t1 == v3f) m_instructions.push(encode(vmi::v3fadd).operand(r1).operand(r2));
+                            else if (t1 == v3d) m_instructions.push(encode(vmi::v3dadd).operand(r1).operand(r2));
+                            else if (t1 == v4f) m_instructions.push(encode(vmi::v4fadd).operand(r1).operand(r2));
+                            else if (t1 == v4d) m_instructions.push(encode(vmi::v4dadd).operand(r1).operand(r2));
+                        }
+                        m_map.add(i.src.getLine(), i.src.getCol(), i.src.getLength());
+                        break;
+                    }
+                    case op::ir_vsub: {
+                        if (o2.isImm()) {
+                            if (t1 == v2f) m_instructions.push(encode(vmi::v2fsubsi).operand(r1).operand(o2.getImm<f64>()));
+                            else if (t1 == v2d) m_instructions.push(encode(vmi::v2dsubsi).operand(r1).operand(o2.getImm<f64>()));
+                            else if (t1 == v3f) m_instructions.push(encode(vmi::v3fsubsi).operand(r1).operand(o2.getImm<f64>()));
+                            else if (t1 == v3d) m_instructions.push(encode(vmi::v3dsubsi).operand(r1).operand(o2.getImm<f64>()));
+                            else if (t1 == v4f) m_instructions.push(encode(vmi::v4fsubsi).operand(r1).operand(o2.getImm<f64>()));
+                            else if (t1 == v4d) m_instructions.push(encode(vmi::v4dsubsi).operand(r1).operand(o2.getImm<f64>()));
+                        } else if (t2->getInfo().is_primitive) {
+                            if (t1 == v2f) m_instructions.push(encode(vmi::v2fsubs).operand(r1).operand(r2));
+                            else if (t1 == v2d) m_instructions.push(encode(vmi::v2dsubs).operand(r1).operand(r2));
+                            else if (t1 == v3f) m_instructions.push(encode(vmi::v3fsubs).operand(r1).operand(r2));
+                            else if (t1 == v3d) m_instructions.push(encode(vmi::v3dsubs).operand(r1).operand(r2));
+                            else if (t1 == v4f) m_instructions.push(encode(vmi::v4fsubs).operand(r1).operand(r2));
+                            else if (t1 == v4d) m_instructions.push(encode(vmi::v4dsubs).operand(r1).operand(r2));
+                        } else {
+                            if (t1 == v2f) m_instructions.push(encode(vmi::v2fsub).operand(r1).operand(r2));
+                            else if (t1 == v2d) m_instructions.push(encode(vmi::v2dsub).operand(r1).operand(r2));
+                            else if (t1 == v3f) m_instructions.push(encode(vmi::v3fsub).operand(r1).operand(r2));
+                            else if (t1 == v3d) m_instructions.push(encode(vmi::v3dsub).operand(r1).operand(r2));
+                            else if (t1 == v4f) m_instructions.push(encode(vmi::v4fsub).operand(r1).operand(r2));
+                            else if (t1 == v4d) m_instructions.push(encode(vmi::v4dsub).operand(r1).operand(r2));
+                        }
+                        m_map.add(i.src.getLine(), i.src.getCol(), i.src.getLength());
+                        break;
+                    }
+                    case op::ir_vmul: {
+                        if (o2.isImm()) {
+                            if (t1 == v2f) m_instructions.push(encode(vmi::v2fmulsi).operand(r1).operand(o2.getImm<f64>()));
+                            else if (t1 == v2d) m_instructions.push(encode(vmi::v2dmulsi).operand(r1).operand(o2.getImm<f64>()));
+                            else if (t1 == v3f) m_instructions.push(encode(vmi::v3fmulsi).operand(r1).operand(o2.getImm<f64>()));
+                            else if (t1 == v3d) m_instructions.push(encode(vmi::v3dmulsi).operand(r1).operand(o2.getImm<f64>()));
+                            else if (t1 == v4f) m_instructions.push(encode(vmi::v4fmulsi).operand(r1).operand(o2.getImm<f64>()));
+                            else if (t1 == v4d) m_instructions.push(encode(vmi::v4dmulsi).operand(r1).operand(o2.getImm<f64>()));
+                        } else if (t2->getInfo().is_primitive) {
+                            if (t1 == v2f) m_instructions.push(encode(vmi::v2fmuls).operand(r1).operand(r2));
+                            else if (t1 == v2d) m_instructions.push(encode(vmi::v2dmuls).operand(r1).operand(r2));
+                            else if (t1 == v3f) m_instructions.push(encode(vmi::v3fmuls).operand(r1).operand(r2));
+                            else if (t1 == v3d) m_instructions.push(encode(vmi::v3dmuls).operand(r1).operand(r2));
+                            else if (t1 == v4f) m_instructions.push(encode(vmi::v4fmuls).operand(r1).operand(r2));
+                            else if (t1 == v4d) m_instructions.push(encode(vmi::v4dmuls).operand(r1).operand(r2));
+                        } else {
+                            if (t1 == v2f) m_instructions.push(encode(vmi::v2fmul).operand(r1).operand(r2));
+                            else if (t1 == v2d) m_instructions.push(encode(vmi::v2dmul).operand(r1).operand(r2));
+                            else if (t1 == v3f) m_instructions.push(encode(vmi::v3fmul).operand(r1).operand(r2));
+                            else if (t1 == v3d) m_instructions.push(encode(vmi::v3dmul).operand(r1).operand(r2));
+                            else if (t1 == v4f) m_instructions.push(encode(vmi::v4fmul).operand(r1).operand(r2));
+                            else if (t1 == v4d) m_instructions.push(encode(vmi::v4dmul).operand(r1).operand(r2));
+                        }
+                        m_map.add(i.src.getLine(), i.src.getCol(), i.src.getLength());
+                        break;
+                    }
+                    case op::ir_vdiv: {
+                        if (o2.isImm()) {
+                            if (t1 == v2f) m_instructions.push(encode(vmi::v2fdivsi).operand(r1).operand(o2.getImm<f64>()));
+                            else if (t1 == v2d) m_instructions.push(encode(vmi::v2ddivsi).operand(r1).operand(o2.getImm<f64>()));
+                            else if (t1 == v3f) m_instructions.push(encode(vmi::v3fdivsi).operand(r1).operand(o2.getImm<f64>()));
+                            else if (t1 == v3d) m_instructions.push(encode(vmi::v3ddivsi).operand(r1).operand(o2.getImm<f64>()));
+                            else if (t1 == v4f) m_instructions.push(encode(vmi::v4fdivsi).operand(r1).operand(o2.getImm<f64>()));
+                            else if (t1 == v4d) m_instructions.push(encode(vmi::v4ddivsi).operand(r1).operand(o2.getImm<f64>()));
+                        } else if (t2->getInfo().is_primitive) {
+                            if (t1 == v2f) m_instructions.push(encode(vmi::v2fdivs).operand(r1).operand(r2));
+                            else if (t1 == v2d) m_instructions.push(encode(vmi::v2ddivs).operand(r1).operand(r2));
+                            else if (t1 == v3f) m_instructions.push(encode(vmi::v3fdivs).operand(r1).operand(r2));
+                            else if (t1 == v3d) m_instructions.push(encode(vmi::v3ddivs).operand(r1).operand(r2));
+                            else if (t1 == v4f) m_instructions.push(encode(vmi::v4fdivs).operand(r1).operand(r2));
+                            else if (t1 == v4d) m_instructions.push(encode(vmi::v4ddivs).operand(r1).operand(r2));
+                        } else {
+                            if (t1 == v2f) m_instructions.push(encode(vmi::v2fdiv).operand(r1).operand(r2));
+                            else if (t1 == v2d) m_instructions.push(encode(vmi::v2ddiv).operand(r1).operand(r2));
+                            else if (t1 == v3f) m_instructions.push(encode(vmi::v3fdiv).operand(r1).operand(r2));
+                            else if (t1 == v3d) m_instructions.push(encode(vmi::v3ddiv).operand(r1).operand(r2));
+                            else if (t1 == v4f) m_instructions.push(encode(vmi::v4fdiv).operand(r1).operand(r2));
+                            else if (t1 == v4d) m_instructions.push(encode(vmi::v4ddiv).operand(r1).operand(r2));
+                        }
+                        m_map.add(i.src.getLine(), i.src.getCol(), i.src.getLength());
+                        break;
+                    }
+                    case op::ir_vmod: {
+                        if (o2.isImm()) {
+                            if (t1 == v2f) m_instructions.push(encode(vmi::v2fmodsi).operand(r1).operand(o2.getImm<f64>()));
+                            else if (t1 == v2d) m_instructions.push(encode(vmi::v2dmodsi).operand(r1).operand(o2.getImm<f64>()));
+                            else if (t1 == v3f) m_instructions.push(encode(vmi::v3fmodsi).operand(r1).operand(o2.getImm<f64>()));
+                            else if (t1 == v3d) m_instructions.push(encode(vmi::v3dmodsi).operand(r1).operand(o2.getImm<f64>()));
+                            else if (t1 == v4f) m_instructions.push(encode(vmi::v4fmodsi).operand(r1).operand(o2.getImm<f64>()));
+                            else if (t1 == v4d) m_instructions.push(encode(vmi::v4dmodsi).operand(r1).operand(o2.getImm<f64>()));
+                        } else if (t2->getInfo().is_primitive) {
+                            if (t1 == v2f) m_instructions.push(encode(vmi::v2fmods).operand(r1).operand(r2));
+                            else if (t1 == v2d) m_instructions.push(encode(vmi::v2dmods).operand(r1).operand(r2));
+                            else if (t1 == v3f) m_instructions.push(encode(vmi::v3fmods).operand(r1).operand(r2));
+                            else if (t1 == v3d) m_instructions.push(encode(vmi::v3dmods).operand(r1).operand(r2));
+                            else if (t1 == v4f) m_instructions.push(encode(vmi::v4fmods).operand(r1).operand(r2));
+                            else if (t1 == v4d) m_instructions.push(encode(vmi::v4dmods).operand(r1).operand(r2));
+                        } else {
+                            if (t1 == v2f) m_instructions.push(encode(vmi::v2fmod).operand(r1).operand(r2));
+                            else if (t1 == v2d) m_instructions.push(encode(vmi::v2dmod).operand(r1).operand(r2));
+                            else if (t1 == v3f) m_instructions.push(encode(vmi::v3fmod).operand(r1).operand(r2));
+                            else if (t1 == v3d) m_instructions.push(encode(vmi::v3dmod).operand(r1).operand(r2));
+                            else if (t1 == v4f) m_instructions.push(encode(vmi::v4fmod).operand(r1).operand(r2));
+                            else if (t1 == v4d) m_instructions.push(encode(vmi::v4dmod).operand(r1).operand(r2));
+                        }
+                        m_map.add(i.src.getLine(), i.src.getCol(), i.src.getLength());
+                        break;
+                    }
+                    case op::ir_vneg: {
+                        if (t1 == v2f) m_instructions.push(encode(vmi::v2fneg).operand(r1));
+                        else if (t1 == v2d) m_instructions.push(encode(vmi::v2dneg).operand(r1));
+                        else if (t1 == v3f) m_instructions.push(encode(vmi::v3fneg).operand(r1));
+                        else if (t1 == v3d) m_instructions.push(encode(vmi::v3dneg).operand(r1));
+                        else if (t1 == v4f) m_instructions.push(encode(vmi::v4fneg).operand(r1));
+                        else if (t1 == v4d) m_instructions.push(encode(vmi::v4dneg).operand(r1));
+                        m_map.add(i.src.getLine(), i.src.getCol(), i.src.getLength());
+                        break;
+                    }
+                    case op::ir_vdot: {
+                        if (t2 == v2f) m_instructions.push(encode(vmi::v2fdot).operand(r1).operand(r2).operand(r3));
+                        else if (t2 == v2d) m_instructions.push(encode(vmi::v2ddot).operand(r1).operand(r2).operand(r3));
+                        else if (t2 == v3f) m_instructions.push(encode(vmi::v3fdot).operand(r1).operand(r2).operand(r3));
+                        else if (t2 == v3d) m_instructions.push(encode(vmi::v3ddot).operand(r1).operand(r2).operand(r3));
+                        else if (t2 == v4f) m_instructions.push(encode(vmi::v4fdot).operand(r1).operand(r2).operand(r3));
+                        else if (t2 == v4d) m_instructions.push(encode(vmi::v4ddot).operand(r1).operand(r2).operand(r3));
+                        m_map.add(i.src.getLine(), i.src.getCol(), i.src.getLength());
+                        break;
+                    }
+                    case op::ir_vmag: {
+                        if (t2 == v2f) m_instructions.push(encode(vmi::v2fmag).operand(r1).operand(r2));
+                        else if (t2 == v2d) m_instructions.push(encode(vmi::v2dmag).operand(r1).operand(r2));
+                        else if (t2 == v3f) m_instructions.push(encode(vmi::v3fmag).operand(r1).operand(r2));
+                        else if (t2 == v3d) m_instructions.push(encode(vmi::v3dmag).operand(r1).operand(r2));
+                        else if (t2 == v4f) m_instructions.push(encode(vmi::v4fmag).operand(r1).operand(r2));
+                        else if (t2 == v4d) m_instructions.push(encode(vmi::v4dmag).operand(r1).operand(r2));
+                        m_map.add(i.src.getLine(), i.src.getCol(), i.src.getLength());
+                        break;
+                    }
+                    case op::ir_vmagsq: {
+                        if (t2 == v2f) m_instructions.push(encode(vmi::v2fmagsq).operand(r1).operand(r2));
+                        else if (t2 == v2d) m_instructions.push(encode(vmi::v2dmagsq).operand(r1).operand(r2));
+                        else if (t2 == v3f) m_instructions.push(encode(vmi::v3fmagsq).operand(r1).operand(r2));
+                        else if (t2 == v3d) m_instructions.push(encode(vmi::v3dmagsq).operand(r1).operand(r2));
+                        else if (t2 == v4f) m_instructions.push(encode(vmi::v4fmagsq).operand(r1).operand(r2));
+                        else if (t2 == v4d) m_instructions.push(encode(vmi::v4dmagsq).operand(r1).operand(r2));
+                        m_map.add(i.src.getLine(), i.src.getCol(), i.src.getLength());
+                        break;
+                    }
+                    case op::ir_vnorm: {
+                        if (t1 == v2f) m_instructions.push(encode(vmi::v2fnorm).operand(r1));
+                        else if (t1 == v2d) m_instructions.push(encode(vmi::v2dnorm).operand(r1));
+                        else if (t1 == v3f) m_instructions.push(encode(vmi::v3fnorm).operand(r1));
+                        else if (t1 == v3d) m_instructions.push(encode(vmi::v3dnorm).operand(r1));
+                        else if (t1 == v4f) m_instructions.push(encode(vmi::v4fnorm).operand(r1));
+                        else if (t1 == v4d) m_instructions.push(encode(vmi::v4dnorm).operand(r1));
+                        m_map.add(i.src.getLine(), i.src.getCol(), i.src.getLength());
+                        break;
+                    }
+                    case op::ir_vcross: {
+                        if (t1 == v3f) m_instructions.push(encode(vmi::v3fcross).operand(r1).operand(r2).operand(r3));
+                        else if (t1 == v3d) m_instructions.push(encode(vmi::v3dcross).operand(r1).operand(r2).operand(r3));
+                        else if (t1 == v4f) m_instructions.push(encode(vmi::v4fcross).operand(r1).operand(r2).operand(r3));
+                        else if (t1 == v4d) m_instructions.push(encode(vmi::v4dcross).operand(r1).operand(r2).operand(r3));
                         m_map.add(i.src.getLine(), i.src.getCol(), i.src.getLength());
                         break;
                     }

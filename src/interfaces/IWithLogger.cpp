@@ -5,6 +5,10 @@ namespace tsn {
         IWithLogger::IWithLogger(Logger* l) {
             m_logger = l;
         }
+        
+        Logger* IWithLogger::getLogger() const {
+            return m_logger;
+        }
     
         void IWithLogger::beginLoggerTransaction() {
             m_logger->begin();

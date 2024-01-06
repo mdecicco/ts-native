@@ -641,25 +641,145 @@ namespace tsn {
             return result;
         }
         
+        bool Compiler::maybeConstructVectorType(const Value& dest, ffi::DataType* tp, const utils::Array<Value>& args, const utils::Array<ffi::DataType*>& argTps) {
+            DataType* v2f = m_ctx->getTypes()->getVec2f();
+            DataType* v2d = m_ctx->getTypes()->getVec2d();
+            DataType* v3f = m_ctx->getTypes()->getVec3f();
+            DataType* v3d = m_ctx->getTypes()->getVec3d();
+            DataType* v4f = m_ctx->getTypes()->getVec4f();
+            DataType* v4d = m_ctx->getTypes()->getVec4d();
+            DataType* ft = m_ctx->getTypes()->getFloat32();
+            DataType* dt = m_ctx->getTypes()->getFloat64();
+            FunctionDef* cf = currentFunction();
+
+            if (tp == v2f) {
+                if (args.size() == 0) {
+                    add(ir_store).op(cf->imm(0.0f)).op(dest);
+                    add(ir_store).op(cf->imm(0.0f)).op(dest).op(cf->imm<u32>(sizeof(f32)));
+                    return true;
+                } else if (args.size() == 1 && argTps[0] == v2f) {
+                    add(ir_vset).op(dest).op(args[0]);
+                    return true;
+                } else if (args.size() == 2 && argTps[0] == ft && argTps[1] == ft) {
+                    if (args[0].getFlags().is_pointer) add(ir_store).op(*args[0]).op(dest);
+                    else add(ir_store).op(args[0]).op(dest);
+                    if (args[1].getFlags().is_pointer) add(ir_store).op(*args[1]).op(dest).op(cf->imm<u32>(sizeof(f32)));
+                    else add(ir_store).op(args[1]).op(dest).op(cf->imm<u32>(sizeof(f32)));
+                    return true;
+                }
+            } else if (tp == v2d) {
+                if (args.size() == 0) {
+                    add(ir_store).op(cf->imm(0.0)).op(dest);
+                    add(ir_store).op(cf->imm(0.0)).op(dest).op(cf->imm<u32>(sizeof(f64)));
+                    return true;
+                } else if (args.size() == 1 && argTps[0] == v2d) {
+                    add(ir_vset).op(dest).op(args[0]);
+                    return true;
+                } else if (args.size() == 2 && argTps[0] == dt && argTps[1] == dt) {
+                    if (args[0].getFlags().is_pointer) add(ir_store).op(*args[0]).op(dest);
+                    else add(ir_store).op(args[0]).op(dest);
+                    if (args[1].getFlags().is_pointer) add(ir_store).op(*args[1]).op(dest).op(cf->imm<u32>(sizeof(f64)));
+                    else add(ir_store).op(args[1]).op(dest).op(cf->imm<u32>(sizeof(f64)));
+                    return true;
+                }
+            } else if (tp == v3f) {
+                if (args.size() == 0) {
+                    add(ir_store).op(cf->imm(0.0f)).op(dest);
+                    add(ir_store).op(cf->imm(0.0f)).op(dest).op(cf->imm<u32>(sizeof(f32)));
+                    add(ir_store).op(cf->imm(0.0f)).op(dest).op(cf->imm<u32>(sizeof(f32) * 2));
+                    return true;
+                } else if (args.size() == 1 && argTps[0] == v3f) {
+                    add(ir_vset).op(dest).op(args[0]);
+                    return true;
+                } else if (args.size() == 3 && argTps[0] == ft && argTps[1] == ft && argTps[2] == ft) {
+                    if (args[0].getFlags().is_pointer) add(ir_store).op(*args[0]).op(dest);
+                    else add(ir_store).op(args[0]).op(dest);
+                    if (args[1].getFlags().is_pointer) add(ir_store).op(*args[1]).op(dest).op(cf->imm<u32>(sizeof(f32)));
+                    else add(ir_store).op(args[1]).op(dest).op(cf->imm<u32>(sizeof(f32)));
+                    if (args[2].getFlags().is_pointer) add(ir_store).op(*args[2]).op(dest).op(cf->imm<u32>(sizeof(f32) * 2));
+                    else add(ir_store).op(args[2]).op(dest).op(cf->imm<u32>(sizeof(f32) * 2));
+                    return true;
+                }
+            } else if (tp == v3d) {
+                if (args.size() == 0) {
+                    add(ir_store).op(cf->imm(0.0)).op(dest);
+                    add(ir_store).op(cf->imm(0.0)).op(dest).op(cf->imm<u32>(sizeof(f64)));
+                    add(ir_store).op(cf->imm(0.0)).op(dest).op(cf->imm<u32>(sizeof(f64) * 2));
+                    return true;
+                } else if (args.size() == 1 && argTps[0] == v3d) {
+                    add(ir_vset).op(dest).op(args[0]);
+                    return true;
+                } else if (args.size() == 3 && argTps[0] == dt && argTps[1] == dt && argTps[2] == dt) {
+                    if (args[0].getFlags().is_pointer) add(ir_store).op(*args[0]).op(dest);
+                    else add(ir_store).op(args[0]).op(dest);
+                    if (args[1].getFlags().is_pointer) add(ir_store).op(*args[1]).op(dest).op(cf->imm<u32>(sizeof(f64)));
+                    else add(ir_store).op(args[1]).op(dest).op(cf->imm<u32>(sizeof(f64)));
+                    if (args[2].getFlags().is_pointer) add(ir_store).op(*args[2]).op(dest).op(cf->imm<u32>(sizeof(f64) * 2));
+                    else add(ir_store).op(args[2]).op(dest).op(cf->imm<u32>(sizeof(f64) * 2));
+                    return true;
+                }
+            } else if (tp == v4f) {
+                if (args.size() == 0) {
+                    add(ir_store).op(cf->imm(0.0f)).op(dest);
+                    add(ir_store).op(cf->imm(0.0f)).op(dest).op(cf->imm<u32>(sizeof(f32)));
+                    add(ir_store).op(cf->imm(0.0f)).op(dest).op(cf->imm<u32>(sizeof(f32) * 2));
+                    add(ir_store).op(cf->imm(0.0f)).op(dest).op(cf->imm<u32>(sizeof(f32) * 3));
+                    return true;
+                } else if (args.size() == 1 && argTps[0] == v4f) {
+                    add(ir_vset).op(dest).op(args[0]);
+                    return true;
+                } else if (args.size() == 4 && argTps[0] == ft && argTps[1] == ft && argTps[2] == ft && argTps[3] == ft) {
+                    if (args[0].getFlags().is_pointer) add(ir_store).op(*args[0]).op(dest);
+                    else add(ir_store).op(args[0]).op(dest);
+                    if (args[1].getFlags().is_pointer) add(ir_store).op(*args[1]).op(dest).op(cf->imm<u32>(sizeof(f32)));
+                    else add(ir_store).op(args[1]).op(dest).op(cf->imm<u32>(sizeof(f32)));
+                    if (args[2].getFlags().is_pointer) add(ir_store).op(*args[2]).op(dest).op(cf->imm<u32>(sizeof(f32) * 2));
+                    else add(ir_store).op(args[2]).op(dest).op(cf->imm<u32>(sizeof(f32) * 2));
+                    if (args[2].getFlags().is_pointer) add(ir_store).op(*args[3]).op(dest).op(cf->imm<u32>(sizeof(f32) * 3));
+                    else add(ir_store).op(args[3]).op(dest).op(cf->imm<u32>(sizeof(f32) * 3));
+                    return true;
+                }
+            } else if (tp == v4d) {
+                if (args.size() == 0) {
+                    add(ir_store).op(cf->imm(0.0)).op(dest);
+                    add(ir_store).op(cf->imm(0.0)).op(dest).op(cf->imm<u32>(sizeof(f64)));
+                    add(ir_store).op(cf->imm(0.0)).op(dest).op(cf->imm<u32>(sizeof(f64) * 2));
+                    add(ir_store).op(cf->imm(0.0)).op(dest).op(cf->imm<u32>(sizeof(f64) * 3));
+                    return true;
+                } else if (args.size() == 1 && argTps[0] == v4d) {
+                    add(ir_vset).op(dest).op(args[0]);
+                    return true;
+                } else if (args.size() == 4 && argTps[0] == dt && argTps[1] == dt && argTps[2] == dt && argTps[3] == dt) {
+                    if (args[0].getFlags().is_pointer) add(ir_store).op(*args[0]).op(dest);
+                    else add(ir_store).op(args[0]).op(dest);
+                    if (args[1].getFlags().is_pointer) add(ir_store).op(*args[1]).op(dest).op(cf->imm<u32>(sizeof(f64)));
+                    else add(ir_store).op(args[1]).op(dest).op(cf->imm<u32>(sizeof(f64)));
+                    if (args[2].getFlags().is_pointer) add(ir_store).op(*args[2]).op(dest).op(cf->imm<u32>(sizeof(f64) * 2));
+                    else add(ir_store).op(args[2]).op(dest).op(cf->imm<u32>(sizeof(f64) * 2));
+                    if (args[2].getFlags().is_pointer) add(ir_store).op(*args[3]).op(dest).op(cf->imm<u32>(sizeof(f64) * 3));
+                    else add(ir_store).op(args[3]).op(dest).op(cf->imm<u32>(sizeof(f64) * 3));
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         void Compiler::constructObject(const Value& dest, ffi::DataType* tp, const utils::Array<Value>& args) {
+            FunctionDef* cf = currentFunction();
             Array<DataType*> argTps = args.map([](const Value& v) { return v.getType(); });
 
+            if (maybeConstructVectorType(dest, tp, args, argTps)) return;
+
             if (tp->getInfo().is_primitive) {
-                if (args.size() > 1) {
-                    functionError(
-                        tp,
-                        nullptr,
-                        args,
-                        cm_err_no_matching_constructor,
-                        "Type '%s' has no constructor with arguments matching '%s'",
-                        tp->getName().c_str(),
-                        argListStr(args).c_str()
-                    );
-                } else if (args.size() == 1) {
+                if (args.size() == 1) {
                     Value v = args[0].convertedTo(tp);
-                    currentFunction()->add(ir_store).op(v).op(dest);
+                    cf->add(ir_store).op(v).op(dest);
+                    return;
+                } else if (args.size() == 0) {
+                    cf->add(ir_store).op(cf->imm<u64>(0).convertedTo(tp)).op(dest);
+                    return;
                 }
-                return;
             }
 
             ffi::DataType* curClass = currentClass();
@@ -2855,11 +2975,13 @@ namespace tsn {
                 return currentFunction()->imm(value);
             } else lv.reset(compileExpressionInner(n->lvalue));
             exitNode();
-            
+
+            utils::String pName = n->rvalue->str();
+
             enterNode(n->rvalue);
             ffi::DataType* curClass = currentClass();
             Value out = lv.getProp(
-                n->rvalue->str(),
+                pName,
                 false,                                                                          // exclude inherited
                 !curClass || lv.getFlags().is_module || !lv.getType()->isEqualTo(curClass),     // exclude private
                 false,                                                                          // exclude methods
@@ -3144,6 +3266,122 @@ namespace tsn {
 
             return out;
         }
+        Value Compiler::maybeEvaluateBuiltinVectorMethod(const Value& self, FunctionDef* fn, const utils::Array<Value>& args, bool* wasBuiltin) {
+            if (!fn->getOutput()) {
+                *wasBuiltin = false;
+                return currentFunction()->getPoison();
+            }
+
+            DataType* v2f = m_ctx->getTypes()->getVec2f();
+            DataType* v2d = m_ctx->getTypes()->getVec2d();
+            DataType* v3f = m_ctx->getTypes()->getVec3f();
+            DataType* v3d = m_ctx->getTypes()->getVec3d();
+            DataType* v4f = m_ctx->getTypes()->getVec4f();
+            DataType* v4d = m_ctx->getTypes()->getVec4d();
+            DataType* stp = self.getType();
+
+            if (stp == v2f || stp == v3f || stp == v4f) {
+                DataType* ft = m_ctx->getTypes()->getFloat32();
+                const utils::String& name = fn->getOutput()->getName();
+
+                if (name == "dot") {
+                    if (args.size() == 1 && args[0].getType() == stp) {
+                        Value result = currentFunction()->val(ft);
+                        add(ir_vdot).op(result).op(self).op(args[0]);
+                        *wasBuiltin = true;
+                        return result;
+                    }
+                } else if (name == "cross") {
+                    if (args.size() == 1 && args[0].getType() == stp) {
+                        Value result = currentFunction()->stack(stp);
+                        add(ir_vcross).op(result).op(self).op(args[0]);
+                        *wasBuiltin = true;
+                        return result;
+                    }
+                } else if (name == "length") {
+                    if (args.size() == 0) {
+                        Value result = currentFunction()->val(ft);
+                        add(ir_vmag).op(result).op(self);
+                        *wasBuiltin = true;
+                        return result;
+                    }
+                } else if (name == "lengthSq") {
+                    if (args.size() == 0) {
+                        Value result = currentFunction()->val(ft);
+                        add(ir_vmagsq).op(result).op(self);
+                        *wasBuiltin = true;
+                        return result;
+                    }
+                } else if (name == "normalize") {
+                    if (args.size() == 0) {
+                        Value result = self;
+                        add(ir_vnorm).op(self);
+                        *wasBuiltin = true;
+                        return result;
+                    }
+                } else if (name == "normalized") {
+                    if (args.size() == 0) {
+                        Value result = currentFunction()->stack(stp);
+                        maybeConstructVectorType(result, stp, { self }, { stp });
+                        add(ir_vnorm).op(result);
+                        *wasBuiltin = true;
+                        return result;
+                    }
+                }
+            } else if (stp == v2d || stp == v3d || stp == v4d) {
+                DataType* dt = m_ctx->getTypes()->getFloat64();
+                DataType* ft = m_ctx->getTypes()->getFloat32();
+                const utils::String& name = fn->getOutput()->getName();
+
+                if (name == "dot") {
+                    if (args.size() == 1 && args[0].getType() == stp) {
+                        Value result = currentFunction()->val(ft);
+                        add(ir_vdot).op(result).op(self).op(args[0]);
+                        *wasBuiltin = true;
+                        return result;
+                    }
+                } else if (name == "cross") {
+                    if (args.size() == 1 && args[0].getType() == stp) {
+                        Value result = currentFunction()->stack(stp);
+                        add(ir_vcross).op(result).op(self).op(args[0]);
+                        *wasBuiltin = true;
+                        return result;
+                    }
+                } else if (name == "length") {
+                    if (args.size() == 0) {
+                        Value result = currentFunction()->val(ft);
+                        add(ir_vmag).op(result).op(self);
+                        *wasBuiltin = true;
+                        return result;
+                    }
+                } else if (name == "lengthSq") {
+                    if (args.size() == 0) {
+                        Value result = currentFunction()->val(ft);
+                        add(ir_vmagsq).op(result).op(self);
+                        *wasBuiltin = true;
+                        return result;
+                    }
+                } else if (name == "normalize") {
+                    if (args.size() == 0) {
+                        Value result = self;
+                        add(ir_vnorm).op(self);
+                        *wasBuiltin = true;
+                        return result;
+                    }
+                } else if (name == "normalized") {
+                    if (args.size() == 0) {
+                        Value result = currentFunction()->stack(stp);
+                        maybeConstructVectorType(result, stp, { self }, { stp });
+                        add(ir_vnorm).op(result);
+                        *wasBuiltin = true;
+                        return result;
+                    }
+                }
+            }
+
+            *wasBuiltin = false;
+            return currentFunction()->getPoison();
+        }
         Value Compiler::compileExpressionInner(ParseNode* n) {
             // name shortened to reduce clutter
             auto vs = [this](const Value& v) {
@@ -3212,7 +3450,47 @@ namespace tsn {
                         return ret;
                     }
                     case lt_template_string: {
-                        return currentFunction()->getPoison(); // todo
+                        DataType* strTp = m_ctx->getTypes()->getString();
+                        auto* exp = currentExpr();
+                        if (exp) exp->targetNextConstructor = true;
+                        m_trustEnable = true;
+                        Value ret = constructObject(strTp, {});
+                        m_trustEnable = false;
+                        if (exp) exp->targetNextConstructor = false;
+
+                        ParseNode* f = n->body;
+                        while (f) {
+                            scope().enter();
+
+                            if (f->tp == nt_literal && f->value_tp == lt_string) {
+                                u32 slot = m_output->getModule()->getData().size();
+                                m_output->getModule()->addData(utils::String::Format("$str_%u", slot), f->str_len);
+                                char* s = (char*)m_output->getModule()->getDataInfo(slot).ptr;
+                                memcpy(s, f->value.s, f->str_len);
+
+                                Value d = currentFunction()->val(m_output->getModule(), slot);
+                                ret.callMethod("append", nullptr, { d, currentFunction()->imm(f->str_len) });
+                            } else {
+                                auto* exp = enterExpr();
+                                Value frag = compileExpression(f);
+                                exitExpr();
+
+                                if (frag.getType() == strTp) {
+                                    ret.callMethod("append", nullptr, { frag });
+                                } else {
+                                    enterNode(f);
+                                    ret.callMethod("append", nullptr, {
+                                        frag.callMethod("toString", strTp, {})
+                                    });
+                                    exitNode();
+                                }
+                            }
+
+                            scope().exit();
+                            f = f->next;
+                        }
+
+                        return ret;
                     }
                     case lt_object: return compileObjectLiteral(n);
                     case lt_array: return compileArrayLiteral(n);
@@ -3765,6 +4043,7 @@ namespace tsn {
 
                     Array<Value> args;
                     ParseNode* p = n->parameters;
+                    if (p->tp == nt_expression_sequence) p = p->body;
                     enterExpr();
                     while (p && p->tp != nt_empty) {
                         args.push(compileExpression(p));
@@ -3819,6 +4098,16 @@ namespace tsn {
                     } else callee.reset(compileExpressionInner(n->lvalue));
 
                     exitExpr();
+
+                    if (h.self && callee.isFunction() && callee.isImm()) {
+                        bool wasBuiltin = false;
+                        Value result = maybeEvaluateBuiltinVectorMethod(*h.self, callee.getImm<FunctionDef*>(), h.args, &wasBuiltin);
+
+                        if (wasBuiltin) {
+                            delete h.self;
+                            return result;
+                        }
+                    }
 
                     auto* exp = currentExpr();
                     if (exp) exp->targetNextCall = true;

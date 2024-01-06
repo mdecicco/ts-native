@@ -158,6 +158,7 @@ namespace tsn {
                 InstructionRef add(ir_instruction inst);
                 Value getStorageForExpr(ffi::DataType* tp);
                 Value copyValueToExprStorage(const Value& result);
+                bool maybeConstructVectorType(const Value& dest, ffi::DataType* tp, const utils::Array<Value>& args, const utils::Array<ffi::DataType*>& argTps);
                 void constructObject(const Value& dest, ffi::DataType* tp, const utils::Array<Value>& args);
                 void constructObject(const Value& dest, const utils::Array<Value>& args);
                 Value constructObject(ffi::DataType* tp, const utils::Array<Value>& args);
@@ -202,6 +203,7 @@ namespace tsn {
                 Value compileArrowFunction(ParseNode* n);
                 Value compileObjectLiteral(ParseNode* n);
                 Value compileArrayLiteral(ParseNode* n);
+                Value maybeEvaluateBuiltinVectorMethod(const Value& self, FunctionDef* fn, const utils::Array<Value>& args, bool* wasBuiltin);
                 Value compileExpressionInner(ParseNode* n);
                 Value compileExpression(ParseNode* n);
                 void compileIfStatement(ParseNode* n);

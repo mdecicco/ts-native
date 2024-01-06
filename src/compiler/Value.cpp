@@ -813,6 +813,68 @@ namespace tsn {
             return ptr;
         }
 
+        Value Value::callMethod(const utils::String& name, ffi::DataType* retTp, const utils::Array<Value>& args) {
+            Array<DataType*> argTps = args.map([](const Value& v) { return v.getType(); });
+            Array<Function*> matches = m_type->findMethods(name, retTp, const_cast<const ffi::DataType**>(argTps.data()), args.size(), fm_skip_implicit_args);
+            if (matches.size() == 1) {
+                return m_func->getCompiler()->generateCall(matches[0], { args }, this);
+            } else if (matches.size() > 1) {
+                u8 strictC = 0;
+                Function* func = nullptr;
+                for (u32 i = 0;i < matches.size();i++) {
+                    const auto& args = matches[i]->getSignature()->getArguments();
+                    for (u32 a = 0;a < args.size();a++) {
+                        if (args[a].isImplicit()) continue;
+                        if (args[a].dataType->isEqualTo(retTp)) {
+                            if (args.size() > a + 1) {
+                                // Function has more arguments which are not explicitly required
+                                break;
+                            }
+
+                            strictC++;
+                            func = matches[i];
+                        }
+                    }
+                }
+                
+                if (strictC == 1) {
+                    return m_func->getCompiler()->generateCall(func, args, this);
+                }
+
+                m_func->getCompiler()->functionError(
+                    m_type,
+                    retTp,
+                    args,
+                    cm_err_method_ambiguous,
+                    "Reference to method '%s' of type '%s' with arguments '%s' is ambiguous",
+                    name.c_str(),
+                    m_type->getName().c_str(),
+                    argListStr(args).c_str()
+                );
+
+                for (u32 i = 0;i < matches.size();i++) {
+                    m_func->getCompiler()->info(
+                        cm_info_could_be,
+                        "^ Could be: '%s'",
+                        matches[i]->getDisplayName().c_str()
+                    ).src = matches[i]->getSource();
+                }
+            } else {
+                m_func->getCompiler()->functionError(
+                    m_type,
+                    retTp,
+                    args,
+                    cm_err_method_not_found,
+                    "Type '%s' has no method named '%s' with arguments matching '%s'",
+                    m_type->getName().c_str(),
+                    name.c_str(),
+                    argListStr(args).c_str()
+                );
+            }
+
+            return m_func->getPoison();
+        }
+
         vreg_id Value::getRegId() const {
             return m_regId;
         }
@@ -1005,6 +1067,56 @@ namespace tsn {
                 return out;
             } else {
                 const DataType* rtp = rhs.getType();
+                DataType* v2f = fn->getContext()->getTypes()->getVec2f();
+                DataType* v2d = fn->getContext()->getTypes()->getVec2d();
+                DataType* v3f = fn->getContext()->getTypes()->getVec3f();
+                DataType* v3d = fn->getContext()->getTypes()->getVec3d();
+                DataType* v4f = fn->getContext()->getTypes()->getVec4f();
+                DataType* v4d = fn->getContext()->getTypes()->getVec4d();
+                DataType* ft = fn->getContext()->getTypes()->getFloat32();
+                DataType* dt = fn->getContext()->getTypes()->getFloat64();
+
+                ir_instruction vop = ir_noop;
+                if (selfTp == rtp && (rtp == v2f || rtp == v2d || rtp == v3f || rtp == v3d || rtp == v4f || rtp == v4d)) {
+                    switch (_i) {
+                        case ir_assign: { vop = ir_vset; break; }
+                        case ir_iadd: { vop = ir_vadd; break; }
+                        case ir_isub: { vop = ir_vsub; break; }
+                        case ir_imul: { vop = ir_vmul; break; }
+                        case ir_idiv: { vop = ir_vdiv; break; }
+                        case ir_imod: { vop = ir_vmod; break; }
+                    }
+                } else if (rtp == ft && (selfTp == v2f || selfTp == v3f || selfTp == v4f)) {
+                    switch (_i) {
+                        case ir_iadd: { vop = ir_vadd; break; }
+                        case ir_isub: { vop = ir_vsub; break; }
+                        case ir_imul: { vop = ir_vmul; break; }
+                        case ir_idiv: { vop = ir_vdiv; break; }
+                        case ir_imod: { vop = ir_vmod; break; }
+                    }
+                } else if (rtp == dt && (selfTp == v2d || selfTp == v3d || selfTp == v4d)) {
+                    switch (_i) {
+                        case ir_iadd: { vop = ir_vadd; break; }
+                        case ir_isub: { vop = ir_vsub; break; }
+                        case ir_imul: { vop = ir_vmul; break; }
+                        case ir_idiv: { vop = ir_vdiv; break; }
+                        case ir_imod: { vop = ir_vmod; break; }
+                    }
+                }
+
+                if (vop != ir_noop) {
+                    Value tgt = *self;
+                    if (!assignmentOp) {
+                        tgt.reset(fn->stack(selfTp));
+                        fn->getCompiler()->maybeConstructVectorType(tgt, selfTp, { *self }, { selfTp });
+                    }
+
+                    fn->add(vop).op(tgt).op(rhs);
+
+                    return tgt;
+                }
+
+
                 Array<Function*> matches = selfTp->findMethods(overrideName, nullptr, &rtp, 1, fm_skip_implicit_args);
                 if (matches.size() == 1) {
                     return fn->getCompiler()->generateCall(matches[0], { rhs }, self);
@@ -1123,6 +1235,22 @@ namespace tsn {
 
                 return out;
             } else {
+                if (_i == ir_ineg) {
+                    DataType* v2f = fn->getContext()->getTypes()->getVec2f();
+                    DataType* v2d = fn->getContext()->getTypes()->getVec2d();
+                    DataType* v3f = fn->getContext()->getTypes()->getVec3f();
+                    DataType* v3d = fn->getContext()->getTypes()->getVec3d();
+                    DataType* v4f = fn->getContext()->getTypes()->getVec4f();
+                    DataType* v4d = fn->getContext()->getTypes()->getVec4d();
+
+                    if (selfTp == v2f || selfTp == v2d || selfTp == v3f || selfTp == v3d || selfTp == v4f || selfTp == v4d) {
+                        Value result = fn->stack(selfTp);
+                        fn->getCompiler()->maybeConstructVectorType(result, selfTp, { *self }, { selfTp });
+                        fn->add(ir_vneg).op(result);
+                        return result;
+                    }
+                }
+
                 Array<Function*> matches = selfTp->findMethods(overrideName, nullptr, nullptr, 0, fm_skip_implicit_args);
                 if (matches.size() == 1) {
                     return fn->getCompiler()->generateCall(matches[0], { }, self);

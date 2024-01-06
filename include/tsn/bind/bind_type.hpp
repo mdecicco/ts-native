@@ -401,6 +401,14 @@ namespace tsn {
 
         template <typename Cls>
         template <typename Ret, typename... Args>
+        ObjectTypeBinder<Cls>& ObjectTypeBinder<Cls>::method(const utils::String& name, Ret (*method)(Cls*, Args...), access_modifier access) {
+            Function* f = bind_pseudo_method<Cls, Ret, Args...>(m_mod, funcRegistry, typeRegistry, name, method, access);
+            if (f) addMethod(f);
+            return *this;
+        }
+
+        template <typename Cls>
+        template <typename Ret, typename... Args>
         ObjectTypeBinder<Cls>& ObjectTypeBinder<Cls>::method(const utils::String& name, Ret (Cls::*method)(Args...), access_modifier access) {
             Function* f = bind_method(m_mod, funcRegistry, typeRegistry, name, method, access);
             if (f) addMethod(f);
@@ -825,6 +833,14 @@ namespace tsn {
 
         template <typename Cls>
         ObjectTypeExtender<Cls>::~ObjectTypeExtender() { }
+
+        template <typename Cls>
+        template <typename Ret, typename... Args>
+        ObjectTypeExtender<Cls>& ObjectTypeExtender<Cls>::method(const utils::String& name, Ret (*method)(Cls*, Args...), access_modifier access) {
+            Function* f = bind_pseudo_method<Cls, Ret, Args...>(m_mod, funcRegistry, typeRegistry, name, method, access);
+            if (f) addMethod(f);
+            return *this;
+        }
 
         template <typename Cls>
         template <typename Ret, typename... Args>

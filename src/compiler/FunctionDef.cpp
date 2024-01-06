@@ -356,7 +356,7 @@ namespace tsn {
         Value FunctionDef::val(Module* m, u32 module_data_slot) {
             const module_data& info = m->getDataInfo(module_data_slot);
 
-            Value v = Value(this, info.type ? info.type : m_comp->getContext()->getTypes()->getType<void*>());
+            Value v = Value(this, info.type ? info.type : m_comp->getContext()->getTypes()->getVoidPtr());
             v.m_regId = m_nextRegId++;
             v.m_flags.is_pointer = 1;
 

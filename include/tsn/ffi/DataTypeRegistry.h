@@ -34,6 +34,12 @@ namespace tsn {
                 DataType* getBoolean() const;
                 DataType* getCaptureData() const;
                 DataType* getClosure() const;
+                DataType* getVec2f() const;
+                DataType* getVec2d() const;
+                DataType* getVec3f() const;
+                DataType* getVec3d() const;
+                DataType* getVec4f() const;
+                DataType* getVec4d() const;
                 TemplateType* getArray() const;
                 TemplateType* getPointer() const;
 
@@ -63,6 +69,12 @@ namespace tsn {
                 DataType* m_boolean;
                 DataType* m_captureData;
                 DataType* m_closure;
+                DataType* m_vec2f;
+                DataType* m_vec2d;
+                DataType* m_vec3f;
+                DataType* m_vec3d;
+                DataType* m_vec4f;
+                DataType* m_vec4d;
                 TemplateType* m_array;
                 TemplateType* m_pointer;
         };

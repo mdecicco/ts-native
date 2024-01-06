@@ -5,6 +5,7 @@
 #include <tsn/common/Context.h>
 #include <tsn/common/Module.h>
 #include <utils/Array.hpp>
+#include <utils/Math.hpp>
 
 namespace tsn {
     namespace ffi {
@@ -51,6 +52,12 @@ namespace tsn {
         DataType* DataTypeRegistry::getBoolean() const { return m_boolean; }
         DataType* DataTypeRegistry::getCaptureData() const { return m_captureData; }
         DataType* DataTypeRegistry::getClosure() const { return m_closure; }
+        DataType* DataTypeRegistry::getVec2f() const { return m_vec2f; }
+        DataType* DataTypeRegistry::getVec2d() const { return m_vec2d; }
+        DataType* DataTypeRegistry::getVec3f() const { return m_vec3f; }
+        DataType* DataTypeRegistry::getVec3d() const { return m_vec3d; }
+        DataType* DataTypeRegistry::getVec4f() const { return m_vec4f; }
+        DataType* DataTypeRegistry::getVec4d() const { return m_vec4d; }
         TemplateType* DataTypeRegistry::getArray() const { return m_array; }
         TemplateType* DataTypeRegistry::getPointer() const { return m_pointer; }
 
@@ -73,6 +80,12 @@ namespace tsn {
             m_boolean = getType<bool>();
             m_captureData = getType<CaptureData>();
             m_closure = getType<Closure>();
+            m_vec2f = getType<utils::vec2f>();
+            m_vec2d = getType<utils::vec2d>();
+            m_vec3f = getType<utils::vec3f>();
+            m_vec3d = getType<utils::vec3d>();
+            m_vec4f = getType<utils::vec4f>();
+            m_vec4d = getType<utils::vec4d>();
 
             Module* mp = m_ctx->getModule("trusted/pointer");
             m_pointer = (TemplateType*)(mp ? mp->allTypes().find([](const DataType* t) { return t->getName() == "Pointer"; }) : nullptr);

@@ -148,54 +148,6 @@ json toJson(const ParseNode* n, bool isArrayElem) {
         "type",
         "variable"
     };
-    constexpr const char* ops[] = {
-        "undefined",
-        "add",
-        "addEq",
-        "sub",
-        "subEq",
-        "mul",
-        "mulEq",
-        "div",
-        "divEq",
-        "mod",
-        "modEq",
-        "xor",
-        "xorEq",
-        "bitAnd",
-        "bitAndEq",
-        "bitOr",
-        "bitOrEq",
-        "bitInv",
-        "shLeft",
-        "shLeftEq",
-        "shRight",
-        "shRightEq",
-        "not",
-        "notEq",
-        "logAnd",
-        "logAndEq",
-        "logOr",
-        "logOrEq",
-        "assign",
-        "compare",
-        "lessThan",
-        "lessThanEq",
-        "greaterThan",
-        "greaterThanEq",
-        "preInc",
-        "postInc",
-        "preDec",
-        "postDec",
-        "negate",
-        "dereference",
-        "index",
-        "conditional",
-        "member",
-        "new",
-        "placementNew",
-        "call"
-    };
     constexpr const char* lts[] = {
         "u8",
         "u16",
@@ -460,10 +412,22 @@ json toJson(const Function* f, bool brief, FunctionDef* fd) {
             CodeHolder* ch = output.find([fd](CodeHolder* ch) {
                 return ch->owner == fd->getOutput();
             });
-            
+
             const auto& code = ch ? ch->code : fd->getCode();
+            
+            u32 digitCount = 0;
+            u32 x = code.size();
+            while (x) {
+                x /= 10;
+                digitCount++;
+            }
+
+            char lnFmt[16] = { 0 };
+            snprintf(lnFmt, 16, "[%%-%dd] %%s", digitCount);
+            
             for (u32 i = 0;i < code.size();i++) {
-                out["code"].push_back(code[i].toString(fd->getContext()).c_str());
+                utils::String s = utils::String::Format(lnFmt, i, code[i].toString(fd->getContext()).c_str());
+                out["code"].push_back(s.c_str());
             }
         }
 
