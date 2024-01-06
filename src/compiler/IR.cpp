@@ -153,6 +153,7 @@ namespace tsn {
             operands[2].reset(rhs.operands[2]);
             src = rhs.src;
             oCnt = rhs.oCnt;
+            comment = rhs.comment;
             
             return *this;
         }

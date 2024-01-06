@@ -92,10 +92,10 @@ namespace tsn {
                 save = save->getSrcSelf();
             }
 
-            emitScopeExitInstructions(m_scopes.last(), save);
+            bool didSave = emitScopeExitInstructions(m_scopes.last(), save);
             m_scopes.pop();
             
-            if (save && save->isStack()) m_scopes.last().addToStack(*save);
+            if (save && save->isStack() && didSave) m_scopes.last().addToStack(*save);
         }
         
         void ScopeManager::emitReturnInstructions() {
@@ -149,8 +149,8 @@ namespace tsn {
             return nullptr;
         }
         
-        void ScopeManager::emitScopeExitInstructions(const Scope& s, const Value* save) {
-            if (s.m_didReturn) return;
+        bool ScopeManager::emitScopeExitInstructions(const Scope& s, const Value* save) {
+            if (s.m_didReturn) return false;
 
             if (save && !save->isStack() && save->getSrcSelf() && save->getSrcSelf()->isStack()) {
                 save = save->getSrcSelf();
@@ -162,13 +162,16 @@ namespace tsn {
             // the if statement body. All scopes inside of scope `s` must also be handled.
 
             ffi::Function* crefDtor = m_comp->getContext()->getTypes()->getClosure()->getDestructor();
-
+            bool didSaveValue = false;
             for (i64 i = m_scopes.size() - 1;i >= 0;i--) {
                 Scope& cur = m_scopes[(u32)i];
 
                 for (i32 i = cur.m_stackObjs.size() - 1;i >= 0;i--) {
                     const Value& v = cur.m_stackObjs[i];
-                    if (save && v.getStackAllocId() == save->getStackAllocId()) continue;
+                    if (save && v.getStackAllocId() == save->getStackAllocId()) {
+                        didSaveValue = true;
+                        continue;
+                    }
 
                     if (v.isFunction()) {
                         // runtime function references are actually of type 'Closure'
@@ -189,6 +192,8 @@ namespace tsn {
                 
                 if (cur.m_parent == s.m_parent) break;
             }
+
+            return didSaveValue;
         }
     };
 };

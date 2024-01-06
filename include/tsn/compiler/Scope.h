@@ -71,7 +71,7 @@ namespace tsn {
                 Value& add(const utils::String& name, Module* m, u32 slotId);
                 symbol* get(const utils::String& name);
 
-                void emitScopeExitInstructions(const Scope& s, const Value* save = nullptr);
+                bool emitScopeExitInstructions(const Scope& s, const Value* save = nullptr);
             
             private:
                 utils::Array<Scope> m_scopes;
