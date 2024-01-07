@@ -8,6 +8,11 @@
 namespace tsn {
     class Module;
 
+    namespace compiler {
+        struct InlineCodeGenContext;
+        typedef void (*InlineCodeGenFunc)(compiler::InlineCodeGenContext* ctx);
+    };
+
     namespace ffi {
         struct type_property;
         struct type_base;
@@ -67,26 +72,34 @@ namespace tsn {
                 // fake instance method
                 template <typename Ret, typename... Args>
                 PrimitiveTypeBinder<Cls>& method(const utils::String& name, Ret (*method)(Cls*, Args...), access_modifier access = public_access);
+                template <typename Ret, typename... Args>
+                PrimitiveTypeBinder<Cls>& method(const utils::String& name, compiler::InlineCodeGenFunc genFn, access_modifier access = public_access);
 
                 // static method
                 template <typename Ret, typename... Args>
                 PrimitiveTypeBinder<Cls>& staticMethod(const utils::String& name, Ret (*method)(Args...), access_modifier access = public_access);
-
-                // static member
-                template <typename T>
-                PrimitiveTypeBinder<Cls>& prop(const utils::String& name, T* member, access_modifier access = public_access, value_flag_mask flags = vf_rw);
-
-                // static member proxy
-                template <typename T>
-                PrimitiveTypeBinder<Cls>& prop(const utils::String& name, T (*getter)(), T (*setter)(const T&), access_modifier access = public_access);
-                template <typename T>
-                PrimitiveTypeBinder<Cls>& prop(const utils::String& name, T (*getter)(), T (*setter)(T), access_modifier access = public_access);
+                template <typename Ret, typename... Args>
+                PrimitiveTypeBinder<Cls>& staticMethod(const utils::String& name, compiler::InlineCodeGenFunc genFn, access_modifier access = public_access);
 
                 // fake instance member proxy
                 template <typename T>
                 PrimitiveTypeBinder<Cls>& prop(const utils::String& name, T (*getter)(Cls*), T (*setter)(Cls*, const T&), access_modifier access = public_access);
                 template <typename T>
                 PrimitiveTypeBinder<Cls>& prop(const utils::String& name, T (*getter)(Cls*), T (*setter)(Cls*, T), access_modifier access = public_access);
+                template <typename T>
+                PrimitiveTypeBinder<Cls>& prop(const utils::String& name, compiler::InlineCodeGenFunc getterGenFn, compiler::InlineCodeGenFunc setterGenFn, access_modifier access = public_access);
+
+                // static member
+                template <typename T>
+                PrimitiveTypeBinder<Cls>& staticProp(const utils::String& name, T* member, access_modifier access = public_access, value_flag_mask flags = vf_rw);
+
+                // static member proxy
+                template <typename T>
+                PrimitiveTypeBinder<Cls>& staticProp(const utils::String& name, T (*getter)(), T (*setter)(const T&), access_modifier access = public_access);
+                template <typename T>
+                PrimitiveTypeBinder<Cls>& staticProp(const utils::String& name, T (*getter)(), T (*setter)(T), access_modifier access = public_access);
+                template <typename T>
+                PrimitiveTypeBinder<Cls>& staticProp(const utils::String& name, compiler::InlineCodeGenFunc getterGenFn, compiler::InlineCodeGenFunc setterGenFn, access_modifier access = public_access);
 
             private:
                 template <typename T>
@@ -102,26 +115,34 @@ namespace tsn {
                 // fake instance method
                 template <typename Ret, typename... Args>
                 PrimitiveTypeExtender<Cls>& method(const utils::String& name, Ret (*method)(Cls*, Args...), access_modifier access = public_access);
+                template <typename Ret, typename... Args>
+                PrimitiveTypeExtender<Cls>& method(const utils::String& name, compiler::InlineCodeGenFunc genFn, access_modifier access = public_access);
 
                 // static method
                 template <typename Ret, typename... Args>
                 PrimitiveTypeExtender<Cls>& staticMethod(const utils::String& name, Ret (*method)(Args...), access_modifier access = public_access);
-
-                // static member
-                template <typename T>
-                PrimitiveTypeExtender<Cls>& prop(const utils::String& name, T* member, access_modifier access = public_access, value_flag_mask flags = vf_rw);
-
-                // static member proxy
-                template <typename T>
-                PrimitiveTypeExtender<Cls>& prop(const utils::String& name, T (*getter)(), T (*setter)(const T&), access_modifier access = public_access);
-                template <typename T>
-                PrimitiveTypeExtender<Cls>& prop(const utils::String& name, T (*getter)(), T (*setter)(T), access_modifier access = public_access);
+                template <typename Ret, typename... Args>
+                PrimitiveTypeExtender<Cls>& staticMethod(const utils::String& name, compiler::InlineCodeGenFunc genFn, access_modifier access = public_access);
 
                 // fake instance member proxy
                 template <typename T>
                 PrimitiveTypeExtender<Cls>& prop(const utils::String& name, T (*getter)(Cls*), T (*setter)(Cls*, const T&), access_modifier access = public_access);
                 template <typename T>
                 PrimitiveTypeExtender<Cls>& prop(const utils::String& name, T (*getter)(Cls*), T (*setter)(Cls*, T), access_modifier access = public_access);
+                template <typename T>
+                PrimitiveTypeExtender<Cls>& prop(const utils::String& name, compiler::InlineCodeGenFunc getterGenFn, compiler::InlineCodeGenFunc setterGenFn, access_modifier access = public_access);
+
+                // static member
+                template <typename T>
+                PrimitiveTypeExtender<Cls>& staticProp(const utils::String& name, T* member, access_modifier access = public_access, value_flag_mask flags = vf_rw);
+
+                // static member proxy
+                template <typename T>
+                PrimitiveTypeExtender<Cls>& staticProp(const utils::String& name, T (*getter)(), T (*setter)(const T&), access_modifier access = public_access);
+                template <typename T>
+                PrimitiveTypeExtender<Cls>& staticProp(const utils::String& name, T (*getter)(), T (*setter)(T), access_modifier access = public_access);
+                template <typename T>
+                PrimitiveTypeExtender<Cls>& staticProp(const utils::String& name, compiler::InlineCodeGenFunc getterGenFn, compiler::InlineCodeGenFunc setterGenFn, access_modifier access = public_access);
                 
             private:
                 template <typename T>
@@ -138,8 +159,11 @@ namespace tsn {
 
                 template <typename... Args>
                 ObjectTypeBinder<Cls>& ctor(access_modifier access = public_access);
+                template <typename... Args>
+                ObjectTypeBinder<Cls>& ctor(compiler::InlineCodeGenFunc genFn, access_modifier access = public_access);
 
                 ObjectTypeBinder<Cls>& dtor(access_modifier access = public_access);
+                ObjectTypeBinder<Cls>& dtor(compiler::InlineCodeGenFunc genFn, access_modifier access = public_access);
 
                 // fake instance method
                 template <typename Ret, typename... Args>
@@ -152,24 +176,18 @@ namespace tsn {
                 ObjectTypeBinder<Cls>& method(const utils::String& name, Ret (Cls::*method)(Args...) const, access_modifier access = public_access);
 
                 template <typename Ret, typename... Args>
+                ObjectTypeBinder<Cls>& method(const utils::String& name, compiler::InlineCodeGenFunc genFn, access_modifier access = public_access);
+
+                template <typename Ret, typename... Args>
                 ObjectTypeBinder<Cls>& staticMethod(const utils::String& name, Ret (*method)(Args...), access_modifier access = public_access);
+
+                template <typename Ret, typename... Args>
+                ObjectTypeBinder<Cls>& staticMethod(const utils::String& name, compiler::InlineCodeGenFunc genFn, access_modifier access = public_access);
 
                 // normal member
                 template <typename T>
                 ObjectTypeBinder<Cls>& prop(const utils::String& name, T Cls::*member, access_modifier access = public_access, value_flag_mask flags = vf_rw);
-
-                // static member
-                template <typename T>
-                ObjectTypeBinder<Cls>& prop(const utils::String& name, T* member, access_modifier access = public_access, value_flag_mask flags = vf_rw);
-
-                // static member proxy
-                template <typename T>
-                ObjectTypeBinder<Cls>& prop(const utils::String& name, T (*getter)(), T (*setter)(const T&), access_modifier access = public_access);
-                template <typename T>
-                ObjectTypeBinder<Cls>& prop(const utils::String& name, T (*getter)(), T (*setter)(T), access_modifier access = public_access);
-                template <typename T>
-                ObjectTypeBinder<Cls>& prop(const utils::String& name, T (*getter)(), access_modifier access = public_access);
-
+                
                 // member proxy
                 template <typename T>
                 ObjectTypeBinder<Cls>& prop(const utils::String& name, T (Cls::*getter)(), T (Cls::*setter)(const T&), access_modifier access = public_access);
@@ -191,7 +209,23 @@ namespace tsn {
                 ObjectTypeBinder<Cls>& prop(const utils::String& name, T (Cls::*getter)(), access_modifier access = public_access);
                 template <typename T>
                 ObjectTypeBinder<Cls>& prop(const utils::String& name, T (Cls::*getter)() const, access_modifier access = public_access);
+                template <typename T>
+                ObjectTypeBinder<Cls>& prop(const utils::String& name, compiler::InlineCodeGenFunc getterGenFn, compiler::InlineCodeGenFunc setterGenFn, access_modifier access = public_access);
             
+                // static member
+                template <typename T>
+                ObjectTypeBinder<Cls>& staticProp(const utils::String& name, T* member, access_modifier access = public_access, value_flag_mask flags = vf_rw);
+
+                // static member proxy
+                template <typename T>
+                ObjectTypeBinder<Cls>& staticProp(const utils::String& name, T (*getter)(), T (*setter)(const T&), access_modifier access = public_access);
+                template <typename T>
+                ObjectTypeBinder<Cls>& staticProp(const utils::String& name, T (*getter)(), T (*setter)(T), access_modifier access = public_access);
+                template <typename T>
+                ObjectTypeBinder<Cls>& staticProp(const utils::String& name, T (*getter)(), access_modifier access = public_access);
+                template <typename T>
+                ObjectTypeBinder<Cls>& staticProp(const utils::String& name, compiler::InlineCodeGenFunc getterGenFn, compiler::InlineCodeGenFunc setterGenFn, access_modifier access = public_access);
+
             private:
                 template <typename T>
                 bool checkNewProp(const utils::String& name) const;
@@ -202,7 +236,7 @@ namespace tsn {
             public:
                 ObjectTypeExtender(Module* mod, FunctionRegistry* freg, DataTypeRegistry* treg);
                 ~ObjectTypeExtender();
-
+                
                 // fake instance method
                 template <typename Ret, typename... Args>
                 ObjectTypeExtender<Cls>& method(const utils::String& name, Ret (*method)(Cls*, Args...), access_modifier access = public_access);
@@ -214,25 +248,57 @@ namespace tsn {
                 ObjectTypeExtender<Cls>& method(const utils::String& name, Ret (Cls::*method)(Args...) const, access_modifier access = public_access);
 
                 template <typename Ret, typename... Args>
+                ObjectTypeExtender<Cls>& method(const utils::String& name, compiler::InlineCodeGenFunc genFn, access_modifier access = public_access);
+
+                template <typename Ret, typename... Args>
                 ObjectTypeExtender<Cls>& staticMethod(const utils::String& name, Ret (*method)(Args...), access_modifier access = public_access);
 
+                template <typename Ret, typename... Args>
+                ObjectTypeExtender<Cls>& staticMethod(const utils::String& name, compiler::InlineCodeGenFunc genFn, access_modifier access = public_access);
+                
+            
+                // normal member
+                template <typename T>
+                ObjectTypeExtender<Cls>& prop(const utils::String& name, T Cls::*member, access_modifier access = public_access, value_flag_mask flags = vf_rw);
+                
+                // member proxy
+                template <typename T>
+                ObjectTypeExtender<Cls>& prop(const utils::String& name, T (Cls::*getter)(), T (Cls::*setter)(const T&), access_modifier access = public_access);
+                template <typename T>
+                ObjectTypeExtender<Cls>& prop(const utils::String& name, T (Cls::*getter)() const, T (Cls::*setter)(const T&), access_modifier access = public_access);
+                template <typename T>
+                ObjectTypeExtender<Cls>& prop(const utils::String& name, T (Cls::*getter)(), T (Cls::*setter)(const T&) const, access_modifier access = public_access);
+                template <typename T>
+                ObjectTypeExtender<Cls>& prop(const utils::String& name, T (Cls::*getter)() const, T (Cls::*setter)(const T&) const, access_modifier access = public_access);
+                template <typename T>
+                ObjectTypeExtender<Cls>& prop(const utils::String& name, T (Cls::*getter)(), T (Cls::*setter)(T), access_modifier access = public_access);
+                template <typename T>
+                ObjectTypeExtender<Cls>& prop(const utils::String& name, T (Cls::*getter)() const, T (Cls::*setter)(T), access_modifier access = public_access);
+                template <typename T>
+                ObjectTypeExtender<Cls>& prop(const utils::String& name, T (Cls::*getter)(), T (Cls::*setter)(T) const, access_modifier access = public_access);
+                template <typename T>
+                ObjectTypeExtender<Cls>& prop(const utils::String& name, T (Cls::*getter)() const, T (Cls::*setter)(T) const, access_modifier access = public_access);
+                template <typename T>
+                ObjectTypeExtender<Cls>& prop(const utils::String& name, T (Cls::*getter)(), access_modifier access = public_access);
+                template <typename T>
+                ObjectTypeExtender<Cls>& prop(const utils::String& name, T (Cls::*getter)() const, access_modifier access = public_access);
+                template <typename T>
+                ObjectTypeExtender<Cls>& prop(const utils::String& name, compiler::InlineCodeGenFunc getterGenFn, compiler::InlineCodeGenFunc setterGenFn, access_modifier access = public_access);
+            
                 // static member
                 template <typename T>
-                ObjectTypeExtender<Cls>& prop(const utils::String& name, T* member, access_modifier access = public_access, value_flag_mask flags = vf_rw);
-
+                ObjectTypeExtender<Cls>& staticProp(const utils::String& name, T* member, access_modifier access = public_access, value_flag_mask flags = vf_rw);
 
                 // static member proxy
                 template <typename T>
-                ObjectTypeExtender<Cls>& prop(const utils::String& name, T (*getter)(), T (*setter)(const T&), access_modifier access = public_access);
+                ObjectTypeExtender<Cls>& staticProp(const utils::String& name, T (*getter)(), T (*setter)(const T&), access_modifier access = public_access);
                 template <typename T>
-                ObjectTypeExtender<Cls>& prop(const utils::String& name, T (*getter)(), T (*setter)(T), access_modifier access = public_access);
+                ObjectTypeExtender<Cls>& staticProp(const utils::String& name, T (*getter)(), T (*setter)(T), access_modifier access = public_access);
+                template <typename T>
+                ObjectTypeExtender<Cls>& staticProp(const utils::String& name, T (*getter)(), access_modifier access = public_access);
+                template <typename T>
+                ObjectTypeExtender<Cls>& staticProp(const utils::String& name, compiler::InlineCodeGenFunc getterGenFn, compiler::InlineCodeGenFunc setterGenFn, access_modifier access = public_access);
 
-                // member proxy
-                template <typename T>
-                ObjectTypeExtender<Cls>& prop(const utils::String& name, T (Cls::*getter)(Cls*), T (Cls::*setter)(const T&), access_modifier access = public_access);
-                template <typename T>
-                ObjectTypeExtender<Cls>& prop(const utils::String& name, T (Cls::*getter)(Cls*), T (Cls::*setter)(T), access_modifier access = public_access);
-            
             private:
                 template <typename T>
                 bool checkNewProp(const utils::String& name) const;

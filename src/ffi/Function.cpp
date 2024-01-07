@@ -21,6 +21,7 @@ namespace tsn {
             m_wrapperAddress = nullptr;
             m_isMethod = false;
             m_isTemplate = false;
+            m_isInline = false;
         }
 
         Function::Function(const utils::String& name, const utils::String& extraQualifiers, FunctionType* signature, access_modifier access, void* address, void* wrapperAddr, Module* source) {
@@ -37,6 +38,7 @@ namespace tsn {
             m_wrapperAddress = wrapperAddr;
             m_isMethod = false;
             m_isTemplate = false;
+            m_isInline = false;
         }
 
         Function::~Function() {
@@ -76,6 +78,19 @@ namespace tsn {
 
         bool Function::isTemplate() const {
             return m_isTemplate;
+        }
+
+        bool Function::isInline() const {
+            return m_isInline;
+        }
+
+        void Function::makeInline(compiler::InlineCodeGenFunc generatorFn) {
+            if (m_address) {
+                throw std::exception("Functions which already have entrypoints cannot be made inline");
+            }
+
+            m_address = generatorFn;
+            m_isInline = true;
         }
 
         access_modifier Function::getAccessModifier() const {

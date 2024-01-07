@@ -489,7 +489,7 @@ namespace tsn {
             bool excludeMethods,
             bool doError,
             member_expr_hints* hints
-        ) {
+        ) const {
             if (!excludeMethods) {
                 function_match_flags flags = 0;
                 Array<DataType*> argTps;
@@ -594,6 +594,11 @@ namespace tsn {
                 if (slotId >= 0) {
                     return m_func->getCompiler()->moduleData(m_imm.mod, (u32)slotId);
                 }
+
+                ffi::DataType* tp = m_imm.mod->allTypes().find([&name](ffi::DataType* tp) {
+                    return tp->getName() == name;
+                });
+                if (tp) return m_func->imm(tp);
 
                 m_func->getCompiler()->error(
                     cm_err_export_not_found,
@@ -714,7 +719,7 @@ namespace tsn {
             bool excludeInherited,
             bool excludePrivate,
             bool doError
-        ) {
+        ) const {
             const type_property* prop = m_type->getProp(name, excludeInherited, excludePrivate);
             if (!prop) {
                 if (doError) {
@@ -1052,6 +1057,9 @@ namespace tsn {
                     if (inst == ir_assign) {
                         fn->add(inst).op(*self).op(_rhs);
                         out.reset(*self);
+                    } else if (assignmentOp) {
+                        fn->add(inst).op(*self).op(*self).op(_rhs);
+                        out.reset(*self);
                     } else {
                         out.reset(fn->val(selfTp));
                         fn->add(inst).op(out).op(*self).op(_rhs);
@@ -1067,56 +1075,6 @@ namespace tsn {
                 return out;
             } else {
                 const DataType* rtp = rhs.getType();
-                DataType* v2f = fn->getContext()->getTypes()->getVec2f();
-                DataType* v2d = fn->getContext()->getTypes()->getVec2d();
-                DataType* v3f = fn->getContext()->getTypes()->getVec3f();
-                DataType* v3d = fn->getContext()->getTypes()->getVec3d();
-                DataType* v4f = fn->getContext()->getTypes()->getVec4f();
-                DataType* v4d = fn->getContext()->getTypes()->getVec4d();
-                DataType* ft = fn->getContext()->getTypes()->getFloat32();
-                DataType* dt = fn->getContext()->getTypes()->getFloat64();
-
-                ir_instruction vop = ir_noop;
-                if (selfTp == rtp && (rtp == v2f || rtp == v2d || rtp == v3f || rtp == v3d || rtp == v4f || rtp == v4d)) {
-                    switch (_i) {
-                        case ir_assign: { vop = ir_vset; break; }
-                        case ir_iadd: { vop = ir_vadd; break; }
-                        case ir_isub: { vop = ir_vsub; break; }
-                        case ir_imul: { vop = ir_vmul; break; }
-                        case ir_idiv: { vop = ir_vdiv; break; }
-                        case ir_imod: { vop = ir_vmod; break; }
-                    }
-                } else if (rtp == ft && (selfTp == v2f || selfTp == v3f || selfTp == v4f)) {
-                    switch (_i) {
-                        case ir_iadd: { vop = ir_vadd; break; }
-                        case ir_isub: { vop = ir_vsub; break; }
-                        case ir_imul: { vop = ir_vmul; break; }
-                        case ir_idiv: { vop = ir_vdiv; break; }
-                        case ir_imod: { vop = ir_vmod; break; }
-                    }
-                } else if (rtp == dt && (selfTp == v2d || selfTp == v3d || selfTp == v4d)) {
-                    switch (_i) {
-                        case ir_iadd: { vop = ir_vadd; break; }
-                        case ir_isub: { vop = ir_vsub; break; }
-                        case ir_imul: { vop = ir_vmul; break; }
-                        case ir_idiv: { vop = ir_vdiv; break; }
-                        case ir_imod: { vop = ir_vmod; break; }
-                    }
-                }
-
-                if (vop != ir_noop) {
-                    Value tgt = *self;
-                    if (!assignmentOp) {
-                        tgt.reset(fn->stack(selfTp));
-                        fn->getCompiler()->maybeConstructVectorType(tgt, selfTp, { *self }, { selfTp });
-                    }
-
-                    fn->add(vop).op(tgt).op(rhs);
-
-                    return tgt;
-                }
-
-
                 Array<Function*> matches = selfTp->findMethods(overrideName, nullptr, &rtp, 1, fm_skip_implicit_args);
                 if (matches.size() == 1) {
                     return fn->getCompiler()->generateCall(matches[0], { rhs }, self);
@@ -1235,22 +1193,6 @@ namespace tsn {
 
                 return out;
             } else {
-                if (_i == ir_ineg) {
-                    DataType* v2f = fn->getContext()->getTypes()->getVec2f();
-                    DataType* v2d = fn->getContext()->getTypes()->getVec2d();
-                    DataType* v3f = fn->getContext()->getTypes()->getVec3f();
-                    DataType* v3d = fn->getContext()->getTypes()->getVec3d();
-                    DataType* v4f = fn->getContext()->getTypes()->getVec4f();
-                    DataType* v4d = fn->getContext()->getTypes()->getVec4d();
-
-                    if (selfTp == v2f || selfTp == v2d || selfTp == v3f || selfTp == v3d || selfTp == v4f || selfTp == v4d) {
-                        Value result = fn->stack(selfTp);
-                        fn->getCompiler()->maybeConstructVectorType(result, selfTp, { *self }, { selfTp });
-                        fn->add(ir_vneg).op(result);
-                        return result;
-                    }
-                }
-
                 Array<Function*> matches = selfTp->findMethods(overrideName, nullptr, nullptr, 0, fm_skip_implicit_args);
                 if (matches.size() == 1) {
                     return fn->getCompiler()->generateCall(matches[0], { }, self);
@@ -1292,7 +1234,7 @@ namespace tsn {
             return genBinaryOp(m_func, this, rhs, ir_iadd, ir_uadd, ir_fadd, ir_dadd, "operator +");
         }
 
-        Value Value::operator += (const Value& rhs) {
+        Value Value::operator += (const Value& rhs) const {
             return genBinaryOp(m_func, this, rhs, ir_iadd, ir_uadd, ir_fadd, ir_dadd, "operator +=", true);
         }
 
@@ -1300,7 +1242,7 @@ namespace tsn {
             return genBinaryOp(m_func, this, rhs, ir_isub, ir_usub, ir_fsub, ir_dsub, "operator -");
         }
 
-        Value Value::operator -= (const Value& rhs) {
+        Value Value::operator -= (const Value& rhs) const {
             return genBinaryOp(m_func, this, rhs, ir_isub, ir_usub, ir_fsub, ir_dsub, "operator -=", true);
         }
 
@@ -1308,7 +1250,7 @@ namespace tsn {
             return genBinaryOp(m_func, this, rhs, ir_imul, ir_umul, ir_fmul, ir_dmul, "operator *");
         }
 
-        Value Value::operator *= (const Value& rhs) {
+        Value Value::operator *= (const Value& rhs) const {
             return genBinaryOp(m_func, this, rhs, ir_imul, ir_umul, ir_fmul, ir_dmul, "operator *=", true);
         }
 
@@ -1316,7 +1258,7 @@ namespace tsn {
             return genBinaryOp(m_func, this, rhs, ir_idiv, ir_udiv, ir_fdiv, ir_ddiv, "operator /");
         }
 
-        Value Value::operator /= (const Value& rhs) {
+        Value Value::operator /= (const Value& rhs) const {
             return genBinaryOp(m_func, this, rhs, ir_idiv, ir_udiv, ir_fdiv, ir_ddiv, "operator /=", true);
         }
 
@@ -1324,7 +1266,7 @@ namespace tsn {
             return genBinaryOp(m_func, this, rhs, ir_imod, ir_umod, ir_fmod, ir_dmod, "operator %");
         }
 
-        Value Value::operator %= (const Value& rhs) {
+        Value Value::operator %= (const Value& rhs) const {
             return genBinaryOp(m_func, this, rhs, ir_imod, ir_umod, ir_fmod, ir_dmod, "operator %=", true);
         }
 
@@ -1332,7 +1274,7 @@ namespace tsn {
             return genBinaryOp(m_func, this, rhs, ir_xor, ir_xor, ir_noop, ir_noop, "operator ^");
         }
 
-        Value Value::operator ^= (const Value& rhs) {
+        Value Value::operator ^= (const Value& rhs) const {
             return genBinaryOp(m_func, this, rhs, ir_xor, ir_xor, ir_noop, ir_noop, "operator ^=", true);
         }
 
@@ -1340,7 +1282,7 @@ namespace tsn {
             return genBinaryOp(m_func, this, rhs, ir_band, ir_band, ir_noop, ir_noop, "operator &");
         }
 
-        Value Value::operator &= (const Value& rhs) {
+        Value Value::operator &= (const Value& rhs) const {
             return genBinaryOp(m_func, this, rhs, ir_band, ir_band, ir_noop, ir_noop, "operator &=", true);
         }
 
@@ -1348,7 +1290,7 @@ namespace tsn {
             return genBinaryOp(m_func, this, rhs, ir_bor, ir_bor, ir_noop, ir_noop, "operator |");
         }
 
-        Value Value::operator |= (const Value& rhs) {
+        Value Value::operator |= (const Value& rhs) const {
             return genBinaryOp(m_func, this, rhs, ir_bor, ir_bor, ir_noop, ir_noop, "operator |=", true);
         }
 
@@ -1356,7 +1298,7 @@ namespace tsn {
             return genBinaryOp(m_func, this, rhs, ir_shl, ir_shl, ir_noop, ir_noop, "operator <<");
         }
 
-        Value Value::operator <<=(const Value& rhs) {
+        Value Value::operator <<=(const Value& rhs) const {
             return genBinaryOp(m_func, this, rhs, ir_shl, ir_shl, ir_noop, ir_noop, "operator <<=", true);
         }
 
@@ -1364,7 +1306,7 @@ namespace tsn {
             return genBinaryOp(m_func, this, rhs, ir_shr, ir_shr, ir_noop, ir_noop, "operator >>");
         }
 
-        Value Value::operator >>=(const Value& rhs) {
+        Value Value::operator >>=(const Value& rhs) const {
             return genBinaryOp(m_func, this, rhs, ir_shr, ir_shr, ir_noop, ir_noop, "operator >>=", true);
         }
 
@@ -1380,7 +1322,7 @@ namespace tsn {
             return genBinaryOp(m_func, this, rhs, ir_lor, ir_lor, ir_lor, ir_lor, "operator ||");
         }
 
-        Value Value::operator =  (const Value& rhs) {
+        Value Value::operator =  (const Value& rhs) const {
             return genBinaryOp(m_func, this, rhs, ir_assign, ir_assign, ir_assign, ir_assign, "operator =", true);
         }
 
@@ -1571,23 +1513,23 @@ namespace tsn {
             return m_func->getPoison();
         }
 
-        Value Value::operator -  () {
+        Value Value::operator -  () const {
             return genUnaryOp(m_func, this, ir_ineg, ir_noop, ir_fneg, ir_dneg, "operator -");
         }
 
-        Value Value::operator -- () {
+        Value Value::operator -- () const {
             return genUnaryOp(m_func, this, ir_idec, ir_udec, ir_fdec, ir_ddec, "operator --", false, true, true);
         }
 
-        Value Value::operator -- (int) {
+        Value Value::operator -- (int) const {
             return genUnaryOp(m_func, this, ir_idec, ir_udec, ir_fdec, ir_ddec, "operator --", true, true, true);
         }
 
-        Value Value::operator ++ () {
+        Value Value::operator ++ () const {
             return genUnaryOp(m_func, this, ir_iinc, ir_uinc, ir_finc, ir_dinc, "operator ++", false, true, true);
         }
 
-        Value Value::operator ++ (int) {
+        Value Value::operator ++ (int) const {
             return genUnaryOp(m_func, this, ir_iinc, ir_uinc, ir_finc, ir_dinc, "operator ++", true, true, true);
         }
 
@@ -1637,11 +1579,11 @@ namespace tsn {
             return v;
         }
 
-        Value Value::operator_logicalAndAssign(const Value& rhs) {
+        Value Value::operator_logicalAndAssign(const Value& rhs) const {
             return genBinaryOp(m_func, this, rhs, ir_land, ir_land, ir_land, ir_land, "operator &&=", true);
         }
 
-        Value Value::operator_logicalOrAssign(const Value& rhs) {
+        Value Value::operator_logicalOrAssign(const Value& rhs) const {
             return genBinaryOp(m_func, this, rhs, ir_lor, ir_lor, ir_lor, ir_lor, "operator ||=", true);
         }
 
@@ -1701,7 +1643,7 @@ namespace tsn {
 
             String s;
             if (m_flags.is_argument) {
-                if (m_type->getInfo().is_floating_point) s = String::Format("$FPA%d", m_imm.u);
+                if (isFloatingPoint()) s = String::Format("$FPA%d", m_imm.u);
                 else s = String::Format("$GPA%d", m_imm.u);
             } else if (m_flags.is_function) {
                 if (m_flags.is_immediate) {
@@ -1723,7 +1665,7 @@ namespace tsn {
                 s = String::Format("<Module %s : %s>", m_imm.mod->getName().c_str(), m_imm.mod->getDataInfo(m_slotId).name.c_str());
             } else if (m_type->getInfo().is_primitive) {
                 if (isReg()) {
-                    if (m_type->getInfo().is_floating_point) s = String::Format("$FP%d", m_regId);
+                    if (isFloatingPoint()) s = String::Format("$FP%d", m_regId);
                     else s = String::Format("$GP%d", m_regId);
                 } else if (isStack()) {
                     s = String::Format("$ST%d", m_allocId);

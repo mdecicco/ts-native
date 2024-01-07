@@ -603,10 +603,25 @@ namespace tsn {
                     }
                 } else {
                     auto& info = instruction_info(i.op);
-                    if (info.has_side_effects) {
+                    if (info.has_external_side_effects) {
                         loadMap.clear();
                         storeMap.clear();
                     } else {
+                        if (info.has_side_effects_for_op0 && i.operands[0].isValid()) {
+                            loadMap.erase(i.operands[0].getRegId());
+                            storeMap.erase(i.operands[0].getRegId());
+                        }
+
+                        if (info.has_side_effects_for_op1 && i.operands[1].isValid()) {
+                            loadMap.erase(i.operands[1].getRegId());
+                            storeMap.erase(i.operands[1].getRegId());
+                        }
+                        
+                        if (info.has_side_effects_for_op2 && i.operands[2].isValid()) {
+                            loadMap.erase(i.operands[2].getRegId());
+                            storeMap.erase(i.operands[2].getRegId());
+                        }
+                    
                         const Value* assigns = i.assigns();
                         if (assigns) lastAssign[assigns->getRegId()] = c;
                     }

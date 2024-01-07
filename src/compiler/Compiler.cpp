@@ -641,135 +641,9 @@ namespace tsn {
             return result;
         }
         
-        bool Compiler::maybeConstructVectorType(const Value& dest, ffi::DataType* tp, const utils::Array<Value>& args, const utils::Array<ffi::DataType*>& argTps) {
-            DataType* v2f = m_ctx->getTypes()->getVec2f();
-            DataType* v2d = m_ctx->getTypes()->getVec2d();
-            DataType* v3f = m_ctx->getTypes()->getVec3f();
-            DataType* v3d = m_ctx->getTypes()->getVec3d();
-            DataType* v4f = m_ctx->getTypes()->getVec4f();
-            DataType* v4d = m_ctx->getTypes()->getVec4d();
-            DataType* ft = m_ctx->getTypes()->getFloat32();
-            DataType* dt = m_ctx->getTypes()->getFloat64();
-            FunctionDef* cf = currentFunction();
-
-            if (tp == v2f) {
-                if (args.size() == 0) {
-                    add(ir_store).op(cf->imm(0.0f)).op(dest);
-                    add(ir_store).op(cf->imm(0.0f)).op(dest).op(cf->imm<u32>(sizeof(f32)));
-                    return true;
-                } else if (args.size() == 1 && argTps[0] == v2f) {
-                    add(ir_vset).op(dest).op(args[0]);
-                    return true;
-                } else if (args.size() == 2 && argTps[0] == ft && argTps[1] == ft) {
-                    if (args[0].getFlags().is_pointer) add(ir_store).op(*args[0]).op(dest);
-                    else add(ir_store).op(args[0]).op(dest);
-                    if (args[1].getFlags().is_pointer) add(ir_store).op(*args[1]).op(dest).op(cf->imm<u32>(sizeof(f32)));
-                    else add(ir_store).op(args[1]).op(dest).op(cf->imm<u32>(sizeof(f32)));
-                    return true;
-                }
-            } else if (tp == v2d) {
-                if (args.size() == 0) {
-                    add(ir_store).op(cf->imm(0.0)).op(dest);
-                    add(ir_store).op(cf->imm(0.0)).op(dest).op(cf->imm<u32>(sizeof(f64)));
-                    return true;
-                } else if (args.size() == 1 && argTps[0] == v2d) {
-                    add(ir_vset).op(dest).op(args[0]);
-                    return true;
-                } else if (args.size() == 2 && argTps[0] == dt && argTps[1] == dt) {
-                    if (args[0].getFlags().is_pointer) add(ir_store).op(*args[0]).op(dest);
-                    else add(ir_store).op(args[0]).op(dest);
-                    if (args[1].getFlags().is_pointer) add(ir_store).op(*args[1]).op(dest).op(cf->imm<u32>(sizeof(f64)));
-                    else add(ir_store).op(args[1]).op(dest).op(cf->imm<u32>(sizeof(f64)));
-                    return true;
-                }
-            } else if (tp == v3f) {
-                if (args.size() == 0) {
-                    add(ir_store).op(cf->imm(0.0f)).op(dest);
-                    add(ir_store).op(cf->imm(0.0f)).op(dest).op(cf->imm<u32>(sizeof(f32)));
-                    add(ir_store).op(cf->imm(0.0f)).op(dest).op(cf->imm<u32>(sizeof(f32) * 2));
-                    return true;
-                } else if (args.size() == 1 && argTps[0] == v3f) {
-                    add(ir_vset).op(dest).op(args[0]);
-                    return true;
-                } else if (args.size() == 3 && argTps[0] == ft && argTps[1] == ft && argTps[2] == ft) {
-                    if (args[0].getFlags().is_pointer) add(ir_store).op(*args[0]).op(dest);
-                    else add(ir_store).op(args[0]).op(dest);
-                    if (args[1].getFlags().is_pointer) add(ir_store).op(*args[1]).op(dest).op(cf->imm<u32>(sizeof(f32)));
-                    else add(ir_store).op(args[1]).op(dest).op(cf->imm<u32>(sizeof(f32)));
-                    if (args[2].getFlags().is_pointer) add(ir_store).op(*args[2]).op(dest).op(cf->imm<u32>(sizeof(f32) * 2));
-                    else add(ir_store).op(args[2]).op(dest).op(cf->imm<u32>(sizeof(f32) * 2));
-                    return true;
-                }
-            } else if (tp == v3d) {
-                if (args.size() == 0) {
-                    add(ir_store).op(cf->imm(0.0)).op(dest);
-                    add(ir_store).op(cf->imm(0.0)).op(dest).op(cf->imm<u32>(sizeof(f64)));
-                    add(ir_store).op(cf->imm(0.0)).op(dest).op(cf->imm<u32>(sizeof(f64) * 2));
-                    return true;
-                } else if (args.size() == 1 && argTps[0] == v3d) {
-                    add(ir_vset).op(dest).op(args[0]);
-                    return true;
-                } else if (args.size() == 3 && argTps[0] == dt && argTps[1] == dt && argTps[2] == dt) {
-                    if (args[0].getFlags().is_pointer) add(ir_store).op(*args[0]).op(dest);
-                    else add(ir_store).op(args[0]).op(dest);
-                    if (args[1].getFlags().is_pointer) add(ir_store).op(*args[1]).op(dest).op(cf->imm<u32>(sizeof(f64)));
-                    else add(ir_store).op(args[1]).op(dest).op(cf->imm<u32>(sizeof(f64)));
-                    if (args[2].getFlags().is_pointer) add(ir_store).op(*args[2]).op(dest).op(cf->imm<u32>(sizeof(f64) * 2));
-                    else add(ir_store).op(args[2]).op(dest).op(cf->imm<u32>(sizeof(f64) * 2));
-                    return true;
-                }
-            } else if (tp == v4f) {
-                if (args.size() == 0) {
-                    add(ir_store).op(cf->imm(0.0f)).op(dest);
-                    add(ir_store).op(cf->imm(0.0f)).op(dest).op(cf->imm<u32>(sizeof(f32)));
-                    add(ir_store).op(cf->imm(0.0f)).op(dest).op(cf->imm<u32>(sizeof(f32) * 2));
-                    add(ir_store).op(cf->imm(0.0f)).op(dest).op(cf->imm<u32>(sizeof(f32) * 3));
-                    return true;
-                } else if (args.size() == 1 && argTps[0] == v4f) {
-                    add(ir_vset).op(dest).op(args[0]);
-                    return true;
-                } else if (args.size() == 4 && argTps[0] == ft && argTps[1] == ft && argTps[2] == ft && argTps[3] == ft) {
-                    if (args[0].getFlags().is_pointer) add(ir_store).op(*args[0]).op(dest);
-                    else add(ir_store).op(args[0]).op(dest);
-                    if (args[1].getFlags().is_pointer) add(ir_store).op(*args[1]).op(dest).op(cf->imm<u32>(sizeof(f32)));
-                    else add(ir_store).op(args[1]).op(dest).op(cf->imm<u32>(sizeof(f32)));
-                    if (args[2].getFlags().is_pointer) add(ir_store).op(*args[2]).op(dest).op(cf->imm<u32>(sizeof(f32) * 2));
-                    else add(ir_store).op(args[2]).op(dest).op(cf->imm<u32>(sizeof(f32) * 2));
-                    if (args[2].getFlags().is_pointer) add(ir_store).op(*args[3]).op(dest).op(cf->imm<u32>(sizeof(f32) * 3));
-                    else add(ir_store).op(args[3]).op(dest).op(cf->imm<u32>(sizeof(f32) * 3));
-                    return true;
-                }
-            } else if (tp == v4d) {
-                if (args.size() == 0) {
-                    add(ir_store).op(cf->imm(0.0)).op(dest);
-                    add(ir_store).op(cf->imm(0.0)).op(dest).op(cf->imm<u32>(sizeof(f64)));
-                    add(ir_store).op(cf->imm(0.0)).op(dest).op(cf->imm<u32>(sizeof(f64) * 2));
-                    add(ir_store).op(cf->imm(0.0)).op(dest).op(cf->imm<u32>(sizeof(f64) * 3));
-                    return true;
-                } else if (args.size() == 1 && argTps[0] == v4d) {
-                    add(ir_vset).op(dest).op(args[0]);
-                    return true;
-                } else if (args.size() == 4 && argTps[0] == dt && argTps[1] == dt && argTps[2] == dt && argTps[3] == dt) {
-                    if (args[0].getFlags().is_pointer) add(ir_store).op(*args[0]).op(dest);
-                    else add(ir_store).op(args[0]).op(dest);
-                    if (args[1].getFlags().is_pointer) add(ir_store).op(*args[1]).op(dest).op(cf->imm<u32>(sizeof(f64)));
-                    else add(ir_store).op(args[1]).op(dest).op(cf->imm<u32>(sizeof(f64)));
-                    if (args[2].getFlags().is_pointer) add(ir_store).op(*args[2]).op(dest).op(cf->imm<u32>(sizeof(f64) * 2));
-                    else add(ir_store).op(args[2]).op(dest).op(cf->imm<u32>(sizeof(f64) * 2));
-                    if (args[2].getFlags().is_pointer) add(ir_store).op(*args[3]).op(dest).op(cf->imm<u32>(sizeof(f64) * 3));
-                    else add(ir_store).op(args[3]).op(dest).op(cf->imm<u32>(sizeof(f64) * 3));
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
         void Compiler::constructObject(const Value& dest, ffi::DataType* tp, const utils::Array<Value>& args) {
             FunctionDef* cf = currentFunction();
             Array<DataType*> argTps = args.map([](const Value& v) { return v.getType(); });
-
-            if (maybeConstructVectorType(dest, tp, args, argTps)) return;
 
             if (tp->getInfo().is_primitive) {
                 if (args.size() == 1) {
@@ -1144,19 +1018,28 @@ namespace tsn {
             return newClosure(closure, sig);
         }
 
+        Value Compiler::generateHostInlineCall(ffi::Function* fn, const utils::Array<Value>& args, const Value* self) {
+            Value result = currentFunction()->getPoison();
+            
+            Value* ret = nullptr;
+            ffi::DataType* retTp = fn->getSignature()->getReturnType();
+            if (retTp->getInfo().size != 0) {
+                result.reset(getStorageForExpr(retTp));
+                ret = &result;
+            }
+
+            InlineCodeGenContext gctx = { this, ret, self, args };
+            ((InlineCodeGenFunc)fn->getAddress())(&gctx);
+
+            return result;
+        }
+
         Value Compiler::generateCall(const Value& fn, const utils::String& name, bool returnsPointer, ffi::DataType* retTp, const utils::Array<function_argument>& fargs, const utils::Array<Value>& params, const Value* self) {
             FunctionDef* cf = currentFunction();
             DataType* voidp = m_ctx->getTypes()->getVoidPtr();
 
-            ffi::DataType* origRetTp = retTp;
-            if (returnsPointer) {
-                retTp = getPointerType(retTp);
-            }
-
             Value callee = fn;
             Value capturePtr = cf->imm<u64>(0);
-
-            add(ir_noop).comment(utils::String::Format("-------- call %s --------", fn.toString(m_ctx).c_str()));
 
             if (callee.isImm()) {
                 FunctionDef* vfd = callee.getImm<FunctionDef*>();
@@ -1167,10 +1050,25 @@ namespace tsn {
                         add(ir_noop).comment(utils::String::Format("-------- end call %s --------", fn.toString(m_ctx).c_str()));
                         return currentFunction()->getPoison();
                     }
+
+                    if (f->isInline()) {
+                        add(ir_noop).comment(utils::String::Format("-------- inlined %s --------", fn.toString(m_ctx).c_str()));
+                        Value ret = generateHostInlineCall(f, params, self);
+                        add(ir_noop).comment(utils::String::Format("-------- end inlined %s --------", fn.toString(m_ctx).c_str()));
+                        return ret;
+                    }
                 }
+
+                add(ir_noop).comment(utils::String::Format("-------- call %s --------", fn.toString(m_ctx).c_str()));
             } else {
+                add(ir_noop).comment(utils::String::Format("-------- call %s --------", fn.toString(m_ctx).c_str()));
                 capturePtr.reset(cf->val(voidp));
                 add(ir_load).op(capturePtr).op(fn).comment("Load pointer to capture data");
+            }
+
+            ffi::DataType* origRetTp = retTp;
+            if (returnsPointer) {
+                retTp = getPointerType(retTp);
             }
 
             u8 argc = 0;
@@ -1268,6 +1166,7 @@ namespace tsn {
                 // unscoped because it will either be freed or added to the scope later
                 resultStack.reset(cf->stack(retTp, true, "Allocate stack space for return value"));
                 resultPtr.reset(cf->val(retTp));
+                resultPtr.getFlags().is_pointer = 1;
                 add(ir_stack_ptr).op(resultPtr).op(cf->imm(resultStack.getStackAllocId())).comment("Get return pointer for function call");
 
                 if (returnsPointer) {
@@ -3266,122 +3165,6 @@ namespace tsn {
 
             return out;
         }
-        Value Compiler::maybeEvaluateBuiltinVectorMethod(const Value& self, FunctionDef* fn, const utils::Array<Value>& args, bool* wasBuiltin) {
-            if (!fn->getOutput()) {
-                *wasBuiltin = false;
-                return currentFunction()->getPoison();
-            }
-
-            DataType* v2f = m_ctx->getTypes()->getVec2f();
-            DataType* v2d = m_ctx->getTypes()->getVec2d();
-            DataType* v3f = m_ctx->getTypes()->getVec3f();
-            DataType* v3d = m_ctx->getTypes()->getVec3d();
-            DataType* v4f = m_ctx->getTypes()->getVec4f();
-            DataType* v4d = m_ctx->getTypes()->getVec4d();
-            DataType* stp = self.getType();
-
-            if (stp == v2f || stp == v3f || stp == v4f) {
-                DataType* ft = m_ctx->getTypes()->getFloat32();
-                const utils::String& name = fn->getOutput()->getName();
-
-                if (name == "dot") {
-                    if (args.size() == 1 && args[0].getType() == stp) {
-                        Value result = currentFunction()->val(ft);
-                        add(ir_vdot).op(result).op(self).op(args[0]);
-                        *wasBuiltin = true;
-                        return result;
-                    }
-                } else if (name == "cross") {
-                    if (args.size() == 1 && args[0].getType() == stp) {
-                        Value result = currentFunction()->stack(stp);
-                        add(ir_vcross).op(result).op(self).op(args[0]);
-                        *wasBuiltin = true;
-                        return result;
-                    }
-                } else if (name == "length") {
-                    if (args.size() == 0) {
-                        Value result = currentFunction()->val(ft);
-                        add(ir_vmag).op(result).op(self);
-                        *wasBuiltin = true;
-                        return result;
-                    }
-                } else if (name == "lengthSq") {
-                    if (args.size() == 0) {
-                        Value result = currentFunction()->val(ft);
-                        add(ir_vmagsq).op(result).op(self);
-                        *wasBuiltin = true;
-                        return result;
-                    }
-                } else if (name == "normalize") {
-                    if (args.size() == 0) {
-                        Value result = self;
-                        add(ir_vnorm).op(self);
-                        *wasBuiltin = true;
-                        return result;
-                    }
-                } else if (name == "normalized") {
-                    if (args.size() == 0) {
-                        Value result = currentFunction()->stack(stp);
-                        maybeConstructVectorType(result, stp, { self }, { stp });
-                        add(ir_vnorm).op(result);
-                        *wasBuiltin = true;
-                        return result;
-                    }
-                }
-            } else if (stp == v2d || stp == v3d || stp == v4d) {
-                DataType* dt = m_ctx->getTypes()->getFloat64();
-                DataType* ft = m_ctx->getTypes()->getFloat32();
-                const utils::String& name = fn->getOutput()->getName();
-
-                if (name == "dot") {
-                    if (args.size() == 1 && args[0].getType() == stp) {
-                        Value result = currentFunction()->val(ft);
-                        add(ir_vdot).op(result).op(self).op(args[0]);
-                        *wasBuiltin = true;
-                        return result;
-                    }
-                } else if (name == "cross") {
-                    if (args.size() == 1 && args[0].getType() == stp) {
-                        Value result = currentFunction()->stack(stp);
-                        add(ir_vcross).op(result).op(self).op(args[0]);
-                        *wasBuiltin = true;
-                        return result;
-                    }
-                } else if (name == "length") {
-                    if (args.size() == 0) {
-                        Value result = currentFunction()->val(ft);
-                        add(ir_vmag).op(result).op(self);
-                        *wasBuiltin = true;
-                        return result;
-                    }
-                } else if (name == "lengthSq") {
-                    if (args.size() == 0) {
-                        Value result = currentFunction()->val(ft);
-                        add(ir_vmagsq).op(result).op(self);
-                        *wasBuiltin = true;
-                        return result;
-                    }
-                } else if (name == "normalize") {
-                    if (args.size() == 0) {
-                        Value result = self;
-                        add(ir_vnorm).op(self);
-                        *wasBuiltin = true;
-                        return result;
-                    }
-                } else if (name == "normalized") {
-                    if (args.size() == 0) {
-                        Value result = currentFunction()->stack(stp);
-                        maybeConstructVectorType(result, stp, { self }, { stp });
-                        add(ir_vnorm).op(result);
-                        *wasBuiltin = true;
-                        return result;
-                    }
-                }
-            }
-
-            *wasBuiltin = false;
-            return currentFunction()->getPoison();
-        }
         Value Compiler::compileExpressionInner(ParseNode* n) {
             // name shortened to reduce clutter
             auto vs = [this](const Value& v) {
@@ -4098,16 +3881,6 @@ namespace tsn {
                     } else callee.reset(compileExpressionInner(n->lvalue));
 
                     exitExpr();
-
-                    if (h.self && callee.isFunction() && callee.isImm()) {
-                        bool wasBuiltin = false;
-                        Value result = maybeEvaluateBuiltinVectorMethod(*h.self, callee.getImm<FunctionDef*>(), h.args, &wasBuiltin);
-
-                        if (wasBuiltin) {
-                            delete h.self;
-                            return result;
-                        }
-                    }
 
                     auto* exp = currentExpr();
                     if (exp) exp->targetNextCall = true;

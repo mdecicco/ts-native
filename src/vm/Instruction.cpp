@@ -513,7 +513,7 @@ namespace tsn {
             vmi i = instr();
             if (i >= vmi::instruction_count) return "Invalid Instruction";
             
-            if (check_instr_type_0(i)) return instruction_str[(u8)i];
+            if (check_instr_type_0(i)) return instruction_str[(u16)i];
 
             auto reg_str = [vm](vmr r, i64 offset = 0, bool is_mem = false) {
                 if (!vm->isExecuting()) return "$" + std::string(register_str[(u64)r]);
@@ -522,8 +522,7 @@ namespace tsn {
 
                     if (is_fpr(r)) {
                         reg_val = utils::String::Format("<%f>", *(f32*)&vm->state.registers[(u64)r]);
-                    }
-                    else {
+                    } else {
                         i64 val = *(i64*)&vm->state.registers[(u64)r];
                         if (abs(val) > 1000000) reg_val = utils::String::Format("<0x%llX>", (u64)val);
                         else reg_val = utils::String::Format("<%lld>", val);
@@ -534,8 +533,8 @@ namespace tsn {
                 return std::string();
             };
 
-            out += instruction_str[(u8)i];
-            while (out.length() < 8) out += ' ';
+            out += instruction_str[(u16)i];
+            while (out.length() < 9) out += ' ';
 
             if (i == vmi::jal && ctx) {
                 ffi::Function* fn = ctx->getFunctions()->getFunction((u32)imm_u());

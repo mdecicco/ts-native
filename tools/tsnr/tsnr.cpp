@@ -71,11 +71,13 @@ i32 main (i32 argc, const char** argv) {
     }
 
     tsnc_config conf;
+    conf.script_path = "./main.tsn";
+    conf.config_path = "./tsnc.json";
+    conf.trusted = false;
+    conf.backend = bt_none;
+
     Config contextCfg;
-    i32 status = parse_args(argc, argv, &conf, &contextCfg);
-    if (status != 0) {
-        return status;
-    }
+    i32 status = 0;
 
     try {
         char* configInput = loadText(conf.config_path, false, conf);
@@ -84,6 +86,11 @@ i32 main (i32 argc, const char** argv) {
             delete [] configInput;
 
             status = processConfig(config, contextCfg, conf);
+            if (status != 0) return status;
+
+            conf.disableOptimizations = contextCfg.disableOptimizations;
+
+            parse_args(argc, argv, &conf, &contextCfg);
             if (status != 0) return status;
         }
     } catch (i32 error) {

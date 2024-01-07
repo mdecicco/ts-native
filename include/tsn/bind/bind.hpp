@@ -67,8 +67,22 @@ namespace tsn {
         }
 
         template <typename Ret, typename... Args>
+        Function* bind(Context* ctx, const utils::String& name, compiler::InlineCodeGenFunc genFn, access_modifier access) {
+            Function* fn = bind_function<Ret, Args...>(nullptr, ctx->getFunctions(), ctx->getTypes(), name, genFn, access, nullptr);
+            if (fn) ctx->getGlobal()->addFunction(fn);
+            return fn;
+        }
+
+        template <typename Ret, typename... Args>
         Function* bind(Module* mod, const utils::String& name, Ret (*func)(Args...), access_modifier access) {
             Function* fn = bind_function(mod, mod->getContext()->getFunctions(), mod->getContext()->getTypes(), name, func, access, nullptr);
+            if (fn) mod->addFunction(fn);
+            return fn;
+        }
+
+        template <typename Ret, typename... Args>
+        Function* bind(Module* mod, const utils::String& name, compiler::InlineCodeGenFunc genFn, access_modifier access) {
+            Function* fn = bind_function<Ret, Args...>(mod, mod->getContext()->getFunctions(), mod->getContext()->getTypes(), name, genFn, access, nullptr);
             if (fn) mod->addFunction(fn);
             return fn;
         }

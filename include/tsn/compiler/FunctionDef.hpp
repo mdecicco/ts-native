@@ -9,6 +9,15 @@
 namespace tsn {
     namespace compiler {
         template <typename T>
+        Value FunctionDef::stack(bool unscoped, const utils::String& allocComment, const utils::String& getPtrComment) {
+            return stack(
+                m_comp->getContext()->getTypes()->getType<T>(),
+                allocComment,
+                getPtrComment
+            );
+        }
+
+        template <typename T>
         Value& FunctionDef::val(const utils::String& name) {
             return val(name, m_comp->getContext()->getTypes()->getType<T>());
         }

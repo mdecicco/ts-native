@@ -67,7 +67,7 @@ namespace tsn {
 
                             ffi::DataType* tp = ch->code[i].operands[1].getType();
                             ch->code[i].operands[1].reset(*v);
-                            //ch->code[i].operands[1].setType(tp);
+                            ch->code[i].operands[1].setType(tp);
                             hasChanges = true;
 
                             if (doDebug) {
@@ -111,7 +111,7 @@ namespace tsn {
 
                         ffi::DataType* tp = ch->code[i].operands[o].getType();
                         ch->code[i].operands[o].reset(*it->second);
-                        //ch->code[i].operands[o].setType(tp);
+                        ch->code[i].operands[o].setType(tp);
                         hasChanges = true;
 
                         if (doDebug) {

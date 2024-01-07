@@ -319,6 +319,22 @@ namespace tsn {
             Value* out = new Value(v);
             out->m_name = name;
             scope->add(name, out);
+
+            m_instructions.each([&v, &name](Instruction& i) {
+                for (u8 o = 0;o < i.oCnt;o++) {
+                    Value& op = i.operands[o];
+                    if (op.isReg()) {
+                        if (v.isReg() && op.m_regId == v.m_regId) {
+                            op.m_name = name;
+                        }
+                    } else if (op.isStack()) {
+                        if (v.isStack() && op.m_slotId == v.m_slotId) {
+                            op.m_name == name;
+                        }
+                    }
+                }
+            });
+
             return *out;
         }
 

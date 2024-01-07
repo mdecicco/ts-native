@@ -12,7 +12,8 @@ namespace tsn {
         const ffi::DataType** argTps,
         u8 argCount,
         function_match_flags flags,
-        ffi::Function* fn
+        ffi::Function* fn,
+        bool* wasStrictEqual
     ) {
         // Order checks by performance cost
         if ((flags & fm_exclude_private) && fn->getAccessModifier() == private_access) return false;
@@ -54,6 +55,8 @@ namespace tsn {
         }
 
         // strict arg type check
+        bool didCheckArgsStrict = false;
+        bool argsStrictEqual = false;
         if (!(flags & fm_ignore_args) && (flags & fm_strict_args)) {
             u8 argIdx = 0;
             bool argsMatch = !args.some([argTps, argCount, flags, &argIdx](const ffi::function_argument& a) {
@@ -63,6 +66,9 @@ namespace tsn {
             });
 
             if (!argsMatch) return false;
+
+            argsStrictEqual = true;
+            didCheckArgsStrict = true;
         }
 
         // flexible return type check
@@ -83,6 +89,24 @@ namespace tsn {
             if (!argsMatch) return false;
         }
 
+        if (wasStrictEqual && argTps) {
+            if (retTp && !sig->getReturnType()->isEqualTo(retTp)) *wasStrictEqual = false;
+            else if (!didCheckArgsStrict) {
+                if (argsStrictEqual) {
+                    *wasStrictEqual = true;
+                } else {
+                    u8 argIdx = 0;
+                    *wasStrictEqual = !args.some([argTps, argCount, flags, &argIdx](const ffi::function_argument& a) {
+                        if ((flags & fm_skip_implicit_args) && a.isImplicit()) return false;
+                        if (!a.dataType->isEqualTo(argTps[argIdx++])) return true;
+                        return false;
+                    });
+                }
+            } else {
+                *wasStrictEqual = argsStrictEqual;
+            }
+        }
+
         return true;
     }
     utils::Array<ffi::Function*> function_match(
@@ -93,10 +117,23 @@ namespace tsn {
         const utils::Array<ffi::Function*>& funcs,
         function_match_flags flags
     ) {
-        return funcs.filter([&name, retTp, argTps, argCount, flags](ffi::Function* fn) {
-            if (!fn) return false;
-            return func_match_filter(name, retTp, argTps, argCount, flags, fn);
+        ffi::Function* strictMatch = nullptr;
+        auto matches = funcs.filter([&name, retTp, argTps, argCount, flags, &strictMatch](ffi::Function* fn) {
+            if (!fn || strictMatch) return false;
+            bool wasStrict = false;
+            bool result = func_match_filter(name, retTp, argTps, argCount, flags, fn, (flags & fm_strict) ? nullptr : &wasStrict);
+
+            if (wasStrict) {
+                strictMatch = fn;
+                return false;
+            }
+
+            return result;
         });
+
+        if (strictMatch) return { strictMatch };
+
+        return matches;
     }
 
     utils::Array<ffi::Method*> function_match(
@@ -107,9 +144,23 @@ namespace tsn {
         const utils::Array<ffi::Method*>& funcs,
         function_match_flags flags
     ) {
-        return funcs.filter([&name, retTp, argTps, argCount, flags](ffi::Method* fn) {
-            if (!fn) return false;
-            return func_match_filter(name, retTp, argTps, argCount, flags, fn);
+        ffi::Method* strictMatch = nullptr;
+
+        auto matches = funcs.filter([&name, retTp, argTps, argCount, flags, &strictMatch](ffi::Method* fn) {
+            if (!fn || strictMatch) return false;
+            bool wasStrict = false;
+            bool result = func_match_filter(name, retTp, argTps, argCount, flags, fn, (flags & fm_strict) ? nullptr : &wasStrict);
+
+            if (wasStrict) {
+                strictMatch = fn;
+                return false;
+            }
+
+            return result;
         });
+
+        if (strictMatch) return { strictMatch };
+
+        return matches;
     }
 };

@@ -5,6 +5,8 @@ namespace tsn {
     namespace vm {
         State::State(u32 stackSize) {
             stackBase = (u8*)utils::Mem::alloc(stackSize);
+            memset(stackBase, 0, stackSize);
+            memset(registers, 0, sizeof(registers));
         }
 
         State::~State() {

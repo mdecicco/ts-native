@@ -245,7 +245,10 @@ namespace tsn {
             u8 operand_count;
             operand_type operands[3];
             u8 assigns_operand_index;
-            unsigned has_side_effects : 1;
+            unsigned has_external_side_effects : 1;
+            unsigned has_side_effects_for_op0 : 1;
+            unsigned has_side_effects_for_op1 : 1;
+            unsigned has_side_effects_for_op2 : 1;
         };
 
         const ir_instruction_info& instruction_info(ir_instruction op);

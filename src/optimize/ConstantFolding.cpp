@@ -490,7 +490,7 @@ namespace tsn {
                     log->submit(
                         lt_debug,
                         lm_generic,
-                        utils::String::Format("[%lu] %s <- constant-only operation", i.toString(m_ctx))
+                        utils::String::Format("[%lu] %s <- constant-only operation", c, i.toString(m_ctx).c_str())
                     );
                 }
 
@@ -503,7 +503,7 @@ namespace tsn {
                     log->submit(
                         lt_debug,
                         lm_generic,
-                        utils::String::Format("^ [%lu] %s (updated)", i.toString(m_ctx))
+                        utils::String::Format("^ [%lu] %s (updated)", c, i.toString(m_ctx).c_str())
                     );
                 }
             }

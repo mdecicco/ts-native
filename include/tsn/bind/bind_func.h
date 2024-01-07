@@ -7,6 +7,11 @@ namespace utils {
 };
 
 namespace tsn {
+    namespace compiler {
+        struct InlineCodeGenContext;
+        typedef void (*InlineCodeGenFunc)(compiler::InlineCodeGenContext* ctx);
+    };
+
     namespace ffi {
         class Function;
         class DataType;
@@ -31,14 +36,23 @@ namespace tsn {
         template <typename Ret, typename... Args>
         Function* bind_function(Module* mod, FunctionRegistry* freg, DataTypeRegistry* treg, const utils::String& name, Ret (*func)(Args...), access_modifier access, DataType* selfType);
         
+        template <typename Ret, typename... Args>
+        Function* bind_function(Module* mod, FunctionRegistry* freg, DataTypeRegistry* treg, const utils::String& name, compiler::InlineCodeGenFunc genFn, access_modifier access, DataType* selfType);
+        
         template <typename Cls, typename Ret, typename... Args>
         Function* bind_pseudo_method(Module* mod, FunctionRegistry* freg, DataTypeRegistry* treg, const utils::String& name, Ret (*func)(Cls*, Args...), access_modifier access);
+        
+        template <typename Cls, typename Ret, typename... Args>
+        Function* bind_pseudo_method(Module* mod, FunctionRegistry* freg, DataTypeRegistry* treg, const utils::String& name, compiler::InlineCodeGenFunc genFn, access_modifier access);
         
         template <typename Cls, typename Ret, typename... Args>
         Function* bind_method(Module* mod, FunctionRegistry* freg, DataTypeRegistry* treg, const utils::String& name, Ret (Cls::*func)(Args...), access_modifier access);
         
         template <typename Cls, typename Ret, typename... Args>
         Function* bind_method(Module* mod, FunctionRegistry* freg, DataTypeRegistry* treg, const utils::String& name, Ret (Cls::*func)(Args...) const, access_modifier access);
+
+        template <typename Cls, typename Ret, typename... Args>
+        Function* bind_method(Module* mod, FunctionRegistry* freg, DataTypeRegistry* treg, const utils::String& name, compiler::InlineCodeGenFunc genFn, access_modifier access);
 
         template <typename Cls, typename... Args>
         Function* bind_constructor(Module* mod, FunctionRegistry* freg, DataTypeRegistry* treg, DataType* forType, access_modifier access);
