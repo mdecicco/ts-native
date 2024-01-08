@@ -81,11 +81,14 @@ i32 main (i32 argc, const char** argv) {
     }
 
     tsnc_config conf;
+    conf.script_path = "./main.tsn";
+    conf.config_path = "./tsnc.json";
+    conf.mode = om_all;
+    conf.pretty_print = !getBoolArg(argc, argv, "m");
+    conf.trusted = false;
+    conf.backend = bt_none;
+    i32 status = 0;
     Config contextCfg;
-    i32 status = parse_args(argc, argv, &conf, &contextCfg);
-    if (status != 0) {
-        return status;
-    }
 
     try {
         char* configInput = loadText(conf.config_path, false, conf);
@@ -95,6 +98,12 @@ i32 main (i32 argc, const char** argv) {
 
             status = processConfig(config, contextCfg, conf);
             if (status != 0) return status;
+
+            conf.debugLogging = contextCfg.debugLogging;
+            conf.disableOptimizations = contextCfg.disableOptimizations;
+
+            status = parse_args(argc, argv, &conf, &contextCfg);
+            if (status != 0) return status;
         }
     } catch (i32 error) {
         return error;
@@ -102,7 +111,7 @@ i32 main (i32 argc, const char** argv) {
         initError((std::string("Encountered exception while parsing config: ") + exc.what()).c_str(), conf);
         return CONFIG_PARSE_ERROR;
     }
-
+    
     contextCfg.debugLogging = conf.debugLogging;
     contextCfg.disableOptimizations = conf.disableOptimizations;
     contextCfg.disableExecution = true;
@@ -218,15 +227,6 @@ bool getBoolArg(i32 argc, const char** argv, const char* code) {
 }
 
 i32 parse_args(i32 argc, const char** argv, tsnc_config* conf, Config* ctxConf) {
-    conf->script_path = "./main.tsn";
-    conf->config_path = "./tsnc.json";
-    conf->mode = om_all;
-    conf->pretty_print = true;
-    conf->trusted = false;
-    conf->debugLogging = ctxConf->debugLogging;
-    conf->disableOptimizations = ctxConf->disableOptimizations;
-    conf->backend = bt_none;
-
     try {
         const char* tmp = nullptr;
 

@@ -41,6 +41,9 @@ namespace tsn {
             Object getData(u32 slot);
             const utils::Array<module_data>& getData() const;
             ModuleSource* getSource() const;
+
+            template <typename T>
+            u32 addData(const utils::String& name, const T& value, access_modifier access = public_access);
         
         private:
             friend class compiler::Compiler;

@@ -88,6 +88,13 @@ namespace tsn {
                     const utils::String& allocComment = utils::String(),
                     const utils::String& getPtrComment = utils::String()
                 );
+
+                template <typename T>
+                Value stack(
+                    bool unscoped = false,
+                    const utils::String& allocComment = utils::String(),
+                    const utils::String& getPtrComment = utils::String()
+                );
                 
                 template <typename T>
                 Value& val(const utils::String& name);

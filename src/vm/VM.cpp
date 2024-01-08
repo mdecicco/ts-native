@@ -14,6 +14,7 @@
 
 #include <ffi.h>
 #include <utils/Array.hpp>
+#include <utils/Math.hpp>
 
 namespace tsn {
     namespace vm {
@@ -239,7 +240,7 @@ namespace tsn {
                     }
                     case vmi::v2fadd: {
                         f32* a = GRx(_O1, f32*);
-                        f32* b = GRx(_O1, f32*);
+                        f32* b = GRx(_O2, f32*);
                         a[0] += b[0];
                         a[1] += b[1];
                         break;
@@ -260,7 +261,7 @@ namespace tsn {
                     }
                     case vmi::v2dadd: {
                         f64* a = GRx(_O1, f64*);
-                        f64* b = GRx(_O1, f64*);
+                        f64* b = GRx(_O2, f64*);
                         a[0] += b[0];
                         a[1] += b[1];
                         break;
@@ -281,7 +282,7 @@ namespace tsn {
                     }
                     case vmi::v2fsub: {
                         f32* a = GRx(_O1, f32*);
-                        f32* b = GRx(_O1, f32*);
+                        f32* b = GRx(_O2, f32*);
                         a[0] -= b[0];
                         a[1] -= b[1];
                         break;
@@ -302,7 +303,7 @@ namespace tsn {
                     }
                     case vmi::v2dsub: {
                         f64* a = GRx(_O1, f64*);
-                        f64* b = GRx(_O1, f64*);
+                        f64* b = GRx(_O2, f64*);
                         a[0] -= b[0];
                         a[1] -= b[1];
                         break;
@@ -323,7 +324,7 @@ namespace tsn {
                     }
                     case vmi::v2fmul: {
                         f32* a = GRx(_O1, f32*);
-                        f32* b = GRx(_O1, f32*);
+                        f32* b = GRx(_O2, f32*);
                         a[0] *= b[0];
                         a[1] *= b[1];
                         break;
@@ -344,7 +345,7 @@ namespace tsn {
                     }
                     case vmi::v2dmul: {
                         f64* a = GRx(_O1, f64*);
-                        f64* b = GRx(_O1, f64*);
+                        f64* b = GRx(_O2, f64*);
                         a[0] *= b[0];
                         a[1] *= b[1];
                         break;
@@ -365,7 +366,7 @@ namespace tsn {
                     }
                     case vmi::v2fdiv: {
                         f32* a = GRx(_O1, f32*);
-                        f32* b = GRx(_O1, f32*);
+                        f32* b = GRx(_O2, f32*);
                         a[0] /= b[0];
                         a[1] /= b[1];
                         break;
@@ -386,7 +387,7 @@ namespace tsn {
                     }
                     case vmi::v2ddiv: {
                         f64* a = GRx(_O1, f64*);
-                        f64* b = GRx(_O1, f64*);
+                        f64* b = GRx(_O2, f64*);
                         a[0] /= b[0];
                         a[1] /= b[1];
                         break;
@@ -407,7 +408,7 @@ namespace tsn {
                     }
                     case vmi::v2fmod: {
                         f32* a = GRx(_O1, f32*);
-                        f32* b = GRx(_O1, f32*);
+                        f32* b = GRx(_O2, f32*);
                         a[0] = fmodf(a[0], b[0]);
                         a[1] = fmodf(a[1], b[1]);
                         break;
@@ -428,7 +429,7 @@ namespace tsn {
                     }
                     case vmi::v2dmod: {
                         f64* a = GRx(_O1, f64*);
-                        f64* b = GRx(_O1, f64*);
+                        f64* b = GRx(_O2, f64*);
                         a[0] = fmod(a[0], b[0]);
                         a[1] = fmod(a[1], b[1]);
                         break;
@@ -460,9 +461,9 @@ namespace tsn {
                         break;
                     }
                     case vmi::v2fdot: {
-                        f32* a = GRx(_O2, f32*);
-                        f32* b = GRx(_O3, f32*);
-                        GRf(_O1) = (a[0] * b[0]) + (a[1] * b[1]);
+                        utils::vec2f& a = *GRx(_O2, utils::vec2f*);
+                        utils::vec2f& b = *GRx(_O3, utils::vec2f*);
+                        GRf(_O1) = (a.x * b.x) + (a.y * b.y);
                         break;
                     }
                     case vmi::v2ddot: {
@@ -543,7 +544,7 @@ namespace tsn {
                     }
                     case vmi::v3fadd: {
                         f32* a = GRx(_O1, f32*);
-                        f32* b = GRx(_O1, f32*);
+                        f32* b = GRx(_O2, f32*);
                         a[0] += b[0];
                         a[1] += b[1];
                         a[2] += b[2];
@@ -567,7 +568,7 @@ namespace tsn {
                     }
                     case vmi::v3dadd: {
                         f64* a = GRx(_O1, f64*);
-                        f64* b = GRx(_O1, f64*);
+                        f64* b = GRx(_O2, f64*);
                         a[0] += b[0];
                         a[1] += b[1];
                         a[2] += b[2];
@@ -591,7 +592,7 @@ namespace tsn {
                     }
                     case vmi::v3fsub: {
                         f32* a = GRx(_O1, f32*);
-                        f32* b = GRx(_O1, f32*);
+                        f32* b = GRx(_O2, f32*);
                         a[0] -= b[0];
                         a[1] -= b[1];
                         a[2] -= b[2];
@@ -615,7 +616,7 @@ namespace tsn {
                     }
                     case vmi::v3dsub: {
                         f64* a = GRx(_O1, f64*);
-                        f64* b = GRx(_O1, f64*);
+                        f64* b = GRx(_O2, f64*);
                         a[0] -= b[0];
                         a[1] -= b[1];
                         a[2] -= b[2];
@@ -639,7 +640,7 @@ namespace tsn {
                     }
                     case vmi::v3fmul: {
                         f32* a = GRx(_O1, f32*);
-                        f32* b = GRx(_O1, f32*);
+                        f32* b = GRx(_O2, f32*);
                         a[0] *= b[0];
                         a[1] *= b[1];
                         a[2] *= b[2];
@@ -663,7 +664,7 @@ namespace tsn {
                     }
                     case vmi::v3dmul: {
                         f64* a = GRx(_O1, f64*);
-                        f64* b = GRx(_O1, f64*);
+                        f64* b = GRx(_O2, f64*);
                         a[0] *= b[0];
                         a[1] *= b[1];
                         a[2] *= b[2];
@@ -687,7 +688,7 @@ namespace tsn {
                     }
                     case vmi::v3fdiv: {
                         f32* a = GRx(_O1, f32*);
-                        f32* b = GRx(_O1, f32*);
+                        f32* b = GRx(_O2, f32*);
                         a[0] /= b[0];
                         a[1] /= b[1];
                         a[2] /= b[2];
@@ -711,7 +712,7 @@ namespace tsn {
                     }
                     case vmi::v3ddiv: {
                         f64* a = GRx(_O1, f64*);
-                        f64* b = GRx(_O1, f64*);
+                        f64* b = GRx(_O2, f64*);
                         a[0] /= b[0];
                         a[1] /= b[1];
                         a[2] /= b[2];
@@ -735,7 +736,7 @@ namespace tsn {
                     }
                     case vmi::v3fmod: {
                         f32* a = GRx(_O1, f32*);
-                        f32* b = GRx(_O1, f32*);
+                        f32* b = GRx(_O2, f32*);
                         a[0] = fmodf(a[0], b[0]);
                         a[1] = fmodf(a[1], b[1]);
                         a[2] = fmodf(a[2], b[2]);
@@ -759,7 +760,7 @@ namespace tsn {
                     }
                     case vmi::v3dmod: {
                         f64* a = GRx(_O1, f64*);
-                        f64* b = GRx(_O1, f64*);
+                        f64* b = GRx(_O2, f64*);
                         a[0] = fmod(a[0], b[0]);
                         a[1] = fmod(a[1], b[1]);
                         a[2] = fmod(a[2], b[2]);
@@ -844,26 +845,26 @@ namespace tsn {
                         break;
                     }
                     case vmi::v3fcross: {
-                        f32* a = GRx(_O1, f32*);
-                        f32* b = GRx(_O2, f32*);
-                        f32* c = GRx(_O3, f32*);
-                        a[0] = (b[1] * c[2]) + (b[2] * c[1]);
-                        a[1] = (b[2] * c[0]) + (b[0] * c[2]);
-                        a[2] = (b[0] * c[1]) + (b[1] * c[0]);
+                        utils::vec3f& r = *GRx(_O1, utils::vec3f*);
+                        utils::vec3f& a = *GRx(_O2, utils::vec3f*);
+                        utils::vec3f& b = *GRx(_O3, utils::vec3f*);
+                        r.x = a.y * b.z - a.z * b.y;
+                        r.y = a.z * b.x - a.x * b.z;
+                        r.z = a.x * b.y - a.y * b.x;
                         break;
                     }
                     case vmi::v3dcross: {
-                        f64* a = GRx(_O1, f64*);
-                        f64* b = GRx(_O2, f64*);
-                        f64* c = GRx(_O3, f64*);
-                        a[0] = (b[1] * c[2]) + (b[2] * c[1]);
-                        a[1] = (b[2] * c[0]) + (b[0] * c[2]);
-                        a[2] = (b[0] * c[1]) + (b[1] * c[0]);
+                        utils::vec3d& r = *GRx(_O1, utils::vec3d*);
+                        utils::vec3d& a = *GRx(_O2, utils::vec3d*);
+                        utils::vec3d& b = *GRx(_O3, utils::vec3d*);
+                        r.x = a.y * b.z - a.z * b.y;
+                        r.y = a.z * b.x - a.x * b.z;
+                        r.z = a.x * b.y - a.y * b.x;
                         break;
                     }
                     case vmi::v4fadd: {
                         f32* a = GRx(_O1, f32*);
-                        f32* b = GRx(_O1, f32*);
+                        f32* b = GRx(_O2, f32*);
                         a[0] += b[0];
                         a[1] += b[1];
                         a[2] += b[2];
@@ -890,7 +891,7 @@ namespace tsn {
                     }
                     case vmi::v4dadd: {
                         f64* a = GRx(_O1, f64*);
-                        f64* b = GRx(_O1, f64*);
+                        f64* b = GRx(_O2, f64*);
                         a[0] += b[0];
                         a[1] += b[1];
                         a[2] += b[2];
@@ -917,7 +918,7 @@ namespace tsn {
                     }
                     case vmi::v4fsub: {
                         f32* a = GRx(_O1, f32*);
-                        f32* b = GRx(_O1, f32*);
+                        f32* b = GRx(_O2, f32*);
                         a[0] -= b[0];
                         a[1] -= b[1];
                         a[2] -= b[2];
@@ -944,7 +945,7 @@ namespace tsn {
                     }
                     case vmi::v4dsub: {
                         f64* a = GRx(_O1, f64*);
-                        f64* b = GRx(_O1, f64*);
+                        f64* b = GRx(_O2, f64*);
                         a[0] -= b[0];
                         a[1] -= b[1];
                         a[2] -= b[2];
@@ -971,7 +972,7 @@ namespace tsn {
                     }
                     case vmi::v4fmul: {
                         f32* a = GRx(_O1, f32*);
-                        f32* b = GRx(_O1, f32*);
+                        f32* b = GRx(_O2, f32*);
                         a[0] *= b[0];
                         a[1] *= b[1];
                         a[2] *= b[2];
@@ -998,7 +999,7 @@ namespace tsn {
                     }
                     case vmi::v4dmul: {
                         f64* a = GRx(_O1, f64*);
-                        f64* b = GRx(_O1, f64*);
+                        f64* b = GRx(_O2, f64*);
                         a[0] *= b[0];
                         a[1] *= b[1];
                         a[2] *= b[2];
@@ -1025,7 +1026,7 @@ namespace tsn {
                     }
                     case vmi::v4fdiv: {
                         f32* a = GRx(_O1, f32*);
-                        f32* b = GRx(_O1, f32*);
+                        f32* b = GRx(_O2, f32*);
                         a[0] /= b[0];
                         a[1] /= b[1];
                         a[2] /= b[2];
@@ -1052,7 +1053,7 @@ namespace tsn {
                     }
                     case vmi::v4ddiv: {
                         f64* a = GRx(_O1, f64*);
-                        f64* b = GRx(_O1, f64*);
+                        f64* b = GRx(_O2, f64*);
                         a[0] /= b[0];
                         a[1] /= b[1];
                         a[2] /= b[2];
@@ -1079,7 +1080,7 @@ namespace tsn {
                     }
                     case vmi::v4fmod: {
                         f32* a = GRx(_O1, f32*);
-                        f32* b = GRx(_O1, f32*);
+                        f32* b = GRx(_O2, f32*);
                         a[0] = fmodf(a[0], b[0]);
                         a[1] = fmodf(a[1], b[1]);
                         a[2] = fmodf(a[2], b[2]);
@@ -1106,7 +1107,7 @@ namespace tsn {
                     }
                     case vmi::v4dmod: {
                         f64* a = GRx(_O1, f64*);
-                        f64* b = GRx(_O1, f64*);
+                        f64* b = GRx(_O2, f64*);
                         a[0] = fmod(a[0], b[0]);
                         a[1] = fmod(a[1], b[1]);
                         a[2] = fmod(a[2], b[2]);
@@ -1198,21 +1199,21 @@ namespace tsn {
                         break;
                     }
                     case vmi::v4fcross: {
-                        f32* a = GRx(_O1, f32*);
-                        f32* b = GRx(_O2, f32*);
-                        f32* c = GRx(_O3, f32*);
-                        a[0] = (b[1] * c[2]) + (b[2] * c[1]);
-                        a[1] = (b[2] * c[0]) + (b[0] * c[2]);
-                        a[2] = (b[0] * c[1]) + (b[1] * c[0]);
+                        utils::vec4f& r = *GRx(_O1, utils::vec4f*);
+                        utils::vec4f& a = *GRx(_O2, utils::vec4f*);
+                        utils::vec4f& b = *GRx(_O3, utils::vec4f*);
+                        r.x = a.y * b.z - a.z * b.y;
+                        r.y = a.z * b.x - a.x * b.z;
+                        r.z = a.x * b.y - a.y * b.x;
                         break;
                     }
                     case vmi::v4dcross: {
-                        f64* a = GRx(_O1, f64*);
-                        f64* b = GRx(_O2, f64*);
-                        f64* c = GRx(_O3, f64*);
-                        a[0] = (b[1] * c[2]) + (b[2] * c[1]);
-                        a[1] = (b[2] * c[0]) + (b[0] * c[2]);
-                        a[2] = (b[0] * c[1]) + (b[1] * c[0]);
+                        utils::vec4d& r = *GRx(_O1, utils::vec4d*);
+                        utils::vec4d& a = *GRx(_O2, utils::vec4d*);
+                        utils::vec4d& b = *GRx(_O3, utils::vec4d*);
+                        r.x = a.y * b.z - a.z * b.y;
+                        r.y = a.z * b.x - a.x * b.z;
+                        r.z = a.x * b.y - a.y * b.x;
                         break;
                     }
                     case vmi::add: {

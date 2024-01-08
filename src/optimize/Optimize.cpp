@@ -13,12 +13,13 @@ namespace tsn {
             OptimizationGroup* outer = new OptimizationGroup(ctx);
 
             OptimizationGroup* inner = new OptimizationGroup(ctx);
+
             inner->addStep(new CopyPropagationStep(ctx));
             inner->addStep(new CommonSubexpressionEliminationStep(ctx));
             inner->addStep(new ReduceMemoryAccessStep(ctx));
 
             outer->addStep(inner);
-            outer->addStep(new ConstantFoldingStep(ctx));
+            outer->addStep(new ConstantFoldingStep(ctx), true);
             outer->addStep(new DeadCodeEliminationStep(ctx));
 
             return outer;

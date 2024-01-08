@@ -33,7 +33,7 @@ namespace tsn {
             }
         }
 
-        return function_match(name, retTp, argTps, argc, funcs, flags | fm_strict);
+        return function_match(name, retTp, const_cast<const ffi::DataType**>(argTps), argc, funcs, flags | fm_strict);
     }
 
     template <typename Ret, typename...Args>
@@ -63,6 +63,6 @@ namespace tsn {
             }
         }
 
-        return function_match(name, retTp, argTps, argc, funcs, flags | fm_strict);
+        return function_match(name, retTp, const_cast<const ffi::DataType**>(argTps), argc, funcs, flags | fm_strict);
     }
 };

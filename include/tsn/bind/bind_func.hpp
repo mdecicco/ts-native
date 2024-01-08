@@ -199,6 +199,55 @@ namespace tsn {
             return fn;
         }
         
+        template <typename Ret, typename... Args>
+        Function* bind_function(Module* mod, FunctionRegistry* freg, DataTypeRegistry* treg, const utils::String& name, compiler::InlineCodeGenFunc genFn, access_modifier access, DataType* selfType) {
+            DataType* retTp = treg->getType<Ret>();
+            if (!retTp) {
+                throw BindException(utils::String::Format(
+                    "Return type of function '%s' is '%s', which has not been bound",
+                    name, type_name<Ret>()
+                ));
+            }
+
+            if constexpr (std::is_pointer_v<Ret> && std::is_pointer_v<std::remove_pointer_t<Ret>>) {
+                throw BindException(utils::String::Format(
+                    "Return type of function '%s' is a pointer to a pointer, which is not supported at this time",
+                    name
+                ));
+            }
+
+            DataType* ptrTp = treg->getType<void*>();
+
+            utils::Array<function_argument> args;
+            args.push({ arg_type::context_ptr, ptrTp });
+            if (!validateAndGetArgs<Args...>(treg, args, name)) {
+                return nullptr;
+            }
+
+            FunctionType tmp(selfType, retTp, args, std::is_pointer_v<Ret> && !std::is_same_v<Ret, void*>);
+            FunctionType* sig = (FunctionType*)treg->getType(tmp.getId());
+            if (!sig) {
+                sig = new FunctionType(tmp);
+                treg->addFuncType(sig);
+            }
+
+            Function* fn = new Function(
+                name,
+                utils::String(mod ? mod->getName() + "::" : "") + utils::String(selfType ? selfType->getName() + "::" : ""),
+                sig,
+                access,
+                nullptr,
+                nullptr,
+                mod
+            );
+
+            fn->makeInline(genFn);
+
+            freg->registerFunction(fn);
+
+            return fn;
+        }
+        
         template <typename Cls, typename Ret, typename... Args>
         Function* bind_pseudo_method(Module* mod, FunctionRegistry* freg, DataTypeRegistry* treg, const utils::String& name, Ret (*func)(Cls*, Args...), access_modifier access) {
             DataType* selfTp = treg->getType<Cls>();
@@ -250,6 +299,63 @@ namespace tsn {
                 *reinterpret_cast<void**>(&wrapper),
                 mod
             );
+
+            freg->registerFunction(fn);
+
+            return fn;
+        }
+        
+        template <typename Cls, typename Ret, typename... Args>
+        Function* bind_pseudo_method(Module* mod, FunctionRegistry* freg, DataTypeRegistry* treg, const utils::String& name, compiler::InlineCodeGenFunc genFn, access_modifier access) {
+            DataType* selfTp = treg->getType<Cls>();
+            if (!selfTp) {
+                throw BindException(utils::String::Format(
+                    "Primitive type of pseudo-class method '%s::%s' is '%s', which has not been bound",
+                    type_name<Cls>(), name.c_str(), type_name<Cls>()
+                ));
+            }
+
+            DataType* retTp = treg->getType<Ret>();
+            if (!retTp) {
+                throw BindException(utils::String::Format(
+                    "Return type of pseudo-class method '%s::%s' is '%s', which has not been bound",
+                    selfTp->getName().c_str(), name.c_str(), type_name<Ret>()
+                ));
+            }
+
+            if constexpr (std::is_pointer_v<Ret> && std::is_pointer_v<std::remove_pointer_t<Ret>>) {
+                throw BindException(utils::String::Format(
+                    "Return type of pseudo-class method '%s::%s' is a pointer to a pointer, which is not supported at this time",
+                    selfTp->getName().c_str(), name.c_str()
+                ));
+            }
+
+            DataType* ptrTp = treg->getType<void*>();
+
+            utils::Array<function_argument> args;
+            args.push({ arg_type::context_ptr, ptrTp });
+            if (!validateAndGetArgs<Args...>(treg, args, name)) {
+                return nullptr;
+            }
+
+            FunctionType tmp(selfTp, retTp, args, std::is_pointer_v<Ret> && !std::is_same_v<Ret, void*>);
+            FunctionType* sig = (FunctionType*)treg->getType(tmp.getId());
+            if (!sig) {
+                sig = new FunctionType(tmp);
+                treg->addFuncType(sig);
+            }
+
+            Function* fn = new Function(
+                name,
+                utils::String(mod ? mod->getName() + "::" : ""),
+                sig,
+                access,
+                nullptr,
+                nullptr,
+                mod
+            );
+
+            fn->makeInline(genFn);
 
             freg->registerFunction(fn);
 
@@ -362,6 +468,62 @@ namespace tsn {
                 0,
                 mod
             );
+            
+            freg->registerFunction(m);
+
+            return m;
+        }
+
+        template <typename Cls, typename Ret, typename... Args>
+        Function* bind_method(Module* mod, FunctionRegistry* freg, DataTypeRegistry* treg, const utils::String& name, compiler::InlineCodeGenFunc genFn, access_modifier access) {
+            DataType* selfTp = treg->getType<Cls>();
+            if (!selfTp) {
+                throw BindException(utils::String::Format(
+                    "Class type of class method '%s::%s' is '%s', which has not been bound",
+                    type_name<Cls>(), name.c_str(), type_name<Cls>()
+                ));
+            }
+
+            DataType* retTp = treg->getType<Ret>();
+            if (!retTp) {
+                throw BindException(utils::String::Format(
+                    "Return type of class method '%s::%s' is '%s', which has not been bound",
+                    selfTp->getName().c_str(), name.c_str(), type_name<Ret>()
+                ));
+            }
+
+            if constexpr (std::is_pointer_v<Ret> && std::is_pointer_v<std::remove_pointer_t<Ret>>) {
+                throw BindException(utils::String::Format(
+                    "Return type of class method '%s::%s' is a pointer to a pointer, which is not supported at this time",
+                    selfTp->getName().c_str(), name.c_str()
+                ));
+            }
+
+            DataType* ptrTp = treg->getType<void*>();
+
+            utils::Array<function_argument> args;
+            args.push({ arg_type::context_ptr, ptrTp });
+            validateAndGetArgs<Args...>(treg, args, name);
+
+            FunctionType tmp(selfTp, retTp, args, std::is_pointer_v<Ret> && !std::is_same_v<Ret, void*>);
+            FunctionType* sig = (FunctionType*)treg->getType(tmp.getId());
+            if (!sig) {
+                sig = new FunctionType(tmp);
+                treg->addFuncType(sig);
+            }
+
+            Method* m = new Method(
+                name,
+                utils::String(mod ? mod->getName() + "::" : ""),
+                sig,
+                access,
+                nullptr,
+                nullptr,
+                0,
+                mod
+            );
+
+            m->makeInline(genFn);
             
             freg->registerFunction(m);
 

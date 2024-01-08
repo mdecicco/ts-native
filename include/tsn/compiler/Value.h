@@ -65,13 +65,13 @@ namespace tsn {
                     bool excludeMethods = false,
                     bool doError = true,
                     member_expr_hints* hints = nullptr
-                );
+                ) const;
                 Value getPropPtr(
                     const utils::String& name,
                     bool excludeInherited = false,
                     bool excludePrivate = false,
                     bool doError = true
-                );
+                ) const;
                 Value callMethod(const utils::String& name, ffi::DataType* retTp, const utils::Array<Value>& args);
 
 
@@ -89,11 +89,12 @@ namespace tsn {
                 flags& getFlags();
                 Value* getSrcPtr() const;
                 Value* getSrcSelf() const;
+                Value* getStackRef() const;
                 
                 void setType(ffi::DataType* to);
                 void setRegId(vreg_id reg);
                 void setStackAllocId(alloc_id id);
-                void setStackSrc(const Value& src);
+                void setStackRef(const Value& src);
                 void setSrcPtr(const Value& src);
 
                 bool isValid() const;
@@ -119,29 +120,29 @@ namespace tsn {
                 bool isFunctionID() const;
 
                 Value operator +  (const Value& rhs) const;
-                Value operator += (const Value& rhs);
+                Value operator += (const Value& rhs) const;
                 Value operator -  (const Value& rhs) const;
-                Value operator -= (const Value& rhs);
+                Value operator -= (const Value& rhs) const;
                 Value operator *  (const Value& rhs) const;
-                Value operator *= (const Value& rhs);
+                Value operator *= (const Value& rhs) const;
                 Value operator /  (const Value& rhs) const;
-                Value operator /= (const Value& rhs);
+                Value operator /= (const Value& rhs) const;
                 Value operator %  (const Value& rhs) const;
-                Value operator %= (const Value& rhs);
+                Value operator %= (const Value& rhs) const;
                 Value operator ^  (const Value& rhs) const;
-                Value operator ^= (const Value& rhs);
+                Value operator ^= (const Value& rhs) const;
                 Value operator &  (const Value& rhs) const;
-                Value operator &= (const Value& rhs);
+                Value operator &= (const Value& rhs) const;
                 Value operator |  (const Value& rhs) const;
-                Value operator |= (const Value& rhs);
+                Value operator |= (const Value& rhs) const;
                 Value operator << (const Value& rhs) const;
-                Value operator <<=(const Value& rhs);
+                Value operator <<=(const Value& rhs) const;
                 Value operator >> (const Value& rhs) const;
-                Value operator >>=(const Value& rhs);
+                Value operator >>=(const Value& rhs) const;
                 Value operator != (const Value& rhs) const;
                 Value operator && (const Value& rhs) const;
                 Value operator || (const Value& rhs) const; 
-                Value operator =  (const Value& rhs);
+                Value operator =  (const Value& rhs) const;
                 Value operator == (const Value& rhs) const;
                 Value operator <  (const Value& rhs) const;
                 Value operator <= (const Value& rhs) const;
@@ -149,19 +150,19 @@ namespace tsn {
                 Value operator >= (const Value& rhs) const;
                 Value operator [] (const Value& rhs) const;
                 Value operator () (const utils::Array<Value>& args, Value* self) const;
-                Value operator -  ();
-                Value operator -- ();
-                Value operator -- (int);
-                Value operator ++ ();
-                Value operator ++ (int);
+                Value operator -  () const;
+                Value operator -- () const;
+                Value operator -- (int) const;
+                Value operator ++ () const;
+                Value operator ++ (int) const;
                 Value operator !  () const;
                 Value operator ~  () const;
                 Value operator *  () const;
 
                 // a &&= b
-                Value operator_logicalAndAssign(const Value& rhs);
+                Value operator_logicalAndAssign(const Value& rhs) const;
                 // a ||= b
-                Value operator_logicalOrAssign(const Value& rhs);
+                Value operator_logicalOrAssign(const Value& rhs) const;
 
                 bool isEquivalentTo(const Value& v) const;
 
@@ -206,6 +207,7 @@ namespace tsn {
 
                 FunctionDef* m_func;
                 Value* m_srcPtr;
+                Value* m_stackRef;
                 FunctionDef* m_srcSetter;
                 Value* m_srcSelf;
 

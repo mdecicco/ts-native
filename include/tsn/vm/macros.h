@@ -591,10 +591,6 @@
         || x == vmi::dncmpi               \
     )
 
-#define decode_instr ((vmi)(m_code >> instr_shift))
-#define check_flag(f) (((m_code | flag_mask) ^ flag_mask) & f)
-#define set_flag(f) (m_code |= f)
-
 #define vm_instr_assigns_r1(i) ((i >= vm_instruction::ld8 && i <= vm_instruction::ld64) || (i >= vm_instruction::add && i <= vm_instruction::srir) || i == vm_instruction::mptr)
 #define vm_instr_assigns_r2(i) ((i == vm_instruction::mtfp || i == vm_instruction::mffp))
 

@@ -11,6 +11,8 @@ namespace tsn {
         class TemplateContext;
         class Compiler;
         class Output;
+        struct InlineCodeGenContext;
+        typedef void (*InlineCodeGenFunc)(compiler::InlineCodeGenContext* ctx);
     };
 
     namespace ffi {
@@ -18,6 +20,7 @@ namespace tsn {
         class FunctionRegistry;
         class DataTypeRegistry;
         class DataType;
+        
 
         class Function : public IPersistable {
             public:
@@ -37,27 +40,11 @@ namespace tsn {
                 bool isMethod() const;
                 bool isTemplate() const;
                 bool isThisCall() const;
-                
-                // Signature:
-                // If host function:
-                //     If method of class:
-                //         RetTp (ThisTp::*)(ArgTypes...)
-                //     If normal function:
-                //         RetTp (*)(ArgTypes...)
-                // If script function:
-                //     If function was JIT compiled:
-                //         Same as host function signature
-                //     If function runs in a VM:
-                //         Will be null pointer
-                void* getAddress() const;
+                bool isInline() const;
 
-                // Signature:
-                // If method of class
-                //     RetTp (RetTp (ThisTp::*)(ArgTypes...), RetTp*, ExecutionContext*, ThisTp*, ArgsTypes...)
-                // If normal function
-                //     RetTp (RetTp (*)(ArgTypes...), RetTp*, ExecutionContext*, ArgsTypes...)
-                // If script function
-                //     Will be null pointer
+                void makeInline(compiler::InlineCodeGenFunc generatorFn);
+                
+                void* getAddress() const;
                 void* getWrapperAddress() const;
 
                 virtual bool serialize(utils::Buffer* out, Context* ctx) const;
@@ -71,6 +58,7 @@ namespace tsn {
                 void setRetType(DataType* tp, bool returnsPointer, DataTypeRegistry* treg);
                 bool m_isMethod;
                 bool m_isTemplate;
+                bool m_isInline;
                 SourceLocation m_src;
                 function_id m_id;
                 Module* m_sourceModule;

@@ -29,7 +29,7 @@ namespace tsn {
         void OptimizationGroup::addStep(IOptimizationStep* step, bool isRequired) {
             m_steps.push(step);
             step->setGroup(this);
-            step->setRequired(isRequired);
+            step->setRequired(isRequired || step->isRequired());
         }
 
         bool OptimizationGroup::execute(compiler::CodeHolder* code, Pipeline* pipeline) {

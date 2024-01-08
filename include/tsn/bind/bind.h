@@ -10,6 +10,11 @@ namespace tsn {
     class Context;
     class Module;
 
+    namespace compiler {
+        struct InlineCodeGenContext;
+        typedef void (*InlineCodeGenFunc)(compiler::InlineCodeGenContext* ctx);
+    };
+
     namespace ffi {
         class BindException : public std::exception {
             public:
@@ -72,6 +77,12 @@ namespace tsn {
         Function* bind(Context* ctx, const utils::String& name, Ret (*func)(Args...), access_modifier access = public_access);
 
         template <typename Ret, typename... Args>
+        Function* bind(Context* ctx, const utils::String& name, compiler::InlineCodeGenFunc genFn, access_modifier access = public_access);
+
+        template <typename Ret, typename... Args>
         Function* bind(Module* mod, const utils::String& name, Ret (*func)(Args...), access_modifier access = public_access);
+
+        template <typename Ret, typename... Args>
+        Function* bind(Module* mod, const utils::String& name, compiler::InlineCodeGenFunc genFn, access_modifier access = public_access);
     };
 };

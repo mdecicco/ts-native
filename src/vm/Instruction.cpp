@@ -15,39 +15,39 @@ namespace tsn {
         using vmi = vm_instruction;
         using vmr = vm_register;
 
-        Instruction::Instruction() : m_code(0), m_imm(0) { }
+        Instruction::Instruction() : m_code({ 0 }), m_imm(0) { }
 
-        Instruction::Instruction(vm_instruction i) : m_code(0), m_imm(0) {
-            m_code |= u32(i) << instr_shift;
+        Instruction::Instruction(vm_instruction i) : m_code({ 0 }), m_imm(0) {
+            m_code.instr = (unsigned int)i;
         }
 
         Instruction& Instruction::operand(vm_register reg) {
-            vmi instr = decode_instr;
+            vmi instr = vmi(m_code.instr);
 
             assert(!check_instr_type_0(instr)); // instruction takes no operands
             assert(!check_instr_type_1(instr)); // instruction takes a 32 bit integer as the only operand
-            assert(!check_flag(op_3_assigned)); // operand 3 already set, no instructions take a 4th operand
+            assert(!m_code.op3_assigned); // operand 3 already set, no instructions take a 4th operand
             
 
             // maybe set operand 3
-            if (check_flag(op_2_assigned)) {
+            if (m_code.op2_assigned) {
                 // operand 2 already set
                 assert(third_operand_is_register(instr)); // instruction does not need third operand or third operand can not be a register
                 assert(!((third_operand_must_be_fpr(instr) && !(is_fpr(reg) || reg == vmr::zero)) || (!third_operand_must_be_fpr(instr) && is_fpr(reg)))); // invalid operand
 
-                set_flag(op_3_assigned);
-                m_code |= u32(reg) << op_3_shift;
+                m_code.op3_assigned = 1;
+                m_code.op3 = u32(reg);
                 return *this;
             }
             
             // maybe set operand 2
-            if (check_flag(op_1_assigned)) {
+            if (m_code.op1_assigned) {
                 // operand 1 already set
                 assert(second_operand_is_register(instr)); // instruction does not need second operand or second operand can not be a register
                 assert(!((second_operand_must_be_fpr(instr) && !(is_fpr(reg) || reg == vmr::zero)) || (!second_operand_must_be_fpr(instr) && is_fpr(reg)))); // invalid operand
 
-                set_flag(op_2_assigned);
-                m_code |= u32(reg) << op_2_shift;
+                m_code.op2_assigned = 1;
+                m_code.op2 = u32(reg);
                 return *this;
             }
 
@@ -55,8 +55,8 @@ namespace tsn {
             assert(first_operand_is_register(instr)); // instruction does not need an operand or first operand can not be a register
             assert(!(first_operand_must_be_fpr(instr) != is_fpr(reg) && !(first_operand_can_be_fpr(instr) && is_fpr(reg)))); // insnstruction requires operand 1 to be floating point register
 
-            set_flag(op_1_assigned);
-            m_code |= u32(reg) << op_1_shift;
+            m_code.op1_assigned = 1;
+            m_code.op1 = u32(reg);
             return *this;
         }
 
@@ -65,54 +65,55 @@ namespace tsn {
         }
 
         Instruction& Instruction::operand(u64 immediate) {
-            vmi instr = decode_instr;
+            vmi instr = vmi(m_code.instr);
 
             assert(!check_instr_type_0(instr)); // instruction takes no operands
-            assert(!check_flag(op_3_assigned)); // operand 3 already set, no instructions take a 4th operand
+            assert(!m_code.op3_assigned); // operand 3 already set, no instructions take a 4th operand
 
-            if (check_flag(op_2_assigned)) {
+            if (m_code.op2_assigned) {
                 // operand 2 already set
                 assert(third_operand_is_immediate(instr)); // instruction does not take third operand or third operand is not immediate
                 assert(!third_operand_must_be_fpi(instr)); // instruction requires that the third operand be floating point
-                set_flag(op_3_assigned);
+                m_code.op3_assigned = 1;
                 m_imm = immediate;
                 return *this;
             }
 
-            if (check_flag(op_1_assigned)) {
+            if (m_code.op1_assigned) {
                 // operand 1 already set
                 assert(second_operand_is_immediate(instr)); // instruction does not take second operand or second operand is not immediate
                 assert(!second_operand_must_be_fpi(instr));  // instruction requires that the second operand be floating point
-                set_flag(op_2_assigned);
+                m_code.op2_assigned = 1;
                 m_imm = immediate;
                 return *this;
             }
 
             // operand 1
             assert(first_operand_is_immediate(instr)); // instruction does not take an operand or first operand is not immediate
-            set_flag(op_1_assigned);
+            m_code.op1_assigned = 1;
             m_imm = immediate;
             return *this;
         }
 
         Instruction& Instruction::operand(f64 immediate) {
-            vmi instr = decode_instr;
+            vmi instr = vmi(m_code.instr);
 
             assert(!check_instr_type_0(instr)); // instruction takes no operands
-            assert(!check_flag(op_3_assigned)); // operand 3 already set, no instructions take a 4th operand
+            assert(!m_code.op3_assigned); // operand 3 already set, no instructions take a 4th operand
 
-            if (check_flag(op_2_assigned)) {
+            if (m_code.op2_assigned) {
                 // operand 2 already set
                 assert(third_operand_is_immediate(instr)); // instruction does not take third operand or third operand is not immediate
                 assert(third_operand_can_be_float(instr)); // instruction does not take third operand that can be a float
-                set_flag(op_3_is_float);
+                m_code.imm_is_float = 1;
                 m_imm = *(u64*)&immediate;
                 return *this;
             }
 
-            if (check_flag(op_1_assigned)) {
+            if (m_code.op1_assigned) {
                 assert(second_operand_is_immediate(instr)); // instruction does not take second operand or second operand is not immediate
                 assert(second_operand_must_be_fpi(instr)); // instruction does not take second operand that can be a float
+                m_code.imm_is_float = 1;
                 m_imm = *(u64*)&immediate;
                 return *this;
             }
@@ -513,7 +514,7 @@ namespace tsn {
             vmi i = instr();
             if (i >= vmi::instruction_count) return "Invalid Instruction";
             
-            if (check_instr_type_0(i)) return instruction_str[(u8)i];
+            if (check_instr_type_0(i)) return instruction_str[(u16)i];
 
             auto reg_str = [vm](vmr r, i64 offset = 0, bool is_mem = false) {
                 if (!vm->isExecuting()) return "$" + std::string(register_str[(u64)r]);
@@ -522,8 +523,7 @@ namespace tsn {
 
                     if (is_fpr(r)) {
                         reg_val = utils::String::Format("<%f>", *(f32*)&vm->state.registers[(u64)r]);
-                    }
-                    else {
+                    } else {
                         i64 val = *(i64*)&vm->state.registers[(u64)r];
                         if (abs(val) > 1000000) reg_val = utils::String::Format("<0x%llX>", (u64)val);
                         else reg_val = utils::String::Format("<%lld>", val);
@@ -534,8 +534,8 @@ namespace tsn {
                 return std::string();
             };
 
-            out += instruction_str[(u8)i];
-            while (out.length() < 8) out += ' ';
+            out += instruction_str[(u16)i];
+            while (out.length() < 9) out += ' ';
 
             if (i == vmi::jal && ctx) {
                 ffi::Function* fn = ctx->getFunctions()->getFunction((u32)imm_u());

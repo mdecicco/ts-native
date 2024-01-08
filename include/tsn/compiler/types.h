@@ -3,6 +3,11 @@
 
 #include <xtr1common>
 
+namespace utils {
+    template <typename T>
+    class Array;
+}
+
 namespace tsn {
     class Module;
 
@@ -12,6 +17,9 @@ namespace tsn {
 
     namespace compiler {
         class FunctionDef;
+        class Compiler;
+        class Value;
+
         typedef u32 vreg_id;
         typedef u32 label_id;
         typedef u32 alloc_id;
@@ -27,5 +35,14 @@ namespace tsn {
 
         constexpr u32 invalid_reg = 0;
         constexpr u32 invalid_label = 0;
+
+        struct InlineCodeGenContext {
+            Compiler* compiler;
+            const Value* resultStorage;
+            const Value* selfPointer;
+            const utils::Array<Value>& arguments;
+        };
+
+        typedef void (*InlineCodeGenFunc)(compiler::InlineCodeGenContext* ctx);
     };
 };

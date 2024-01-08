@@ -2270,6 +2270,7 @@ namespace tsn {
                 if (callee->tp == nt_expression && callee->op == op_new) {
                     // new expression is valid output here, the result of
                     // the new expression just isn't called itself
+                    ps->commit();
                     return callee;
                 }
 

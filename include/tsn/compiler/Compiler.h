@@ -149,16 +149,9 @@ namespace tsn {
                 log_message& info(log_message_code code, const char* msg, ...);
                 log_message& info(ParseNode* node, log_message_code code, const char* msg, ...);
 
-            protected:
-                friend class Value;
-                friend class ScopeManager;
-                friend class FunctionDef;
-                friend class Pipeline;
-
                 InstructionRef add(ir_instruction inst);
                 Value getStorageForExpr(ffi::DataType* tp);
                 Value copyValueToExprStorage(const Value& result);
-                bool maybeConstructVectorType(const Value& dest, ffi::DataType* tp, const utils::Array<Value>& args, const utils::Array<ffi::DataType*>& argTps);
                 void constructObject(const Value& dest, ffi::DataType* tp, const utils::Array<Value>& args);
                 void constructObject(const Value& dest, const utils::Array<Value>& args);
                 Value constructObject(ffi::DataType* tp, const utils::Array<Value>& args);
@@ -174,6 +167,7 @@ namespace tsn {
                 Value newClosure(const Value& fnImm);
                 Value newClosure(ffi::Function* fn);
                 Value newClosure(FunctionDef* fn);
+                Value generateHostInlineCall(ffi::Function* fn, const utils::Array<Value>& args, const Value* self);
                 Value generateCall(const Value& fn, const utils::String& name, bool returnsPointer, ffi::DataType* retTp, const utils::Array<ffi::function_argument>& fargs, const utils::Array<Value>& params, const Value* self = nullptr);
                 Value generateCall(ffi::Function* fn, const utils::Array<Value>& args, const Value* self = nullptr);
                 Value generateCall(FunctionDef* fn, const utils::Array<Value>& args, const Value* self = nullptr);
@@ -203,7 +197,6 @@ namespace tsn {
                 Value compileArrowFunction(ParseNode* n);
                 Value compileObjectLiteral(ParseNode* n);
                 Value compileArrayLiteral(ParseNode* n);
-                Value maybeEvaluateBuiltinVectorMethod(const Value& self, FunctionDef* fn, const utils::Array<Value>& args, bool* wasBuiltin);
                 Value compileExpressionInner(ParseNode* n);
                 Value compileExpression(ParseNode* n);
                 void compileIfStatement(ParseNode* n);
@@ -221,6 +214,11 @@ namespace tsn {
                 void compileAny(ParseNode* n);
 
             private:
+                friend class Value;
+                friend class ScopeManager;
+                friend class FunctionDef;
+                friend class Pipeline;
+
                 const script_metadata* m_meta;
                 ParseNode* m_program;
                 utils::Array<ParseNode*> m_nodeStack;
