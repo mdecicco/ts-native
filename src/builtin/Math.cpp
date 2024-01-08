@@ -2834,8 +2834,6 @@ namespace tsn {
     void BindMath(Context* ctx) {
         Module* m = ctx->createHostModule("math");
 
-        mat4f l = mat4f::LookAt(vec3f(10.0f, 11.0f, 12.0f), vec3f(0.25f, 0.25f, 0.25f), vec3f(0.0f, 1.0f, 0.0f));
-
         m->addData("PI", 3.141592653589793);
         m->addData("E", 2.718281828459045);
 
