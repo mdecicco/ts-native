@@ -89,11 +89,12 @@ namespace tsn {
                 flags& getFlags();
                 Value* getSrcPtr() const;
                 Value* getSrcSelf() const;
+                Value* getStackRef() const;
                 
                 void setType(ffi::DataType* to);
                 void setRegId(vreg_id reg);
                 void setStackAllocId(alloc_id id);
-                void setStackSrc(const Value& src);
+                void setStackRef(const Value& src);
                 void setSrcPtr(const Value& src);
 
                 bool isValid() const;
@@ -206,6 +207,7 @@ namespace tsn {
 
                 FunctionDef* m_func;
                 Value* m_srcPtr;
+                Value* m_stackRef;
                 FunctionDef* m_srcSetter;
                 Value* m_srcSelf;
 

@@ -67,7 +67,11 @@ namespace tsn {
 
                             ffi::DataType* tp = ch->code[i].operands[1].getType();
                             ch->code[i].operands[1].reset(*v);
-                            ch->code[i].operands[1].setType(tp);
+                            if (ch->code[i].op >= ir_vset && ch->code[i].op <= ir_vcross) {
+                                // the vector instructions rely on the type information because
+                                // the behavior is different for each vector type
+                                ch->code[i].operands[1].setType(tp);
+                            }
                             hasChanges = true;
 
                             if (doDebug) {
@@ -111,7 +115,11 @@ namespace tsn {
 
                         ffi::DataType* tp = ch->code[i].operands[o].getType();
                         ch->code[i].operands[o].reset(*it->second);
-                        ch->code[i].operands[o].setType(tp);
+                        if (ch->code[i].op >= ir_vset && ch->code[i].op <= ir_vcross) {
+                            // the vector instructions rely on the type information because
+                            // the behavior is different for each vector type
+                            ch->code[i].operands[o].setType(tp);
+                        }
                         hasChanges = true;
 
                         if (doDebug) {

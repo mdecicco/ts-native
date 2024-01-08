@@ -5,8 +5,8 @@ namespace tsn {
     namespace vm {
         typedef u32 address;
         
-        // number of bits needed to store register id: 6
-        // max number of registers: 63
+        // number of bits needed to store register id: 7
+        // max number of registers: 127
         enum class vm_register {
             zero = 0,    // always zero, read only
 
@@ -29,6 +29,14 @@ namespace tsn {
             a5        ,
             a6        ,
             a7        ,
+            a8        ,
+            a9        ,
+            a10       ,
+            a11       ,
+            a12       ,
+            a13       ,
+            a14       ,
+            a15       ,
             fa0       ,
             fa1       ,
             fa2       ,
@@ -37,6 +45,14 @@ namespace tsn {
             fa5       ,
             fa6       ,
             fa7       ,
+            fa8       ,
+            fa9       ,
+            fa10      ,
+            fa11      ,
+            fa12      ,
+            fa13      ,
+            fa14      ,
+            fa15      ,
 
             // temporary storage
             s0        ,

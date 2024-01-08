@@ -1326,7 +1326,7 @@ namespace tsn {
                     if (returnsPointer) {
                         // resultPtr = Pointer<origRetTp>
                         result.reset(resultPtr);
-                        result.setStackSrc(resultStack);
+                        result.setStackRef(resultStack);
 
                         // resultStack will be destroyed at the end of the scope
                         scope().get().addToStack(resultStack);
@@ -1345,7 +1345,7 @@ namespace tsn {
                         // resultPtr = retTp* (non-primitive)
 
                         result.reset(resultPtr);
-                        result.setStackSrc(resultStack);
+                        result.setStackRef(resultStack);
 
                         // resultStack will be destroyed at the end of the scope
                         scope().get().addToStack(resultStack);
@@ -2892,7 +2892,12 @@ namespace tsn {
 
             if (hints) {
                 if (hints->self) delete hints->self;
-                hints->self = new Value(lv);
+
+                if (!lv.getFlags().is_module && !lv.getFlags().is_type) {
+                    hints->self = new Value(lv);
+                } else {
+                    hints->self = nullptr;
+                }
             }
 
             return out;

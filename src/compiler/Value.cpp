@@ -24,6 +24,7 @@ namespace tsn {
             m_srcPtr = nullptr;
             m_srcSetter = nullptr;
             m_srcSelf = nullptr;
+            m_stackRef = nullptr;
             m_flags.is_argument = 0;
             m_flags.is_read_only = 0;
             m_flags.is_pointer = 0;
@@ -49,6 +50,7 @@ namespace tsn {
             m_srcPtr = nullptr;
             m_srcSetter = nullptr;
             m_srcSelf = nullptr;
+            m_stackRef = nullptr;
             m_flags.is_argument = 0;
             m_flags.is_read_only = 0;
             m_flags.is_pointer = 0;
@@ -70,6 +72,7 @@ namespace tsn {
             m_srcPtr = nullptr;
             m_srcSetter = nullptr;
             m_srcSelf = nullptr;
+            m_stackRef = nullptr;
             m_flags.is_argument = 0;
             m_flags.is_read_only = 0;
             m_flags.is_pointer = 0;
@@ -91,6 +94,7 @@ namespace tsn {
             m_srcPtr = nullptr;
             m_srcSetter = nullptr;
             m_srcSelf = nullptr;
+            m_stackRef = nullptr;
             m_flags.is_argument = 0;
             m_flags.is_read_only = 0;
             m_flags.is_pointer = 0;
@@ -112,6 +116,7 @@ namespace tsn {
             m_srcPtr = nullptr;
             m_srcSetter = nullptr;
             m_srcSelf = nullptr;
+            m_stackRef = nullptr;
             m_flags.is_argument = 0;
             m_flags.is_read_only = 0;
             m_flags.is_pointer = 0;
@@ -133,6 +138,7 @@ namespace tsn {
             m_srcPtr = nullptr;
             m_srcSetter = nullptr;
             m_srcSelf = nullptr;
+            m_stackRef = nullptr;
             m_flags.is_argument = 0;
             m_flags.is_read_only = 0;
             m_flags.is_pointer = 0;
@@ -154,6 +160,7 @@ namespace tsn {
             m_srcPtr = nullptr;
             m_srcSetter = nullptr;
             m_srcSelf = nullptr;
+            m_stackRef = nullptr;
             m_flags.is_argument = 0;
             m_flags.is_read_only = 0;
             m_flags.is_pointer = 0;
@@ -174,6 +181,7 @@ namespace tsn {
             m_srcPtr = nullptr;
             m_srcSetter = nullptr;
             m_srcSelf = nullptr;
+            m_stackRef = nullptr;
             m_flags.is_argument = 0;
             m_flags.is_read_only = 0;
             m_flags.is_pointer = 0;
@@ -195,6 +203,7 @@ namespace tsn {
             m_srcPtr = nullptr;
             m_srcSetter = nullptr;
             m_srcSelf = nullptr;
+            m_stackRef = nullptr;
             m_flags.is_argument = 0;
             m_flags.is_read_only = 0;
             m_flags.is_pointer = 0;
@@ -227,6 +236,7 @@ namespace tsn {
             m_srcPtr = o.m_srcPtr ? new Value(*o.m_srcPtr) : nullptr;
             m_srcSetter = o.m_srcSetter;
             m_srcSelf = o.m_srcSelf ? new Value(*o.m_srcSelf) : nullptr;
+            m_stackRef = o.m_stackRef ? new Value(*o.m_stackRef) : nullptr;
             m_flags = o.m_flags;
             m_slotId = o.m_slotId;
             m_imm = o.m_imm;
@@ -915,6 +925,10 @@ namespace tsn {
         Value* Value::getSrcSelf() const {
             return m_srcSelf;
         }
+        
+        Value* Value::getStackRef() const {
+            return m_stackRef;
+        }
 
         void Value::setType(ffi::DataType* to) {
             m_type = to;
@@ -930,9 +944,9 @@ namespace tsn {
             m_regId = 0;
         }
         
-        void Value::setStackSrc(const Value& src) {
-            if (m_srcSelf) m_srcSelf->reset(src);
-            else m_srcSelf = new Value(src);
+        void Value::setStackRef(const Value& src) {
+            if (m_stackRef) m_stackRef->reset(src);
+            else m_stackRef = new Value(src);
         }
         
         void Value::setSrcPtr(const Value& src) {

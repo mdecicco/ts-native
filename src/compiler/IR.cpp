@@ -158,6 +158,25 @@ namespace tsn {
             return *this;
         }
 
+        utils::String getPropPath(ffi::DataType* tp, u32 offset) {
+            auto& props = tp->getProperties();
+
+            for (u32 i = 0;i < props.size();i++) {
+                auto& p = props[i];
+                if (p.flags.is_static || p.getter || p.setter) continue;
+                if (p.offset == offset && (p.type->getInfo().is_primitive || p.flags.is_pointer)) {
+                    return p.name;
+                }
+                
+                if (p.offset <= offset && p.offset + p.type->getInfo().size > offset && p.flags.is_pointer == 0) {
+                    utils::String path = getPropPath(p.type, offset - u32(p.offset));
+                    if (path.size() > 0) return p.name + "." + path;
+                }
+            }
+
+            return "";
+        }
+
         utils::String Instruction::toString(Context* ctx) const {
             if (op == ir_noop && comment.size() > 0) {
                 return "; " + comment;
@@ -205,32 +224,35 @@ namespace tsn {
 
             bool commentStarted = false;
 
-            if (op == ir_uadd && operands[1].isReg() && operands[2].isImm() && operands[2].getType()->getInfo().is_integral && (operands[1].getName().size() > 0 || (operands[1].getSrcPtr() && operands[1].getSrcPtr()->getName().size() > 0))) {
+            if (op == ir_uadd && operands[1].isReg() && operands[2].isImm() && operands[2].getType()->getInfo().is_integral) {
                 // Is likely a property offset
                 u32 offset = operands[2].getImm<u32>();
-                auto prop = operands[1].getType()->getProperties().find([offset](const auto& prop) {
-                    return prop.offset == offset;
-                });
+                utils::String path = getPropPath(operands[1].getType(), offset);
+                utils::String name = operands[1].getName().size() > 0 ? operands[1].getName() : operands[1].getType()->getName();
 
-                if (prop) {
+                if (path.size() > 0) {
                     // Yup
-                    const utils::String& name = operands[1].getName().size() > 0 ? operands[1].getName() : operands[1].getSrcPtr()->getName();
-                    s += " ; " + name + "." + prop->name;
+                    utils::String name = operands[1].getName();
+                    if (name.size() == 0 && operands[1].getSrcPtr()) name = operands[1].getSrcPtr()->getName();
+                    if (name.size() == 0) name = operands[1].getType()->getName();
+
+                    s += " ; " + name + "." + path;
+                    commentStarted = true;
                 }
-            } else if ((op == ir_load || op == ir_store) && (operands[1].getName().size() > 0 || (operands[1].getSrcPtr() && operands[1].getSrcPtr()->getName().size() > 0))) {
+            } else if (op == ir_load || op == ir_store) {
                 // Is likely a property offset
                 u32 offset = 0;
                 if (operands[2].isValid() && operands[2].isImm()) offset = operands[2].getImm<u32>();
+                utils::String path = getPropPath(operands[1].getType(), offset);
 
-                // loading/storing in first property
-                auto prop = operands[1].getType()->getProperties().find([offset](const auto& prop) {
-                    return prop.offset == offset;
-                });
-
-                if (prop) {
+                if (path.size() > 0) {
                     // Yup
-                    const utils::String& name = operands[1].getName().size() > 0 ? operands[1].getName() : operands[1].getSrcPtr()->getName();
-                    s += " ; " + name + "." + prop->name;
+                    utils::String name = operands[1].getName();
+                    if (name.size() == 0 && operands[1].getSrcPtr()) name = operands[1].getSrcPtr()->getName();
+                    if (name.size() == 0) name = operands[1].getType()->getName();
+
+                    s += " ; " + name + "." + path;
+                    commentStarted = true;
                 }
             } else if (op == ir_param) {
                 arg_type at = arg_type(operands[1].getImm<u8>());

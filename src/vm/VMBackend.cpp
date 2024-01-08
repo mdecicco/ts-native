@@ -1001,10 +1001,12 @@ namespace tsn {
                     case op::ir_fneg: {
                         m_instructions.push(encode(vmi::negf).operand(r1).operand(r2));
                         m_map.add(i.src.getLine(), i.src.getCol(), i.src.getLength());
+                        break;
                     }
                     case op::ir_dneg: {
                         m_instructions.push(encode(vmi::negd).operand(r1).operand(r2));
                         m_map.add(i.src.getLine(), i.src.getCol(), i.src.getLength());
+                        break;
                     }
                     case op::ir_call: {
                         FunctionType* sig = (FunctionType*)i.operands[0].getType();

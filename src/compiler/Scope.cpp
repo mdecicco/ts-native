@@ -88,8 +88,8 @@ namespace tsn {
 
         void ScopeManager::exit(const Value& _save) {
             const Value* save = &_save;
-            if (save && !save->isStack() && save->getSrcSelf() && save->getSrcSelf()->isStack()) {
-                save = save->getSrcSelf();
+            if (save && !save->isStack() && save->getStackRef() && save->getStackRef()->isStack()) {
+                save = save->getStackRef();
             }
 
             bool didSave = emitScopeExitInstructions(m_scopes.last(), save);
@@ -152,8 +152,8 @@ namespace tsn {
         bool ScopeManager::emitScopeExitInstructions(const Scope& s, const Value* save) {
             if (s.m_didReturn) return false;
 
-            if (save && !save->isStack() && save->getSrcSelf() && save->getSrcSelf()->isStack()) {
-                save = save->getSrcSelf();
+            if (save && !save->isStack() && save->getStackRef() && save->getStackRef()->isStack()) {
+                save = save->getStackRef();
             }
 
             FunctionDef* cf = m_comp->currentFunction();

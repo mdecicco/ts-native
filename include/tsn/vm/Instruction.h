@@ -13,34 +13,32 @@ namespace tsn {
         /*
         * Anatomy of an encoded instruction
         *
-        * type 0  |  instruction    |-------------------------------------| flags |
-        * type 1  |  instruction    |-------------------------------------| flags |
-        * type 2  |  instruction    |  operand  |-------------------------| flags |
-        * type 3  |  instruction    |  operand  |-------------------------| flags |
-        * type 4  |  instruction    |  operand  |  operand  |-------------| flags |
-        * type 5  |  instruction    |  operand  |  operand  |-------------| flags |
-        * type 6  |  instruction    |  operand  |  operand  |-------------| flags |
-        * type 7  |  instruction    |  operand  |  operand  |  operand  |-| flags |
+        * type 0  |   instruction   |-----------------------------------------| flags |
+        * type 1  |   instruction   |-----------------------------------------| flags |
+        * type 2  |   instruction   |   operand   |---------------------------| flags |
+        * type 3  |   instruction   |   operand   |---------------------------| flags |
+        * type 4  |   instruction   |   operand   |   operand   |-------------| flags |
+        * type 5  |   instruction   |   operand   |   operand   |-------------| flags |
+        * type 6  |   instruction   |   operand   |   operand   |-------------| flags |
+        * type 7  |   instruction   |   operand   |   operand   |   operand   | flags |
         *         |0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0| (bits)
         *         |32             |24             |16             |8              | (bytes)
         */
 
-        constexpr tsn::u32 instr_shift = 23;
-        constexpr tsn::u32 op_1_shift  = 17;
-        constexpr tsn::u32 op_2_shift  = 11;
-        constexpr tsn::u32 op_3_shift  = 5;
-        constexpr tsn::u32 instr_mask  = 0b11111111111111111111111000000000;
-        constexpr tsn::u32 op_mask     = 0b11111111111111111111111111000000;
-        constexpr tsn::u32 flag_mask   = 0b11111111111111111111111111110000;
+        struct instr_code {
+            unsigned int instr        : 9;
+            unsigned int op1          : 7;
+            unsigned int op2          : 7;
+            unsigned int op3          : 7;
+            unsigned int op1_assigned : 1;
+            unsigned int op2_assigned : 1;
+            unsigned int op3_assigned : 1;
+            unsigned int imm_is_float : 1;
+        };
+        static_assert(sizeof(instr_code) == 8, "sizeof(instr_code) should be 8 bytes");
 
         class Instruction {
             public:
-                enum flags {
-                    op_1_assigned = 0b0001,
-                    op_2_assigned = 0b0010,
-                    op_3_assigned = 0b0100,
-                    op_3_is_float = 0b1000
-                };
                 Instruction();
                 Instruction(vm_instruction i);
                 ~Instruction() { }
@@ -50,18 +48,18 @@ namespace tsn {
                 Instruction& operand(u64 immediate);
                 Instruction& operand(f64 immediate);
 
-                vm_instruction instr() const { return vm_instruction(m_code >> instr_shift); }
-                vm_register    op_1r() const { return vm_register   (((m_code >> op_1_shift ) | op_mask) ^ op_mask); }
-                vm_register    op_2r() const { return vm_register   (((m_code >> op_2_shift ) | op_mask) ^ op_mask); }
-                vm_register    op_3r() const { return vm_register   (((m_code >> op_3_shift ) | op_mask) ^ op_mask); }
+                vm_instruction instr() const { return vm_instruction(m_code.instr); }
+                vm_register    op_1r() const { return vm_register   (m_code.op1); }
+                vm_register    op_2r() const { return vm_register   (m_code.op2); }
+                vm_register    op_3r() const { return vm_register   (m_code.op3); }
                 i64            imm_i() const { return *(i64*)&m_imm; }
                 u64            imm_u() const { return m_imm; }
                 f64            imm_f() const { return *(f64*)&m_imm; }
-                bool      immIsFloat() const { return ((m_code | flag_mask) ^ flag_mask) & op_3_is_float; }
+                bool      immIsFloat() const { return m_code.imm_is_float == 1; }
 
                 utils::String toString(Context* ctx) const;
             protected:
-                u32 m_code;
+                instr_code m_code;
                 u64 m_imm;
         };
 

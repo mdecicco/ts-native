@@ -397,7 +397,7 @@ namespace tsn {
                 Value out = val(tp);
                 add(ir_stack_ptr).op(out).op(imm(stackId)).comment(ptrComment);
                 out.m_flags.is_pointer = 1;
-                out.setStackSrc(v);
+                out.setStackRef(v);
                 return out;
             }
 
