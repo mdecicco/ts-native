@@ -8,7 +8,7 @@ namespace tsn {
         BindException::~BindException() {
         }
 
-        char const* BindException::what() const {
+        char const* BindException::what() const noexcept{
             return m_message.c_str();
         }
     };

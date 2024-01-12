@@ -37,7 +37,7 @@ namespace tsn {
 
     void IFunctionHolder::addFunction(ffi::Function* fn) {
         if (fn->getId() == 0) {
-            throw std::exception("Function has not been added to the registry");
+            throw "Function has not been added to the registry";
         }
 
         if (m_funcIdMap.count(fn->getId()) > 0) return;

@@ -34,7 +34,7 @@ namespace tsn {
     }
 
     i32 print(const utils::String& str) {
-        return printf(str.c_str());
+        return printf("%s", str.c_str());
     }
 
     void BindString(Context* ctx) {

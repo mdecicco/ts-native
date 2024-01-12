@@ -197,7 +197,7 @@ namespace tsn {
 
     }
 
-    char const* SourceException::what() const {
+    char const* SourceException::what() const noexcept {
         return m_message.c_str();
     }
 

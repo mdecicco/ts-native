@@ -1,7 +1,11 @@
 #pragma once
 #include <tsn/common/types.h>
 
+#ifdef _MSC_VER
 #include <xtr1common>
+#else
+#include <type_traits>
+#endif
 
 namespace utils {
     template <typename T>

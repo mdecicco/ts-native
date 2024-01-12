@@ -69,7 +69,7 @@ namespace tsn {
         }
 
         CaptureData::CaptureData(const CaptureData& c) : IContextual(nullptr) {
-            throw std::exception("Closures are not copy constructible");
+            throw "Closures are not copy constructible";
         }
 
         CaptureData::~CaptureData() {

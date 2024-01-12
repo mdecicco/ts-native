@@ -23,7 +23,7 @@ namespace tsn {
         // - Result operand for boolean operators must be of boolean
         //   type
         // 
-        enum ir_instruction {
+        enum ir_instruction : u32 {
             // Do nothing. Should be ignored when processing and translating to target arch
             ir_noop,
 

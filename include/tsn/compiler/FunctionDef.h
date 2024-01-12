@@ -16,6 +16,7 @@ namespace tsn {
     namespace compiler {
         class Compiler;
         class Value;
+        class Scope;
 
         class FunctionDef {
             public:

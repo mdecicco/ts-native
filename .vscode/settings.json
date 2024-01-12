@@ -85,7 +85,8 @@
         "xstddef": "cpp",
         "xtree": "cpp",
         "valarray": "cpp",
-        "filesystem": "cpp"
+        "filesystem": "cpp",
+        "__config": "cpp"
     },
     "cmake.configureArgs": [
         "-Wno-dev"

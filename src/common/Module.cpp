@@ -23,7 +23,7 @@ namespace tsn {
                 ffi::Function* dtor = m_data[i].type->getDestructor();
                 if (dtor) ffi::call_method(m_ctx, dtor, m_data[i].ptr);
             }
-            delete [] m_data[i].ptr;
+            delete [] (u8*)m_data[i].ptr;
         }
     }
 

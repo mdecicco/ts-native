@@ -9,7 +9,7 @@ namespace tsn {
 
         void FunctionRegistry::registerFunction(ffi::Function* fn) {
             if (fn->m_registryIndex != u32(-1)) {
-                throw std::exception("Function already registered");
+                throw "Function already registered";
             }
 
             fn->m_registryIndex = allFunctions().size();

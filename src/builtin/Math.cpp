@@ -31,7 +31,7 @@ namespace tsn {
 
             cf->add(ir_vset).op(*self).op(cf->imm<T>(0.0));
         }, public_access);
-        t.ctor<T, T>(+[](InlineCodeGenContext* ctx){
+        t.template ctor<T, T>(+[](InlineCodeGenContext* ctx){
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -40,7 +40,7 @@ namespace tsn {
             cf->add(ir_store).op(args[0]).op(*self).op(cf->imm<u32>(offsetof(V, x)));
             cf->add(ir_store).op(args[1]).op(*self).op(cf->imm<u32>(offsetof(V, y)));
         }, public_access);
-        t.ctor<T>(+[](InlineCodeGenContext* ctx){
+        t.template ctor<T>(+[](InlineCodeGenContext* ctx){
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -48,7 +48,7 @@ namespace tsn {
 
             cf->add(ir_vset).op(*self).op(args[0]);
         }, public_access);
-        t.ctor<const V&>(+[](InlineCodeGenContext* ctx){
+        t.template ctor<const V&>(+[](InlineCodeGenContext* ctx){
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -57,7 +57,7 @@ namespace tsn {
             cf->add(ir_vset).op(*self).op(args[0]);
         }, public_access);
 
-        t.prop<T>("length", +[](InlineCodeGenContext* ctx) {
+        t.template prop<T>("length", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -66,7 +66,7 @@ namespace tsn {
 
             cf->add(ir_vmag).op(*result).op(*self);
         }, nullptr, public_access);
-        t.prop<T>("lengthSq", +[](InlineCodeGenContext* ctx) {
+        t.template prop<T>("lengthSq", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -75,7 +75,7 @@ namespace tsn {
 
             cf->add(ir_vmagsq).op(*result).op(*self);
         }, nullptr,  public_access);
-        t.method<T, const V&>("dot", +[](InlineCodeGenContext* ctx) {
+        t.template method<T, const V&>("dot", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -84,14 +84,14 @@ namespace tsn {
 
             cf->add(ir_vdot).op(*result).op(*self).op(args[0]);
         }, public_access);
-        t.method<void>("normalize", +[](InlineCodeGenContext* ctx) {
+        t.template method<void>("normalize", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
 
             cf->add(ir_vnorm).op(*self);
         }, public_access);
-        t.prop<V>("normal", +[](InlineCodeGenContext* ctx) {
+        t.template prop<V>("normal", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -103,7 +103,7 @@ namespace tsn {
             return String::Format("%f, %f", self->x, self->y);
         }, public_access);
 
-        t.method<V, const V&>("operator+", +[](InlineCodeGenContext* ctx) {
+        t.template method<V, const V&>("operator+", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -113,7 +113,7 @@ namespace tsn {
             cf->add(ir_vset).op(*result).op(*self);
             cf->add(ir_vadd).op(*result).op(args[0]);
         }, public_access);
-        t.method<V, T>("operator+", +[](InlineCodeGenContext* ctx) {
+        t.template method<V, T>("operator+", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -123,7 +123,7 @@ namespace tsn {
             cf->add(ir_vset).op(*result).op(*self);
             cf->add(ir_vadd).op(*result).op(args[0]);
         }, public_access);
-        t.method<void, const V&>("operator+=", +[](InlineCodeGenContext* ctx) {
+        t.template method<void, const V&>("operator+=", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -131,7 +131,7 @@ namespace tsn {
 
             cf->add(ir_vadd).op(*self).op(args[0]);
         }, public_access);
-        t.method<void, T>("operator+=", +[](InlineCodeGenContext* ctx) {
+        t.template method<void, T>("operator+=", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -140,7 +140,7 @@ namespace tsn {
             cf->add(ir_vadd).op(*self).op(args[0]);
         }, public_access);
 
-        t.method<V, const V&>("operator-", +[](InlineCodeGenContext* ctx) {
+        t.template method<V, const V&>("operator-", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -150,7 +150,7 @@ namespace tsn {
             cf->add(ir_vset).op(*result).op(*self);
             cf->add(ir_vsub).op(*result).op(args[0]);
         }, public_access);
-        t.method<V, T>("operator-", +[](InlineCodeGenContext* ctx) {
+        t.template method<V, T>("operator-", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -160,7 +160,7 @@ namespace tsn {
             cf->add(ir_vset).op(*result).op(*self);
             cf->add(ir_vsub).op(*result).op(args[0]);
         }, public_access);
-        t.method<void, const V&>("operator-=", +[](InlineCodeGenContext* ctx) {
+        t.template method<void, const V&>("operator-=", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -168,7 +168,7 @@ namespace tsn {
 
             cf->add(ir_vadd).op(*self).op(args[0]);
         }, public_access);
-        t.method<void, T>("operator-=", +[](InlineCodeGenContext* ctx) {
+        t.template method<void, T>("operator-=", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -177,7 +177,7 @@ namespace tsn {
             cf->add(ir_vsub).op(*self).op(args[0]);
         }, public_access);
 
-        t.method<V, const V&>("operator*", +[](InlineCodeGenContext* ctx) {
+        t.template method<V, const V&>("operator*", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -187,7 +187,7 @@ namespace tsn {
             cf->add(ir_vset).op(*result).op(*self);
             cf->add(ir_vmul).op(*result).op(args[0]);
         }, public_access);
-        t.method<V, T>("operator*", +[](InlineCodeGenContext* ctx) {
+        t.template method<V, T>("operator*", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -197,7 +197,7 @@ namespace tsn {
             cf->add(ir_vset).op(*result).op(*self);
             cf->add(ir_vmul).op(*result).op(args[0]);
         }, public_access);
-        t.method<void, const V&>("operator*=", +[](InlineCodeGenContext* ctx) {
+        t.template method<void, const V&>("operator*=", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -205,7 +205,7 @@ namespace tsn {
 
             cf->add(ir_vmul).op(*self).op(args[0]);
         }, public_access);
-        t.method<void, T>("operator*=", +[](InlineCodeGenContext* ctx) {
+        t.template method<void, T>("operator*=", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -214,7 +214,7 @@ namespace tsn {
             cf->add(ir_vmul).op(*self).op(args[0]);
         }, public_access);
 
-        t.method<V, const V&>("operator/", +[](InlineCodeGenContext* ctx) {
+        t.template method<V, const V&>("operator/", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -224,7 +224,7 @@ namespace tsn {
             cf->add(ir_vset).op(*result).op(*self);
             cf->add(ir_vdiv).op(*result).op(args[0]);
         }, public_access);
-        t.method<V, T>("operator/", +[](InlineCodeGenContext* ctx) {
+        t.template method<V, T>("operator/", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -234,7 +234,7 @@ namespace tsn {
             cf->add(ir_vset).op(*result).op(*self);
             cf->add(ir_vdiv).op(*result).op(args[0]);
         }, public_access);
-        t.method<void, const V&>("operator/=", +[](InlineCodeGenContext* ctx) {
+        t.template method<void, const V&>("operator/=", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -242,7 +242,7 @@ namespace tsn {
 
             cf->add(ir_vdiv).op(*self).op(args[0]);
         }, public_access);
-        t.method<void, T>("operator/=", +[](InlineCodeGenContext* ctx) {
+        t.template method<void, T>("operator/=", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -251,7 +251,7 @@ namespace tsn {
             cf->add(ir_vdiv).op(*self).op(args[0]);
         }, public_access);
 
-        t.method<V, const V&>("operator%", +[](InlineCodeGenContext* ctx) {
+        t.template method<V, const V&>("operator%", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -261,7 +261,7 @@ namespace tsn {
             cf->add(ir_vset).op(*result).op(*self);
             cf->add(ir_vmod).op(*result).op(args[0]);
         }, public_access);
-        t.method<V, T>("operator%", +[](InlineCodeGenContext* ctx) {
+        t.template method<V, T>("operator%", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -271,7 +271,7 @@ namespace tsn {
             cf->add(ir_vset).op(*result).op(*self);
             cf->add(ir_vmod).op(*result).op(args[0]);
         }, public_access);
-        t.method<void, const V&>("operator%=", +[](InlineCodeGenContext* ctx) {
+        t.template method<void, const V&>("operator%=", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -279,7 +279,7 @@ namespace tsn {
 
             cf->add(ir_vmod).op(*self).op(args[0]);
         }, public_access);
-        t.method<void, T>("operator%=", +[](InlineCodeGenContext* ctx) {
+        t.template method<void, T>("operator%=", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -288,7 +288,7 @@ namespace tsn {
             cf->add(ir_vmod).op(*self).op(args[0]);
         }, public_access);
 
-        t.method<V>("operator-", +[](InlineCodeGenContext* ctx) {
+        t.template method<V>("operator-", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -320,7 +320,7 @@ namespace tsn {
 
             cf->add(ir_vset).op(*self).op(cf->imm<T>(0.0));
         }, public_access);
-        t.ctor<T, T, T>(+[](InlineCodeGenContext* ctx){
+        t.template ctor<T, T, T>(+[](InlineCodeGenContext* ctx){
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -330,7 +330,7 @@ namespace tsn {
             cf->add(ir_store).op(args[1]).op(*self).op(cf->imm<u32>(offsetof(V, y)));
             cf->add(ir_store).op(args[2]).op(*self).op(cf->imm<u32>(offsetof(V, z)));
         }, public_access);
-        t.ctor<T>(+[](InlineCodeGenContext* ctx){
+        t.template ctor<T>(+[](InlineCodeGenContext* ctx){
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -338,7 +338,7 @@ namespace tsn {
 
             cf->add(ir_vset).op(*self).op(args[0]);
         }, public_access);
-        t.ctor<const V&>(+[](InlineCodeGenContext* ctx){
+        t.template ctor<const V&>(+[](InlineCodeGenContext* ctx){
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -346,7 +346,7 @@ namespace tsn {
             
             cf->add(ir_vset).op(*self).op(args[0]);
         }, public_access);
-        t.ctor<const vec2<T>&, T>(+[](InlineCodeGenContext* ctx){
+        t.template ctor<const vec2<T>&, T>(+[](InlineCodeGenContext* ctx){
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -357,7 +357,7 @@ namespace tsn {
             cf->add(ir_store).op(args[1]).op(*self).op(cf->imm<u32>(offsetof(V, z)));
         }, public_access);
 
-        t.prop<T>("length", +[](InlineCodeGenContext* ctx) {
+        t.template prop<T>("length", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -366,7 +366,7 @@ namespace tsn {
 
             cf->add(ir_vmag).op(*result).op(*self);
         }, nullptr, public_access);
-        t.prop<T>("lengthSq", +[](InlineCodeGenContext* ctx) {
+        t.template prop<T>("lengthSq", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -375,7 +375,7 @@ namespace tsn {
 
             cf->add(ir_vmagsq).op(*result).op(*self);
         }, nullptr, public_access);
-        t.method<V, const V&>("cross", +[](InlineCodeGenContext* ctx) {
+        t.template method<V, const V&>("cross", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -384,7 +384,7 @@ namespace tsn {
 
             cf->add(ir_vcross).op(*result).op(*self).op(args[0]);
         }, public_access);
-        t.method<T, const V&>("dot", +[](InlineCodeGenContext* ctx) {
+        t.template method<T, const V&>("dot", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -393,14 +393,14 @@ namespace tsn {
 
             cf->add(ir_vdot).op(*result).op(*self).op(args[0]);
         }, public_access);
-        t.method<void>("normalize", +[](InlineCodeGenContext* ctx) {
+        t.template method<void>("normalize", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
 
             cf->add(ir_vnorm).op(*self);
         }, public_access);
-        t.prop<V>("normal", +[](InlineCodeGenContext* ctx) {
+        t.template prop<V>("normal", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -412,7 +412,7 @@ namespace tsn {
             return String::Format("%f, %f, %f", self->x, self->y, self->z);
         }, public_access);
 
-        t.method<V, const V&>("operator+", +[](InlineCodeGenContext* ctx) {
+        t.template method<V, const V&>("operator+", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -422,7 +422,7 @@ namespace tsn {
             cf->add(ir_vset).op(*result).op(*self);
             cf->add(ir_vadd).op(*result).op(args[0]);
         }, public_access);
-        t.method<V, T>("operator+", +[](InlineCodeGenContext* ctx) {
+        t.template method<V, T>("operator+", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -432,7 +432,7 @@ namespace tsn {
             cf->add(ir_vset).op(*result).op(*self);
             cf->add(ir_vadd).op(*result).op(args[0]);
         }, public_access);
-        t.method<void, const V&>("operator+=", +[](InlineCodeGenContext* ctx) {
+        t.template method<void, const V&>("operator+=", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -440,7 +440,7 @@ namespace tsn {
 
             cf->add(ir_vadd).op(*self).op(args[0]);
         }, public_access);
-        t.method<void, T>("operator+=", +[](InlineCodeGenContext* ctx) {
+        t.template method<void, T>("operator+=", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -449,7 +449,7 @@ namespace tsn {
             cf->add(ir_vadd).op(*self).op(args[0]);
         }, public_access);
 
-        t.method<V, const V&>("operator-", +[](InlineCodeGenContext* ctx) {
+        t.template method<V, const V&>("operator-", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -459,7 +459,7 @@ namespace tsn {
             cf->add(ir_vset).op(*result).op(*self);
             cf->add(ir_vsub).op(*result).op(args[0]);
         }, public_access);
-        t.method<V, T>("operator-", +[](InlineCodeGenContext* ctx) {
+        t.template method<V, T>("operator-", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -469,7 +469,7 @@ namespace tsn {
             cf->add(ir_vset).op(*result).op(*self);
             cf->add(ir_vsub).op(*result).op(args[0]);
         }, public_access);
-        t.method<void, const V&>("operator-=", +[](InlineCodeGenContext* ctx) {
+        t.template method<void, const V&>("operator-=", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -477,7 +477,7 @@ namespace tsn {
 
             cf->add(ir_vadd).op(*self).op(args[0]);
         }, public_access);
-        t.method<void, T>("operator-=", +[](InlineCodeGenContext* ctx) {
+        t.template method<void, T>("operator-=", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -486,7 +486,7 @@ namespace tsn {
             cf->add(ir_vsub).op(*self).op(args[0]);
         }, public_access);
 
-        t.method<V, const V&>("operator*", +[](InlineCodeGenContext* ctx) {
+        t.template method<V, const V&>("operator*", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -496,7 +496,7 @@ namespace tsn {
             cf->add(ir_vset).op(*result).op(*self);
             cf->add(ir_vmul).op(*result).op(args[0]);
         }, public_access);
-        t.method<V, T>("operator*", +[](InlineCodeGenContext* ctx) {
+        t.template method<V, T>("operator*", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -506,7 +506,7 @@ namespace tsn {
             cf->add(ir_vset).op(*result).op(*self);
             cf->add(ir_vmul).op(*result).op(args[0]);
         }, public_access);
-        t.method<void, const V&>("operator*=", +[](InlineCodeGenContext* ctx) {
+        t.template method<void, const V&>("operator*=", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -514,7 +514,7 @@ namespace tsn {
 
             cf->add(ir_vmul).op(*self).op(args[0]);
         }, public_access);
-        t.method<void, T>("operator*=", +[](InlineCodeGenContext* ctx) {
+        t.template method<void, T>("operator*=", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -523,7 +523,7 @@ namespace tsn {
             cf->add(ir_vmul).op(*self).op(args[0]);
         }, public_access);
 
-        t.method<V, const V&>("operator/", +[](InlineCodeGenContext* ctx) {
+        t.template method<V, const V&>("operator/", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -533,7 +533,7 @@ namespace tsn {
             cf->add(ir_vset).op(*result).op(*self);
             cf->add(ir_vdiv).op(*result).op(args[0]);
         }, public_access);
-        t.method<V, T>("operator/", +[](InlineCodeGenContext* ctx) {
+        t.template method<V, T>("operator/", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -543,7 +543,7 @@ namespace tsn {
             cf->add(ir_vset).op(*result).op(*self);
             cf->add(ir_vdiv).op(*result).op(args[0]);
         }, public_access);
-        t.method<void, const V&>("operator/=", +[](InlineCodeGenContext* ctx) {
+        t.template method<void, const V&>("operator/=", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -551,7 +551,7 @@ namespace tsn {
 
             cf->add(ir_vdiv).op(*self).op(args[0]);
         }, public_access);
-        t.method<void, T>("operator/=", +[](InlineCodeGenContext* ctx) {
+        t.template method<void, T>("operator/=", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -560,7 +560,7 @@ namespace tsn {
             cf->add(ir_vdiv).op(*self).op(args[0]);
         }, public_access);
 
-        t.method<V, const V&>("operator%", +[](InlineCodeGenContext* ctx) {
+        t.template method<V, const V&>("operator%", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -570,7 +570,7 @@ namespace tsn {
             cf->add(ir_vset).op(*result).op(*self);
             cf->add(ir_vmod).op(*result).op(args[0]);
         }, public_access);
-        t.method<V, T>("operator%", +[](InlineCodeGenContext* ctx) {
+        t.template method<V, T>("operator%", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -580,7 +580,7 @@ namespace tsn {
             cf->add(ir_vset).op(*result).op(*self);
             cf->add(ir_vmod).op(*result).op(args[0]);
         }, public_access);
-        t.method<void, const V&>("operator%=", +[](InlineCodeGenContext* ctx) {
+        t.template method<void, const V&>("operator%=", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -588,7 +588,7 @@ namespace tsn {
 
             cf->add(ir_vmod).op(*self).op(args[0]);
         }, public_access);
-        t.method<void, T>("operator%=", +[](InlineCodeGenContext* ctx) {
+        t.template method<void, T>("operator%=", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -597,7 +597,7 @@ namespace tsn {
             cf->add(ir_vmod).op(*self).op(args[0]);
         }, public_access);
 
-        t.method<V>("operator-", +[](InlineCodeGenContext* ctx) {
+        t.template method<V>("operator-", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -608,7 +608,7 @@ namespace tsn {
             cf->add(ir_vneg).op(*result);
         }, public_access);
 
-        t.prop<vec2<T>>("xx", +[](InlineCodeGenContext* ctx) {
+        t.template prop<vec2<T>>("xx", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -618,7 +618,7 @@ namespace tsn {
             cf->add(ir_vset).op(*result).op(x);
         }, nullptr, public_access);
 
-        t.prop<vec2<T>>("xy", +[](InlineCodeGenContext* ctx) {
+        t.template prop<vec2<T>>("xy", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -630,7 +630,7 @@ namespace tsn {
             cf->add(ir_store).op(y).op(*result).op(cf->imm<u32>(offsetof(vec2<T>, y)));
         }, nullptr, public_access);
 
-        t.prop<vec2<T>>("xz", +[](InlineCodeGenContext* ctx) {
+        t.template prop<vec2<T>>("xz", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -642,7 +642,7 @@ namespace tsn {
             cf->add(ir_store).op(y).op(*result).op(cf->imm<u32>(offsetof(vec2<T>, y)));
         }, nullptr, public_access);
 
-        t.prop<vec2<T>>("yx", +[](InlineCodeGenContext* ctx) {
+        t.template prop<vec2<T>>("yx", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -654,7 +654,7 @@ namespace tsn {
             cf->add(ir_store).op(y).op(*result).op(cf->imm<u32>(offsetof(vec2<T>, y)));
         }, nullptr, public_access);
 
-        t.prop<vec2<T>>("yy", +[](InlineCodeGenContext* ctx) {
+        t.template prop<vec2<T>>("yy", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -664,7 +664,7 @@ namespace tsn {
             cf->add(ir_vset).op(*result).op(x);
         }, nullptr, public_access);
 
-        t.prop<vec2<T>>("yz", +[](InlineCodeGenContext* ctx) {
+        t.template prop<vec2<T>>("yz", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -676,7 +676,7 @@ namespace tsn {
             cf->add(ir_store).op(y).op(*result).op(cf->imm<u32>(offsetof(vec2<T>, y)));
         }, nullptr, public_access);
 
-        t.prop<vec2<T>>("zx", +[](InlineCodeGenContext* ctx) {
+        t.template prop<vec2<T>>("zx", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -688,7 +688,7 @@ namespace tsn {
             cf->add(ir_store).op(y).op(*result).op(cf->imm<u32>(offsetof(vec2<T>, y)));
         }, nullptr, public_access);
 
-        t.prop<vec2<T>>("zy", +[](InlineCodeGenContext* ctx) {
+        t.template prop<vec2<T>>("zy", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -700,7 +700,7 @@ namespace tsn {
             cf->add(ir_store).op(y).op(*result).op(cf->imm<u32>(offsetof(vec2<T>, y)));
         }, nullptr, public_access);
 
-        t.prop<vec2<T>>("zz", +[](InlineCodeGenContext* ctx) {
+        t.template prop<vec2<T>>("zz", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -710,7 +710,7 @@ namespace tsn {
             cf->add(ir_vset).op(*result).op(x);
         }, nullptr, public_access);
 
-        t.prop<vec3<T>>("xxx", +[](InlineCodeGenContext* ctx) {
+        t.template prop<vec3<T>>("xxx", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -720,7 +720,7 @@ namespace tsn {
             cf->add(ir_vset).op(*result).op(x);
         }, nullptr, public_access);
 
-        t.prop<vec3<T>>("yyy", +[](InlineCodeGenContext* ctx) {
+        t.template prop<vec3<T>>("yyy", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -730,7 +730,7 @@ namespace tsn {
             cf->add(ir_vset).op(*result).op(x);
         }, nullptr, public_access);
 
-        t.prop<vec3<T>>("zzz", +[](InlineCodeGenContext* ctx) {
+        t.template prop<vec3<T>>("zzz", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -763,7 +763,7 @@ namespace tsn {
 
             cf->add(ir_vset).op(*self).op(cf->imm<T>(0.0));
         }, public_access);
-        t.ctor<T, T, T, T>(+[](InlineCodeGenContext* ctx){
+        t.template ctor<T, T, T, T>(+[](InlineCodeGenContext* ctx){
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -774,7 +774,7 @@ namespace tsn {
             cf->add(ir_store).op(args[2]).op(*self).op(cf->imm<u32>(offsetof(V, z)));
             cf->add(ir_store).op(args[3]).op(*self).op(cf->imm<u32>(offsetof(V, w)));
         }, public_access);
-        t.ctor<T>(+[](InlineCodeGenContext* ctx){
+        t.template ctor<T>(+[](InlineCodeGenContext* ctx){
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -782,7 +782,7 @@ namespace tsn {
 
             cf->add(ir_vset).op(*self).op(args[0]);
         }, public_access);
-        t.ctor<const V&>(+[](InlineCodeGenContext* ctx){
+        t.template ctor<const V&>(+[](InlineCodeGenContext* ctx){
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -790,7 +790,7 @@ namespace tsn {
             
             cf->add(ir_vset).op(*self).op(args[0]);
         }, public_access);
-        t.ctor<const vec3<T>&, T>(+[](InlineCodeGenContext* ctx){
+        t.template ctor<const vec3<T>&, T>(+[](InlineCodeGenContext* ctx){
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -802,7 +802,7 @@ namespace tsn {
             cf->add(ir_store).op(args[1]).op(*self).op(cf->imm<u32>(offsetof(V, w)));
         }, public_access);
 
-        t.prop<T>("length", +[](InlineCodeGenContext* ctx) {
+        t.template prop<T>("length", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -811,7 +811,7 @@ namespace tsn {
 
             cf->add(ir_vmag).op(*result).op(*self);
         }, nullptr, public_access);
-        t.prop<T>("lengthSq", +[](InlineCodeGenContext* ctx) {
+        t.template prop<T>("lengthSq", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -820,7 +820,7 @@ namespace tsn {
 
             cf->add(ir_vmagsq).op(*result).op(*self);
         }, nullptr, public_access);
-        t.method<V, const V&>("cross", +[](InlineCodeGenContext* ctx) {
+        t.template method<V, const V&>("cross", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -829,7 +829,7 @@ namespace tsn {
 
             cf->add(ir_vcross).op(*result).op(*self).op(args[0]);
         }, public_access);
-        t.method<T, const V&>("dot", +[](InlineCodeGenContext* ctx) {
+        t.template method<T, const V&>("dot", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -838,14 +838,14 @@ namespace tsn {
 
             cf->add(ir_vdot).op(*result).op(*self).op(args[0]);
         }, public_access);
-        t.method<void>("normalize", +[](InlineCodeGenContext* ctx) {
+        t.template method<void>("normalize", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
 
             cf->add(ir_vnorm).op(*self);
         }, public_access);
-        t.prop<V>("normal", +[](InlineCodeGenContext* ctx) {
+        t.template prop<V>("normal", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -857,7 +857,7 @@ namespace tsn {
             return String::Format("%f, %f, %f, %f", self->x, self->y, self->z, self->w);
         }, public_access);
 
-        t.method<V, const V&>("operator+", +[](InlineCodeGenContext* ctx) {
+        t.template method<V, const V&>("operator+", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -867,7 +867,7 @@ namespace tsn {
             cf->add(ir_vset).op(*result).op(*self);
             cf->add(ir_vadd).op(*result).op(args[0]);
         }, public_access);
-        t.method<V, T>("operator+", +[](InlineCodeGenContext* ctx) {
+        t.template method<V, T>("operator+", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -877,7 +877,7 @@ namespace tsn {
             cf->add(ir_vset).op(*result).op(*self);
             cf->add(ir_vadd).op(*result).op(args[0]);
         }, public_access);
-        t.method<void, const V&>("operator+=", +[](InlineCodeGenContext* ctx) {
+        t.template method<void, const V&>("operator+=", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -885,7 +885,7 @@ namespace tsn {
 
             cf->add(ir_vadd).op(*self).op(args[0]);
         }, public_access);
-        t.method<void, T>("operator+=", +[](InlineCodeGenContext* ctx) {
+        t.template method<void, T>("operator+=", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -894,7 +894,7 @@ namespace tsn {
             cf->add(ir_vadd).op(*self).op(args[0]);
         }, public_access);
 
-        t.method<V, const V&>("operator-", +[](InlineCodeGenContext* ctx) {
+        t.template method<V, const V&>("operator-", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -904,7 +904,7 @@ namespace tsn {
             cf->add(ir_vset).op(*result).op(*self);
             cf->add(ir_vsub).op(*result).op(args[0]);
         }, public_access);
-        t.method<V, T>("operator-", +[](InlineCodeGenContext* ctx) {
+        t.template method<V, T>("operator-", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -914,7 +914,7 @@ namespace tsn {
             cf->add(ir_vset).op(*result).op(*self);
             cf->add(ir_vsub).op(*result).op(args[0]);
         }, public_access);
-        t.method<void, const V&>("operator-=", +[](InlineCodeGenContext* ctx) {
+        t.template method<void, const V&>("operator-=", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -922,7 +922,7 @@ namespace tsn {
 
             cf->add(ir_vadd).op(*self).op(args[0]);
         }, public_access);
-        t.method<void, T>("operator-=", +[](InlineCodeGenContext* ctx) {
+        t.template method<void, T>("operator-=", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -931,7 +931,7 @@ namespace tsn {
             cf->add(ir_vsub).op(*self).op(args[0]);
         }, public_access);
 
-        t.method<V, const V&>("operator*", +[](InlineCodeGenContext* ctx) {
+        t.template method<V, const V&>("operator*", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -941,7 +941,7 @@ namespace tsn {
             cf->add(ir_vset).op(*result).op(*self);
             cf->add(ir_vmul).op(*result).op(args[0]);
         }, public_access);
-        t.method<V, T>("operator*", +[](InlineCodeGenContext* ctx) {
+        t.template method<V, T>("operator*", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -951,7 +951,7 @@ namespace tsn {
             cf->add(ir_vset).op(*result).op(*self);
             cf->add(ir_vmul).op(*result).op(args[0]);
         }, public_access);
-        t.method<void, const V&>("operator*=", +[](InlineCodeGenContext* ctx) {
+        t.template method<void, const V&>("operator*=", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -959,7 +959,7 @@ namespace tsn {
 
             cf->add(ir_vmul).op(*self).op(args[0]);
         }, public_access);
-        t.method<void, T>("operator*=", +[](InlineCodeGenContext* ctx) {
+        t.template method<void, T>("operator*=", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -968,7 +968,7 @@ namespace tsn {
             cf->add(ir_vmul).op(*self).op(args[0]);
         }, public_access);
 
-        t.method<V, const V&>("operator/", +[](InlineCodeGenContext* ctx) {
+        t.template method<V, const V&>("operator/", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -978,7 +978,7 @@ namespace tsn {
             cf->add(ir_vset).op(*result).op(*self);
             cf->add(ir_vdiv).op(*result).op(args[0]);
         }, public_access);
-        t.method<V, T>("operator/", +[](InlineCodeGenContext* ctx) {
+        t.template method<V, T>("operator/", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -988,7 +988,7 @@ namespace tsn {
             cf->add(ir_vset).op(*result).op(*self);
             cf->add(ir_vdiv).op(*result).op(args[0]);
         }, public_access);
-        t.method<void, const V&>("operator/=", +[](InlineCodeGenContext* ctx) {
+        t.template method<void, const V&>("operator/=", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -996,7 +996,7 @@ namespace tsn {
 
             cf->add(ir_vdiv).op(*self).op(args[0]);
         }, public_access);
-        t.method<void, T>("operator/=", +[](InlineCodeGenContext* ctx) {
+        t.template method<void, T>("operator/=", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -1005,7 +1005,7 @@ namespace tsn {
             cf->add(ir_vdiv).op(*self).op(args[0]);
         }, public_access);
 
-        t.method<V, const V&>("operator%", +[](InlineCodeGenContext* ctx) {
+        t.template method<V, const V&>("operator%", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -1015,7 +1015,7 @@ namespace tsn {
             cf->add(ir_vset).op(*result).op(*self);
             cf->add(ir_vmod).op(*result).op(args[0]);
         }, public_access);
-        t.method<V, T>("operator%", +[](InlineCodeGenContext* ctx) {
+        t.template method<V, T>("operator%", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -1025,7 +1025,7 @@ namespace tsn {
             cf->add(ir_vset).op(*result).op(*self);
             cf->add(ir_vmod).op(*result).op(args[0]);
         }, public_access);
-        t.method<void, const V&>("operator%=", +[](InlineCodeGenContext* ctx) {
+        t.template method<void, const V&>("operator%=", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -1033,7 +1033,7 @@ namespace tsn {
 
             cf->add(ir_vmod).op(*self).op(args[0]);
         }, public_access);
-        t.method<void, T>("operator%=", +[](InlineCodeGenContext* ctx) {
+        t.template method<void, T>("operator%=", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -1042,7 +1042,7 @@ namespace tsn {
             cf->add(ir_vmod).op(*self).op(args[0]);
         }, public_access);
 
-        t.method<V>("operator-", +[](InlineCodeGenContext* ctx) {
+        t.template method<V>("operator-", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -1053,7 +1053,7 @@ namespace tsn {
             cf->add(ir_vneg).op(*result);
         }, public_access);
 
-        t.prop<vec2<T>>("xx", +[](InlineCodeGenContext* ctx) {
+        t.template prop<vec2<T>>("xx", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -1063,7 +1063,7 @@ namespace tsn {
             cf->add(ir_vset).op(*result).op(x);
         }, nullptr, public_access);
 
-        t.prop<vec2<T>>("xy", +[](InlineCodeGenContext* ctx) {
+        t.template prop<vec2<T>>("xy", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -1075,7 +1075,7 @@ namespace tsn {
             cf->add(ir_store).op(y).op(*result).op(cf->imm<u32>(offsetof(vec2<T>, y)));
         }, nullptr, public_access);
 
-        t.prop<vec2<T>>("xz", +[](InlineCodeGenContext* ctx) {
+        t.template prop<vec2<T>>("xz", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -1087,7 +1087,7 @@ namespace tsn {
             cf->add(ir_store).op(y).op(*result).op(cf->imm<u32>(offsetof(vec2<T>, y)));
         }, nullptr, public_access);
 
-        t.prop<vec2<T>>("xw", +[](InlineCodeGenContext* ctx) {
+        t.template prop<vec2<T>>("xw", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -1099,7 +1099,7 @@ namespace tsn {
             cf->add(ir_store).op(y).op(*result).op(cf->imm<u32>(offsetof(vec2<T>, y)));
         }, nullptr, public_access);
 
-        t.prop<vec2<T>>("yx", +[](InlineCodeGenContext* ctx) {
+        t.template prop<vec2<T>>("yx", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -1111,7 +1111,7 @@ namespace tsn {
             cf->add(ir_store).op(y).op(*result).op(cf->imm<u32>(offsetof(vec2<T>, y)));
         }, nullptr, public_access);
 
-        t.prop<vec2<T>>("yy", +[](InlineCodeGenContext* ctx) {
+        t.template prop<vec2<T>>("yy", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -1121,7 +1121,7 @@ namespace tsn {
             cf->add(ir_vset).op(*result).op(x);
         }, nullptr, public_access);
 
-        t.prop<vec2<T>>("yz", +[](InlineCodeGenContext* ctx) {
+        t.template prop<vec2<T>>("yz", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -1133,7 +1133,7 @@ namespace tsn {
             cf->add(ir_store).op(y).op(*result).op(cf->imm<u32>(offsetof(vec2<T>, y)));
         }, nullptr, public_access);
 
-        t.prop<vec2<T>>("yw", +[](InlineCodeGenContext* ctx) {
+        t.template prop<vec2<T>>("yw", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -1145,7 +1145,7 @@ namespace tsn {
             cf->add(ir_store).op(y).op(*result).op(cf->imm<u32>(offsetof(vec2<T>, y)));
         }, nullptr, public_access);
 
-        t.prop<vec2<T>>("zx", +[](InlineCodeGenContext* ctx) {
+        t.template prop<vec2<T>>("zx", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -1157,7 +1157,7 @@ namespace tsn {
             cf->add(ir_store).op(y).op(*result).op(cf->imm<u32>(offsetof(vec2<T>, y)));
         }, nullptr, public_access);
 
-        t.prop<vec2<T>>("zy", +[](InlineCodeGenContext* ctx) {
+        t.template prop<vec2<T>>("zy", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -1169,7 +1169,7 @@ namespace tsn {
             cf->add(ir_store).op(y).op(*result).op(cf->imm<u32>(offsetof(vec2<T>, y)));
         }, nullptr, public_access);
 
-        t.prop<vec2<T>>("zz", +[](InlineCodeGenContext* ctx) {
+        t.template prop<vec2<T>>("zz", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -1179,7 +1179,7 @@ namespace tsn {
             cf->add(ir_vset).op(*result).op(x);
         }, nullptr, public_access);
 
-        t.prop<vec2<T>>("zw", +[](InlineCodeGenContext* ctx) {
+        t.template prop<vec2<T>>("zw", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -1191,7 +1191,7 @@ namespace tsn {
             cf->add(ir_store).op(y).op(*result).op(cf->imm<u32>(offsetof(vec2<T>, y)));
         }, nullptr, public_access);
 
-        t.prop<vec3<T>>("xxx", +[](InlineCodeGenContext* ctx) {
+        t.template prop<vec3<T>>("xxx", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -1201,7 +1201,7 @@ namespace tsn {
             cf->add(ir_vset).op(*result).op(x);
         }, nullptr, public_access);
 
-        t.prop<vec3<T>>("yyy", +[](InlineCodeGenContext* ctx) {
+        t.template prop<vec3<T>>("yyy", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -1211,7 +1211,7 @@ namespace tsn {
             cf->add(ir_vset).op(*result).op(x);
         }, nullptr, public_access);
 
-        t.prop<vec3<T>>("zzz", +[](InlineCodeGenContext* ctx) {
+        t.template prop<vec3<T>>("zzz", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -1221,7 +1221,7 @@ namespace tsn {
             cf->add(ir_vset).op(*result).op(x);
         }, nullptr, public_access);
 
-        t.prop<vec3<T>>("www", +[](InlineCodeGenContext* ctx) {
+        t.template prop<vec3<T>>("www", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -1255,7 +1255,7 @@ namespace tsn {
             cf->add(ir_vset).op(*self).op(cf->imm<T>(0.0));
             cf->add(ir_store).op(cf->imm<T>(0.0)).op(*self).op(cf->imm<u32>(offsetof(Q, angle)));
         }, public_access);
-        t.ctor<T, T, T, T>(+[](InlineCodeGenContext* ctx){
+        t.template ctor<T, T, T, T>(+[](InlineCodeGenContext* ctx){
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -1267,7 +1267,7 @@ namespace tsn {
             cf->add(ir_store).op(args[3]).op(*self).op(cf->imm<u32>(offsetof(Q, angle)));
         }, public_access);
 
-        t.method<Q, const Q&>("operator*", +[](InlineCodeGenContext* ctx) {
+        t.template method<Q, const Q&>("operator*", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -1295,7 +1295,7 @@ namespace tsn {
             cf->add(ir_store).op(wr).op(*result).op(cf->imm<u32>(offsetof(Q, angle)));
         }, public_access);
 
-        t.method<void, const Q&>("operator*=", +[](InlineCodeGenContext* ctx) {
+        t.template method<void, const Q&>("operator*=", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -1322,7 +1322,7 @@ namespace tsn {
             cf->add(ir_store).op(wr).op(*self).op(cf->imm<u32>(offsetof(Q, angle)));
         }, public_access);
 
-        t.method<T, const Q&>("dot", +[](InlineCodeGenContext* ctx) {
+        t.template method<T, const Q&>("dot", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -1333,7 +1333,7 @@ namespace tsn {
             *result += self->getProp("angle") * args[0].getProp("angle");
         }, public_access);
 
-        t.method<V, const V&>("operator*", +[](InlineCodeGenContext* ctx) {
+        t.template method<V, const V&>("operator*", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -1366,7 +1366,7 @@ namespace tsn {
             cf->add(ir_vadd).op(*result).op(tmp0);
         }, public_access);
 
-        t.staticMethod<Q, const V&, T>("fromAxisAngle", +[](InlineCodeGenContext* ctx) {
+        t.template staticMethod<Q, const V&, T>("fromAxisAngle", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -1385,7 +1385,7 @@ namespace tsn {
             cf->add(ir_store).op(ca).op(*result).op(cf->imm<u32>(offsetof(Q, angle)));
         }, public_access);
 
-        t.staticMethod<Q, T, T, T, T>("fromAxisAngle", +[](InlineCodeGenContext* ctx) {
+        t.template staticMethod<Q, T, T, T, T>("fromAxisAngle", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -1433,7 +1433,7 @@ namespace tsn {
             cf->add(ir_store).op(cf->imm<T>(1.0)).op(*self).op(cf->imm<u32>(offsetof(M, y) + offsetof(V, y)));
         }, public_access);
 
-        t.ctor<T, T, T, T>(+[](InlineCodeGenContext* ctx){
+        t.template ctor<T, T, T, T>(+[](InlineCodeGenContext* ctx){
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -1445,7 +1445,7 @@ namespace tsn {
             cf->add(ir_store).op(args[3]).op(*self).op(cf->imm<u32>(offsetof(M, y) + offsetof(V, y)));
         }, public_access);
 
-        t.ctor<const V&, const V&>(+[](InlineCodeGenContext* ctx){
+        t.template ctor<const V&, const V&>(+[](InlineCodeGenContext* ctx){
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -1458,7 +1458,7 @@ namespace tsn {
             cf->add(ir_vset).op(y).op(args[1]);
         }, public_access);
 
-        t.ctor<const M&>(+[](InlineCodeGenContext* ctx){
+        t.template ctor<const M&>(+[](InlineCodeGenContext* ctx){
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -1473,7 +1473,7 @@ namespace tsn {
             cf->add(ir_vset).op(y).op(ry);
         }, public_access);
 
-        t.method<M, const M&>("operator*", +[](InlineCodeGenContext* ctx){
+        t.template method<M, const M&>("operator*", +[](InlineCodeGenContext* ctx){
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -1501,7 +1501,7 @@ namespace tsn {
             cf->add(ir_store).op(tmp).op(*result).op(cf->imm<u32>(offsetof(M, y) + offsetof(V, y)));
         }, public_access);
 
-        t.method<void, const M&>("operator*=", +[](InlineCodeGenContext* ctx){
+        t.template method<void, const M&>("operator*=", +[](InlineCodeGenContext* ctx){
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -1528,7 +1528,7 @@ namespace tsn {
             cf->add(ir_store).op(tmpY).op(ay).op(cf->imm<u32>(offsetof(V, y)));
         }, public_access);
 
-        t.method<void, const M&>("operator=", +[](InlineCodeGenContext* ctx){
+        t.template method<void, const M&>("operator=", +[](InlineCodeGenContext* ctx){
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -1543,7 +1543,7 @@ namespace tsn {
             cf->add(ir_vset).op(y).op(ry);
         }, public_access);
 
-        t.method<V, const V&>("operator*", +[](InlineCodeGenContext* ctx){
+        t.template method<V, const V&>("operator*", +[](InlineCodeGenContext* ctx){
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -1564,7 +1564,7 @@ namespace tsn {
             cf->add(ir_store).op(tmp).op(*result).op(cf->imm<u32>(offsetof(V, y)));
         }, public_access);
 
-        t.method<void>("transpose", +[](InlineCodeGenContext* ctx){
+        t.template method<void>("transpose", +[](InlineCodeGenContext* ctx){
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -1582,7 +1582,7 @@ namespace tsn {
             cf->add(ir_store).op(byy).op(*self).op(cf->imm<u32>(offsetof(M, y) + offsetof(V, y)));
         }, public_access);
 
-        t.prop<M>("transposed", +[](InlineCodeGenContext* ctx){
+        t.template prop<M>("transposed", +[](InlineCodeGenContext* ctx){
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -1636,7 +1636,7 @@ namespace tsn {
             cf->add(ir_store).op(cf->imm<T>(1.0)).op(*self).op(cf->imm<u32>(offsetof(M, z) + offsetof(V, z)));
         }, public_access);
 
-        t.ctor<T, T, T, T, T, T, T, T, T>(+[](InlineCodeGenContext* ctx){
+        t.template ctor<T, T, T, T, T, T, T, T, T>(+[](InlineCodeGenContext* ctx){
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -1653,7 +1653,7 @@ namespace tsn {
             cf->add(ir_store).op(args[8]).op(*self).op(cf->imm<u32>(offsetof(M, z) + offsetof(V, z)));
         }, public_access);
 
-        t.ctor<const V&, const V&, const V&>(+[](InlineCodeGenContext* ctx){
+        t.template ctor<const V&, const V&, const V&>(+[](InlineCodeGenContext* ctx){
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -1669,7 +1669,7 @@ namespace tsn {
             cf->add(ir_vset).op(z).op(args[2]);
         }, public_access);
 
-        t.ctor<const M&>(+[](InlineCodeGenContext* ctx){
+        t.template ctor<const M&>(+[](InlineCodeGenContext* ctx){
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -1688,7 +1688,7 @@ namespace tsn {
             cf->add(ir_vset).op(z).op(rz);
         }, public_access);
 
-        t.ctor<const Q&>(+[](InlineCodeGenContext* ctx){
+        t.template ctor<const Q&>(+[](InlineCodeGenContext* ctx){
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -1724,7 +1724,7 @@ namespace tsn {
             cf->add(ir_store).op(tmp).op(*self).op(cf->imm<u32>(offsetof(M, z) + offsetof(V, z)));
         }, public_access);
 
-        t.method<M, const M&>("operator*", +[](InlineCodeGenContext* ctx){
+        t.template method<M, const M&>("operator*", +[](InlineCodeGenContext* ctx){
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -1765,7 +1765,7 @@ namespace tsn {
             cf->add(ir_store).op(tmp).op(*result).op(cf->imm<u32>(offsetof(M, z) + offsetof(V, z)));
         }, public_access);
 
-        t.method<void, const M&>("operator*=", +[](InlineCodeGenContext* ctx){
+        t.template method<void, const M&>("operator*=", +[](InlineCodeGenContext* ctx){
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -1807,7 +1807,7 @@ namespace tsn {
             cf->add(ir_store).op(tmpZ).op(az).op(cf->imm<u32>(offsetof(V, z)));
         }, public_access);
 
-        t.method<void, const M&>("operator=", +[](InlineCodeGenContext* ctx){
+        t.template method<void, const M&>("operator=", +[](InlineCodeGenContext* ctx){
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -1826,7 +1826,7 @@ namespace tsn {
             cf->add(ir_vset).op(z).op(rz);
         }, public_access);
 
-        t.method<V, const V&>("operator*", +[](InlineCodeGenContext* ctx){
+        t.template method<V, const V&>("operator*", +[](InlineCodeGenContext* ctx){
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -1850,7 +1850,7 @@ namespace tsn {
             cf->add(ir_store).op(tmp).op(*result).op(cf->imm<u32>(offsetof(V, z)));
         }, public_access);
 
-        t.method<void>("transpose", +[](InlineCodeGenContext* ctx){
+        t.template method<void>("transpose", +[](InlineCodeGenContext* ctx){
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -1879,7 +1879,7 @@ namespace tsn {
             cf->add(ir_store).op(bzz).op(*self).op(cf->imm<u32>(offsetof(M, z) + offsetof(V, z)));
         }, public_access);
 
-        t.staticMethod<M, const V&, T>("rotation", +[](InlineCodeGenContext* ctx){
+        t.template staticMethod<M, const V&, T>("rotation", +[](InlineCodeGenContext* ctx){
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -1915,7 +1915,7 @@ namespace tsn {
             cf->add(ir_store).op(tmp).op(*result).op(cf->imm<u32>(offsetof(M, z) + offsetof(V, z)));
         }, public_access);
 
-        t.staticMethod<M, T, T, T, T>("rotation", +[](InlineCodeGenContext* ctx){
+        t.template staticMethod<M, T, T, T, T>("rotation", +[](InlineCodeGenContext* ctx){
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -1951,7 +1951,7 @@ namespace tsn {
             cf->add(ir_store).op(tmp).op(*result).op(cf->imm<u32>(offsetof(M, z) + offsetof(V, z)));
         }, public_access);
 
-        t.staticMethod<M, const V&>("scale", +[](InlineCodeGenContext* ctx){
+        t.template staticMethod<M, const V&>("scale", +[](InlineCodeGenContext* ctx){
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -1971,7 +1971,7 @@ namespace tsn {
             cf->add(ir_store).op(sz             ).op(*result).op(cf->imm<u32>(offsetof(M, z) + offsetof(V, z)));
         }, public_access);
 
-        t.staticMethod<M, T, T, T>("scale", +[](InlineCodeGenContext* ctx){
+        t.template staticMethod<M, T, T, T>("scale", +[](InlineCodeGenContext* ctx){
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -1991,7 +1991,7 @@ namespace tsn {
             cf->add(ir_store).op(sz             ).op(*result).op(cf->imm<u32>(offsetof(M, z) + offsetof(V, z)));
         }, public_access);
 
-        t.staticMethod<M, T>("scale", +[](InlineCodeGenContext* ctx){
+        t.template staticMethod<M, T>("scale", +[](InlineCodeGenContext* ctx){
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -2008,7 +2008,7 @@ namespace tsn {
             cf->add(ir_store).op(args[0]        ).op(*result).op(cf->imm<u32>(offsetof(M, z) + offsetof(V, z)));
         }, public_access);
 
-        t.prop<M>("transposed", +[](InlineCodeGenContext* ctx){
+        t.template prop<M>("transposed", +[](InlineCodeGenContext* ctx){
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -2089,7 +2089,7 @@ namespace tsn {
             cf->add(ir_store).op(cf->imm<T>(1.0)).op(*self).op(cf->imm<u32>(offsetof(M, w) + offsetof(V, w)));
         }, public_access);
 
-        t.ctor<
+        t.template ctor<
             T, T, T, T,
             T, T, T, T,
             T, T, T, T,
@@ -2118,7 +2118,7 @@ namespace tsn {
             cf->add(ir_store).op(args[15]).op(*self).op(cf->imm<u32>(offsetof(M, w) + offsetof(V, w)));
         }, public_access);
 
-        t.ctor<const V&, const V&, const V&, const V&>(+[](InlineCodeGenContext* ctx){
+        t.template ctor<const V&, const V&, const V&, const V&>(+[](InlineCodeGenContext* ctx){
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -2137,7 +2137,7 @@ namespace tsn {
             cf->add(ir_vset).op(w).op(args[3]);
         }, public_access);
 
-        t.ctor<const M&>(+[](InlineCodeGenContext* ctx){
+        t.template ctor<const M&>(+[](InlineCodeGenContext* ctx){
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -2160,7 +2160,7 @@ namespace tsn {
             cf->add(ir_vset).op(w).op(rw);
         }, public_access);
 
-        t.method<M, const M&>("operator*", +[](InlineCodeGenContext* ctx){
+        t.template method<M, const M&>("operator*", +[](InlineCodeGenContext* ctx){
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -2218,7 +2218,7 @@ namespace tsn {
             cf->add(ir_store).op(tmp).op(*result).op(cf->imm<u32>(offsetof(M, w) + offsetof(V, w)));
         }, public_access);
 
-        t.method<void, const M&>("operator*=", +[](InlineCodeGenContext* ctx){
+        t.template method<void, const M&>("operator*=", +[](InlineCodeGenContext* ctx){
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -2278,7 +2278,7 @@ namespace tsn {
             cf->add(ir_store).op(tmpW).op(aw).op(cf->imm<u32>(offsetof(V, w)));
         }, public_access);
 
-        t.method<void, const M&>("operator=", +[](InlineCodeGenContext* ctx){
+        t.template method<void, const M&>("operator=", +[](InlineCodeGenContext* ctx){
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -2301,7 +2301,7 @@ namespace tsn {
             cf->add(ir_vset).op(w).op(rw);
         }, public_access);
 
-        t.method<V, const V&>("operator*", +[](InlineCodeGenContext* ctx){
+        t.template method<V, const V&>("operator*", +[](InlineCodeGenContext* ctx){
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -2328,7 +2328,7 @@ namespace tsn {
             cf->add(ir_store).op(tmp).op(*result).op(cf->imm<u32>(offsetof(V, w)));
         }, public_access);
 
-        t.method<V, const V3&>("operator*", +[](InlineCodeGenContext* ctx){
+        t.template method<V, const V3&>("operator*", +[](InlineCodeGenContext* ctx){
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -2358,7 +2358,7 @@ namespace tsn {
             cf->add(ir_store).op(tmp).op(*result).op(cf->imm<u32>(offsetof(V3, z)));
         }, public_access);
 
-        t.method<void>("transpose", +[](InlineCodeGenContext* ctx){
+        t.template method<void>("transpose", +[](InlineCodeGenContext* ctx){
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -2402,7 +2402,7 @@ namespace tsn {
             cf->add(ir_store).op(bww).op(*self).op(cf->imm<u32>(offsetof(M, w) + offsetof(V, w)));
         }, public_access);
 
-        t.staticMethod<M, const V3&, T>("rotation", +[](InlineCodeGenContext* ctx){
+        t.template staticMethod<M, const V3&, T>("rotation", +[](InlineCodeGenContext* ctx){
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -2446,7 +2446,7 @@ namespace tsn {
             cf->add(ir_store).op(cf->imm<T>(T(1.0))).op(*result).op(cf->imm<u32>(offsetof(M, w) + offsetof(V, w)));
         }, public_access);
 
-        t.staticMethod<M, T, T, T, T>("rotation", +[](InlineCodeGenContext* ctx){
+        t.template staticMethod<M, T, T, T, T>("rotation", +[](InlineCodeGenContext* ctx){
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -2490,7 +2490,7 @@ namespace tsn {
             cf->add(ir_store).op(cf->imm<T>(T(1.0))).op(*result).op(cf->imm<u32>(offsetof(M, w) + offsetof(V, w)));
         }, public_access);
 
-        t.staticMethod<M, const V3&>("scale", +[](InlineCodeGenContext* ctx){
+        t.template staticMethod<M, const V3&>("scale", +[](InlineCodeGenContext* ctx){
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -2517,7 +2517,7 @@ namespace tsn {
             cf->add(ir_store).op(cf->imm<T>(1.0)).op(*result).op(cf->imm<u32>(offsetof(M, w) + offsetof(V, w)));
         }, public_access);
 
-        t.staticMethod<M, T, T, T>("scale", +[](InlineCodeGenContext* ctx){
+        t.template staticMethod<M, T, T, T>("scale", +[](InlineCodeGenContext* ctx){
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -2544,7 +2544,7 @@ namespace tsn {
             cf->add(ir_store).op(cf->imm<T>(1.0)).op(*result).op(cf->imm<u32>(offsetof(M, w) + offsetof(V, w)));
         }, public_access);
 
-        t.staticMethod<M, T>("scale", +[](InlineCodeGenContext* ctx){
+        t.template staticMethod<M, T>("scale", +[](InlineCodeGenContext* ctx){
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -2568,7 +2568,7 @@ namespace tsn {
             cf->add(ir_store).op(cf->imm<T>(1.0)).op(*result).op(cf->imm<u32>(offsetof(M, w) + offsetof(V, w)));
         }, public_access);
 
-        t.staticMethod<M, const V3&>("translation", +[](InlineCodeGenContext* ctx){
+        t.template staticMethod<M, const V3&>("translation", +[](InlineCodeGenContext* ctx){
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -2595,7 +2595,7 @@ namespace tsn {
             cf->add(ir_store).op(cf->imm<T>(1.0)).op(*result).op(cf->imm<u32>(offsetof(M, w) + offsetof(V, w)));
         }, public_access);
 
-        t.staticMethod<M, T, T, T>("translation", +[](InlineCodeGenContext* ctx){
+        t.template staticMethod<M, T, T, T>("translation", +[](InlineCodeGenContext* ctx){
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -2622,7 +2622,7 @@ namespace tsn {
             cf->add(ir_store).op(cf->imm<T>(1.0)).op(*result).op(cf->imm<u32>(offsetof(M, w) + offsetof(V, w)));
         }, public_access);
 
-        t.staticMethod<M, const V3&, const V3&, const V3&>("lookAt", +[](InlineCodeGenContext* ctx){
+        t.template staticMethod<M, const V3&, const V3&, const V3&>("lookAt", +[](InlineCodeGenContext* ctx){
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -2684,7 +2684,7 @@ namespace tsn {
             cf->add(ir_store).op(cf->imm<T>(1.0)).op(*result).op(cf->imm<u32>(offsetof(M, w) + offsetof(V, w)));
         }, public_access);
 
-        t.staticMethod<M, T, T, T, T>("perspective", +[](InlineCodeGenContext* ctx){
+        t.template staticMethod<M, T, T, T, T>("perspective", +[](InlineCodeGenContext* ctx){
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -2717,7 +2717,7 @@ namespace tsn {
             cf->add(ir_store).op(cf->imm<T>( 0.0)).op(*result).op(cf->imm<u32>(offsetof(M, w) + offsetof(V, w)));
         }, public_access);
 
-        t.staticMethod<M, T, T, T, T, T, T>("orthographic", +[](InlineCodeGenContext* ctx){
+        t.template staticMethod<M, T, T, T, T, T, T>("orthographic", +[](InlineCodeGenContext* ctx){
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto result = ctx->resultStorage;
@@ -2751,7 +2751,7 @@ namespace tsn {
             cf->add(ir_store).op(cf->imm<T>(1.0)).op(*result).op(cf->imm<u32>(offsetof(M, w) + offsetof(V, w)));
         }, public_access);
 
-        t.prop<M>("transposed", +[](InlineCodeGenContext* ctx){
+        t.template prop<M>("transposed", +[](InlineCodeGenContext* ctx){
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;
@@ -2797,7 +2797,7 @@ namespace tsn {
             cf->add(ir_store).op(bww).op(*result).op(cf->imm<u32>(offsetof(M, w) + offsetof(V, w)));
         }, nullptr, public_access);
 
-        t.prop<M3>("basis", +[](InlineCodeGenContext* ctx){
+        t.template prop<M3>("basis", +[](InlineCodeGenContext* ctx){
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
             auto self = ctx->selfPointer;

@@ -1,5 +1,8 @@
 #pragma once
 #include <stdint.h>
+#ifndef _MSC_VER
+#include <stddef.h>
+#endif
 
 namespace tsn {
     typedef uint64_t    u64;

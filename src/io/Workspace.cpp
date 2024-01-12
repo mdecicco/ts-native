@@ -196,13 +196,13 @@ namespace tsn {
 
         if (!std::filesystem::exists(supportDir)) {
             if (!std::filesystem::create_directory(supportDir)) {
-                throw std::exception("Failed to create support directory");
+                throw "Failed to create support directory";
             }
         }
         
         if (!std::filesystem::exists(workspaceRoot / "trusted")) {
             if (!std::filesystem::create_directory(workspaceRoot / "trusted")) {
-                throw std::exception("Failed to create trusted module directory");
+                throw "Failed to create trusted module directory";
             }
         }
 

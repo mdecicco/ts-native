@@ -21,7 +21,7 @@ namespace tsn {
                 BindException(const utils::String& message);
                 ~BindException();
 
-                virtual char const* what() const;
+                virtual char const* what() const noexcept;
 
             private:
                 utils::String m_message;

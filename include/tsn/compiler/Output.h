@@ -16,7 +16,7 @@ namespace tsn {
     namespace ffi {
         class DataType;
         class Function;
-        enum data_type_instance;
+        enum data_type_instance : u32;
         class FunctionRegistry;
         class DataTypeRegistry;
     };
@@ -26,7 +26,7 @@ namespace tsn {
         class OutputBuilder;
         class TemplateContext;
         class CodeHolder;
-        enum ir_instruction;
+        enum ir_instruction : u32;
         enum operand_type : u8;
 
         namespace output {

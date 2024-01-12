@@ -227,7 +227,7 @@ namespace tsn {
             if (m_output) return;
 
             Module* m = m_ctx->createModule(
-                std::filesystem::path(m_meta->path).filename().replace_extension("").string(),
+                std::filesystem::path(m_meta->path).filename().replace_extension().string(),
                 m_meta->path,
                 m_meta
             );

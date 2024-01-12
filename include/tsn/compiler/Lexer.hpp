@@ -19,7 +19,7 @@ namespace tsn {
             u32 end = count;
             u32 i = 0;
 
-            for (const char* ptr = str;*ptr != 0;*ptr++, i++) {
+            for (const char* ptr = str;*ptr != 0;ptr++, i++) {
                 char next = *(ptr + 1);
                 bool tokenEnds = !isalnum(next) && next != '_';
 

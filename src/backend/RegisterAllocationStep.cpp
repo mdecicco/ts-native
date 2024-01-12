@@ -1,4 +1,3 @@
-#pragma once
 #include <tsn/backend/RegisterAllocationStep.h>
 #include <tsn/compiler/IR.h>
 #include <tsn/compiler/Value.hpp>

@@ -272,7 +272,7 @@ namespace tsn {
 
         u32 FunctionDef::capture(const Value& val) {
             if (val.getName().size() == 0) {
-                throw std::exception("Attempt to capture anonymous value");
+                throw "Attempt to capture anonymous value";
             }
 
             for (u32 i = 0;i < m_captures.size();i++) {

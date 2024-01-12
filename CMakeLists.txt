@@ -68,7 +68,7 @@ target_link_libraries(tsn
 
 add_subdirectory("./deps")
 
-set(TSN_BUILD_TESTS TRUE CACHE BOOL "Build tsn test targets")
+set(TSN_BUILD_TESTS FALSE CACHE BOOL "Build tsn test targets")
 set(TSN_BUILD_TOOLS TRUE CACHE BOOL "Build tsn tools")
 
 if (TSN_BUILD_TESTS)
