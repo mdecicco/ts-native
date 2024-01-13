@@ -53,7 +53,7 @@ namespace tsn {
         protected:
             utils::String generateTemplateModuleName(ffi::TemplateType* type, const utils::Array<ffi::DataType*> templateArgs) const;
             Module* tryCache(const script_metadata* script);
-            void postCompile(script_metadata* script, bool takeOwnershipOfSource);
+            void postCompile(script_metadata* script);
 
             bool m_isCompiling;
             Pipeline* m_parent;

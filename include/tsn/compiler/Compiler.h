@@ -15,6 +15,7 @@ namespace tsn {
 
     namespace ffi {
         class DataType;
+        class FunctionType;
         class Function;
         class Method;
         struct function_argument;
@@ -119,6 +120,7 @@ namespace tsn {
                 bool inInitFunction() const;
                 bool isTrusted() const;
                 utils::String generateFullQualifierPrefix() const;
+                ffi::FunctionType* getOrCreateFunctionType(ffi::DataType* thisTp, ffi::DataType* retTp, const utils::Array<ffi::DataType*> argTps);
 
                 TemplateContext* createTemplateContext(ParseNode* n);
                 void pushTemplateContext(TemplateContext* tctx);

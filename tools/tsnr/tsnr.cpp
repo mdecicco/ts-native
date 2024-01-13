@@ -47,7 +47,6 @@ struct tsnc_config {
     const char* config_path;
     const char* entry_point;
     backend_type backend;
-    bool trusted;
     bool disableOptimizations;
     bool logDuration;
 };
@@ -58,7 +57,7 @@ bool getBoolArg(i32 argc, const char** argv, const char* code);
 i32 parse_args(i32 argc, const char** argv, tsnc_config* conf, Config* ctxConf);
 char* loadText(const char* filename, bool required, const tsnc_config& conf);
 i32 processConfig(const json& configIn, Config& configOut, const tsnc_config& tsncConf);
-i32 handleResult(Context* ctx, Module* mod, const script_metadata& meta, const tsnc_config& conf);
+i32 handleResult(Context* ctx, Module* mod, const tsnc_config& conf);
 String formatDuration(f32 seconds);
 
 i32 main (i32 argc, const char** argv) {
@@ -71,9 +70,8 @@ i32 main (i32 argc, const char** argv) {
     }
 
     tsnc_config conf;
-    conf.script_path = "./main.tsn";
+    conf.script_path = "main";
     conf.config_path = "./tsnc.json";
-    conf.trusted = false;
     conf.backend = bt_none;
 
     Config contextCfg;
@@ -101,27 +99,6 @@ i32 main (i32 argc, const char** argv) {
     }
 
     contextCfg.disableOptimizations = conf.disableOptimizations;
-    
-    script_metadata meta;
-    try {
-        meta.path = std::filesystem::relative(conf.script_path, contextCfg.workspaceRoot.c_str()).string();
-        enforceDirSeparator(meta.path);
-        meta.size = (size_t)std::filesystem::file_size(conf.script_path);
-        meta.is_trusted = conf.trusted;
-        meta.is_external = true;
-        meta.cached_on = 0;
-        meta.modified_on = std::chrono::duration_cast<std::chrono::milliseconds>(
-            std::filesystem::last_write_time(conf.script_path).time_since_epoch()
-        ).count();
-    } catch (std::exception exc) {
-        printf("Encountered exception while getting script metadata: %s\n", exc.what());
-        return UNKNOWN_ERROR;
-    }
-
-    if (meta.size == 0) {
-        printf("The specified script is empty");
-        return FILE_EMPTY;
-    }
 
     utils::Mem::Create();
     tsn::ffi::ExecutionContext::Init();
@@ -141,7 +118,7 @@ i32 main (i32 argc, const char** argv) {
 
         utils::Timer tmr;
         tmr.start();
-        Module* mod = ctx.getPipeline()->buildFromSource(&meta);
+        Module* mod = ctx.getModule(conf.script_path);
         compilationTime = tmr;
         tmr.reset();
 
@@ -151,7 +128,7 @@ i32 main (i32 argc, const char** argv) {
         executionTime = tmr;
         tmr.reset();
 
-        status = handleResult(&ctx, mod, meta, conf);
+        status = handleResult(&ctx, mod, conf);
 
         if (conf.logDuration) {
             printf("Compilation time: %s\n", formatDuration(compilationTime).c_str());
@@ -175,9 +152,8 @@ void print_help() {
     printf("Info:\n");
     printf("    This tool is used to compile execute TSN scripts.\n");
     printf("Usage:\n");
-    printf("    -s <script file>    Specifies entrypoint script to compile. Defaults to './main.tsn'.\n");
+    printf("    -s <module path>    Specifies entrypoint module to compile and execute. Defaults to 'main'.\n");
     printf("    -c <config file>    Specifies compiler configuration file, must be JSON format. Defaults to './tsnc.json'.\n");
-    printf("    -t                  Compiles the specified script in trusted mode\n");
     printf("    -u                  Disables optimization (overrides configuration file)\n");
     printf("    -p                  Logs timing information\n");
     printf("    -b <backend>        Specifies the backend to use for running compiled code.\n");
@@ -221,7 +197,6 @@ bool getBoolArg(i32 argc, const char** argv, const char* code) {
 i32 parse_args(i32 argc, const char** argv, tsnc_config* conf, Config* ctxConf) {
     conf->script_path = "./main.tsn";
     conf->config_path = "./tsnc.json";
-    conf->trusted = false;
     conf->disableOptimizations = ctxConf->disableOptimizations;
     conf->logDuration = false;
     conf->backend = bt_vm;
@@ -246,7 +221,6 @@ i32 parse_args(i32 argc, const char** argv, tsnc_config* conf, Config* ctxConf) 
             }
         }
 
-        if (getBoolArg(argc, argv, "t")) conf->trusted = true;
         if (getBoolArg(argc, argv, "p")) conf->logDuration = true;
         if (getBoolArg(argc, argv, "u")) conf->disableOptimizations = true;
 
@@ -362,7 +336,7 @@ i32 processConfig(const json& configIn, Config& configOut, const tsnc_config& ts
     return 0;
 }
 
-i32 handleResult(Context* ctx, Module* mod, const script_metadata& meta, const tsnc_config& conf) {
+i32 handleResult(Context* ctx, Module* mod, const tsnc_config& conf) {
     bool hadErrors = ctx->getPipeline()->getLogger()->hasErrors();
 
     const auto& logs = ctx->getPipeline()->getLogger()->getMessages();

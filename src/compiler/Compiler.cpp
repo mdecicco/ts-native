@@ -183,6 +183,56 @@ namespace tsn {
             return out;
         }
 
+        ffi::FunctionType* Compiler::getOrCreateFunctionType(ffi::DataType* thisTp, ffi::DataType* retTp, const utils::Array<ffi::DataType*> argTps) {
+            DataType* ptrTp = m_ctx->getTypes()->getVoidPtr();
+
+            Array<function_argument> args;
+            args.push({ arg_type::context_ptr, ptrTp });
+
+            for (u32 i = 0;i < argTps.size();i++) {
+                ffi::DataType* atp = argTps[i];
+                args.push({
+                    atp->getInfo().is_primitive ? arg_type::value : arg_type::pointer,
+                    atp
+                });
+            }
+
+            ffi::FunctionType* sig = new FunctionType(thisTp, retTp, args, false);
+            
+            bool sigExisted = false;
+            const auto& types = m_output->getTypes();
+            for (auto* t : types) {
+                const auto& info = t->getInfo();
+                if (!info.is_function) continue;
+                if (sig->isEquivalentTo(t)) {
+                    delete sig;
+                    sig = (FunctionType*)t;
+                    sigExisted = true;
+                    break;
+                }
+            }
+
+            if (!sigExisted) {
+                const auto& types =  m_ctx->getTypes()->allTypes();
+                for (auto* t : types) {
+                    const auto& info = t->getInfo();
+                    if (!info.is_function) continue;
+                    if (sig->isEquivalentTo(t)) {
+                        delete sig;
+                        sig = (FunctionType*)t;
+                        sigExisted = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!sigExisted) {
+                m_output->add(sig);
+            }
+
+            return sig;
+        }
+
         TemplateContext* Compiler::createTemplateContext(ParseNode* n) {
             TemplateContext* current = getTemplateContext();
             TemplateContext* tctx = new TemplateContext(n, current ? current->getOrigin() : m_output->getModule());
@@ -1455,7 +1505,7 @@ namespace tsn {
             if (!outTp) return currentFunction()->getPoison().getType();
             
             scope().getBase().add(name, outTp);
-            m_output->addDependency(arrTp->getSource());
+            m_output->addDependency(outTp->getSource());
             return outTp;
         }
         DataType* Compiler::getPointerType(DataType* destTp) {
@@ -1485,7 +1535,7 @@ namespace tsn {
             if (!outTp) return currentFunction()->getPoison().getType();
             
             scope().getBase().add(name, outTp);
-            m_output->addDependency(ptrTp->getSource());
+            m_output->addDependency(outTp->getSource());
             return outTp;
         }
         DataType* Compiler::resolveTemplateTypeSubstitution(ParseNode* templateArgs, DataType* _type) {
@@ -1607,6 +1657,8 @@ namespace tsn {
                 return currentFunction()->getPoison().getType();
             }
 
+            m_output->addDependency(tp->getSource());
+
             if (tpAst->tp == nt_type) {
                 tp = new AliasType(name, fullName, tp);
                 tp->setAccessModifier(private_access);
@@ -1698,26 +1750,16 @@ namespace tsn {
         DataType* Compiler::resolveFunctionTypeSpecifier(ParseNode* n) {
             enterNode(n);
             DataType* retTp = resolveTypeSpecifier(n->data_type);
-            DataType* ptrTp = m_ctx->getTypes()->getVoidPtr();
-            Array<function_argument> args;
-            args.push({ arg_type::context_ptr, ptrTp });
+            utils::Array<DataType*> argTps;
 
             ParseNode* a = n->parameters;
             while (a) {
-                DataType* atp = resolveTypeSpecifier(a->data_type);
-                args.push({
-                    atp->getInfo().is_primitive ? arg_type::value : arg_type::pointer,
-                    atp
-                });
+                argTps.push(resolveTypeSpecifier(a->data_type));
                 a = a->next;
             }
 
-            DataType* tp = new FunctionType(nullptr, retTp, args, false);
-            
-            // function types are always public
-            tp->setAccessModifier(public_access);
+            DataType* tp = (DataType*)getOrCreateFunctionType(nullptr, retTp, argTps);
 
-            m_output->add(tp);
             exitNode();
             return tp;
         }
@@ -1869,48 +1911,11 @@ namespace tsn {
 
             DataType* voidTp = m_ctx->getTypes()->getVoid();
             DataType* ptrTp = m_ctx->getTypes()->getVoidPtr();
-            utils::Array<function_argument> args;
-            args.push({ arg_type::context_ptr, ptrTp });
-            
-            FunctionType* sig = new FunctionType(forTp, voidTp, args, false);
-            // function types are always public
-            sig->setAccessModifier(public_access);
-
-            bool sigExisted = false;
-            const auto& types = m_output->getTypes();
-            for (auto* t : types) {
-                const auto& info = t->getInfo();
-                if (!info.is_function) continue;
-                if (sig->isEquivalentTo(t)) {
-                    delete sig;
-                    sig = (FunctionType*)t;
-                    sigExisted = true;
-                    break;
-                }
-            }
-
-            if (!sigExisted) {
-                const auto& types = getContext()->getTypes()->allTypes();
-                for (auto* t : types) {
-                    const auto& info = t->getInfo();
-                    if (!info.is_function) continue;
-                    if (sig->isEquivalentTo(t)) {
-                        delete sig;
-                        sig = (FunctionType*)t;
-                        sigExisted = true;
-                        break;
-                    }
-                }
-            }
-
-            if (!sigExisted) {
-                m_output->add(sig);
-            }
 
             Method* m = new Method(
                 "constructor",
                 generateFullQualifierPrefix(),
-                sig,
+                getOrCreateFunctionType(forTp, voidTp, { ptrTp }),
                 public_access,
                 nullptr,
                 nullptr,
@@ -2100,11 +2105,8 @@ namespace tsn {
                 }
             }
 
-            utils::Array<function_argument> args;
-            args.push({ arg_type::context_ptr, ptrTp });
-
             ParseNode* p = n->parameters;
-            u8 a = u8(args.size());
+            u8 a = 1;
             DataType* poisonTp = currentFunction()->getPoison().getType();
             Array<DataType*> argTps;
             Array<String> argNames;
@@ -2120,7 +2122,6 @@ namespace tsn {
                     );
                 } else argTp = resolveTypeSpecifier(p->data_type);
 
-                args.push({ argTp->getInfo().is_primitive ? arg_type::value : arg_type::pointer, argTp });
                 argTps.push(argTp);
                 argNames.push(p->str());
 
@@ -2128,46 +2129,10 @@ namespace tsn {
                 a++;
             }
 
-            FunctionType* sig = new FunctionType(currentClass(), ret, args, false);
-            
-            // function types are always public
-            sig->setAccessModifier(public_access);
-
-            bool sigExisted = false;
-            const auto& types = m_output->getTypes();
-            for (auto* t : types) {
-                const auto& info = t->getInfo();
-                if (!info.is_function) continue;
-                if (sig->isEquivalentTo(t)) {
-                    delete sig;
-                    sig = (FunctionType*)t;
-                    sigExisted = true;
-                    break;
-                }
-            }
-
-            if (!sigExisted) {
-                const auto& types = getContext()->getTypes()->allTypes();
-                for (auto* t : types) {
-                    const auto& info = t->getInfo();
-                    if (!info.is_function) continue;
-                    if (sig->isEquivalentTo(t)) {
-                        delete sig;
-                        sig = (FunctionType*)t;
-                        sigExisted = true;
-                        break;
-                    }
-                }
-            }
-
-            if (!sigExisted) {
-                m_output->add(sig);
-            }
-
             Method* m = new Method(
                 name,
                 generateFullQualifierPrefix(),
-                sig,
+                getOrCreateFunctionType(currentClass(), ret, argTps),
                 n->flags.is_private ? private_access : public_access,
                 nullptr,
                 nullptr,
