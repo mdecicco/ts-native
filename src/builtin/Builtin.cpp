@@ -169,14 +169,10 @@ namespace tsn {
 
         bind(ctx, "print", print);
 
-        // pointer compilation needs the above
+        // Will load the array and pointer modules
         ctx->getTypes()->updateCachedTypes();
 
         BindPointer(ctx);
-
-        // array compilation needs pointer
-        ctx->getTypes()->updateCachedTypes();
-
         BindArray(ctx);
 
         auto ev = extend<void*>(ctx);

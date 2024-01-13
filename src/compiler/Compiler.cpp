@@ -1254,7 +1254,7 @@ namespace tsn {
                     if (arg.argType == arg_type::context_ptr) {
                         alloc_id stackId = cf->reserveStackId();
                         add(ir_stack_allocate)
-                            .op(cf->imm(sizeof(call_context)))
+                            .op(cf->imm<u64>(sizeof(call_context)))
                             .op(cf->imm(stackId))
                             .comment("Allocate stack space for call context")
                         ;

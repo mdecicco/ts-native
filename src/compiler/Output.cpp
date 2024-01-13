@@ -181,10 +181,6 @@ namespace tsn {
                 if (!out->write(f.func->getId())) return false;
                 if (!out->write(f.icount)) return false;
 
-                if (out->position() == 34385) {
-                    printf("break\n");
-                }
-
                 for (u32 c = 0;c < f.icount;c++) {
                     const auto& inst = f.code[c];
                     const auto& info = instruction_info(inst.op);
@@ -463,10 +459,6 @@ namespace tsn {
 
                 if (!in->read(f.icount)) return onFailure();
                 f.code = new output::instruction[f.icount];
-
-                if (in->position() == 34385) {
-                    printf("break\n");
-                }
 
                 for (u32 c = 0;c < f.icount;c++) {
                     auto& inst = f.code[c];

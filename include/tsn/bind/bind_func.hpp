@@ -13,6 +13,7 @@
 #include <utils/String.h>
 #include <utils/Array.hpp>
 
+#include <functional>
 
 #ifdef _MSC_VER
 #include <xtr1common>
