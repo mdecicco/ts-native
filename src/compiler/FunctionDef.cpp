@@ -585,44 +585,16 @@ namespace tsn {
 
             if (m_output) return m_output;
 
-            ffi::FunctionType* sig = new FunctionType(m_thisTp, m_retTp, m_argInfo, false);
-            
-            bool sigExisted = false;
-            const auto& types = m_comp->getOutput()->getTypes();
-            for (auto* t : types) {
-                const auto& info = t->getInfo();
-                if (!info.is_function) continue;
-                if (sig->isEquivalentTo(t)) {
-                    delete sig;
-                    sig = (FunctionType*)t;
-                    sigExisted = true;
-                    break;
-                }
+            utils::Array<ffi::DataType*> argTps;
+            for (u32 i = 0;i < m_argInfo.size();i++) {
+                if (m_argInfo[i].isImplicit()) continue;
+                argTps.push(m_argInfo[i].dataType);
             }
-
-            if (!sigExisted) {
-                const auto& types =  m_comp->getContext()->getTypes()->allTypes();
-                for (auto* t : types) {
-                    const auto& info = t->getInfo();
-                    if (!info.is_function) continue;
-                    if (sig->isEquivalentTo(t)) {
-                        delete sig;
-                        sig = (FunctionType*)t;
-                        sigExisted = true;
-                        break;
-                    }
-                }
-            }
-
-            if (!sigExisted) {
-                m_comp->getOutput()->add(sig);
-            }
-
 
             m_output = new Function(
                 m_name,
                 m_comp->getOutput()->getModule()->getName() + "::",
-                sig,
+                m_comp->getOrCreateFunctionType(m_thisTp, m_retTp, argTps),
                 private_access,
                 nullptr,
                 nullptr,

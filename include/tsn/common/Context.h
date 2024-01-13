@@ -57,6 +57,7 @@ namespace tsn {
             Module* createHostModule(const utils::String& name);
             Module* getModule(const utils::String& path, const utils::String& fromDir = utils::String());
             Module* getModule(u32 moduleId);
+            void destroyModule(Module* mod, bool doDeleteMetadata);
 
         protected:
             Workspace* m_workspace;
@@ -67,8 +68,9 @@ namespace tsn {
             backend::IBackend* m_backend;
             Module* m_global;
             Config* m_cfg;
-            robin_hood::unordered_map<utils::String, Module*> m_modules;
-            robin_hood::unordered_map<u32, Module*> m_modulesById;
+            utils::Array<Module*> m_modules;
+            robin_hood::unordered_map<utils::String, u32> m_moduleIndices;
+            robin_hood::unordered_map<u32, u32> m_moduleIndicesById;
             u32 m_builtinApiVersion;
             u32 m_userApiVersion;
     };

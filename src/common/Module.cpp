@@ -11,13 +11,9 @@ namespace tsn {
         m_meta = meta;
         m_src = nullptr;
         m_didInit = false;
-        m_ownsSource = false;
     }
 
     Module::~Module() {
-        if (m_src && m_ownsSource) delete m_src;
-        m_src = nullptr;
-
         for (u32 i = 0;i < m_data.size();i++) {
             if (m_data[i].type) {
                 ffi::Function* dtor = m_data[i].type->getDestructor();
@@ -104,8 +100,7 @@ namespace tsn {
         return m_data.size() - 1;
     }
 
-    void Module::setSrc(ModuleSource* src, bool takeOwnership) {
+    void Module::setSrc(ModuleSource* src) {
         m_src = src;
-        m_ownsSource = takeOwnership;
     }
 };

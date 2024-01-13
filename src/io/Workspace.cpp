@@ -4,8 +4,10 @@
 #include <tsn/compiler/Output.h>
 #include <tsn/interfaces/IPersistable.h>
 #include <tsn/pipeline/Pipeline.h>
+#include <tsn/utils/ModuleSource.h>
 
 #include <utils/Buffer.hpp>
+#include <utils/Array.hpp>
 
 #include <filesystem>
 #include <algorithm>
@@ -85,6 +87,7 @@ namespace tsn {
 
             for (u32 i = 0;i < count;i++) {
                 m = new script_metadata();
+                m->is_persistent = true;
 
                 u16 plen = 0;
                 if (!in->read(plen)) throw false;
@@ -102,6 +105,31 @@ namespace tsn {
 
                 m_scripts[m->path] = m;
             }
+
+            utils::Array<std::string> paths;
+
+            if (!in->read(count)) throw false;
+            for (u32 i = 0;i < count;i++) {
+                u16 plen;
+                if (!in->read(plen)) throw false;
+
+                utils::String path = in->readStr(plen);
+                if (path.size() != plen) throw false;
+
+                paths.push(path);
+            }
+
+            if (!in->read(count)) throw false;
+            for (u32 i = 0;i < count;i++) {
+                u32 moduleId;
+                if (!in->read(moduleId)) throw false;
+
+                u16 pathIdx;
+                if (!in->read(pathIdx)) throw false;
+
+                m_moduleIdSourcePathMap[moduleId] = paths[pathIdx];
+            }
+
         } catch (bool success) {
             if (!success) {
                 if (in) delete in;
@@ -125,10 +153,19 @@ namespace tsn {
         out.write(m_ctx->getExtendedApiVersion());
         out.write((u16)m_ctx->getConfig()->workspaceRoot.length());
         out.write(m_ctx->getConfig()->workspaceRoot.c_str(), m_ctx->getConfig()->workspaceRoot.length());
-        out.write((u32)m_scripts.size());
+
+        u32 count = 0;
+        for (auto it : m_scripts) {
+            script_metadata* m = it.second;
+            if (!m->is_persistent) continue;
+            count++;
+        }
+        out.write(count);
         
         for (auto it : m_scripts) {
             script_metadata* m = it.second;
+            if (!m->is_persistent) continue;
+            
             out.write((u16)m->path.length());
             out.write(m->path.c_str(), m->path.length());
             out.write(m->size);
@@ -137,11 +174,56 @@ namespace tsn {
             out.write(m->is_trusted);
         }
 
+        utils::Array<std::string> paths;
+        robin_hood::unordered_map<std::string, u32> pathIndices;
+        robin_hood::unordered_map<u32, u16> idMap;
+        for (auto it : m_moduleIdSourcePathMap) {
+            auto p = pathIndices.find(it.second);
+            if (p != pathIndices.end()) {
+                idMap[it.first] = pathIndices[it.second];
+            } else {
+                paths.push(it.second);
+                pathIndices[it.second] = paths.size() - 1;
+                idMap[it.first] = paths.size() - 1;
+            }
+        }
+
+        out.write((u32)paths.size());
+        for (u32 i = 0;i < paths.size();i++) {
+            out.write((u16)paths[i].size());
+            out.write(paths[i].c_str(), paths[i].size());
+        }
+
+        out.write((u32)idMap.size());
+        for (auto it : idMap) {
+            out.write(it.first);
+            out.write(it.second);
+        }
+
         if (!out.save(m_ctx->getConfig()->supportDir + "/last_state.db")) {
             return false;
         }
 
         return true;
+    }
+
+    void PersistenceDatabase::destroyMetadata(const script_metadata* meta) {
+        for (auto it : m_scripts) {
+            if (it.second != meta) continue;
+
+            std::filesystem::path cachePath = m_ctx->getWorkspace()->getCachePath(meta).c_str();
+            if (std::filesystem::exists(cachePath)) {
+                if (!std::filesystem::remove(cachePath)) {
+                    // todo: warning?
+                    // hanging file shouldn't cause any issues since it'll
+                    // either be overwritten or never used again
+                }
+            }
+
+            delete it.second;
+            m_scripts.erase(it.first);
+            return;
+        }
     }
 
     script_metadata* PersistenceDatabase::getScript(const std::string& path) {
@@ -158,7 +240,8 @@ namespace tsn {
             modifiedTimestamp,
             0,
             trusted,
-            false
+            false,
+            true
         });
         
         m_scripts[path] = out;
@@ -169,13 +252,29 @@ namespace tsn {
         script->size = size;
         script->modified_on = modifiedTimestamp;
     }
+
+    void PersistenceDatabase::mapSourcePath(u32 moduleId, const std::string& path) {
+        m_moduleIdSourcePathMap[moduleId] = path;
+    }
+
+    std::string PersistenceDatabase::getSourcePath(u32 moduleId) const {
+        auto it = m_moduleIdSourcePathMap.find(moduleId);
+        if (it != m_moduleIdSourcePathMap.end()) return it->second;
+
+        for (auto s : m_scripts) {
+            if (s.second->module_id == moduleId) {
+                return s.second->path;
+            }
+        }
+
+        return "";
+    }
     
     bool PersistenceDatabase::onScriptCompiled(script_metadata* script, compiler::Output* output) {
         utils::Buffer cached;
         if (!output->serialize(&cached, m_ctx)) return false;
 
-        std::filesystem::path p = m_ctx->getConfig()->supportDir;
-        p /= utils::String::Format("%u.tsnc", script->module_id).c_str();
+        std::filesystem::path p = m_ctx->getWorkspace()->getCachePath(script).c_str();
 
         if (!cached.save(p.string())) return false;
 
@@ -200,6 +299,12 @@ namespace tsn {
             }
         }
         
+        if (!std::filesystem::exists(supportDir / "cached")) {
+            if (!std::filesystem::create_directory(supportDir / "cached")) {
+                throw std::exception("Failed to create cache directory");
+            }
+        }
+        
         if (!std::filesystem::exists(workspaceRoot / "trusted")) {
             if (!std::filesystem::create_directory(workspaceRoot / "trusted")) {
                 throw std::exception("Failed to create trusted module directory");
@@ -214,6 +319,9 @@ namespace tsn {
 
     Workspace::~Workspace() {
         delete m_db;
+
+        for (auto s : m_sources) delete s.second;
+        m_sources.clear();
     }
 
     void Workspace::service() {
@@ -229,10 +337,33 @@ namespace tsn {
         }
     }
 
-    Module* Workspace::getModule(const utils::String& path, const utils::String& fromDir) {
+    ModuleSource* Workspace::getSource(const utils::String& path) {
+        auto it = m_sources.find(path);
+        if (it != m_sources.end()) return it->second;
+
+        script_metadata* meta = m_db->getScript(path);
+        if (!meta) return nullptr;
+
+        std::filesystem::path absSourcePath = m_ctx->getConfig()->workspaceRoot;
+        absSourcePath /= m_ctx->getWorkspace()->getSourcePath(meta->module_id);
+        absSourcePath = std::filesystem::absolute(absSourcePath);
+
+        if (!std::filesystem::exists(absSourcePath)) return nullptr;
+        utils::Buffer* code = utils::Buffer::FromFile(absSourcePath.string());
+        if (!code) return nullptr;
+
+        ModuleSource* src = new ModuleSource(code, meta);
+        delete code;
+
+        m_sources[path] = src;
+
+        return src;
+    }
+    
+    utils::String Workspace::getWorkspacePath(const utils::String& path, const utils::String& fromDir) {
         using fspath = std::filesystem::path;
 
-        utils::String pathWithExt = path;
+        utils::String pathWithExt = enforceDirSeparator(path);
         if (path.toLowerCase().firstIndexOf(".tsn") < 0) pathWithExt += ".tsn";
 
         fspath p;
@@ -240,39 +371,80 @@ namespace tsn {
         // Try relative to the current path first
         if (fromDir.size() > 0) {
             p = fromDir.c_str() / fspath(pathWithExt.c_str());
-            if (std::filesystem::exists(p)) return loadModule(p.string());
+            if (std::filesystem::exists(p)) {
+                return enforceDirSeparator(std::filesystem::relative(p, m_ctx->getConfig()->workspaceRoot).string());
+            }
         }
 
         // Then relative to the workspace root
         p = fspath(m_ctx->getConfig()->workspaceRoot) / fspath(pathWithExt.c_str());
-        if (std::filesystem::exists(p)) return loadModule(p.string());
+        if (std::filesystem::exists(p)) {
+            return enforceDirSeparator(std::filesystem::relative(p, m_ctx->getConfig()->workspaceRoot).string());
+        }
 
         // Then relative to the trusted folder
         p = fspath(m_ctx->getConfig()->workspaceRoot) / "trusted" / fspath(pathWithExt.c_str());
-        if (std::filesystem::exists(p)) return loadModule(p.string());
+        if (std::filesystem::exists(p)) {
+            return enforceDirSeparator(std::filesystem::relative(p, m_ctx->getConfig()->workspaceRoot).string());
+        }
+
+        return utils::String();
+    }
+
+    Module* Workspace::getModule(const utils::String& path, const utils::String& fromDir) {
+        using fspath = std::filesystem::path;
+
+        utils::String wsPath = getWorkspacePath(path, fromDir);
+
+        if (wsPath.size() > 0) return loadModule(wsPath);
+
+        // Maybe it's not a real path but was synthesized by the host
+        script_metadata* meta = m_db->getScript(enforceDirSeparator(path));
+        if (meta) {
+            // Oh?
+            Module* mod = loadCached(meta);
+            if (mod) return mod;
+        }
 
         return nullptr;
     }
     
-    script_metadata* Workspace::createMeta(const utils::String& path, size_t size, u64 modifiedTimestamp, bool trusted) {
+    script_metadata* Workspace::createMeta(const utils::String& path, size_t size, u64 modifiedTimestamp, bool trusted, bool persistent) {
         script_metadata* meta = m_db->getScript(path);
         if (meta) return meta;
 
-        return m_db->onFileDiscovered(path, size, modifiedTimestamp, trusted);
+        meta = m_db->onFileDiscovered(path, size, modifiedTimestamp, trusted);
+        meta->is_persistent = persistent;
+        return meta;
     }
     
     PersistenceDatabase* Workspace::getPersistor() const {
         return m_db;
     }
 
+    utils::String Workspace::getCachePath(const script_metadata* script) const {
+        return utils::String::Format(
+            "%s/cached/%u.tsnc",
+            m_ctx->getConfig()->supportDir.c_str(),
+            script->module_id
+        );
+    }
+
+    void Workspace::mapSourcePath(u32 moduleId, const std::string& path) {
+        m_db->mapSourcePath(moduleId, path);
+    }
+
+    std::string Workspace::getSourcePath(u32 moduleId) const {
+        return m_db->getSourcePath(moduleId);
+    }
+
     Module* Workspace::loadModule(const std::string& path) {
-        std::filesystem::path relpath = std::filesystem::relative(path, m_ctx->getConfig()->workspaceRoot);
-        script_metadata* meta = m_db->getScript(enforceDirSeparator(relpath.string()));
+        script_metadata* meta = m_db->getScript(path);
 
         if (meta) {
             // find out if it's cached, and if the cache is still valid
             u64 lastModifiedOn = std::chrono::duration_cast<std::chrono::milliseconds>(
-                std::filesystem::last_write_time(path).time_since_epoch()
+                std::filesystem::last_write_time(m_ctx->getConfig()->workspaceRoot + '/' + path).time_since_epoch()
             ).count();
 
             if (lastModifiedOn < meta->cached_on) {
@@ -287,13 +459,9 @@ namespace tsn {
     }
     
     Module* Workspace::loadCached(script_metadata* script) {
-        utils::String cachePath = utils::String::Format(
-            "%s/%u.tsnc",
-            m_ctx->getConfig()->supportDir.c_str(),
-            script->module_id
-        );
+        utils::String cachePath = getCachePath(script);
 
-        if (!std::filesystem::exists(cachePath.c_str())) return nullptr;
+        if (!std::filesystem::exists(getCachePath(script).c_str())) return nullptr;
 
         return m_ctx->getPipeline()->buildFromCached(script);
     }

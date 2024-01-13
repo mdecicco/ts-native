@@ -7,8 +7,9 @@
 #include <tsn/interfaces/IDataTypeHolder.hpp>
 #include <tsn/builtin/Builtin.h>
 #include <tsn/io/Workspace.h>
-
 #include <tsn/vm/VMBackend.h>
+
+#include <utils/Array.hpp>
 
 namespace tsn {
     Context::Context(u32 apiVersion, Config* cfg) {
@@ -53,7 +54,10 @@ namespace tsn {
     }
 
     void Context::shutdown() {
-        if (m_global) delete m_global;
+        for (i32 i = m_modules.size() - 1;i >= 0;i--) {
+            destroyModule(m_modules[i], false);
+        }
+
         m_global = nullptr;
 
         if (m_funcs) delete m_funcs;
@@ -101,50 +105,58 @@ namespace tsn {
     }
 
     Module* Context::createModule(const utils::String& name, const utils::String& _path, const script_metadata* meta) {
-        utils::String path = _path;
-        enforceDirSeparator(path);
+        utils::String path = m_workspace->getWorkspacePath(_path, utils::String());
+        if (path.size() == 0) path = _path;
 
-        if (m_modules.count(path) != 0) {
+        if (m_moduleIndices.count(path) != 0) {
             return nullptr;
         }
 
         Module* m = new Module(this, name, path, meta);
-        m_modules[path] = m;
-        m_modulesById[m->getId()] = m;
+        m_moduleIndices[path] = m_modules.size();
+        m_moduleIndicesById[m->getId()] = m_modules.size();
+        m_modules.push(m);
         return m;
     }
     
     Module* Context::createHostModule(const utils::String& name) {
-        script_metadata* meta = m_workspace->createMeta("<host>/" + name + ".tsn", 0, 0, true);
+        script_metadata* meta = m_workspace->createMeta("<host>/" + name + ".tsn", 0, 0, true, false);
         return createModule(name, "<host>/" + name + ".tsn", meta);
     }
 
     Module* Context::getModule(const utils::String& _path, const utils::String& fromDir) {
-        utils::String path = _path;
-        enforceDirSeparator(path);
-        
-        auto it = m_modules.find(path);
-        if (it == m_modules.end()) {
-            // Maybe it's a host module
-            it = m_modules.find("<host>/" + path + ".tsn");
-            if (it == m_modules.end()) {
-                Module* m = m_workspace->getModule(path, fromDir);
-                if (m) {
-                    m_modules[path] = m;
-                    m_modulesById[m->getId()] = m;
-                }
+        // Check if it's a host module first
+        auto it = m_moduleIndices.find("<host>/" + _path + ".tsn");
+        if (it != m_moduleIndices.end()) return m_modules[it->second];
 
-                return m;
-            }
-            return it->second;
-        }
+        utils::String path = m_workspace->getWorkspacePath(_path, fromDir);
+        if (path.size() == 0) path = _path;
 
-        return it->second;
+        it = m_moduleIndices.find(path);
+        if (it != m_moduleIndices.end()) return m_modules[it->second];
+
+        return m_workspace->getModule(path, fromDir);
     }
 
     Module* Context::getModule(u32 id) {
-        auto it = m_modulesById.find(id);
-        if (it == m_modulesById.end()) return nullptr;
-        return it->second;
+        auto it = m_moduleIndicesById.find(id);
+        if (it == m_moduleIndicesById.end()) return nullptr;
+        return m_modules[it->second];
+    }
+    
+    void Context::destroyModule(Module* mod, bool doDeleteMetadata) {
+        auto it = m_moduleIndicesById.find(mod->getId());
+        if (it == m_moduleIndicesById.end()) return;
+        
+        u32 idx = it->second;
+        m_moduleIndices.erase(mod->getInfo()->path);
+        m_moduleIndicesById.erase(mod->getId());
+        m_modules.remove(idx);
+
+        if (doDeleteMetadata) {
+            m_workspace->getPersistor()->destroyMetadata(mod->m_meta);
+        }
+
+        delete mod;
     }
 };

@@ -46,6 +46,26 @@ namespace tsn {
     }
 
     void Pipeline::reset() {
+        if (m_logger && m_logger->hasErrors()) {
+            // all functions, types, the module should be freed
+            if (m_compOutput) {
+                auto& funcs = m_compOutput->getCode();
+                funcs.each([this](compiler::CodeHolder* ch) {
+                    ffi::Function* fn = ch->owner;
+                    if (!fn) return;
+                    delete fn;
+                });
+
+                const auto& types = m_compiler->getOutput()->getTypes();
+                types.each([this](ffi::DataType* tp) {
+                    delete tp;
+                });
+
+                Module* mod = m_compOutput->getModule();
+                if (mod) m_ctx->destroyModule(mod, true);
+            }
+        }
+
         if (m_compOutput) delete m_compOutput;
         m_compOutput = nullptr;
 
@@ -58,11 +78,7 @@ namespace tsn {
         if (m_lexer) delete m_lexer;
         m_lexer = nullptr;
 
-        if (m_source) {
-            // Source code not claimed, Pipeline still owns it
-            delete m_source;
-            m_source = nullptr;
-        }
+        m_source = nullptr;
 
         if (m_logger && !m_parent) {
             delete m_logger;
@@ -89,21 +105,20 @@ namespace tsn {
             Pipeline child = Pipeline(m_ctx, this, m_root);
             return child.buildFromSource(script);
         }
-        m_isCompiling = true;
 
+        m_isCompiling = true;
         reset();
+
         if (!m_logger) m_logger = new compiler::Logger();
 
         backend::IBackend* be = m_ctx->getBackend();
         if (be) be->beforeCompile(this);
 
-
-        std::filesystem::path absPath = m_ctx->getConfig()->workspaceRoot;
-        absPath /= script->path;
-        absPath = std::filesystem::absolute(absPath);
-
-        utils::Buffer* code = utils::Buffer::FromFile(absPath.string());
-        if (!code) {
+        m_source = m_ctx->getWorkspace()->getSource(
+            m_ctx->getWorkspace()->getSourcePath(script->module_id)
+        );
+        
+        if (!m_source) {
             m_logger->submit(
                 compiler::log_type::lt_error,
                 compiler::iom_failed_to_open_file,
@@ -113,12 +128,7 @@ namespace tsn {
             return nullptr;
         }
 
-        ModuleSource* src = new ModuleSource(code, script);
-        delete code;
-
-        m_source = src;
-
-        m_lexer = new compiler::Lexer(src);
+        m_lexer = new compiler::Lexer(m_source);
         m_parser = new compiler::Parser(m_lexer, getLogger());
         m_ast = m_parser->parse();
 
@@ -135,7 +145,7 @@ namespace tsn {
             return nullptr;
         }
         
-        postCompile(script, true);
+        postCompile(script);
 
         m_isCompiling = false;
 
@@ -148,31 +158,20 @@ namespace tsn {
             return child.buildFromCached(script);
         }
 
+        m_isCompiling = true;
         reset();
+
         if (!m_logger) m_logger = new compiler::Logger();
         
         backend::IBackend* be = m_ctx->getBackend();
         if (be) be->beforeCompile(this);
 
-        std::filesystem::path absSourcePath = m_ctx->getConfig()->workspaceRoot;
-        absSourcePath /= script->path;
-        absSourcePath = std::filesystem::absolute(absSourcePath);
-
-        utils::Buffer* code = utils::Buffer::FromFile(absSourcePath.string());
-        if (!code) {
-            m_logger->submit(
-                compiler::log_type::lt_error,
-                compiler::iom_failed_to_open_file,
-                utils::String::Format("Failed to open source file '%s'", script->path.c_str())
-            );
-            m_isCompiling = false;
-            return nullptr;
-        }
-
-        m_source = new ModuleSource(code, script);
-        delete code;
+        m_source = m_ctx->getWorkspace()->getSource(
+            m_ctx->getWorkspace()->getSourcePath(script->module_id)
+        );
 
         Module* mod = tryCache(script);
+
         m_isCompiling = false;
 
         return mod;
@@ -183,9 +182,10 @@ namespace tsn {
             Pipeline child = Pipeline(m_ctx, this, m_root);
             return child.specializeTemplate(type, templateArgs);
         }
+        
         m_isCompiling = true;
-
         reset();
+
         if (!m_logger) m_logger = new compiler::Logger();
         
         backend::IBackend* be = m_ctx->getBackend();
@@ -202,7 +202,8 @@ namespace tsn {
             "<templates>/" + modName + ".tsn",
             originalMeta->size,
             0,
-            originalMeta->is_trusted
+            originalMeta->is_trusted,
+            true
         );
 
         // See if it's cached
@@ -212,6 +213,9 @@ namespace tsn {
                 return tp->isSpecializationOf(type, templateArgs);
             });
 
+            // source is already owned by the module that the template
+            // type is from
+            m_source = nullptr;
             m_isCompiling = false;
             reset();
 
@@ -227,6 +231,19 @@ namespace tsn {
             return outTp;
         }
 
+        // If there was a cache file that failed to load, it will have
+        // deleted the script metadata. If there was no cache file and
+        // the script metadata that was created earlier wasn't deleted
+        // then this will just return that same metadata and not a new
+        // one.
+        meta = m_ctx->getWorkspace()->createMeta(
+            "<templates>/" + modName + ".tsn",
+            originalMeta->size,
+            0,
+            originalMeta->is_trusted,
+            true
+        );
+
         meta->modified_on = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 
         m_ast = tctx->getAST();
@@ -238,6 +255,9 @@ namespace tsn {
         Module* mod = out->getModule();
 
         if (!out) {
+            // source is already owned by the module that the template
+            // type is from
+            m_source = nullptr;
             m_isCompiling = false;
             return nullptr;
         }
@@ -269,6 +289,9 @@ namespace tsn {
         }
 
         if (didError) {
+            // source is already owned by the module that the template
+            // type is from
+            m_source = nullptr;
             m_isCompiling = false;
             return nullptr;
         }
@@ -279,6 +302,9 @@ namespace tsn {
                 compiler::log_message_code::cm_err_too_few_template_args,
                 utils::String::Format("Attempted to instantiate object of type '%s' with too few template arguments", type->getName().c_str())
             );
+            // source is already owned by the module that the template
+            // type is from
+            m_source = nullptr;
             m_isCompiling = false;
             return nullptr;
         }
@@ -310,12 +336,16 @@ namespace tsn {
             m_ctx->getTypes()->addForeignType(outTp);
         }
 
-        postCompile(meta, false);
+        postCompile(meta);
 
-        // ownership of the source belongs to the module that owns
-        // the template type being instantiated
+        m_ctx->getWorkspace()->mapSourcePath(
+            mod->getId(),
+            m_ctx->getWorkspace()->getSourcePath(originalModule->getId())
+        );
+
+        // source is already owned by the module that the template
+        // type is from
         m_source = nullptr;
-
         m_isCompiling = false;
 
         return outTp;
@@ -362,12 +392,7 @@ namespace tsn {
     }
 
     Module* Pipeline::tryCache(const script_metadata* script) {
-        utils::String cachePath = utils::String::Format(
-            "%s/%u.tsnc",
-            m_ctx->getConfig()->supportDir.c_str(),
-            script->module_id
-        );
-
+        utils::String cachePath = m_ctx->getWorkspace()->getCachePath(script);
         utils::Buffer* cache = utils::Buffer::FromFile(cachePath);
         if (!cache) {
             return nullptr;
@@ -407,29 +432,19 @@ namespace tsn {
         
         Module* mod = m_compOutput->getModule();
 
-        if (mod) {
-            // source code ownership was taken by the Module in m_compOutput->deserialize()
-            m_source = nullptr;
-        }
-
         backend::IBackend* be = m_ctx->getBackend();
         if (!m_logger->hasErrors() && be) be->generate(this);
 
         return mod;
     }
 
-    void Pipeline::postCompile(script_metadata* script, bool takeOwnershipOfSource) {
+    void Pipeline::postCompile(script_metadata* script) {
         compiler::OutputBuilder* out = m_compiler->getOutput();
         Module* mod = out->getModule();
 
-        if (mod) {
-            mod->setSrc(m_source, takeOwnershipOfSource);
-            if (takeOwnershipOfSource) m_source = nullptr;
-        }
+        if (mod) mod->setSrc(m_source);
 
-        if (m_logger->hasErrors()) {
-            return;
-        }
+        if (m_logger->hasErrors()) return;
 
         m_compOutput = new compiler::Output(out);
 

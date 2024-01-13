@@ -109,6 +109,7 @@ namespace tsn {
             struct proto_type {
                 type_id id;
                 ffi::data_type_instance itype;
+                Module* sourceModule;
                 utils::String name;
                 utils::String fullyQualifiedName;
                 type_meta info;
@@ -156,7 +157,11 @@ namespace tsn {
                     utils::Array<output::proto_function>& funcs,
                     utils::Array<output::proto_type>& types,
                     ffi::FunctionRegistry* freg,
-                    ffi::DataTypeRegistry* treg
+                    ffi::DataTypeRegistry* treg,
+                    utils::Array<ffi::Function*>& ofuncs,
+                    utils::Array<ffi::DataType*>& otypes,
+                    robin_hood::unordered_map<function_id, ffi::Function*>& funcMap,
+                    robin_hood::unordered_map<type_id, ffi::DataType*>& typeMap
                 );
 
                 Module* m_mod;
