@@ -5,7 +5,7 @@
 #include <tsn/ffi/DataType.h>
 #include <tsn/ffi/FunctionRegistry.h>
 #include <tsn/ffi/DataTypeRegistry.h>
-#include <tsn/ffi/Function.h>
+#include <tsn/ffi/Function.hpp>
 #include <tsn/common/Module.h>
 #include <tsn/utils/remove_all.h>
 
@@ -16,7 +16,8 @@ namespace tsn {
     namespace ffi {
         template <typename Ret, typename... Args>
         void __cdecl _func_wrapper(call_context* ctx, Args... args) {
-            Ret (*func)(Args...) = (Ret (*)(Args...))ctx->funcPtr;
+            Ret (*func)(Args...);
+            ((FunctionPointer*)ctx->funcPtr)->get(&func);
             
             ExecutionContext::Push(ctx->ectx);
             if constexpr (std::is_same_v<void, Ret>) {
@@ -34,7 +35,8 @@ namespace tsn {
 
         template <typename Cls, typename Ret, typename... Args>
         void __cdecl _pseudo_method_wrapper(call_context* ctx, Args... args) {
-            Ret (*func)(Cls*, Args...) = (Ret (*)(Cls*, Args...))ctx->funcPtr;
+            Ret (*func)(Cls*, Args...);
+            ((FunctionPointer*)ctx->funcPtr)->get(&func);
             
             ExecutionContext::Push(ctx->ectx);
             if constexpr (std::is_same_v<void, Ret>) {
@@ -54,7 +56,7 @@ namespace tsn {
         void __cdecl _method_wrapper(call_context* ctx, Args... args) {
             typedef Ret (Cls::*MethodTp)(Args...);
             MethodTp method;
-            (*(void**)&method) = ctx->funcPtr;
+            ((FunctionPointer*)ctx->funcPtr)->get(&method);
 
             ExecutionContext::Push(ctx->ectx);
             if constexpr (std::is_same_v<void, Ret>) {
@@ -74,7 +76,7 @@ namespace tsn {
         void __cdecl _const_method_wrapper(call_context* ctx, Args... args) {
             typedef Ret (Cls::*MethodTp)(Args...) const;
             MethodTp method;
-            (*(void**)&method) = ctx->funcPtr;
+            ((FunctionPointer*)ctx->funcPtr)->get(&method);
 
             ExecutionContext::Push(ctx->ectx);
             if constexpr (std::is_same_v<void, Ret>) {
@@ -182,15 +184,13 @@ namespace tsn {
                 treg->addFuncType(sig);
             }
 
-            void (*wrapper)(call_context*, Args...) = &_func_wrapper<Ret, Args...>;
-
             Function* fn = new Function(
                 name,
                 utils::String(mod ? mod->getName() + "::" : "") + utils::String(selfType ? selfType->getName() + "::" : ""),
                 sig,
                 access,
-                *reinterpret_cast<void**>(&func),
-                *reinterpret_cast<void**>(&wrapper),
+                func,
+                _func_wrapper<Ret, Args...>,
                 mod
             );
 
@@ -288,15 +288,13 @@ namespace tsn {
                 treg->addFuncType(sig);
             }
 
-            void (*wrapper)(call_context*, Args...) = &_pseudo_method_wrapper<Cls, Ret, Args...>;
-
             Function* fn = new Function(
                 name,
                 utils::String(mod ? mod->getName() + "::" : ""),
                 sig,
                 access,
-                *reinterpret_cast<void**>(&func),
-                *reinterpret_cast<void**>(&wrapper),
+                func,
+                _pseudo_method_wrapper<Cls, Ret, Args...>,
                 mod
             );
 
@@ -400,15 +398,13 @@ namespace tsn {
                 treg->addFuncType(sig);
             }
 
-            void (*wrapper)(call_context*, Args...) = &_method_wrapper<Cls, Ret, Args...>;
-
             Method* m = new Method(
                 name,
                 utils::String(mod ? mod->getName() + "::" : ""),
                 sig,
                 access,
-                *reinterpret_cast<void**>(&func),
-                *reinterpret_cast<void**>(&wrapper),
+                func,
+                _method_wrapper<Cls, Ret, Args...>,
                 0,
                 mod
             );
@@ -456,15 +452,13 @@ namespace tsn {
                 treg->addFuncType(sig);
             }
 
-            void (*wrapper)(call_context*, Args...) = &_const_method_wrapper<Cls, Ret, Args...>;
-
             Method* m = new Method(
                 name,
                 utils::String(mod ? mod->getName() + "::" : ""),
                 sig,
                 access,
-                *reinterpret_cast<void**>(&func),
-                *reinterpret_cast<void**>(&wrapper),
+                func,
+                _const_method_wrapper<Cls, Ret, Args...>,
                 0,
                 mod
             );
@@ -559,16 +553,13 @@ namespace tsn {
                 treg->addFuncType(sig);
             }
 
-            void (*func)(Cls*, Args...) = nullptr;
-            void (*wrapper)(call_context*, Args...) = &_constructor_wrapper<Cls, Args...>;
-
             Function* fn = new Function(
                 name,
                 utils::String(mod ? mod->getName() + "::" : ""),
                 sig,
                 access,
-                *reinterpret_cast<void**>(&func),
-                *reinterpret_cast<void**>(&wrapper),
+                nullptr,
+                _constructor_wrapper<Cls, Args...>,
                 mod
             );
 
@@ -602,16 +593,13 @@ namespace tsn {
                 treg->addFuncType(sig);
             }
 
-            void (*func)(Cls*) = nullptr;
-            void (*wrapper)(call_context*) = &_destructor_wrapper<Cls>;
-
             Function* fn = new Function(
                 name,
                 utils::String(mod ? mod->getName() + "::" : ""),
                 sig,
                 access,
-                *reinterpret_cast<void**>(&func),
-                *reinterpret_cast<void**>(&wrapper),
+                nullptr,
+                _destructor_wrapper<Cls>,
                 mod
             );
 

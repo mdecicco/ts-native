@@ -25,7 +25,7 @@ namespace tsn {
 
     struct call_context {
         ffi::ExecutionContext* ectx;
-        void* funcPtr;
+        const void* funcPtr;
         void* retPtr;
         void* thisPtr;
         void* capturePtr;

@@ -1,7 +1,7 @@
 #pragma once
 #include <tsn/bind/call_common.hpp>
 #include <tsn/bind/ffi_argument.hpp>
-#include <tsn/ffi/Function.h>
+#include <tsn/ffi/Function.hpp>
 #include <tsn/bind/ExecutionContext.h>
 #include <tsn/common/Context.h>
 #include <tsn/common/Config.h>
@@ -13,11 +13,12 @@ namespace tsn {
             if (ctx->getConfig()->disableExecution) return;
 
             constexpr int argc = std::tuple_size_v<std::tuple<Args...>>;
-            void* fptr = f->getAddress();
+            void (*fptr)(call_context*, Args...);
+            f->getWrapperAddress().get(&fptr);
 
             call_context cctx;
             cctx.ectx = nullptr;
-            cctx.funcPtr = f->getAddress();
+            cctx.funcPtr = &f->getAddress();
             cctx.retPtr = result;
             cctx.thisPtr = self;
             cctx.capturePtr = nullptr;
@@ -48,7 +49,7 @@ namespace tsn {
 
             ExecutionContext exec(ctx);
             cctx.ectx = &exec;
-            ffi_call(&cif, reinterpret_cast<void (*)()>(f->getWrapperAddress()), result, argBuf);
+            ffi_call(&cif, reinterpret_cast<void (*)()>(fptr), result, argBuf);
         }
     };
 };

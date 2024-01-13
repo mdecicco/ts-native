@@ -541,10 +541,6 @@ i32 handleResult(Context* ctx, Module* mod, const tsnc_config& conf) {
 
                             json code = json::array();
                             for (u32 i = range->begin;i < range->end;i++) {
-                                FunctionDef* fn = c->getOutput()->getFuncs().find([i](FunctionDef* f){
-                                    return reinterpret_cast<u64>(f->getOutput()->getAddress()) == u64(i);
-                                });
-                                
                                 code.push_back(utils::String::Format("[0x%03x] %s", i, instrs[i].toString(ctx).c_str()).c_str());
                             }
                             

@@ -4,7 +4,7 @@
 #include <tsn/compiler/Lexer.hpp>
 #include <tsn/common/Context.h>
 #include <tsn/common/Module.h>
-#include <tsn/ffi/Function.h>
+#include <tsn/ffi/Function.hpp>
 #include <tsn/ffi/DataType.h>
 #include <tsn/ffi/DataTypeRegistry.h>
 #include <tsn/ffi/FunctionRegistry.h>
@@ -1079,7 +1079,9 @@ namespace tsn {
             }
 
             InlineCodeGenContext gctx = { this, ret, self, args };
-            ((InlineCodeGenFunc)fn->getAddress())(&gctx);
+            InlineCodeGenFunc fptr;
+            fn->getAddress().get(&fptr);
+            fptr(&gctx);
 
             return result;
         }
