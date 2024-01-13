@@ -69,6 +69,7 @@ i32 main (i32 argc, const char** argv) {
         std::filesystem::current_path(cwd);
     }
 
+
     tsnc_config conf;
     conf.script_path = "main";
     conf.config_path = "./tsnc.json";
@@ -445,7 +446,7 @@ String formatDuration(f32 seconds) {
     }
 
     if (out.size() > 0) out += " ";
-    out += String::Format("%0.4f second%s", seconds, seconds != 1.0 ? "s" : "");
+    out += String::Format("%0.4f second%s", t, t != 1.0 ? "s" : "");
 
     return out;
 }
