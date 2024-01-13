@@ -20,12 +20,57 @@ namespace tsn {
         class FunctionRegistry;
         class DataTypeRegistry;
         class DataType;
-        
 
+        class FunctionPointer {
+            public:
+                class _undefinedClass;
+                using FuncPtrTp = void (*)();
+                using MethodPtrTp = void(_undefinedClass::*)();
+
+                FunctionPointer();
+                FunctionPointer(nullptr_t);
+                FunctionPointer(const FunctionPointer& ptr);
+                FunctionPointer(void* ptr, size_t size);
+
+                template <typename Ret, typename... Args>
+                FunctionPointer(Ret (*ptr)(Args...));
+
+                template <typename Cls, typename Ret, typename... Args>
+                FunctionPointer(Ret (Cls::*ptr)(Args...));
+
+                template <typename Cls, typename Ret, typename... Args>
+                FunctionPointer(Ret (Cls::*ptr)(Args...) const);
+
+                template <typename Ret, typename... Args>
+                void get(Ret (**ptr)(Args...)) const;
+
+                template <typename Cls, typename Ret, typename... Args>
+                void get(Ret (Cls::**ptr)(Args...)) const;
+
+                template <typename Cls, typename Ret, typename... Args>
+                void get(Ret (Cls::**ptr)(Args...) const) const;
+
+                void operator=(const FunctionPointer& ptr);
+
+                bool isValid() const;
+
+            protected:
+                u8 m_data[32];
+                bool m_isSet;
+        };
+        
         class Function : public IPersistable {
             public:
                 Function();
-                Function(const utils::String& name, const utils::String& extraQualifiers, FunctionType* signature, access_modifier access, void* address, void* wrapperAddr, Module* source);
+                Function(
+                    const utils::String& name,
+                    const utils::String& extraQualifiers,
+                    FunctionType* signature,
+                    access_modifier access,
+                    const FunctionPointer& address,
+                    const FunctionPointer& wrapperAddr,
+                    Module* source
+                );
                 virtual ~Function();
 
                 function_id getId() const;
@@ -44,8 +89,8 @@ namespace tsn {
 
                 void makeInline(compiler::InlineCodeGenFunc generatorFn);
                 
-                void* getAddress() const;
-                void* getWrapperAddress() const;
+                const FunctionPointer& getAddress() const;
+                const FunctionPointer& getWrapperAddress() const;
 
                 virtual bool serialize(utils::Buffer* out, Context* ctx) const;
                 virtual bool deserialize(utils::Buffer* in, Context* ctx);
@@ -69,14 +114,23 @@ namespace tsn {
                 utils::String m_extraQualifiers;
                 FunctionType* m_signature;
                 access_modifier m_access;
-                void* m_address;
-                void* m_wrapperAddress;
+                FunctionPointer m_address;
+                FunctionPointer m_wrapperAddress;
         };
 
         class Method : public Function {
             public:
                 Method();
-                Method(const utils::String& name, const utils::String& extraQualifiers, FunctionType* signature, access_modifier access, void* address, void* wrapperAddr, u64 baseOffset, Module* source);
+                Method(
+                    const utils::String& name,
+                    const utils::String& extraQualifiers,
+                    FunctionType* signature,
+                    access_modifier access,
+                    const FunctionPointer& address,
+                    const FunctionPointer& wrapperAddr,
+                    u64 baseOffset,
+                    Module* source
+                );
 
                 u64 getThisPtrOffset() const;
                 Method* clone(const utils::String& name, u64 baseOffset) const;

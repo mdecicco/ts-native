@@ -165,20 +165,38 @@ namespace tsn {
             return true;
         }
         
-        bool TemplateContext::resolveReferences(Context* ctx) {
-            ffi::FunctionRegistry* freg = ctx->getFunctions();
+        bool TemplateContext::resolveReferences(
+            ffi::FunctionRegistry* freg,
+            ffi::DataTypeRegistry* treg,
+            robin_hood::unordered_map<function_id, ffi::Function*>& funcMap,
+            robin_hood::unordered_map<type_id, ffi::DataType*>& typeMap
+        ) {
+            auto getTpById = [&typeMap, treg](type_id tid) {
+                auto it = typeMap.find(tid);
+                if (it != typeMap.end()) return it->second;
+
+                return treg->getType(tid);
+            };
+
             for (u32 i = 0;i < m_functionImports.size();i++) {
                 auto& im = m_functionImports[i];
                 if (im.fn) continue;
-                im.fn = freg->getFunction(im.id);
+                
+                auto it = funcMap.find(im.id);
+                if (it != funcMap.end()) im.fn = it->second;
+                else im.fn = freg->getFunction(im.id);
+
                 if (!im.fn) return false;
             }
             
-            ffi::DataTypeRegistry* treg = ctx->getTypes();
             for (u32 i = 0;i < m_typeImports.size();i++) {
                 auto& im = m_typeImports[i];
                 if (im.tp) continue;
-                im.tp = treg->getType(im.id);
+                
+                auto it = typeMap.find(im.id);
+                if (it != typeMap.end()) im.tp = it->second;
+                else im.tp = treg->getType(im.id);
+
                 if (!im.tp) return false;
             }
 

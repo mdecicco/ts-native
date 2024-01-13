@@ -55,7 +55,7 @@ namespace tsn {
             
             u32 addData(const utils::String& name, ffi::DataType* tp, access_modifier access);
             u32 addData(const utils::String& name, u32 size);
-            void setSrc(ModuleSource* src, bool takeOwnership = true);
+            void setSrc(ModuleSource* src);
 
             utils::String m_name;
             utils::String m_path;
@@ -64,6 +64,5 @@ namespace tsn {
             ModuleSource* m_src;
             const script_metadata* m_meta;
             bool m_didInit;
-            bool m_ownsSource;
     };
 };

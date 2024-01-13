@@ -57,7 +57,6 @@ struct tsnc_config {
     output_mode mode;
     backend_type backend;
     bool pretty_print;
-    bool trusted;
     bool debugLogging;
     bool disableOptimizations;
 };
@@ -68,7 +67,7 @@ bool getBoolArg(i32 argc, const char** argv, const char* code);
 i32 parse_args(i32 argc, const char** argv, tsnc_config* conf, Config* ctxConf);
 char* loadText(const char* filename, bool required, const tsnc_config& conf);
 i32 processConfig(const json& configIn, Config& configOut, const tsnc_config& tsncConf);
-i32 handleResult(Context* ctx, Module* mod, const script_metadata& meta, const tsnc_config& conf);
+i32 handleResult(Context* ctx, Module* mod, const tsnc_config& conf);
 void initError(const char* err, const tsnc_config& conf);
 
 i32 main (i32 argc, const char** argv) {
@@ -81,11 +80,10 @@ i32 main (i32 argc, const char** argv) {
     }
 
     tsnc_config conf;
-    conf.script_path = "./main.tsn";
+    conf.script_path = "main";
     conf.config_path = "./tsnc.json";
     conf.mode = om_all;
     conf.pretty_print = !getBoolArg(argc, argv, "m");
-    conf.trusted = false;
     conf.backend = bt_none;
     i32 status = 0;
     Config contextCfg;
@@ -115,27 +113,6 @@ i32 main (i32 argc, const char** argv) {
     contextCfg.debugLogging = conf.debugLogging;
     contextCfg.disableOptimizations = conf.disableOptimizations;
     contextCfg.disableExecution = true;
-    
-    script_metadata meta;
-    try {
-        meta.path = std::filesystem::relative(conf.script_path, contextCfg.workspaceRoot.c_str()).string();
-        enforceDirSeparator(meta.path);
-        meta.size = (size_t)std::filesystem::file_size(conf.script_path);
-        meta.is_trusted = conf.trusted;
-        meta.is_external = true;
-        meta.cached_on = 0;
-        meta.modified_on = std::chrono::duration_cast<std::chrono::milliseconds>(
-            std::filesystem::last_write_time(conf.script_path).time_since_epoch()
-        ).count();
-    } catch (std::exception exc) {
-        initError((std::string("Encountered exception while getting script metadata: ") + exc.what()).c_str(), conf);
-        return UNKNOWN_ERROR;
-    }
-
-    if (meta.size == 0) {
-        initError("The specified script is empty", conf);
-        return FILE_EMPTY;
-    }
 
     utils::Mem::Create();
     tsn::ffi::ExecutionContext::Init();
@@ -151,10 +128,10 @@ i32 main (i32 argc, const char** argv) {
 
         ctx.init(be);
 
-        Module* mod = ctx.getPipeline()->buildFromSource(&meta);
+        Module* mod = ctx.getModule(conf.script_path);
         if (be) mod->init();
 
-        status = handleResult(&ctx, mod, meta, conf);
+        status = handleResult(&ctx, mod, conf);
         
         ctx.shutdown();
         if (be) delete be;
@@ -173,10 +150,9 @@ void print_help() {
     printf("    in the JSON format. This metadata includes the abstract syntax tree, symbols,\n");
     printf("    log messages, data types, and IR code.\n");
     printf("Usage:\n");
-    printf("    -s <script file>    Specifies entrypoint script to compile. Defaults to './main.tsn'.\n");
+    printf("    -s <module path>    Specifies entrypoint module to compile. Defaults to 'main'.\n");
     printf("    -c <config file>    Specifies compiler configuration file, must be JSON format. Defaults to './tsnc.json'.\n");
     printf("    -m                  Outputs minified json instead of pretty-printed json.\n");
-    printf("    -t                  Compiles the specified script in trusted mode\n");
     printf("    -d                  Enables debug log messages (overrides configuration file)\n");
     printf("    -u                  Disables optimization (overrides configuration file)\n");
     printf("    -b <backend>        Specifies the backend to use for running compiled code.\n");
@@ -277,7 +253,6 @@ i32 parse_args(i32 argc, const char** argv, tsnc_config* conf, Config* ctxConf) 
         }
 
         if (getBoolArg(argc, argv, "m")) conf->pretty_print = false;
-        if (getBoolArg(argc, argv, "t")) conf->trusted = true;
         if (getBoolArg(argc, argv, "d")) conf->debugLogging = true;
         if (getBoolArg(argc, argv, "u")) conf->disableOptimizations = true;
 
@@ -415,7 +390,7 @@ void initError(const char* err, const tsnc_config& conf) {
     else printf(j.dump().c_str());
 }
 
-i32 handleResult(Context* ctx, Module* mod, const script_metadata& meta, const tsnc_config& conf) {
+i32 handleResult(Context* ctx, Module* mod, const tsnc_config& conf) {
     bool hadErrors = ctx->getPipeline()->getLogger()->hasErrors();
 
     if (mod && !hadErrors && conf.mode == om_exec) {
@@ -571,10 +546,6 @@ i32 handleResult(Context* ctx, Module* mod, const script_metadata& meta, const t
 
                             json code = json::array();
                             for (u32 i = range->begin;i < range->end;i++) {
-                                FunctionDef* fn = c->getOutput()->getFuncs().find([i](FunctionDef* f){
-                                    return reinterpret_cast<u64>(f->getOutput()->getAddress()) == u64(i);
-                                });
-                                
                                 code.push_back(utils::String::Format("[0x%03x] %s", i, instrs[i].toString(ctx).c_str()).c_str());
                             }
                             

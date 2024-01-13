@@ -4,7 +4,7 @@
 #include <tsn/vm/VMBackend.h>
 #include <tsn/common/Context.h>
 #include <tsn/common/Module.h>
-#include <tsn/ffi/Function.h>
+#include <tsn/ffi/Function.hpp>
 #include <tsn/ffi/DataType.h>
 #include <tsn/ffi/Closure.h>
 #include <tsn/ffi/FunctionRegistry.h>
@@ -1711,7 +1711,7 @@ namespace tsn {
                         function_id id = (function_id)_O1ui64;
                         ffi::Function* fn = m_ctx->getFunctions()->getFunction(id);
                         if (!fn) throw "VM: jal instruction provided invalid function ID";
-                        if (fn->getWrapperAddress()) {
+                        if (fn->getWrapperAddress().isValid()) {
                             call_external(fn);
                         } else {
                             Backend* be = (Backend*)m_ctx->getBackend();
@@ -1729,7 +1729,7 @@ namespace tsn {
                         ffi::Function* fn = ref->getTarget();
                         if (!fn) throw "VM: Invalid callback passed to jalr";
 
-                        if (((u64)fn->getAddress()) > code.size()) {
+                        if (fn->getWrapperAddress().isValid()) {
                             call_external(fn);
                         } else {
                             Backend* be = (Backend*)m_ctx->getBackend();
@@ -1757,9 +1757,6 @@ namespace tsn {
         void VM::call_external(ffi::Function* fn) {
             ffi::DataType* voidp = m_ctx->getTypes()->getVoidPtr();
 
-            void* callPtr = fn->getWrapperAddress();
-            void* funcPtr = fn->getAddress();
-
             static void* argSpace[64];
             static void* primArgSpace[64];
             ffi_type* argTypeSpace[64];
@@ -1777,7 +1774,7 @@ namespace tsn {
 
                 if (info.argType == arg_type::context_ptr) {
                     call_context* cctx = *(call_context**)src;
-                    cctx->funcPtr = funcPtr;
+                    cctx->funcPtr = &fn->getAddress();
 
                     primArgSpace[i] = cctx;
                     argSpace[i] = &primArgSpace[i];
@@ -1796,7 +1793,9 @@ namespace tsn {
                 return;
             }
 
-            ffi_call(&cif, reinterpret_cast<void (*)()>(callPtr), nullptr, argSpace);
+            void (*callPtr)();
+            fn->getWrapperAddress().get(&callPtr);
+            ffi_call(&cif, callPtr, nullptr, argSpace);
         }
     };
 };

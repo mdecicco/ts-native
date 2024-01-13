@@ -1,4 +1,4 @@
-#include <tsn/ffi/Function.h>
+#include <tsn/ffi/Function.hpp>
 #include <tsn/ffi/DataType.h>
 #include <tsn/ffi/DataTypeRegistry.h>
 #include <tsn/common/Context.h>
@@ -8,6 +8,39 @@
 
 namespace tsn {
     namespace ffi {
+        FunctionPointer::FunctionPointer() {
+            for (u32 i = 0;i < 32;i++) m_data[i] = 0;
+            m_isSet = false;
+        }
+
+        FunctionPointer::FunctionPointer(nullptr_t) {
+            for (u32 i = 0;i < 32;i++) m_data[i] = 0;
+            m_isSet = false;
+        }
+        
+        FunctionPointer::FunctionPointer(const FunctionPointer& ptr) {
+            for (u32 i = 0;i < 32;i++) m_data[i] = ptr.m_data[i];
+            m_isSet = ptr.m_isSet;
+        }
+
+        FunctionPointer::FunctionPointer(void* ptr, size_t size) {
+            for (u32 i = 0;i < 32;i++) {
+                if (i < size) m_data[i] = ((u8*)ptr)[i];
+                else m_data[i] = 0;
+            }
+
+            m_isSet = true;
+        }
+        
+        void FunctionPointer::operator=(const FunctionPointer& ptr) {
+            for (u32 i = 0;i < 32;i++) m_data[i] = ptr.m_data[i];
+            m_isSet = ptr.m_isSet;
+        }
+
+        bool FunctionPointer::isValid() const {
+            return m_isSet;
+        }
+
         //
         // Function
         //
@@ -17,14 +50,20 @@ namespace tsn {
             m_registryIndex = u32(-1);
             m_access = public_access;
             m_signature = nullptr;
-            m_address = nullptr;
-            m_wrapperAddress = nullptr;
             m_isMethod = false;
             m_isTemplate = false;
             m_isInline = false;
         }
 
-        Function::Function(const utils::String& name, const utils::String& extraQualifiers, FunctionType* signature, access_modifier access, void* address, void* wrapperAddr, Module* source) {
+        Function::Function(
+            const utils::String& name,
+            const utils::String& extraQualifiers,
+            FunctionType* signature,
+            access_modifier access,
+            const FunctionPointer& address,
+            const FunctionPointer& wrapperAddr,
+            Module* source
+        ) {
             m_extraQualifiers = extraQualifiers;
             m_fullyQualifiedName = signature ? signature->generateFullyQualifiedFunctionName(name, m_extraQualifiers) : "";
             m_displayName = signature ? signature->generateFunctionDisplayName(name, m_extraQualifiers) : "";
@@ -85,11 +124,11 @@ namespace tsn {
         }
 
         void Function::makeInline(compiler::InlineCodeGenFunc generatorFn) {
-            if (m_address) {
+            if (m_address.isValid()) {
                 throw "Functions which already have entrypoints cannot be made inline";
             }
 
-            m_address = reinterpret_cast<void*>(generatorFn);
+            m_address = generatorFn;
             m_isInline = true;
         }
 
@@ -106,11 +145,11 @@ namespace tsn {
             return m_signature->getThisType() != nullptr;
         }
 
-        void* Function::getAddress() const {
+        const FunctionPointer& Function::getAddress() const {
             return m_address;
         }
 
-        void* Function::getWrapperAddress() const {
+        const FunctionPointer& Function::getWrapperAddress() const {
             return m_wrapperAddress;
         }
 
@@ -213,8 +252,16 @@ namespace tsn {
             m_isMethod = true;
         }
 
-        Method::Method(const utils::String& name, const utils::String& extraQualifiers, FunctionType* signature, access_modifier access, void* address, void* wrapperAddr, u64 baseOffset, Module* source)
-        : Function(name, extraQualifiers, signature, access, address, wrapperAddr, source)
+        Method::Method(
+            const utils::String& name,
+            const utils::String& extraQualifiers,
+            FunctionType* signature,
+            access_modifier access,
+            const FunctionPointer& address,
+            const FunctionPointer& wrapperAddr,
+            u64 baseOffset,
+            Module* source
+        ) : Function(name, extraQualifiers, signature, access, address, wrapperAddr, source)
         {
             m_baseOffset = baseOffset;
             m_isMethod = true;

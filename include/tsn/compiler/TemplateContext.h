@@ -4,6 +4,7 @@
 
 #include <utils/Array.h>
 #include <utils/String.h>
+#include <utils/robin_hood.h>
 
 namespace tsn {
     class Module;
@@ -11,6 +12,8 @@ namespace tsn {
     namespace ffi {
         class Function;
         class DataType;
+        class FunctionRegistry;
+        class DataTypeRegistry;
     };
 
     namespace compiler {
@@ -61,7 +64,12 @@ namespace tsn {
                 virtual bool deserialize(utils::Buffer* in, Context* ctx);
 
                 /** Resolves Function and DataType imports from ids after deserialization */
-                bool resolveReferences(Context* ctx);
+                bool resolveReferences(
+                    ffi::FunctionRegistry* freg,
+                    ffi::DataTypeRegistry* treg,
+                    robin_hood::unordered_map<function_id, ffi::Function*>& funcMap,
+                    robin_hood::unordered_map<type_id, ffi::DataType*>& typeMap
+                );
             
             protected:
                 utils::Array<moduledata_import> m_moduleDataImports;

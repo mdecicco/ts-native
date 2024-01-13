@@ -31,7 +31,7 @@ namespace tsn {
             ExecutionContext exec(ctx);
             call_context cctx;
             cctx.ectx = &exec;
-            cctx.funcPtr = f->getAddress();
+            cctx.funcPtr = nullptr;
             cctx.retPtr = result;
             cctx.thisPtr = self;
             cctx.capturePtr = nullptr;

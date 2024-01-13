@@ -4,6 +4,7 @@
 #include <tsn/ffi/FunctionRegistry.h>
 #include <tsn/ffi/Closure.h>
 #include <tsn/common/Context.h>
+#include <tsn/common/Module.h>
 #include <tsn/compiler/TemplateContext.h>
 #include <tsn/compiler/Parser.h>
 #include <tsn/utils/function_match.h>
@@ -313,6 +314,7 @@ namespace tsn {
 
             if (!out->write(m_id)) return false;
             if (!out->write(m_itype)) return false;
+            if (!out->write(m_sourceModule->getId())) return false;
             if (!out->write(m_name)) return false;
             if (!out->write(m_fullyQualifiedName)) return false;
             if (!out->write(m_info)) return false;
