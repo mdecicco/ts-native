@@ -34,7 +34,7 @@ namespace tsn {
     }
 
     i32 print(const utils::String& str) {
-        return printf(str.c_str());
+        return printf("%s", str.c_str());
     }
 
     void BindString(Context* ctx) {
@@ -169,14 +169,10 @@ namespace tsn {
 
         bind(ctx, "print", print);
 
-        // pointer compilation needs the above
+        // Will load the array and pointer modules
         ctx->getTypes()->updateCachedTypes();
 
         BindPointer(ctx);
-
-        // array compilation needs pointer
-        ctx->getTypes()->updateCachedTypes();
-
         BindArray(ctx);
 
         auto ev = extend<void*>(ctx);

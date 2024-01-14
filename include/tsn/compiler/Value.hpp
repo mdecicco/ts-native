@@ -2,7 +2,7 @@
 #include <tsn/compiler/Value.h>
 #include <utils/Array.hpp>
 
-#include <xtr1common>
+#include <type_traits>
 
 namespace tsn {
     namespace ffi {

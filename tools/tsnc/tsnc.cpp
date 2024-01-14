@@ -269,7 +269,12 @@ i32 parse_args(i32 argc, const char** argv, tsnc_config* conf, Config* ctxConf) 
 
 char* loadText(const char* filename, bool required, const tsnc_config& conf) {
     FILE* fp = nullptr;
+    #ifdef _MSC_VER
     fopen_s(&fp, filename, "r");
+    #else
+    fp = fopen(filename, "r");
+    #endif
+
     if (!fp) {
         if (!required) return nullptr;
 

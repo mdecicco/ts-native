@@ -39,7 +39,7 @@ namespace tsn {
             access_modifier access;
         };
 
-        enum data_type_instance {
+        enum data_type_instance : u32 {
             dti_plain,
             dti_function,
             dti_template,
@@ -253,7 +253,7 @@ namespace tsn {
                 friend class TemplateType;
                 friend class AliasType;
                 friend class ClassType;
-                friend class Pipeline;
+                friend class tsn::Pipeline;
                 friend class compiler::Output;
                 friend class compiler::Compiler;
                 

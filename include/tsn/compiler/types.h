@@ -1,7 +1,7 @@
 #pragma once
 #include <tsn/common/types.h>
 
-#include <xtr1common>
+#include <type_traits>
 
 namespace utils {
     template <typename T>

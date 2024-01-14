@@ -277,7 +277,7 @@ namespace tsn {
             if (m_output) return;
 
             Module* m = m_ctx->createModule(
-                std::filesystem::path(m_meta->path).filename().replace_extension("").string(),
+                std::filesystem::path(m_meta->path).filename().replace_extension().string(),
                 m_meta->path,
                 m_meta
             );
@@ -1256,7 +1256,7 @@ namespace tsn {
                     if (arg.argType == arg_type::context_ptr) {
                         alloc_id stackId = cf->reserveStackId();
                         add(ir_stack_allocate)
-                            .op(cf->imm(sizeof(call_context)))
+                            .op(cf->imm<u64>(sizeof(call_context)))
                             .op(cf->imm(stackId))
                             .comment("Allocate stack space for call context")
                         ;

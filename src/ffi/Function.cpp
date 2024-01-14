@@ -125,7 +125,7 @@ namespace tsn {
 
         void Function::makeInline(compiler::InlineCodeGenFunc generatorFn) {
             if (m_address.isValid()) {
-                throw std::exception("Functions which already have entrypoints cannot be made inline");
+                throw "Functions which already have entrypoints cannot be made inline";
             }
 
             m_address = generatorFn;
@@ -174,12 +174,12 @@ namespace tsn {
 
         void Function::setThisType(DataType* tp, DataTypeRegistry* treg) {
             if (m_registryIndex != u32(-1)) {
-                throw std::exception("Function already added to registry, it cannot be changed.");
+                throw "Function already added to registry, it cannot be changed.";
             }
 
             DataType* current = m_signature->getThisType();
             if (!current) {
-                throw std::exception("Attempted to set 'this' type for function that is not a non-static class method");
+                throw "Attempted to set 'this' type for function that is not a non-static class method";
             }
 
             if (current->getId() == tp->getId()) return;
@@ -211,7 +211,7 @@ namespace tsn {
         
         void Function::setRetType(DataType* tp, bool returnsPointer, DataTypeRegistry* treg) {
             if (m_registryIndex != u32(-1)) {
-                throw std::exception("Function already added to registry, it cannot be changed.");
+                throw "Function already added to registry, it cannot be changed.";
             }
 
             if (m_signature->getReturnType()->getId() == tp->getId()) return;

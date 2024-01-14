@@ -57,7 +57,7 @@ namespace tsn {
             SourceException(const utils::String& message, const SourceLocation& src);
             ~SourceException();
 
-            virtual char const* what() const;
+            virtual char const* what() const noexcept;
 
             const SourceLocation& getSource() const;
 

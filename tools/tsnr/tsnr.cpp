@@ -69,7 +69,6 @@ i32 main (i32 argc, const char** argv) {
         std::filesystem::current_path(cwd);
     }
 
-
     tsnc_config conf;
     conf.script_path = "main";
     conf.config_path = "./tsnc.json";
@@ -238,7 +237,12 @@ i32 parse_args(i32 argc, const char** argv, tsnc_config* conf, Config* ctxConf) 
 
 char* loadText(const char* filename, bool required, const tsnc_config& conf) {
     FILE* fp = nullptr;
+    #ifdef _MSC_VER
     fopen_s(&fp, filename, "r");
+    #else
+    fp = fopen(filename, "r");
+    #endif
+    
     if (!fp) {
         if (!required) return nullptr;
 

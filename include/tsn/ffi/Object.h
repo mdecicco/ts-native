@@ -4,8 +4,6 @@
 #include <tsn/interfaces/IContextual.h>
 #include <tsn/utils/remove_all.h>
 
-#include <xtr1common>
-
 namespace utils {
     class String;
 };

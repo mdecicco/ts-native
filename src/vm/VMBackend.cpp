@@ -1008,6 +1008,12 @@ namespace tsn {
                         m_map.add(i.src.getLine(), i.src.getCol(), i.src.getLength());
                         break;
                     }
+                    case op::ir_not: {
+                        break;
+                    }
+                    case op::ir_inv: {
+                        break;
+                    }
                     case op::ir_call: {
                         FunctionType* sig = (FunctionType*)i.operands[0].getType();
                         

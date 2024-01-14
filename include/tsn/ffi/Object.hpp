@@ -90,7 +90,7 @@ namespace tsn {
 
         T* ptr = (T*)((u8*)m_data + p.offset);
         *ptr = value;
-        return Object(m_ctx, false, p.type, (void*)ptr);
+        return Object::View(m_ctx, false, p.type, (void*)ptr);
     }
 
     template <typename... Args>

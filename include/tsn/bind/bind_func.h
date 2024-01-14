@@ -1,6 +1,5 @@
 #pragma once
 #include <tsn/common/types.h>
-#include <xtr1common>
 
 namespace utils {
     class String;
@@ -14,6 +13,7 @@ namespace tsn {
 
     namespace ffi {
         class Function;
+        class FunctionType;
         class DataType;
         class FunctionRegistry;
         class DataTypeRegistry;

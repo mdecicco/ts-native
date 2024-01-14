@@ -109,7 +109,7 @@ namespace tsn {
                     lastLoggedLn = ref.line;
                     
                     printf("0x%2.2llx: %s\n", *ip, i.toString(m_ctx).c_str());
-                    _flushall();
+                    fflush(stdout);
                 }
 
                 vmi instr = i.instr();
@@ -124,7 +124,7 @@ namespace tsn {
                     case vmi::ld8: {
                         u64 offset = GR64(u64(_O2)) + _O3ui64;
                         if (offset >= stack_padding_start && offset <= stack_padding_end) {
-                            throw std::exception("VM Stack Overflow");
+                            throw "VM Stack Overflow";
                         }
                         u8* ptr = (u8*)offset;
                         GR64(_O1) = *(u8*)ptr;
@@ -133,7 +133,7 @@ namespace tsn {
                     case vmi::ld16: {
                         u64 offset = GR64(u64(_O2)) + _O3ui64;
                         if (offset >= stack_padding_start && offset <= stack_padding_end) {
-                            throw std::exception("VM Stack Overflow");
+                            throw "VM Stack Overflow";
                         }
                         u16* ptr = (u16*)offset;
                         GR64(_O1) = *(u16*)ptr;
@@ -142,7 +142,7 @@ namespace tsn {
                     case vmi::ld32: {
                         u64 offset = GR64(u64(_O2)) + _O3ui64;
                         if (offset >= stack_padding_start && offset <= stack_padding_end) {
-                            throw std::exception("VM Stack Overflow");
+                            throw "VM Stack Overflow";
                         }
                         u32* ptr = (u32*)offset;
                         GR64(_O1) = *(u32*)ptr;
@@ -151,7 +151,7 @@ namespace tsn {
                     case vmi::ld64: {
                         u64 offset = GR64(u64(_O2)) + _O3ui64;
                         if (offset >= stack_padding_start && offset <= stack_padding_end) {
-                            throw std::exception("VM Stack Overflow");
+                            throw "VM Stack Overflow";
                         }
                         u64* ptr = (u64*)offset;
                         GR64(_O1) = *(u64*)ptr;
@@ -160,7 +160,7 @@ namespace tsn {
                     case vmi::st8: {
                         u64 offset = GR64(u64(_O2)) + _O3ui64;
                         if (offset >= stack_padding_start && offset <= stack_padding_end) {
-                            throw std::exception("VM Stack Overflow");
+                            throw "VM Stack Overflow";
                         }
                         u8* ptr = (u8*)offset;
                         *ptr = GR8(_O1);
@@ -169,7 +169,7 @@ namespace tsn {
                     case vmi::st16: {
                         u64 offset = GR64(u64(_O2)) + _O3ui64;
                         if (offset >= stack_padding_start && offset <= stack_padding_end) {
-                            throw std::exception("VM Stack Overflow");
+                            throw "VM Stack Overflow";
                         }
                         u16* ptr = (u16*)offset;
                         *ptr = GR16(_O1);
@@ -178,7 +178,7 @@ namespace tsn {
                     case vmi::st32: {
                         u64 offset = GR64(u64(_O2)) + _O3ui64;
                         if (offset >= stack_padding_start && offset <= stack_padding_end) {
-                            throw std::exception("VM Stack Overflow");
+                            throw "VM Stack Overflow";
                         }
                         u32* ptr = (u32*)offset;
                         *ptr = GR32(_O1);
@@ -187,7 +187,7 @@ namespace tsn {
                     case vmi::st64: {
                         u64 offset = GR64(u64(_O2)) + _O3ui64;
                         if (offset >= stack_padding_start && offset <= stack_padding_end) {
-                            throw std::exception("VM Stack Overflow");
+                            throw "VM Stack Overflow";
                         }
                         u64* ptr = (u64*)offset;
                         *ptr = GR64(_O1);
@@ -195,7 +195,7 @@ namespace tsn {
                     }
                     case vmi::mptr: {
                         Module* mod = m_ctx->getModule((u32)GRx(vmr::v3, u64));
-                        if (!mod) throw std::exception("VM: mptr provided invalid module ID");
+                        if (!mod) throw "VM: mptr provided invalid module ID";
                         GR64(_O1) = (u64)mod->getDataInfo(u32(_O2ui)).ptr;
                         break;
                     }
@@ -1710,7 +1710,7 @@ namespace tsn {
                     case vmi::jal: {
                         function_id id = (function_id)_O1ui64;
                         ffi::Function* fn = m_ctx->getFunctions()->getFunction(id);
-                        if (!fn) throw std::exception("VM: jal instruction provided invalid function ID");
+                        if (!fn) throw "VM: jal instruction provided invalid function ID";
                         if (fn->getWrapperAddress().isValid()) {
                             call_external(fn);
                         } else {
@@ -1724,10 +1724,10 @@ namespace tsn {
                     }
                     case vmi::jalr: {
                         ffi::Closure* ref = GRx(_O1, ffi::Closure*);
-                        if (!ref) throw std::exception("VM: Invalid callback passed to jalr");
+                        if (!ref) throw "VM: Invalid callback passed to jalr";
 
                         ffi::Function* fn = ref->getTarget();
-                        if (!fn) throw std::exception("VM: Invalid callback passed to jalr");
+                        if (!fn) throw "VM: Invalid callback passed to jalr";
 
                         if (fn->getWrapperAddress().isValid()) {
                             call_external(fn);
@@ -1741,7 +1741,7 @@ namespace tsn {
                         break;
                     }
                     default: {
-                        throw std::exception("VM: invalid instruction");
+                        throw "VM: invalid instruction";
                         break;
                     }
                 }

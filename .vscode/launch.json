@@ -1,0 +1,29 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${command:cmake.launchTargetPath}",
+            "visualizerFile": "${workspaceFolder}/deps/utils/debug.natvis",
+            "showDisplayString": true,
+            "cwd": "${workspaceFolder}",
+            "targetArchitecture": "arm64",
+            "MIMode": "lldb",
+            "externalConsole": false,
+            "logging": {
+                "moduleLoad": false,
+                "programOutput": true,
+                "engineLogging": "none",
+                "exceptions": false,
+                "trace": false,
+                "traceResponse": false,
+                "natvisDiagnostics": "none"
+            }
+        }
+    ]
+}

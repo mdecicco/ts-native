@@ -7,8 +7,6 @@
 #include <utils/Array.h>
 #include <utils/String.h>
 
-#include <xtr1common>
-
 namespace tsn {
     class Module;
     class Context;
@@ -19,7 +17,7 @@ namespace tsn {
 
     namespace compiler {
         class FunctionDef;
-        enum ir_instruction;
+        enum ir_instruction : u32;
         struct member_expr_hints;
 
         class Value : public ITypedObject {

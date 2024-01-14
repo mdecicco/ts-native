@@ -6,11 +6,15 @@
 #include <tsn/ffi/FunctionRegistry.h>
 #include <tsn/ffi/DataTypeRegistry.h>
 #include <tsn/ffi/Function.hpp>
+#include <tsn/common/types.hpp>
 #include <tsn/common/Module.h>
 #include <tsn/utils/remove_all.h>
 
 #include <utils/String.h>
 #include <utils/Array.hpp>
+
+#include <functional>
+#include <type_traits>
 
 namespace tsn {
     namespace ffi {
@@ -125,7 +129,7 @@ namespace tsn {
                     if (!argTypes[a]) {
                         throw BindException(utils::String::Format(
                             "Argument index %d of function '%s' is of type '%s', which has not been bound",
-                            a + 1, fnName, argTpNames[a]
+                            a + 1, fnName.c_str(), argTpNames[a]
                         ));
                     }
 
@@ -133,7 +137,7 @@ namespace tsn {
                         throw BindException(utils::String::Format(
                             "Argument index %d of function '%s' is an object of type '%s' which is passed by value. "
                             "Passing objects by value is unsupported, please use a pointer or reference type for this argument",
-                            a + 1, fnName, argTpNames[a]
+                            a + 1, fnName.c_str(), argTpNames[a]
                         ));
                     }
 
@@ -158,14 +162,14 @@ namespace tsn {
             if (!retTp) {
                 throw BindException(utils::String::Format(
                     "Return type of function '%s' is '%s', which has not been bound",
-                    name, type_name<Ret>()
+                    name.c_str(), type_name<Ret>()
                 ));
             }
 
             if constexpr (std::is_pointer_v<Ret> && std::is_pointer_v<std::remove_pointer_t<Ret>>) {
                 throw BindException(utils::String::Format(
                     "Return type of function '%s' is a pointer to a pointer, which is not supported at this time",
-                    name
+                    name.c_str()
                 ));
             }
 
@@ -205,14 +209,14 @@ namespace tsn {
             if (!retTp) {
                 throw BindException(utils::String::Format(
                     "Return type of function '%s' is '%s', which has not been bound",
-                    name, type_name<Ret>()
+                    name.c_str(), type_name<Ret>()
                 ));
             }
 
             if constexpr (std::is_pointer_v<Ret> && std::is_pointer_v<std::remove_pointer_t<Ret>>) {
                 throw BindException(utils::String::Format(
                     "Return type of function '%s' is a pointer to a pointer, which is not supported at this time",
-                    name
+                    name.c_str()
                 ));
             }
 

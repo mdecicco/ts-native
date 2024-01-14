@@ -3,8 +3,6 @@
 #include <utils/Array.h>
 #include <utils/String.h>
 
-#include <xtr1common>
-
 namespace tsn {
     class Module;
 

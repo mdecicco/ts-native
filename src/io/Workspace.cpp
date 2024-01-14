@@ -295,19 +295,19 @@ namespace tsn {
 
         if (!std::filesystem::exists(supportDir)) {
             if (!std::filesystem::create_directory(supportDir)) {
-                throw std::exception("Failed to create support directory");
+                throw "Failed to create support directory";
             }
         }
         
-        if (!std::filesystem::exists(supportDir / "cached")) {
-            if (!std::filesystem::create_directory(supportDir / "cached")) {
-                throw std::exception("Failed to create cache directory");
+        if (!std::filesystem::exists(supportDir / std::filesystem::path("cached"))) {
+            if (!std::filesystem::create_directory(supportDir / std::filesystem::path("cached"))) {
+                throw "Failed to create cache directory";
             }
         }
         
-        if (!std::filesystem::exists(workspaceRoot / "trusted")) {
-            if (!std::filesystem::create_directory(workspaceRoot / "trusted")) {
-                throw std::exception("Failed to create trusted module directory");
+        if (!std::filesystem::exists(workspaceRoot / std::filesystem::path("trusted"))) {
+            if (!std::filesystem::create_directory(workspaceRoot / std::filesystem::path("trusted"))) {
+                throw "Failed to create trusted module directory";
             }
         }
 
@@ -383,7 +383,7 @@ namespace tsn {
         }
 
         // Then relative to the trusted folder
-        p = fspath(m_ctx->getConfig()->workspaceRoot) / "trusted" / fspath(pathWithExt.c_str());
+        p = fspath(m_ctx->getConfig()->workspaceRoot) / fspath("trusted") / fspath(pathWithExt.c_str());
         if (std::filesystem::exists(p)) {
             return enforceDirSeparator(std::filesystem::relative(p, m_ctx->getConfig()->workspaceRoot).string());
         }
