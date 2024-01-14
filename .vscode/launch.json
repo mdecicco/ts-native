@@ -12,15 +12,17 @@
             "visualizerFile": "${workspaceFolder}/deps/utils/debug.natvis",
             "showDisplayString": true,
             "cwd": "${workspaceFolder}",
+            "targetArchitecture": "arm64",
             "MIMode": "lldb",
             "externalConsole": false,
             "logging": {
                 "moduleLoad": false,
-                "exceptions": true,
                 "programOutput": true,
-                "engineLogging": false,
+                "engineLogging": "none",
+                "exceptions": false,
                 "trace": false,
-                "traceResponse": false
+                "traceResponse": false,
+                "natvisDiagnostics": "none"
             }
         }
     ]

@@ -69,7 +69,6 @@ i32 main (i32 argc, const char** argv) {
         std::filesystem::current_path(cwd);
     }
 
-
     tsnc_config conf;
     conf.script_path = "main";
     conf.config_path = "./tsnc.json";
