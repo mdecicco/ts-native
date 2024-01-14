@@ -14,12 +14,7 @@
 #include <utils/Array.hpp>
 
 #include <functional>
-
-#ifdef _MSC_VER
-#include <xtr1common>
-#else
 #include <type_traits>
-#endif
 
 namespace tsn {
     namespace ffi {
