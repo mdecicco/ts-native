@@ -21,3 +21,4 @@ deps/*.rar
 w64/
 imgui.ini
 ignore/
+.DS_Store
