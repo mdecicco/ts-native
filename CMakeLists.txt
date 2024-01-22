@@ -3,19 +3,18 @@ project(tsn VERSION 0.1.0)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-set(CMAKE_CXX_STANDARD 20) 
-set(CMAKE_CXX_STANDARD_REQUIRED ON) 
-set(CMAKE_CXX_EXTENSIONS OFF) 
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/bin)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/bin)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/bin)
 
 set(
     tsn_include_dirs
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/deps/utils/include
     ${CMAKE_CURRENT_SOURCE_DIR}/build/deps/libffi/include
-)
-set(
-    tsn_library_dirs
-    ${CMAKE_CURRENT_SOURCE_DIR}/bin/Debug
 )
 
 set (all_sources "")
@@ -52,18 +51,13 @@ add_sources("src/pipeline"   "pipeline")
 add_sources("src/interfaces" "interfaces")
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/bin)
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/bin)
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/bin)
-
 
 include_directories(${tsn_include_dirs})
-link_directories(${tsn_library_dirs})
 
 add_library(tsn ${all_sources})
 target_link_libraries(tsn
     utils
-    ffi_shared
+    ffi_static
 )
 
 add_subdirectory("./deps")

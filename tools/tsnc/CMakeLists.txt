@@ -5,10 +5,6 @@ set(
     tsnc_include_dirs
     ${CMAKE_CURRENT_SOURCE_DIR}/../include
 )
-set(
-    tsnc_library_dirs
-    ${CMAKE_CURRENT_SOURCE_DIR}/../_lib/Debug
-)
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 file(GLOB_RECURSE tsnc_src
@@ -21,7 +17,6 @@ SOURCE_GROUP("src" FILES ${tsnc_src})
 
 
 include_directories(${tsnc_include_dirs})
-link_directories(${tsnc_library_dirs})
 add_executable(tsnc ${tsnc_src})
 
-target_link_libraries(tsnc tsn ffi_shared)
+target_link_libraries(tsnc tsn)
