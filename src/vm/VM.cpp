@@ -1265,7 +1265,6 @@ namespace tsn {
                         break;
                     }
                     case vmi::addui: {
-                        u64* raddr = &GRx(_O1, u64);
                         GRx(_O1, u64) = GRx(_O2, u64) + _O3ui;
                         break;
                     }
