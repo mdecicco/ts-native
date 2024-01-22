@@ -35,7 +35,7 @@ namespace tsn {
                 CaptureData* m_ref;
         };
 
-        class CaptureData : public IContextual {
+        class CaptureData {
             public:
                 CaptureData(ExecutionContext* ectx, function_id targetId, void* captureData);
                 CaptureData(const CaptureData& c);
@@ -43,6 +43,7 @@ namespace tsn {
 
                 void bind(void* self);
                 ffi::Function* getTarget() const;
+                Context* getContext() const;
                 void* getSelf() const;
 
                 void operator=(const CaptureData& rhs) = delete;
@@ -55,6 +56,7 @@ namespace tsn {
                 void* m_captureData;
                 ffi::Function* m_target;
                 u32 m_refCount;
+                Context* m_ctx;
         };
     };
 };

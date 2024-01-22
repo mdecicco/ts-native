@@ -59,16 +59,15 @@ namespace tsn {
 
 
 
-        CaptureData::CaptureData(ExecutionContext* ectx, function_id targetId, void* data)
-            : IContextual(ectx->getContext())
-        {
+        CaptureData::CaptureData(ExecutionContext* ectx, function_id targetId, void* data) {
             m_self = nullptr;
             m_target = m_ctx->getFunctions()->getFunction(targetId);
             m_captureData = data;
             m_refCount = 0;
+            m_ctx = ectx->getContext();
         }
 
-        CaptureData::CaptureData(const CaptureData& c) : IContextual(nullptr) {
+        CaptureData::CaptureData(const CaptureData& c) {
             throw "Closures are not copy constructible";
         }
 
@@ -99,6 +98,10 @@ namespace tsn {
 
         ffi::Function* CaptureData::getTarget() const {
             return m_target;
+        }
+    
+        Context* CaptureData::getContext() const {
+            return m_ctx;
         }
 
         void* CaptureData::getSelf() const {
