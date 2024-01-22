@@ -71,14 +71,6 @@ i32 handleResult(Context* ctx, Module* mod, const tsnc_config& conf);
 void initError(const char* err, const tsnc_config& conf);
 
 i32 main (i32 argc, const char** argv) {
-    if (argc > 0) {
-        std::string progPath = argv[0];
-        size_t idx = progPath.find_last_of('/');
-        if (idx == std::string::npos) idx = progPath.find_last_of('\\');
-        std::string cwd = progPath.substr(0, idx);
-        std::filesystem::current_path(cwd);
-    }
-
     tsnc_config conf;
     conf.script_path = "main";
     conf.config_path = "./tsnc.json";
