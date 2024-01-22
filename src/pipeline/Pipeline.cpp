@@ -178,6 +178,8 @@ namespace tsn {
     }
     
     ffi::DataType* Pipeline::specializeTemplate(ffi::TemplateType* type, const utils::Array<ffi::DataType*> templateArgs) {
+        if (!type || templateArgs.size() == 0) return nullptr;
+        
         if (m_isCompiling) {
             Pipeline child = Pipeline(m_ctx, this, m_root);
             return child.specializeTemplate(type, templateArgs);
