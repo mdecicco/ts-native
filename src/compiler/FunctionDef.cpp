@@ -329,7 +329,7 @@ namespace tsn {
                         }
                     } else if (op.isStack()) {
                         if (v.isStack() && op.m_slotId == v.m_slotId) {
-                            op.m_name == name;
+                            op.m_name = name;
                         }
                     }
                 }
