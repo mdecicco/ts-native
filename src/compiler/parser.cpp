@@ -3746,7 +3746,7 @@ namespace tsn {
                 // attempt to continue
             } else ps->consume();
 
-            n->body = array_of(ps, { switchCase });
+            n->body = array_of(ps, switchCase);
 
             if (ps->isKeyword("default")) {
                 ps->consume();
