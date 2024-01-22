@@ -11,7 +11,7 @@
             "program": "${command:cmake.launchTargetPath}",
             "visualizerFile": "${workspaceFolder}/deps/utils/debug.natvis",
             "showDisplayString": true,
-            "cwd": "${workspaceFolder}",
+            "cwd": "${workspaceFolder}/scripts",
             "targetArchitecture": "arm64",
             "MIMode": "lldb",
             "externalConsole": false,
