@@ -11,6 +11,7 @@ x64/
 *.sln
 *.editorconfig
 *.yml
+scripts/
 .vs/
 *.exe
 *.ilk
