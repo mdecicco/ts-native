@@ -179,6 +179,12 @@ namespace tsn {
     
     ffi::DataType* Pipeline::specializeTemplate(ffi::TemplateType* type, const utils::Array<ffi::DataType*> templateArgs) {
         if (!type || templateArgs.size() == 0) return nullptr;
+
+        // Check if specialization already exists
+        ffi::DataType* existing = m_ctx->getTypes()->allTypes().find([type, &templateArgs](ffi::DataType* tp) {
+            return tp->isSpecializationOf(type, templateArgs);
+        });
+        if (existing) return existing;
         
         if (m_isCompiling) {
             Pipeline child = Pipeline(m_ctx, this, m_root);
