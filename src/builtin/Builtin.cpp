@@ -2,10 +2,7 @@
 #include <tsn/common/Context.h>
 #include <tsn/common/Module.h>
 #include <tsn/ffi/DataTypeRegistry.h>
-#include <tsn/ffi/Closure.h>
 #include <tsn/bind/bind.hpp>
-
-#include <utils/Math.hpp>
 
 using namespace tsn::ffi;
 

@@ -21,13 +21,11 @@ namespace tsn {
                 ~Closure();
 
                 ffi::Function* getTarget() const;
+                CaptureData* getCaptures() const;
                 void* getSelf() const;
 
                 void operator=(const Closure& rhs);
                 void operator=(CaptureData* rhs);
-
-                template <typename ...Args>
-                Object call(Args&&... args);
                 
             protected:
                 friend class compiler::Compiler;
@@ -57,6 +55,12 @@ namespace tsn {
                 ffi::Function* m_target;
                 u32 m_refCount;
                 Context* m_ctx;
+        };
+
+        template <typename Ret, typename ...Args>
+        class Callable : public Closure {
+            public:
+                Object operator()(Args&&... args) const;
         };
     };
 };

@@ -42,6 +42,10 @@ namespace tsn {
             return m_ref->m_target;
         }
 
+        CaptureData* Closure::getCaptures() const {
+            return m_ref;
+        }
+
         void* Closure::getSelf() const {
             if (!m_ref) return nullptr;
             return m_ref->m_self;
@@ -60,11 +64,11 @@ namespace tsn {
 
 
         CaptureData::CaptureData(ExecutionContext* ectx, function_id targetId, void* data) {
+            m_ctx = ectx->getContext();
             m_self = nullptr;
             m_target = m_ctx->getFunctions()->getFunction(targetId);
             m_captureData = data;
             m_refCount = 0;
-            m_ctx = ectx->getContext();
         }
 
         CaptureData::CaptureData(const CaptureData& c) {

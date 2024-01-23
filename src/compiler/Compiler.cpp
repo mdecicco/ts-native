@@ -1022,6 +1022,7 @@ namespace tsn {
                 expr->targetNextConstructor = targetNextCtor;
                 expr->targetNextCall = targetNextCall;
             }
+            
             return newClosure(closure, sig);
         }
 
@@ -1301,7 +1302,9 @@ namespace tsn {
                     if (p.getFlags().is_pointer) finalParams.push(*p);
                     else finalParams.push(p);
                 } else {
-                    if (p.getFlags().is_pointer || !p.getType()->getInfo().is_primitive || p.getType()->isEqualTo(voidp)) {
+                    if (p.isFunction() && p.isImm()) {
+                        finalParams.push(newClosure(p));
+                    } else if (p.getFlags().is_pointer || !p.getType()->getInfo().is_primitive || p.getType()->isEqualTo(voidp)) {
                         finalParams.push(p);
                     } else {
                         Value s = cf->stack(p.getType(), true, utils::String::Format("Copy value of parameter %d to stack to get pointer", a));
