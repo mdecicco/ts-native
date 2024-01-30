@@ -1415,7 +1415,7 @@ namespace tsn {
                                     if (to->getInfo().size == sizeof(f64)) ci = vmi::cvt_ud;
                                     else ci = vmi::cvt_uf;
                                     
-                                    m_instructions.push(encode(vmi::mtfp).operand(r2).operand(r1).operand(vmr::zero));
+                                    m_instructions.push(encode(vmi::mtfp).operand(r2).operand(r1));
                                     m_map.add(i.src.getLine(), i.src.getCol(), i.src.getLength());
                                 } else {
                                     if (!to->getInfo().is_unsigned) ci = vmi::cvt_ui;
@@ -1428,7 +1428,7 @@ namespace tsn {
                                     if (to->getInfo().size == sizeof(f64)) ci = vmi::cvt_id;
                                     else ci = vmi::cvt_if;
                                     
-                                    m_instructions.push(encode(vmi::mtfp).operand(r2).operand(r1).operand(vmr::zero));
+                                    m_instructions.push(encode(vmi::mtfp).operand(r2).operand(r1));
                                     m_map.add(i.src.getLine(), i.src.getCol(), i.src.getLength());
                                 } else {
                                     if (to->getInfo().is_unsigned) ci = vmi::cvt_iu;

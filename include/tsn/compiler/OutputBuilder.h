@@ -41,12 +41,14 @@ namespace tsn {
                 void import(ffi::DataType* fn, const utils::String& as);
                 u32 addSymbolLifetime(const utils::String& name, ParseNode* scopeRoot, const Value& v);
                 void addDependency(Module* mod);
+                void addHostTemplateSpecialization(ffi::DataType* type);
 
                 const utils::Array<FunctionDef*>& getFuncs() const;
                 utils::Array<FunctionDef*>& getFuncs();
                 const utils::Array<ffi::DataType*>& getTypes() const;
                 const utils::Array<symbol_lifetime>& getSymbolLifetimeData() const;
                 const utils::Array<Module*>& getDependencies() const;
+                const utils::Array<ffi::DataType*>& getSpecializedHostTypes() const;
 
                 Module* getModule();
                 Compiler* getCompiler();
@@ -57,6 +59,7 @@ namespace tsn {
                 utils::Array<symbol_lifetime> m_symbolLifetimes;
                 utils::Array<FunctionDef*> m_funcs;
                 utils::Array<ffi::DataType*> m_types;
+                utils::Array<ffi::DataType*> m_specializedHostTypes;
                 utils::Array<FunctionDef*> m_importedFuncs;
                 robin_hood::unordered_map<ffi::Function*, u32> m_funcDefs;
                 utils::Array<FunctionDef*> m_allFuncDefs;

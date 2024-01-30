@@ -120,7 +120,7 @@ namespace tsn {
                 DataType* argTypes[] = { reg->getType<typename remove_all<Args>::type>()... };
                 const char* argTpNames[] = { type_name<Args>()... };
                 constexpr bool argIsPtr[] = { (std::is_reference_v<Args> || std::is_pointer_v<Args>)... };
-                constexpr bool argNeedsPtr[] = { !std::is_fundamental_v<Args>... };
+                constexpr bool argNeedsPtr[] = { (!std::is_fundamental_v<Args> && !std::is_same_v<Args, null_t>)... };
 
                 DataType* voidt = reg->getType<void>();
                 DataType* voidp = reg->getType<void*>();
@@ -482,6 +482,13 @@ namespace tsn {
                 ));
             }
 
+            return bind_method<Ret, Args...>(mod, freg, treg, selfTp, name, genFn, access);
+        }
+
+        template <typename Ret, typename... Args>
+        Function* bind_method(Module* mod, FunctionRegistry* freg, DataTypeRegistry* treg, DataType* selfTp, const utils::String& name, compiler::InlineCodeGenFunc genFn, access_modifier access) {
+            if (!selfTp) return nullptr;
+
             DataType* retTp = treg->getType<Ret>();
             if (!retTp) {
                 throw BindException(utils::String::Format(
@@ -527,6 +534,7 @@ namespace tsn {
 
             return m;
         }
+
 
         template <typename Cls, typename... Args>
         Function* bind_constructor(Module* mod, FunctionRegistry* freg, DataTypeRegistry* treg, DataType* forType, access_modifier access) {

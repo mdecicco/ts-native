@@ -87,11 +87,8 @@ namespace tsn {
             m_vec4f = getType<utils::vec4f>();
             m_vec4d = getType<utils::vec4d>();
 
-            Module* mp = m_ctx->getModule("trusted/pointer");
-            m_pointer = (TemplateType*)(mp ? mp->allTypes().find([](const DataType* t) { return t->getName() == "Pointer"; }) : nullptr);
-
-            Module* ma = m_ctx->getModule("trusted/array");
-            m_array = (TemplateType*)(ma ? ma->allTypes().find([](const DataType* t) { return t->getName() == "Array"; }) : nullptr);
+            m_pointer = (TemplateType*)m_ctx->getTypes()->allTypes().find([](const DataType* t) { return t->getName() == "Pointer"; });
+            m_array = (TemplateType*)m_ctx->getTypes()->allTypes().find([](const DataType* t) { return t->getName() == "Array"; });
         }
 
         u32 DataTypeRegistry::getNextAnonTypeIndex() {

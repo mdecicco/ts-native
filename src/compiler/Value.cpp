@@ -828,7 +828,7 @@ namespace tsn {
             return ptr;
         }
 
-        Value Value::callMethod(const utils::String& name, ffi::DataType* retTp, const utils::Array<Value>& args) {
+        Value Value::callMethod(const utils::String& name, ffi::DataType* retTp, const utils::Array<Value>& args) const {
             Array<DataType*> argTps = args.map([](const Value& v) { return v.getType(); });
             Array<Function*> matches = m_type->findMethods(name, retTp, const_cast<const ffi::DataType**>(argTps.data()), args.size(), fm_skip_implicit_args);
             if (matches.size() == 1) {

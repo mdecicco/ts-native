@@ -297,7 +297,7 @@ namespace tsn {
                 if (!f) continue;
                 m_output->import(f, f->getName());
             }
-
+            
             ParseNode* n = m_program->body;
             while (n) {
                 if (n->tp == nt_import) {
@@ -686,7 +686,9 @@ namespace tsn {
                 return result;
             }
 
+            enterExpr();
             constructObject(storage, { result });
+            exitExpr();
             
             return result;
         }
@@ -1022,7 +1024,7 @@ namespace tsn {
                 expr->targetNextConstructor = targetNextCtor;
                 expr->targetNextCall = targetNextCall;
             }
-            
+
             return newClosure(closure, sig);
         }
 
@@ -1069,9 +1071,106 @@ namespace tsn {
             return newClosure(closure, sig);
         }
 
-        Value Compiler::generateHostInlineCall(ffi::Function* fn, const utils::Array<Value>& args, const Value* self) {
+        Value Compiler::generateHostInlineCall(ffi::Function* fn, const utils::Array<Value>& params, const Value* self) {
+            FunctionDef* cf = currentFunction();
             Value result = currentFunction()->getPoison();
+
+            auto& fargs = fn->getSignature()->getArguments();
+
+            u8 argc = 0;
+            for (u8 a = 0;a < fargs.size();a++) {
+                if (!fargs[a].isImplicit()) argc++;
+            }
+
+            if (params.size() != argc) {
+                if (fn->getName().size() > 0) {
+                    functionError(
+                        self ? self->getType() : nullptr,
+                        fn->getSignature()->getReturnType(),
+                        params,
+                        cm_err_function_argument_count_mismatch,
+                        "Function '%s' expects %d argument%s, but %d %s provided",
+                        fn->getName().c_str(),
+                        argc,
+                        argc == 1 ? "" : "s",
+                        params.size(),
+                        params.size() == 1 ? "was" : "were"
+                    );
+                } else {
+                    functionError(
+                        self ? self->getType() : nullptr,
+                        fn->getSignature()->getReturnType(),
+                        params,
+                        cm_err_function_argument_count_mismatch,
+                        "Function expects %d argument%s, but %d %s provided",
+                        argc,
+                        argc == 1 ? "" : "s",
+                        params.size(),
+                        params.size() == 1 ? "was" : "were"
+                    );
+                }
+
+                return cf->getPoison();
+            }
+
+            u8 aidx = 0;
+            for (u8 a = 0;a < fargs.size();a++) {
+                const auto& ainfo = fargs[a];
+                if (ainfo.isImplicit()) continue;
+
+                if (!params[aidx].getType()->isConvertibleTo(ainfo.dataType)) {
+                    if (fn->getName().size() > 0) {
+                        functionError(
+                            self ? self->getType() : nullptr,
+                            fn->getSignature()->getReturnType(),
+                            params,
+                            cm_err_type_not_convertible,
+                            "Function '%s' is not callable with args '%s'",
+                            fn->getName().c_str(),
+                            argListStr(params).c_str()
+                        );
+                    } else {
+                        functionError(
+                            self ? self->getType() : nullptr,
+                            fn->getSignature()->getReturnType(),
+                            params,
+                            cm_err_type_not_convertible,
+                            "Function is not callable with args '%s'",
+                            argListStr(params).c_str()
+                        );
+                    }
+                    info(
+                        cm_info_arg_conversion,
+                        "^ No conversion found from type '%s' to type '%s' for argument %d",
+                        params[aidx].getType()->getName().c_str(),
+                        ainfo.dataType->getName().c_str(),
+                        aidx + 1
+                    );
+
+                    return cf->getPoison();
+                }
+                aidx++;
+            }
             
+            utils::Array<Value> finalParams(fargs.size() + 1);
+            DataType* voidp = m_ctx->getTypes()->getVoidPtr();
+
+            aidx = 0;
+            for (u8 a = 0;a < params.size();a++) {
+                const auto& arg = fargs[a + 1];
+                const Value& p = params[aidx++];
+                if (arg.argType == arg_type::value && !arg.dataType->isEquivalentTo(voidp)) {
+                    if (p.getFlags().is_pointer) finalParams.push((*p).convertedTo(arg.dataType));
+                    else finalParams.push(p.convertedTo(arg.dataType));
+                } else {
+                    if (p.isFunction() && p.isImm()) {
+                        finalParams.push(p);
+                    } else {
+                        finalParams.push(p.convertedTo(arg.dataType));
+                    }
+                }
+            }
+
             Value* ret = nullptr;
             ffi::DataType* retTp = fn->getSignature()->getReturnType();
             if (retTp->getInfo().size != 0) {
@@ -1079,10 +1178,15 @@ namespace tsn {
                 ret = &result;
             }
 
-            InlineCodeGenContext gctx = { this, ret, self, args };
+            InlineCodeGenContext gctx = { this, ret, self, finalParams };
             InlineCodeGenFunc fptr;
             fn->getAddress().get(&fptr);
+
+
+            bool wasTrusted = m_trustEnable;
+            m_trustEnable = true;
             fptr(&gctx);
+            m_trustEnable = wasTrusted;
 
             return result;
         }
@@ -1298,13 +1402,13 @@ namespace tsn {
                 }
 
                 const Value& p = params[aidx++];
-                if (arg.argType == arg_type::value && !arg.dataType->isEqualTo(voidp)) {
-                    if (p.getFlags().is_pointer) finalParams.push(*p);
-                    else finalParams.push(p);
+                if (arg.argType == arg_type::value && !arg.dataType->isEquivalentTo(voidp)) {
+                    if (p.getFlags().is_pointer) finalParams.push((*p).convertedTo(arg.dataType));
+                    else finalParams.push(p.convertedTo(arg.dataType));
                 } else {
                     if (p.isFunction() && p.isImm()) {
                         finalParams.push(newClosure(p));
-                    } else if (p.getFlags().is_pointer || !p.getType()->getInfo().is_primitive || p.getType()->isEqualTo(voidp)) {
+                    } else if (p.getFlags().is_pointer || !p.getType()->getInfo().is_primitive || p.getType()->isEquivalentTo(voidp)) {
                         finalParams.push(p);
                     } else {
                         Value s = cf->stack(p.getType(), true, utils::String::Format("Copy value of parameter %d to stack to get pointer", a));
@@ -1511,6 +1615,7 @@ namespace tsn {
             
             scope().getBase().add(name, outTp);
             m_output->addDependency(outTp->getSource());
+            m_output->addHostTemplateSpecialization(outTp);
             return outTp;
         }
         DataType* Compiler::getPointerType(DataType* destTp) {
@@ -1541,6 +1646,7 @@ namespace tsn {
             
             scope().getBase().add(name, outTp);
             m_output->addDependency(outTp->getSource());
+            m_output->addHostTemplateSpecialization(outTp);
             return outTp;
         }
         DataType* Compiler::resolveTemplateTypeSubstitution(ParseNode* templateArgs, DataType* _type) {
@@ -1556,41 +1662,134 @@ namespace tsn {
             }
 
             TemplateType* type = (TemplateType*)_type;
-
             TemplateContext* tctx = type->getTemplateData();
-            ParseNode* tpAst = tctx->getAST();
-            enterNode(tpAst);
 
-            // Construct type name
             String name = _type->getName();
             String fullName = _type->getFullyQualifiedName();
             utils::Array<DataType*> targs;
-            name += '<';
-            fullName += '<';
 
-            ParseNode* n = tpAst->template_parameters;
-            u32 pc = 0;
-            while (n) {
-                enterNode(n);
-                DataType* pt = resolveTypeSpecifier(templateArgs);
-                targs.push(pt);
-                name += pt->getName();
-                fullName += pt->getFullyQualifiedName();
-                if (n != tpAst->template_parameters) {
-                    name += ", ";
-                    fullName += ", ";
+            if (!tctx) {
+                // Construct type name
+                name += '<';
+                fullName += '<';
+
+                u32 pc = 0;
+                while (templateArgs) {
+                    DataType* pt = resolveTypeSpecifier(templateArgs);
+                    if (targs.size() > 0) {
+                        name += ", ";
+                        fullName += ", ";
+                    }
+
+                    name += pt->getName();
+                    fullName += pt->getFullyQualifiedName();
+                    targs.push(pt);
+
+                    templateArgs = templateArgs->next;
                 }
 
-                pc++;
-                n = n->next;
-                templateArgs = templateArgs->next;
+                name += '>';
+                fullName += '>';
 
-                if (n && !templateArgs) {
+                if (targs.size() != type->getTemplateArgumentCount()) {
                     u32 ec = pc;
-                    ParseNode* en = n;
-                    while (en) {
-                        ec++;
-                        en = en->next;
+                    ParseNode* pn = templateArgs;
+                    while (pn) {
+                        pc++;
+                        pn = pn->next;
+                    }
+
+                    typeError(
+                        type,
+                        targs.size() < type->getTemplateArgumentCount() ? cm_err_too_few_template_args : cm_err_too_many_template_args,
+                        "Type '%s' expects %d template argument%s, but %d %s provided",
+                        type->getName().c_str(),
+                        type->getTemplateArgumentCount(),
+                        type->getTemplateArgumentCount() == 1 ? "" : "s",
+                        targs.size(),
+                        targs.size() == 1 ? "was" : "were"
+                    );
+
+                    return currentFunction()->getPoison().getType();
+                }
+
+                symbol* existing = scope().get(name);
+                if (existing) {
+                    DataType* etp = getTypeFromSymbol(existing);
+
+                    if (!etp) {
+                        typeError(
+                            type,
+                            cm_err_symbol_already_exists,
+                            "Symbol '%s' already exists and it is not a data type",
+                            name.c_str()
+                        );
+                        return currentFunction()->getPoison().getType();
+                    }
+
+                    return etp;
+                }
+            } else {
+                ParseNode* tpAst = tctx->getAST();
+                enterNode(tpAst);
+
+                // Construct type name
+                name += '<';
+                fullName += '<';
+
+                ParseNode* n = tpAst->template_parameters;
+                u32 pc = 0;
+                while (n) {
+                    enterNode(n);
+                    DataType* pt = resolveTypeSpecifier(templateArgs);
+                    targs.push(pt);
+                    name += pt->getName();
+                    fullName += pt->getFullyQualifiedName();
+                    if (n != tpAst->template_parameters) {
+                        name += ", ";
+                        fullName += ", ";
+                    }
+
+                    pc++;
+                    n = n->next;
+                    templateArgs = templateArgs->next;
+
+                    if (n && !templateArgs) {
+                        u32 ec = pc;
+                        ParseNode* en = n;
+                        while (en) {
+                            ec++;
+                            en = en->next;
+                        }
+
+                        typeError(
+                            type,
+                            cm_err_too_few_template_args,
+                            "Type '%s' expects %d template argument%s, but %d %s provided",
+                            type->getName().c_str(),
+                            ec,
+                            ec == 1 ? "" : "s",
+                            pc,
+                            pc == 1 ? "was" : "were"
+                        );
+
+                        exitNode();
+                        exitNode();
+                        return currentFunction()->getPoison().getType();
+                    }
+                    
+                    exitNode();
+                }
+
+                name += '>';
+                fullName += '>';
+
+                if (!n && templateArgs) {
+                    u32 ec = pc;
+                    ParseNode* pn = templateArgs;
+                    while (pn) {
+                        pc++;
+                        pn = pn->next;
                     }
 
                     typeError(
@@ -1605,72 +1804,45 @@ namespace tsn {
                     );
 
                     exitNode();
-                    exitNode();
-                    return currentFunction()->getPoison().getType();
-                }
-                exitNode();
-            }
-
-            name += '>';
-            fullName += '>';
-
-            if (!n && templateArgs) {
-                u32 ec = pc;
-                ParseNode* pn = templateArgs;
-                while (pn) {
-                    pc++;
-                    pn = pn->next;
-                }
-
-                typeError(
-                    type,
-                    cm_err_too_few_template_args,
-                    "Type '%s' expects %d template argument%s, but %d %s provided",
-                    type->getName().c_str(),
-                    ec,
-                    ec == 1 ? "" : "s",
-                    pc,
-                    pc == 1 ? "was" : "were"
-                );
-
-                exitNode();
-                return currentFunction()->getPoison().getType();
-            }
-
-            symbol* existing = scope().get(name);
-            if (existing) {
-                DataType* etp = getTypeFromSymbol(existing);
-
-                if (!etp) {
-                    typeError(
-                        type,
-                        cm_err_symbol_already_exists,
-                        "Symbol '%s' already exists and it is not a data type",
-                        name.c_str()
-                    );
-                    exitNode();
                     return currentFunction()->getPoison().getType();
                 }
 
+                symbol* existing = scope().get(name);
+                if (existing) {
+                    DataType* etp = getTypeFromSymbol(existing);
+
+                    if (!etp) {
+                        typeError(
+                            type,
+                            cm_err_symbol_already_exists,
+                            "Symbol '%s' already exists and it is not a data type",
+                            name.c_str()
+                        );
+                        exitNode();
+                        return currentFunction()->getPoison().getType();
+                    }
+
+                    exitNode();
+                    return etp;
+                }
+            
                 exitNode();
-                return etp;
             }
 
             DataType* tp = m_ctx->getPipeline()->specializeTemplate(type, targs);
             if (!tp) {
-                exitNode();
                 return currentFunction()->getPoison().getType();
             }
 
             m_output->addDependency(tp->getSource());
 
-            if (tpAst->tp == nt_type) {
+            if (!tctx) m_output->addHostTemplateSpecialization(tp);
+            else if (tctx->getAST()->tp == nt_type) {
                 tp = new AliasType(name, fullName, tp);
                 tp->setAccessModifier(private_access);
                 m_output->add(tp);
             }
 
-            exitNode();
             return tp;
         }
         DataType* Compiler::resolveObjectTypeSpecifier(ParseNode* n) {
@@ -3062,6 +3234,7 @@ namespace tsn {
             FunctionDef* cf = currentFunction();
             ParseNode* elem;
             if (n->body->tp == nt_expression_sequence) elem = n->body->body;
+            else if (n->body->tp == nt_empty) elem = nullptr;
             else elem = n->body;
 
             ParseNode* countEle = elem;
@@ -3088,8 +3261,8 @@ namespace tsn {
                 if (exp) exp->targetNextConstructor = false;
 
                 enterExpr();
-                ptr.reset(out.getProp("_data", false, false, true, false).convertedTo(tp));
-                out.getProp("_length", false, false, true, false) = cf->imm(count);
+                ptr.reset(out.getProp("_data").convertedTo(tp));
+                out.getProp("_length") = cf->imm(count);
                 exitExpr();
             }
 
@@ -3804,7 +3977,7 @@ namespace tsn {
                     if (p->tp == nt_expression_sequence) p = p->body;
                     enterExpr();
                     while (p && p->tp != nt_empty) {
-                        args.push(compileExpression(p));
+                        args.push(compileExpressionInner(p));
                         p = p->next;
                     }
                     exitExpr();
@@ -3824,7 +3997,7 @@ namespace tsn {
 
                     enterExpr();
                     while (p) {
-                        args.push(compileExpression(p));
+                        args.push(compileExpressionInner(p));
                         p = p->next;
                     }
 
@@ -3845,7 +4018,7 @@ namespace tsn {
                     enterExpr();
 
                     while (p) {
-                        h.args.push(compileExpression(p));
+                        h.args.push(compileExpressionInner(p));
                         p = p->next;
                     }
 
@@ -3908,7 +4081,7 @@ namespace tsn {
             enterNode(n);
 
             scope().enter();
-            Value cond = compileExpression(n->cond);
+            Value cond = compileExpressionInner(n->cond);
             if (cond.isImm()) {
                 // don't branch on values known at compile time
                 if (cond.getImm<u64>()) compileAny(n->body);

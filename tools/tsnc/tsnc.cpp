@@ -378,8 +378,8 @@ void initError(const char* err, const tsnc_config& conf) {
     j["globals"] = json::array();
     j["ast"] = json(nullptr);
 
-    if (conf.pretty_print) printf(j.dump(4).c_str());
-    else printf(j.dump().c_str());
+    if (conf.pretty_print) printf("%s", j.dump(4).c_str());
+    else printf("%s", j.dump().c_str());
 }
 
 i32 handleResult(Context* ctx, Module* mod, const tsnc_config& conf) {
@@ -562,8 +562,8 @@ i32 handleResult(Context* ctx, Module* mod, const tsnc_config& conf) {
         out["ast"] = toJson(ctx->getPipeline()->getAST());
     }
 
-    if (conf.pretty_print) printf(out.dump(4).c_str());
-    else printf(out.dump().c_str());
+    if (conf.pretty_print) printf("%s", out.dump(4).c_str());
+    else printf("%s", out.dump().c_str());
 
     if (hadErrors) return COMPILATION_ERROR;
     return COMPILATION_SUCCESS;

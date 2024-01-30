@@ -546,7 +546,7 @@ namespace tsn {
                 0, // is_integral
                 0, // is_unsigned
                    // is_function
-                (n->tp == compiler::nt_function) ? (unsigned)1 : (unsigned)0,
+                (n && n->tp == compiler::nt_function) ? (unsigned)1 : (unsigned)0,
                 1, // is_template
                 0, // is_alias
                 0, // is_host
@@ -562,12 +562,29 @@ namespace tsn {
         }
 
         TemplateType::TemplateType(
+            Module* mod,
+            const utils::String& name,
+            const utils::String& fullyQualifiedName,
+            u32 templateArgCount,
+            SpecializeFunc specializeFn
+        ) : DataType(name, fullyQualifiedName, templateTypeMeta(nullptr)) {
+            m_data = nullptr;
+            m_itype = dti_template;
+            m_sourceModule = mod;
+            m_templateArgCount = templateArgCount;
+            m_specializeFn = specializeFn;
+            m_info.is_host = 1;
+        }
+
+        TemplateType::TemplateType(
             const utils::String& name,
             const utils::String& fullyQualifiedName,
             compiler::TemplateContext* templateData
         ) : DataType(name, fullyQualifiedName, templateTypeMeta(templateData->getAST())) {
             m_data = templateData;
             m_itype = dti_template;
+            m_templateArgCount = 0;
+            m_specializeFn = nullptr;
         }
 
         TemplateType::~TemplateType() {
@@ -576,6 +593,14 @@ namespace tsn {
 
         compiler::TemplateContext* TemplateType::getTemplateData() const {
             return m_data;
+        }
+
+        TemplateType::SpecializeFunc TemplateType::getSpecializeFunc() const {
+            return m_specializeFn;
+        }
+
+        u32 TemplateType::getTemplateArgumentCount() const {
+            return m_templateArgCount;
         }
             
         bool TemplateType::serialize(utils::Buffer* out, Context* ctx) const {

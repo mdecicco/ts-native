@@ -54,6 +54,9 @@ namespace tsn {
         template <typename Cls, typename Ret, typename... Args>
         Function* bind_method(Module* mod, FunctionRegistry* freg, DataTypeRegistry* treg, const utils::String& name, compiler::InlineCodeGenFunc genFn, access_modifier access);
 
+        template <typename Ret, typename... Args>
+        Function* bind_method(Module* mod, FunctionRegistry* freg, DataTypeRegistry* treg, DataType* selfTp, const utils::String& name, compiler::InlineCodeGenFunc genFn, access_modifier access);
+
         template <typename Cls, typename... Args>
         Function* bind_constructor(Module* mod, FunctionRegistry* freg, DataTypeRegistry* treg, DataType* forType, access_modifier access);
 
