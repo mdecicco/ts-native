@@ -83,7 +83,7 @@ namespace tsn {
         BindNumberType<f32>(ctx, "f32");
         BindNumberType<f64>(ctx, "f64");
 
-        auto v  = bind<void>(ctx, "void").finalize();
+        bind<void>(ctx, "void").finalize();
 
         auto vp = bind<void*>(ctx, "data");
         type_meta& vpi = vp.info();
@@ -92,10 +92,12 @@ namespace tsn {
         vpi.is_integral = 1;
         vp.access(trusted_access).finalize();
 
-        auto n = bind<null_t>(ctx, "null_t").finalize();
+        bind<null_t>(ctx, "null_t").finalize();
+        bind<bool>(ctx, "boolean").finalize();
+        bind<poison_t>(ctx, "$poison").finalize();
 
-        auto b = bind<bool>(ctx, "boolean").finalize();
-        auto p = bind<poison_t>(ctx, "$poison").finalize();
+        ctx->getTypes()->updateCachedTypes();
+
         auto ectx = bind<ExecutionContext>(ctx, "$exec").dtor(tsn::private_access).finalize();
         
         auto cb = bind<CaptureData>(ctx, "$capture_data");
@@ -112,9 +114,6 @@ namespace tsn {
         BindString(ctx);
         BindMemory(ctx);
         BindMath(ctx);
-
-        bind(ctx, "print", print);
-
         ctx->getTypes()->updateCachedTypes();
 
         BindPointer(ctx);
@@ -140,5 +139,8 @@ namespace tsn {
         ExtendNumberType<f64>(ctx);
 
         ExtendString(ctx);
+
+
+        bind(ctx, "print", print);
     }
 };

@@ -155,25 +155,14 @@ namespace tsn {
             const utils::String& name,
             DataType* retTp,
             bool returnsPointer,
-            const utils::Array<function_argument>& _args,
+            const utils::Array<function_argument>& args,
             compiler::InlineCodeGenFunc genFn,
             access_modifier access
         ) {
-            utils::Array<function_argument> args;
-            args.push({ arg_type::context_ptr, typeRegistry->getVoidPtr() });
-            args.append(_args);
-
-            FunctionType tmp(m_type, retTp, args, returnsPointer);
-            FunctionType* sig = (FunctionType*)typeRegistry->getType(tmp.getId());
-            if (!sig) {
-                sig = new FunctionType(tmp);
-                typeRegistry->addFuncType(sig);
-            }
-
             Method* m = new Method(
                 name,
                 utils::String(m_mod ? m_mod->getName() + "::" : ""),
-                sig,
+                typeRegistry->getSignatureType(m_type, retTp, returnsPointer, args),
                 access,
                 nullptr,
                 nullptr,
@@ -193,25 +182,14 @@ namespace tsn {
             const utils::String& name,
             DataType* retTp,
             bool returnsPointer,
-            const utils::Array<function_argument>& _args,
+            const utils::Array<function_argument>& args,
             compiler::InlineCodeGenFunc genFn,
             access_modifier access
         ) {
-            utils::Array<function_argument> args;
-            args.push({ arg_type::context_ptr, typeRegistry->getVoidPtr() });
-            args.append(_args);
-
-            FunctionType tmp(nullptr, retTp, args, returnsPointer);
-            FunctionType* sig = (FunctionType*)typeRegistry->getType(tmp.getId());
-            if (!sig) {
-                sig = new FunctionType(tmp);
-                typeRegistry->addFuncType(sig);
-            }
-
             Function* fn = new Function(
                 name,
                 utils::String(m_mod ? m_mod->getName() + "::" : "") + m_type->getName() + "::",
-                sig,
+                typeRegistry->getSignatureType(nullptr, retTp, returnsPointer, args),
                 access,
                 nullptr,
                 nullptr,
@@ -227,20 +205,10 @@ namespace tsn {
         }
 
         void DataTypeExtender::setDestructor(compiler::InlineCodeGenFunc genFn, access_modifier access) {
-            utils::Array<function_argument> args;
-            args.push({ arg_type::context_ptr, typeRegistry->getVoidPtr() });
-
-            FunctionType tmp(m_type, typeRegistry->getVoid(), args, false);
-            FunctionType* sig = (FunctionType*)typeRegistry->getType(tmp.getId());
-            if (!sig) {
-                sig = new FunctionType(tmp);
-                typeRegistry->addFuncType(sig);
-            }
-
             Function* fn = new Function(
                 "destructor",
                 utils::String(m_mod ? m_mod->getName() + "::" : "") + m_type->getName() + "::",
-                sig,
+                typeRegistry->getSignatureType(m_type, nullptr),
                 access,
                 nullptr,
                 nullptr,
@@ -306,21 +274,10 @@ namespace tsn {
             Method* setter = nullptr;
 
             if (getterGenFn) {
-                utils::Array<function_argument> args = {
-                    { arg_type::context_ptr, typeRegistry->getVoidPtr() }
-                };
-
-                FunctionType tmp(m_type, type, args, false);
-                FunctionType* sig = (FunctionType*)typeRegistry->getType(tmp.getId());
-                if (!sig) {
-                    sig = new FunctionType(tmp);
-                    typeRegistry->addFuncType(sig);
-                }
-
                 getter = new Method(
                     "$get_" + name,
                     utils::String(m_mod ? m_mod->getName() + "::" : ""),
-                    sig,
+                    typeRegistry->getSignatureType(m_type, type),
                     private_access,
                     nullptr,
                     nullptr,
@@ -335,21 +292,13 @@ namespace tsn {
 
             if (setterGenFn) {
                 utils::Array<function_argument> args = {
-                    { arg_type::context_ptr, typeRegistry->getVoidPtr() },
                     { type->getInfo().is_primitive ? arg_type::value : arg_type::pointer, type }
                 };
-
-                FunctionType tmp(m_type, type, args, false);
-                FunctionType* sig = (FunctionType*)typeRegistry->getType(tmp.getId());
-                if (!sig) {
-                    sig = new FunctionType(tmp);
-                    typeRegistry->addFuncType(sig);
-                }
 
                 setter = new Method(
                     "$set_" + name,
                     utils::String(m_mod ? m_mod->getName() + "::" : ""),
-                    sig,
+                    typeRegistry->getSignatureType(m_type, type, false, args),
                     private_access,
                     nullptr,
                     nullptr,

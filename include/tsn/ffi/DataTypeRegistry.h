@@ -10,6 +10,7 @@ namespace tsn {
     namespace ffi {
         class DataType;
         class TemplateType;
+        struct function_argument;
 
         class DataTypeRegistry : public IDataTypeHolder {
             public:
@@ -42,6 +43,16 @@ namespace tsn {
                 DataType* getVec4d() const;
                 TemplateType* getArray() const;
                 TemplateType* getPointer() const;
+                FunctionType* getSignatureType(DataType* thisTp, DataType* retTp, bool returnsPointer = false, const utils::Array<function_argument>& args = {});
+                
+                template <typename... Args>
+                void validateAndGetArgs(utils::Array<function_argument>& args);
+
+                template <typename Ret, typename ...Args>
+                FunctionType* getSignatureType(DataType* selfType = nullptr);
+
+                template <typename Cls, typename Ret, typename ...Args>
+                FunctionType* getMethodSignatureType();
 
                 void updateCachedTypes();
                 u32 getNextAnonTypeIndex();
