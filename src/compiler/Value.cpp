@@ -254,7 +254,8 @@ namespace tsn {
                 return m_func->getPoison();
             }
 
-            if (tp->isEqualTo(m_type)) {
+            if (tp->isEquivalentTo(m_type)) {
+                if (m_flags.is_pointer && m_type->getInfo().is_primitive) return **this;
                 return *this;
             }
 
@@ -412,7 +413,7 @@ namespace tsn {
                     );
 
                     if (methods.size() == 1) {
-                        if (!m_flags.is_type && !methods[0]->isThisCall()) {
+                        if (!m_flags.is_type && !methods[0]->getFlags().is_thiscall) {
                             m_func->getCompiler()->valueError(
                                 *this,
                                 cm_err_method_is_static,
@@ -552,7 +553,7 @@ namespace tsn {
                     );
 
                     if (methods.size() == 1) {
-                        if (m_flags.is_type && methods[0]->isThisCall()) {
+                        if (m_flags.is_type && methods[0]->getFlags().is_thiscall) {
                             m_func->getCompiler()->valueError(
                                 *this,
                                 cm_err_method_not_static,
@@ -561,7 +562,7 @@ namespace tsn {
                                 m_type->getName().c_str()
                             );
                             return m_func->getPoison();
-                        } else if (!m_flags.is_type && !methods[0]->isThisCall()) {
+                        } else if (!m_flags.is_type && !methods[0]->getFlags().is_thiscall) {
                             m_func->getCompiler()->valueError(
                                 *this,
                                 cm_err_method_is_static,

@@ -1073,7 +1073,6 @@ namespace tsn {
 
         Value Compiler::generateHostInlineCall(ffi::Function* fn, const utils::Array<Value>& params, const Value* self) {
             FunctionDef* cf = currentFunction();
-            Value result = currentFunction()->getPoison();
 
             auto& fargs = fn->getSignature()->getArguments();
 
@@ -1170,11 +1169,43 @@ namespace tsn {
                     }
                 }
             }
+            
+            scope().enter();
 
+            bool returnsPointer = fn->getSignature()->returnsPointer();
+            Value result = cf->val(m_ctx->getTypes()->getVoid());
             Value* ret = nullptr;
             ffi::DataType* retTp = fn->getSignature()->getReturnType();
             if (retTp->getInfo().size != 0) {
-                result.reset(getStorageForExpr(retTp));
+                auto expr = currentExpr();
+                if (!expr || expr->loc == rsl_auto || !expr->targetNextCall) {
+                    // handle result automatically
+                    if (returnsPointer) {
+                        // may have to deal with this later if it's nullable
+                        result.reset(cf->val(retTp));
+                        result.getFlags().is_pointer = 1;
+                    } else {
+                        result.reset(getStorageForExpr(retTp));
+                    }
+                } else if (expr->expectedType && !expr->expectedType->isEquivalentTo(fn->getSignature()->getReturnType())) {
+                    // handle result automatically, then copy it to the expression storage
+                    if (retTp->getInfo().is_primitive || returnsPointer) {
+                        result.reset(cf->val(retTp));
+                        result.getFlags().is_pointer = returnsPointer ? 1 : 0;
+                    } else {
+                        result.reset(cf->stack(retTp));
+                    }
+                } else {
+                    if (returnsPointer) {
+                        // handle result automatically, then deal with it later...
+                        result.reset(cf->val(retTp));
+                        result.getFlags().is_pointer = 1;
+                    } else {
+                        // result is the expression storage
+                        result.reset(getStorageForExpr(retTp));
+                    }
+                }
+
                 ret = &result;
             }
 
@@ -1182,11 +1213,73 @@ namespace tsn {
             InlineCodeGenFunc fptr;
             fn->getAddress().get(&fptr);
 
-
             bool wasTrusted = m_trustEnable;
             m_trustEnable = true;
             fptr(&gctx);
             m_trustEnable = wasTrusted;
+
+            if (retTp->getInfo().size != 0) {
+                auto expr = currentExpr();
+                if (!expr || expr->loc == rsl_auto || !expr->targetNextCall) {
+                    // handle result automatically
+                    if (returnsPointer) {
+                        if (!fn->getFlags().return_pointer_non_nullable) {
+                            // Must return Pointer<retTp>
+
+                            Value ptr = cf->stack(getPointerType(retTp));
+
+                            // Construct it manually, setting '_external' property to true
+                            add(ir_store).op(result             ).op(result).op(cf->imm<u64>(sizeof(void*) * 0)); // retTp* _data
+                            add(ir_store).op(cf->getNull()      ).op(result).op(cf->imm<u64>(sizeof(void*) * 1)); // u32* _refs
+                            add(ir_store).op(cf->imm<bool>(true)).op(result).op(cf->imm<u64>(sizeof(void*) * 2)); // bool _external
+                            result.reset(ptr);
+                        } else {
+                            // Pointer is non-nullable, it's as safe as the guarantee from whoever raised that flag
+                            // Just return the pointer!
+                        }
+                    } else {
+                        // Just return whatever getStorageForExpr returned
+                    }
+                } else if (expr->expectedType && !expr->expectedType->isEquivalentTo(retTp)) {
+                    if (returnsPointer && !fn->getFlags().return_pointer_non_nullable) {
+                        // Turn it into a Pointer<retTp> to force explicit conversion mechanisms
+                        // to be made which check for null (or to use them, if they are made)
+                        Value ptr = cf->stack(getPointerType(retTp));
+
+                        // Construct it manually, setting '_external' property to true
+                        add(ir_store).op(result             ).op(result).op(cf->imm<u64>(sizeof(void*) * 0)); // retTp* _data
+                        add(ir_store).op(cf->getNull()      ).op(result).op(cf->imm<u64>(sizeof(void*) * 1)); // u32* _refs
+                        add(ir_store).op(cf->imm<bool>(true)).op(result).op(cf->imm<u64>(sizeof(void*) * 2)); // bool _external
+                        result.reset(copyValueToExprStorage(ptr));
+                    } else {
+                        // copy function should handle loading the result from the pointer
+                        // and converting it to the expected type
+                        result.reset(copyValueToExprStorage(result));
+                    }
+                } else {
+                    if (returnsPointer) {
+                        if (!fn->getFlags().return_pointer_non_nullable) {
+                            // Turn it into a Pointer<retTp> to force explicit conversion mechanisms
+                            // to be made which check for null (or to use them, if they are made)
+                            Value ptr = cf->stack(getPointerType(retTp));
+
+                            // Construct it manually, setting '_external' property to true
+                            add(ir_store).op(result             ).op(result).op(cf->imm<u64>(sizeof(void*) * 0)); // retTp* _data
+                            add(ir_store).op(cf->getNull()      ).op(result).op(cf->imm<u64>(sizeof(void*) * 1)); // u32* _refs
+                            add(ir_store).op(cf->imm<bool>(true)).op(result).op(cf->imm<u64>(sizeof(void*) * 2)); // bool _external
+                            result.reset(copyValueToExprStorage(ptr));
+                        } else {
+                            // copy function should handle loading the result from the pointer
+                            // and converting it to the expected type
+                            result.reset(copyValueToExprStorage(result));
+                        }
+                    } else {
+                        // result is the expression storage already
+                    }
+                }
+            }
+
+            scope().exit(result);
 
             return result;
         }
@@ -1198,21 +1291,27 @@ namespace tsn {
             Value callee = fn;
             Value capturePtr = cf->imm<u64>(0);
 
+            bool retPtrNeedsWrapping = true;
+
             if (callee.isImm()) {
                 FunctionDef* vfd = callee.getImm<FunctionDef*>();
                 if (vfd->getOutput()) {
                     Function* f = vfd->getOutput();
-                    if (f && f->getAccessModifier() == trusted_access && !isTrusted()) {
-                        error(cm_err_not_trusted, "Function '%s' is only accessible to trusted scripts", f->getFullyQualifiedName().c_str());
-                        add(ir_noop).comment(utils::String::Format("-------- end call %s --------", fn.toString(m_ctx).c_str()));
-                        return currentFunction()->getPoison();
-                    }
+                    if (f) {
+                        if (f->getAccessModifier() == trusted_access && !isTrusted()) {
+                            error(cm_err_not_trusted, "Function '%s' is only accessible to trusted scripts", f->getFullyQualifiedName().c_str());
+                            add(ir_noop).comment(utils::String::Format("-------- end call %s --------", fn.toString(m_ctx).c_str()));
+                            return currentFunction()->getPoison();
+                        }
 
-                    if (f->isInline()) {
-                        add(ir_noop).comment(utils::String::Format("-------- inlined %s --------", fn.toString(m_ctx).c_str()));
-                        Value ret = generateHostInlineCall(f, params, self);
-                        add(ir_noop).comment(utils::String::Format("-------- end inlined %s --------", fn.toString(m_ctx).c_str()));
-                        return ret;
+                        if (f->getFlags().is_inline) {
+                            add(ir_noop).comment(utils::String::Format("-------- inlined %s --------", fn.toString(m_ctx).c_str()));
+                            Value ret = generateHostInlineCall(f, params, self);
+                            add(ir_noop).comment(utils::String::Format("-------- end inlined %s --------", fn.toString(m_ctx).c_str()));
+                            return ret;
+                        }
+
+                        retPtrNeedsWrapping = returnsPointer && !f->getFlags().return_pointer_non_nullable;
                     }
                 }
 
@@ -1224,7 +1323,7 @@ namespace tsn {
             }
 
             ffi::DataType* origRetTp = retTp;
-            if (returnsPointer) {
+            if (returnsPointer && retPtrNeedsWrapping) {
                 retTp = getPointerType(retTp);
             }
 
@@ -1309,7 +1408,7 @@ namespace tsn {
             bool resultShouldBeHandledInternally = !exp || exp->loc == rsl_auto || !exp->targetNextCall;
             bool resultHandledInternally = resultShouldBeHandledInternally;
             if (!resultShouldBeHandledInternally && exp && exp->expectedType) {
-                if (retTp->getInfo().size != 0 && !exp->expectedType->isEqualTo(retTp)) {
+                if (retTp->getInfo().size != 0 && !exp->expectedType->isEquivalentTo(retTp)) {
                     // return value needs conversion before going to final location
                     resultHandledInternally = true;
                 }
@@ -1318,34 +1417,79 @@ namespace tsn {
             Value primitiveSelfPtr;
             Value resultStack;
             Value resultPtr;
+            bool resultAlreadyInFinalLocation = false;
             
             if (resultHandledInternally && retTp->getInfo().size != 0) {
-                // unscoped because it will either be freed or added to the scope later
-                resultStack.reset(cf->stack(retTp, true, "Allocate stack space for return value"));
-                resultPtr.reset(cf->val(retTp));
-                resultPtr.getFlags().is_pointer = 1;
-                add(ir_stack_ptr).op(resultPtr).op(cf->imm(resultStack.getStackAllocId())).comment("Get return pointer for function call");
-
                 if (returnsPointer) {
-                    // retTp is a Pointer<T>. Construct it manually, setting '_external' property to true
-                    add(ir_store).op(cf->getNull()      ).op(resultPtr).op(cf->imm<u64>(sizeof(void*) * 0));
-                    add(ir_store).op(cf->getNull()      ).op(resultPtr).op(cf->imm<u64>(sizeof(void*) * 1));
-                    add(ir_store).op(cf->imm<bool>(true)).op(resultPtr).op(cf->imm<u64>(sizeof(void*) * 2));
+                    if (retPtrNeedsWrapping) {
+                        // unscoped because it will either be freed or added to the scope later
+                        resultStack.reset(cf->stack(retTp, true, "Allocate stack space for return value"));
+                        resultPtr.reset(cf->val(retTp));
+                        resultPtr.getFlags().is_pointer = 1;
+                        add(ir_stack_ptr).op(resultPtr).op(cf->imm(resultStack.getStackAllocId())).comment("Get return pointer for function call");
 
-                    // first property of Pointer<T> is _data, meaning resultPtr is _already_ a pointer to that pointer.
-                    // Function will store a pointer in resultType, ie: Pointer<T>._data = ret
+                        // retTp is a Pointer<T>. Construct it manually, setting '_external' property to true
+                        add(ir_store).op(cf->getNull()      ).op(resultPtr).op(cf->imm<u64>(sizeof(void*) * 0));
+                        add(ir_store).op(cf->getNull()      ).op(resultPtr).op(cf->imm<u64>(sizeof(void*) * 1));
+                        add(ir_store).op(cf->imm<bool>(true)).op(resultPtr).op(cf->imm<u64>(sizeof(void*) * 2));
+
+                        // first property of Pointer<T> is _data, meaning resultPtr is _already_ a pointer to that pointer.
+                        // Function will store a pointer in resultPtr, ie: Pointer<T>._data = ret
+                    } else {
+                        // unscoped because it will either be freed or added to the scope later
+                        resultStack.reset(cf->stack(m_ctx->getTypes()->getVoidPtr(), true, "Allocate stack space for return value"));
+                        resultPtr.reset(cf->val(retTp));
+                        resultPtr.getFlags().is_pointer = 1;
+                        add(ir_stack_ptr).op(resultPtr).op(cf->imm(resultStack.getStackAllocId())).comment("Get return pointer for function call");
+                    }
+                } else {
+                    // unscoped because it will either be freed or added to the scope later
+                    resultStack.reset(cf->stack(retTp, true, "Allocate stack space for return value"));
+                    resultPtr.reset(cf->val(retTp));
+                    resultPtr.getFlags().is_pointer = 1;
+                    add(ir_stack_ptr).op(resultPtr).op(cf->imm(resultStack.getStackAllocId())).comment("Get return pointer for function call");
                 }
             } else if (retTp->getInfo().size != 0) {
-                resultPtr.reset(getStorageForExpr(retTp));
-
                 if (returnsPointer) {
-                    // retTp is a Pointer<T>. Construct it manually, setting '_external' property to true
-                    add(ir_store).op(cf->getNull()      ).op(resultPtr).op(cf->imm<u64>(sizeof(void*) * 0));
-                    add(ir_store).op(cf->getNull()      ).op(resultPtr).op(cf->imm<u64>(sizeof(void*) * 1));
-                    add(ir_store).op(cf->imm<bool>(true)).op(resultPtr).op(cf->imm<u64>(sizeof(void*) * 2));
+                    if (retPtrNeedsWrapping) {
+                        resultAlreadyInFinalLocation = true;
+                        resultPtr.reset(getStorageForExpr(retTp));
 
-                    // first property of Pointer<T> is _data, meaning resultPtr is _already_ a pointer to that pointer.
-                    // Function will store a pointer in resultType, ie: Pointer<T>._data = ret
+                        // retTp is a Pointer<T>. Construct it manually, setting '_external' property to true
+                        add(ir_store).op(cf->getNull()      ).op(resultPtr).op(cf->imm<u64>(sizeof(void*) * 0));
+                        add(ir_store).op(cf->getNull()      ).op(resultPtr).op(cf->imm<u64>(sizeof(void*) * 1));
+                        add(ir_store).op(cf->imm<bool>(true)).op(resultPtr).op(cf->imm<u64>(sizeof(void*) * 2));
+
+                        // first property of Pointer<T> is _data, meaning resultPtr is _already_ a pointer to that pointer.
+                        // Function will store a pointer in resultType, ie: Pointer<T>._data = ret
+                    } else {
+                        // unscoped because it will either be freed or added to the scope later
+                        resultStack.reset(cf->stack(m_ctx->getTypes()->getVoidPtr(), true, "Allocate stack space for return value"));
+                        resultPtr.reset(cf->val(retTp));
+                        resultPtr.getFlags().is_pointer = 1;
+                        add(ir_stack_ptr).op(resultPtr).op(cf->imm(resultStack.getStackAllocId())).comment("Get return pointer for function call");
+                    }
+                } else {
+                    if (retTp->getInfo().is_primitive) {
+                        bool storageIsPtr = exp && (
+                            exp->loc == rsl_module_data
+                            || exp->loc == rsl_stack
+                            || (exp->loc == rsl_specified_dest && exp->destination->getFlags().is_pointer)
+                        );
+                        if (storageIsPtr) {
+                            resultPtr.reset(getStorageForExpr(retTp));
+                            resultAlreadyInFinalLocation = true;
+                        } else {
+                            // unscoped because it will either be freed or added to the scope later
+                            resultStack.reset(cf->stack(retTp, true, "Allocate stack space for return value"));
+                            resultPtr.reset(cf->val(retTp));
+                            resultPtr.getFlags().is_pointer = 1;
+                            add(ir_stack_ptr).op(resultPtr).op(cf->imm(resultStack.getStackAllocId())).comment("Get return pointer for function call");
+                        }
+                    } else {
+                        resultAlreadyInFinalLocation = true;
+                        resultPtr.reset(getStorageForExpr(retTp));
+                    }
                 }
             } else {
                 // void return
@@ -1443,6 +1587,10 @@ namespace tsn {
                 }
             }
 
+            // This result juggling nonsense is absolutely insane
+            // there has to be a better way to deal with this
+            // this is probably broken in at least one case
+
             Value result;
             if (retTp->getInfo().size == 0) {
                 result.reset(cf->val(m_ctx->getTypes()->getVoid()));
@@ -1451,44 +1599,59 @@ namespace tsn {
                     // Result needs to be moved to expression result storage
                     add(ir_noop).comment("Result needs to be moved to expression result storage");
 
-                    if (returnsPointer) {
-                        // resultPtr = Pointer<origRetTp>
+                    if (!resultAlreadyInFinalLocation) {
+                        if (returnsPointer) {
+                            if (retPtrNeedsWrapping) {
+                                // resultPtr = Pointer<origRetTp>
 
-                        result.reset(copyValueToExprStorage(resultPtr));
+                                result.reset(copyValueToExprStorage(resultPtr));
 
-                        // resultStack should be freed, the value was copy constructed elsewhere
-                        add(ir_stack_free).op(cf->imm(resultStack.getStackAllocId()));
-                    } else if (retTp->getInfo().is_primitive) {
-                        // resultPtr = retTp*
+                                // resultStack should be freed, the value was copy constructed elsewhere
+                                add(ir_stack_free).op(cf->imm(resultStack.getStackAllocId()));
+                            } else {
+                                // resultPtr = retTp**
+                                cf->add(ir_load).op(resultPtr).op(resultPtr);
+                                // resultPtr = retTp*
 
-                        // value must be loaded from resultPtr
-                        Value tmp = Value(resultPtr);
-                        tmp.setType(voidp);
-                        result.reset(cf->val(retTp));
-                        add(ir_load).op(result).op(tmp);
+                                result.reset(copyValueToExprStorage(resultPtr));
 
-                        result.reset(copyValueToExprStorage(result));
+                                // resultStack should be freed, the value was copy constructed elsewhere
+                                add(ir_stack_free).op(cf->imm(resultStack.getStackAllocId()));
+                            }
+                        } else if (retTp->getInfo().is_primitive) {
+                            // resultPtr = retTp*
+                            result.reset(copyValueToExprStorage(result));
 
-                        // resultStack should be freed, the value now exists elsewhere
-                        add(ir_stack_free).op(cf->imm(resultStack.getStackAllocId()));
-                    } else {
-                        // resultPtr = retTp* (non-primitive)
+                            // resultStack should be freed, the value now exists elsewhere
+                            add(ir_stack_free).op(cf->imm(resultStack.getStackAllocId()));
+                        } else {
+                            // resultPtr = retTp* (non-primitive)
 
-                        result.reset(copyValueToExprStorage(resultPtr));
-                        
-                        // resultStack should be freed, the value was copy constructed elsewhere
-                        add(ir_stack_free).op(cf->imm(resultStack.getStackAllocId()));
+                            result.reset(copyValueToExprStorage(resultPtr));
+                            
+                            // resultStack should be freed, the value was copy constructed elsewhere
+                            add(ir_stack_free).op(cf->imm(resultStack.getStackAllocId()));
+                        }
                     }
                 } else if (resultShouldBeHandledInternally) {
                     // Default behavior
 
                     if (returnsPointer) {
-                        // resultPtr = Pointer<origRetTp>
-                        result.reset(resultPtr);
-                        result.setStackRef(resultStack);
+                        if (retPtrNeedsWrapping) {
+                            // resultPtr = Pointer<origRetTp>
+                            result.reset(resultPtr);
+                            result.setStackRef(resultStack);
 
-                        // resultStack will be destroyed at the end of the scope
-                        scope().get().addToStack(resultStack);
+                            // resultStack will be destroyed at the end of the scope
+                            scope().get().addToStack(resultStack);
+                        } else {
+                            // resultPtr = retTp**
+                            result.reset(cf->val(retTp));
+                            cf->add(ir_load).op(result).op(resultPtr);
+
+                            // resultStack should be freed, the value now exists elsewhere
+                            add(ir_stack_free).op(cf->imm(resultStack.getStackAllocId()));
+                        }
                     } else if (retTp->getInfo().is_primitive) {
                         // resultPtr = retTp*
                         result.reset(cf->val(retTp));
@@ -1512,7 +1675,7 @@ namespace tsn {
                 } else {
                     // Result pointer came nicely from getStorageForExpr
 
-                    if (returnsPointer) {
+                    if (returnsPointer && retPtrNeedsWrapping) {
                         // resultPtr = Pointer<origRetTp>
                         result.reset(resultPtr);
                     } else if (retTp->getInfo().is_primitive) {
@@ -1525,7 +1688,6 @@ namespace tsn {
                         add(ir_load).op(result).op(tmp).comment("Load result from return pointer");;
                     } else {
                         // resultPtr = retTp* (non-primitive)
-
                         result.reset(resultPtr);
                     }
                 }
@@ -2626,14 +2788,14 @@ namespace tsn {
             for (u32 i = 0;i < methodNodes.size();i++) {
                 meth = methodNodes[i];
                 Method* m = (Method*)methods[i];
-                if (!m->isTemplate()) {
+                if (!m->getFlags().is_template) {
                     compileMethodDef(methodNodes[i], tp, m);
                 }
             }
 
             if (dtor) {
                 Method* m = (Method*)tp->getDestructor();
-                if (!m->isTemplate()) {
+                if (!m->getFlags().is_template) {
                     compileMethodDef(dtor, tp, m);
                 }
             }

@@ -83,7 +83,7 @@ namespace tsn {
             const auto& funcs = in->getFuncs();
             for (u32 i = 0;i < funcs.size();i++) {
                 if (!funcs[i]->getOutput()) continue;
-                if (funcs[i]->getOutput()->isTemplate()) continue;
+                if (funcs[i]->getOutput()->getFlags().is_template) continue;
 
                 CodeHolder* ch = new CodeHolder(funcs[i]->getCode());
                 ch->owner = funcs[i]->getOutput();
@@ -360,15 +360,14 @@ namespace tsn {
 
                 if (!in->read(pf.access)) return onFailure();
                 if (!in->read(pf.signatureTypeId)) return onFailure();
-                if (!in->read(pf.isTemplate)) return onFailure();
-                if (!in->read(pf.isMethod)) return onFailure();
+                if (!in->read(pf.flags)) return onFailure();
                 if (!pf.src.deserialize(in, ctx)) return onFailure();
                 
-                if (pf.isMethod) {
+                if (pf.flags.is_method) {
                     if (!in->read(pf.baseOffset)) return onFailure();
                 }
 
-                if (pf.isTemplate) {
+                if (pf.flags.is_template) {
                     pf.tctx = new TemplateContext();
                     if (!pf.tctx->deserialize(in, ctx)) {
                         delete pf.tctx;
@@ -669,11 +668,11 @@ namespace tsn {
             // Generate functions without signatures
             for (auto& pf : funcs) {
                 ffi::Function* f = nullptr;
-                if (pf.isMethod) {
-                    if (pf.isTemplate) f = new ffi::TemplateMethod(pf.name, "", pf.access, pf.baseOffset, pf.tctx);
+                if (pf.flags.is_method) {
+                    if (pf.flags.is_template) f = new ffi::TemplateMethod(pf.name, "", pf.access, pf.baseOffset, pf.tctx);
                     else f = new ffi::Method(pf.name, "", nullptr, pf.access, nullptr, nullptr, pf.baseOffset, m_mod);
                 } else {
-                    if (pf.isTemplate) f = new ffi::TemplateFunction(pf.name, "", pf.access, pf.tctx);
+                    if (pf.flags.is_template) f = new ffi::TemplateFunction(pf.name, "", pf.access, pf.tctx);
                     else f = new ffi::Function(pf.name, "", nullptr, pf.access, nullptr, nullptr, m_mod);
                 }
 

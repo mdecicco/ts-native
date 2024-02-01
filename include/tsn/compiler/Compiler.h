@@ -170,6 +170,8 @@ namespace tsn {
                 Value newClosure(ffi::Function* fn);
                 Value newClosure(FunctionDef* fn);
                 Value generateHostInlineCall(ffi::Function* fn, const utils::Array<Value>& args, const Value* self);
+                Value generateCallReturnPointer(const Value& fn, bool returnsPointer);
+                Value handleCallReturnPointer(const Value& fn, bool returnsPointer, const Value& retPtr);
                 Value generateCall(const Value& fn, const utils::String& name, bool returnsPointer, ffi::DataType* retTp, const utils::Array<ffi::function_argument>& fargs, const utils::Array<Value>& params, const Value* self = nullptr);
                 Value generateCall(ffi::Function* fn, const utils::Array<Value>& args, const Value* self = nullptr);
                 Value generateCall(FunctionDef* fn, const utils::Array<Value>& args, const Value* self = nullptr);

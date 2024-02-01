@@ -412,7 +412,7 @@ namespace tsn {
             e->addMethod(
                 "operator[]",
                 ptype,
-                false, // !ptype->getInfo().is_primitive, // todo: non-nullable pointer returns
+                true,
                 {
                     { arg_type::value, ctx->getTypes()->getUInt32() }
                 },
@@ -428,64 +428,17 @@ namespace tsn {
                     // todo: exception on out of range
                     // ... also exceptions in general
 
-                    if (targs[0]->getInfo().is_primitive) {
-                        Value typeSize = cf->imm<u32>(targs[0]->getInfo().size);
-                        Value ptr = self->getProp("_data") + (args[0] * typeSize);
-                        ptr.setType(targs[0]);
-                        ptr.getFlags().is_pointer = 1;
-                        cf->add(ir_load).op(*result).op(ptr);
-                    } else {
-                        /*
-                            todo: non-nullable pointer returns
-                            
-                            currently, objects returned from functions are universally
-                            allocated on the stack (duplicated). In some cases, like this
-                            one, we'll want to be able to just use the pointer value
-                            directly and not via Pointer<T>. Because scripts can't know
-                            by default if a function that returns a pointer may return
-                            null, it has to be wrapped in a Pointer<T> so that the script
-                            writer can check if the result is null before using it.
-                            
-                            Context:
-                            non-primitive variables, when declared, are allocated on the
-                            stack. This means that references to the variable are always
-                            backed by a valid memory location, and thus cannot be null.
-                            Because types are not flexible, we cannot assign pointers to
-                            the same non-primitive type to a declared variable. It is
-                            akin to `vec3f x = new vec3f();` in c++. That being the case
-                            the compiler's default behavior is to either construct a
-                            Pointer<T> for results of functions that return pointers,
-                            or the value is copy-constructed to pre-allocated stack
-                            space. Because of this, we arrive at this problem. We want
-                            to be able to write `vec3_arr[10].x = 5;` and have the change
-                            persist within the array. As it currently stands, the result
-                            of `vec3_arr[10]` will be duplicated on the stack and _that_
-                            version will be modified, leaving the array untouched.
-                            
-                            Possible pieces of this puzzle:
-                            - Add flag to ffi::Function to declare that the return pointer
-                              will never be null
-                            - Update function call codegen to recognize that flag, and if
-                              it's safe (and the expression result storage is automatic),
-                              return the raw pointer
-                            - Ensure that when a pointer to a non-primitive is assigned
-                              to a variable the copy construction still happens
+                    Value typeSize = cf->imm<u32>(targs[0]->getInfo().size);
+                    Value data = self->getProp("_data");
+                    Value offset = (args[0] * typeSize);
+                    cf->add(ir_uadd).op(*result).op(data).op(offset);
 
-
-                        Value typeSize = cf->imm<u32>(targs[0]->getInfo().size);
-                        Value data = self->getProp("_data");
-                        Value offset = args[0] * typeSize;
-                        cf->add(ir_uadd).op(*result).op(data).op(offset);
-                        */
-
-                        Value typeSize = cf->imm<u32>(targs[0]->getInfo().size);
-                        Value ptr = self->getProp("_data") + (args[0] * typeSize);
-                        ptr.setType(targs[0]);
-                        ptr.getFlags().is_pointer = 1;
-                        c->constructObject(*result, targs[0], { ptr });
-                    }
+                    /*
+                    - Ensure that when a pointer to a non-primitive is assigned
+                        to a variable the copy construction still happens
+                    */
                 }
-            );
+            )->getFlags().return_pointer_non_nullable = 1;
 
             e->addProperty(
                 "length",

@@ -14,17 +14,17 @@ namespace tsn {
         //
 
         template <typename Ret, typename... Args>
-        DataTypeExtender& DataTypeExtender::addMethod(const utils::String& name, compiler::InlineCodeGenFunc genFn, access_modifier access) {
+        Function* DataTypeExtender::addMethod(const utils::String& name, compiler::InlineCodeGenFunc genFn, access_modifier access) {
             Function* f = bind_method<Ret, Args...>(m_mod, funcRegistry, typeRegistry, m_type, name, genFn, access);
             if (f) addMethod(f);
-            return *this;
+            return f;
         }
 
         template <typename Ret, typename... Args>
-        DataTypeExtender& DataTypeExtender::addStaticMethod(const utils::String& name, compiler::InlineCodeGenFunc genFn, access_modifier access) {
+        Function* DataTypeExtender::addStaticMethod(const utils::String& name, compiler::InlineCodeGenFunc genFn, access_modifier access) {
             Function* f = bind_function<Ret, Args...>(m_mod, funcRegistry, typeRegistry, name, genFn, access, nullptr);
             if (f) addMethod(f);
-            return *this;
+            return f;
         }
 
 

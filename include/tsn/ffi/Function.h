@@ -82,10 +82,8 @@ namespace tsn {
                 const SourceLocation& getSource() const;
                 access_modifier getAccessModifier() const;
                 void setAccessModifier(access_modifier access);
-                bool isMethod() const;
-                bool isTemplate() const;
-                bool isThisCall() const;
-                bool isInline() const;
+                const function_flags& getFlags() const;
+                function_flags& getFlags();
 
                 void makeInline(compiler::InlineCodeGenFunc generatorFn);
                 
@@ -101,9 +99,7 @@ namespace tsn {
                 friend class compiler::Output;
                 void setThisType(DataType* tp, DataTypeRegistry* treg);
                 void setRetType(DataType* tp, bool returnsPointer, DataTypeRegistry* treg);
-                bool m_isMethod;
-                bool m_isTemplate;
-                bool m_isInline;
+                function_flags m_flags;
                 SourceLocation m_src;
                 function_id m_id;
                 Module* m_sourceModule;

@@ -151,7 +151,7 @@ namespace tsn {
             m_type->m_methods.push(method);
         }
 
-        DataTypeExtender& DataTypeExtender::addMethod(
+        Method* DataTypeExtender::addMethod(
             const utils::String& name,
             DataType* retTp,
             bool returnsPointer,
@@ -175,10 +175,10 @@ namespace tsn {
             
             funcRegistry->registerFunction(m);
 
-            return *this;
+            return m;
         }
 
-        DataTypeExtender& DataTypeExtender::addStaticMethod(
+        Function* DataTypeExtender::addStaticMethod(
             const utils::String& name,
             DataType* retTp,
             bool returnsPointer,
@@ -201,7 +201,7 @@ namespace tsn {
             funcRegistry->registerFunction(fn);
             addMethod(fn);
 
-            return *this;
+            return fn;
         }
 
         void DataTypeExtender::setDestructor(compiler::InlineCodeGenFunc genFn, access_modifier access) {

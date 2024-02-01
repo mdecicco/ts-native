@@ -383,16 +383,16 @@ json toJson(const Function* f, bool brief, FunctionDef* fd) {
     if (brief) return out;
 
     out["access"] = access[f->getAccessModifier()];
-    out["is_method"] = f->isMethod();
-    out["is_template"] = f->isTemplate();
+    out["is_method"] = f->getFlags().is_method;
+    out["is_template"] = f->getFlags().is_template;
 
-    if (f->isTemplate()) {
+    if (f->getFlags().is_template) {
         out["signature"] = json(nullptr);
         out["is_thiscall"] = json(nullptr);
         out["args"] = json(nullptr);
         out["code"] = json(nullptr);
 
-        if (f->isMethod()) {
+        if (f->getFlags().is_method) {
             TemplateContext* tctx = ((TemplateMethod*)f)->getTemplateData();
             out["ast"] = toJson(tctx->getAST());
         } else {
@@ -401,7 +401,7 @@ json toJson(const Function* f, bool brief, FunctionDef* fd) {
         }
     } else {
         out["signature"] = toJson(f->getSignature(), true);
-        out["is_thiscall"] = f->isThisCall();
+        out["is_thiscall"] = f->getFlags().is_thiscall;
         out["args"] = json::array();
         const auto& args = f->getSignature()->getArguments();
         for (u32 i = 0;i < args.size();i++) out["args"].push_back(toJson(i, args[i], fd));

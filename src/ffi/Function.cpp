@@ -50,9 +50,7 @@ namespace tsn {
             m_registryIndex = u32(-1);
             m_access = public_access;
             m_signature = nullptr;
-            m_isMethod = false;
-            m_isTemplate = false;
-            m_isInline = false;
+            m_flags = { 0 };
         }
 
         Function::Function(
@@ -75,9 +73,8 @@ namespace tsn {
             m_access = access;
             m_address = address;
             m_wrapperAddress = wrapperAddr;
-            m_isMethod = false;
-            m_isTemplate = false;
-            m_isInline = false;
+            m_flags = { 0 };
+            m_flags.is_thiscall = signature && signature->getThisType() ? 1 : 0;
         }
 
         Function::~Function() {
@@ -111,25 +108,13 @@ namespace tsn {
             return m_src;
         }
 
-        bool Function::isMethod() const {
-            return m_isMethod;
-        }
-
-        bool Function::isTemplate() const {
-            return m_isTemplate;
-        }
-
-        bool Function::isInline() const {
-            return m_isInline;
-        }
-
         void Function::makeInline(compiler::InlineCodeGenFunc generatorFn) {
             if (m_address.isValid()) {
                 throw "Functions which already have entrypoints cannot be made inline";
             }
 
             m_address = generatorFn;
-            m_isInline = true;
+            m_flags.is_inline = 1;
         }
 
         access_modifier Function::getAccessModifier() const {
@@ -140,9 +125,12 @@ namespace tsn {
             m_access = access;
         }
 
-        bool Function::isThisCall() const {
-            if (!m_signature) return false;
-            return m_signature->getThisType() != nullptr;
+        const function_flags& Function::getFlags() const {
+            return m_flags;
+        }
+
+        function_flags& Function::getFlags() {
+            return m_flags;
         }
 
         const FunctionPointer& Function::getAddress() const {
@@ -160,8 +148,7 @@ namespace tsn {
             if (!out->write(m_fullyQualifiedName)) return false;
             if (!out->write(m_access)) return false;
             if (!out->write(m_signature ? m_signature->getId() : type_id(0))) return false;
-            if (!out->write(m_isTemplate)) return false;
-            if (!out->write(m_isMethod)) return false;
+            if (!out->write(m_flags)) return false;
             if (!m_src.serialize(out, ctx)) return false;
 
             return true;
@@ -207,6 +194,8 @@ namespace tsn {
             m_fullyQualifiedName = m_signature->generateFullyQualifiedFunctionName(m_name, m_extraQualifiers);
             m_displayName = m_signature->generateFunctionDisplayName(m_name, m_extraQualifiers);
             m_id = (function_id)std::hash<utils::String>()(m_fullyQualifiedName);
+
+            m_flags.is_thiscall = tp ? 1 : 0;
         }
         
         void Function::setRetType(DataType* tp, bool returnsPointer, DataTypeRegistry* treg) {
@@ -249,7 +238,7 @@ namespace tsn {
 
         Method::Method() {
             m_baseOffset = 0;
-            m_isMethod = true;
+            m_flags.is_method = 1;
         }
 
         Method::Method(
@@ -264,7 +253,7 @@ namespace tsn {
         ) : Function(name, extraQualifiers, signature, access, address, wrapperAddr, source)
         {
             m_baseOffset = baseOffset;
-            m_isMethod = true;
+            m_flags.is_method = 1;
         }
 
         u64 Method::getThisPtrOffset() const {
@@ -293,13 +282,13 @@ namespace tsn {
         //
         TemplateFunction::TemplateFunction() {
             m_data = nullptr;
-            m_isTemplate = true;
+            m_flags.is_template = 1;
         }
 
         TemplateFunction::TemplateFunction(const utils::String& name, const utils::String& extraQualifiers, access_modifier access, compiler::TemplateContext* templateData)
         : Function(name, extraQualifiers, nullptr, access, nullptr, nullptr, templateData->getOrigin()) {
             m_data = templateData;
-            m_isTemplate = true;
+            m_flags.is_template = 1;
         }
 
         TemplateFunction::~TemplateFunction() {
@@ -329,13 +318,13 @@ namespace tsn {
         //
         TemplateMethod::TemplateMethod() {
             m_data = nullptr;
-            m_isTemplate = true;
+            m_flags.is_template = 1;
         }
 
         TemplateMethod::TemplateMethod(const utils::String& name, const utils::String& extraQualifiers, access_modifier access, u64 baseOffset, compiler::TemplateContext* templateData)
         : Method(name, extraQualifiers, nullptr, access, nullptr, nullptr, baseOffset, templateData->getOrigin()) {
             m_data = templateData;
-            m_isTemplate = true;
+            m_flags.is_template = 1;
         }
 
         TemplateMethod::~TemplateMethod() {

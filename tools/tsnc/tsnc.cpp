@@ -435,6 +435,7 @@ i32 handleResult(Context* ctx, Module* mod, const tsnc_config& conf) {
             out["backend"] = json(nullptr);
             break;
         }
+        case om_exec: break;
     }
 
     for (u32 i = 0;i < logs.size();i++) {
