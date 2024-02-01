@@ -127,7 +127,7 @@ namespace tsn {
                 label_id checkRefsLabel = cf->label();
 
                 // Check if _refs is not null
-                Value refs = args[0].getProp("_refs");
+                Value refs = self->getProp("_refs");
                 Value refsNotNull = cf->val<bool>();
                 cf->add(ir_uneq).op(refsNotNull).op(refs).op(cf->getNull());
 
@@ -150,7 +150,7 @@ namespace tsn {
                 Function* dtor = targs[0]->getDestructor();
                 if (dtor) c->generateCall(dtor, {}, self);
 
-                Value data = args[0].getProp("_data");
+                Value data = self->getProp("_data");
                 c->generateCall(freeMem, { data });
 
                 label_id doNotFreeLabel = cf->label();
