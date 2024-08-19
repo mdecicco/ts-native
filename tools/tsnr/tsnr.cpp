@@ -328,9 +328,11 @@ i32 processConfig(const json& configIn, Config& configOut, const tsnc_config& ts
 }
 
 i32 handleResult(Context* ctx, Module* mod, const tsnc_config& conf) {
-    bool hadErrors = ctx->getPipeline()->getLogger()->hasErrors();
+    compiler::Logger* log = ctx->getPipeline()->getLogger();
+    if (!log) return mod ? COMPILATION_SUCCESS : COMPILATION_ERROR;
 
-    const auto& logs = ctx->getPipeline()->getLogger()->getMessages();
+    bool hadErrors = log->hasErrors();
+    const auto& logs = log->getMessages();
     constexpr const char* logTps[] = { "debug", "info", "warning", "error" };
 
     for (u32 i = 0;i < logs.size();i++) {
