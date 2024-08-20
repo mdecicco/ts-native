@@ -3,7 +3,7 @@ This is my attempt at creating a scripting language that I actually _want_ to us
 No existing scripting languages that I could find really do it for me. Since reinventing wheels is one of my favorite pastimes I decided that
 creating my own and modeling it after my favorite language was a worthwhile endeavor.
 
-It's been four years since I started, and this is now the 4th iteration of this project. I've learned a lot along the way, and the last iteration
+It's been five years since I started, and this is now the 4th iteration of this project. I've learned a lot along the way, and the last iteration
 felt _so_ close to being what I wanted. It worked beautifully but I just didn't feel safe embarking on any new and exciting projects using it as
 a foundational component. This 4th iteration still needs a lot of polish... and it shows... But I feel as though it is actually feasible to bring
 it to the standard of quality that I dream of. I've put more work in by now than I think it would take to achieve this goal.
