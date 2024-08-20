@@ -794,7 +794,7 @@ namespace tsn {
                         cm_info_could_be,
                         "^ Could be: '%s'",
                         ctors[i]->getDisplayName().c_str()
-                    ).src = ctors[i]->getSource();
+                    ).src = ctors[i]->getSourceLocation();
                 }
             } else {
                 functionError(
@@ -2178,7 +2178,7 @@ namespace tsn {
             }
 
             for (u32 i = 0;i < funcs.size();i++) {
-                Module* m = funcs[i].fn->getSourceModule();
+                Module* m = funcs[i].fn->getSource();
                 if (m) m_output->addDependency(m);
                 scope().add(
                     funcs[i].alias,
@@ -2259,7 +2259,8 @@ namespace tsn {
                 nullptr,
                 nullptr,
                 thisOffset,
-                m_output->getModule()
+                m_output->getModule(),
+                forTp
             );
 
             m_output->newFunc(m, nullptr, true);
@@ -2389,7 +2390,8 @@ namespace tsn {
                         generateFullQualifierPrefix(),
                         n->flags.is_private ? private_access : public_access,
                         thisOffset,
-                        tctx
+                        tctx,
+                        nullptr // will be set later
                     );
                     m_output->newFunc(m, n);
                     exitNode();
@@ -2476,7 +2478,8 @@ namespace tsn {
                 nullptr,
                 nullptr,
                 thisOffset,
-                m_output->getModule()
+                m_output->getModule(),
+                nullptr // will be set later
             );
 
             m_output->newFunc(m, n, n->data_type != nullptr);
@@ -2726,6 +2729,7 @@ namespace tsn {
                 if (dp.getter) {
                     methodNodes.push(dp.getter);
                     getter = compileMethodDecl(dp.getter, thisOffset, nullptr, false, tp->getDestructor() != nullptr);
+                    getter->m_owner = tp;
                     tp->addMethod(getter);
                     f.can_read = 1;
                 }
@@ -2733,6 +2737,7 @@ namespace tsn {
                 if (dp.setter) {
                     methodNodes.push(dp.setter);
                     setter = compileMethodDecl(dp.setter, thisOffset, nullptr, false, tp->getDestructor() != nullptr);
+                    setter->m_owner = tp;
                     tp->addMethod(setter);
                     f.can_write = 1;
                 }
@@ -2819,7 +2824,8 @@ namespace tsn {
                         name,
                         generateFullQualifierPrefix(),
                         n->flags.is_private ? private_access : public_access,
-                        tctx
+                        tctx,
+                        nullptr
                     );
                     
                     f->m_src = n->tok.src;

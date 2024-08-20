@@ -50,6 +50,7 @@ namespace tsn {
             m_registryIndex = u32(-1);
             m_access = public_access;
             m_signature = nullptr;
+            m_owner = nullptr;
             m_flags = { 0 };
         }
 
@@ -60,7 +61,8 @@ namespace tsn {
             access_modifier access,
             const FunctionPointer& address,
             const FunctionPointer& wrapperAddr,
-            Module* source
+            Module* source,
+            DataType* owner
         ) {
             m_extraQualifiers = extraQualifiers;
             m_fullyQualifiedName = signature ? signature->generateFullyQualifiedFunctionName(name, m_extraQualifiers) : "";
@@ -70,6 +72,7 @@ namespace tsn {
             m_registryIndex = u32(-1);
             m_name = name;
             m_signature = signature;
+            m_owner = owner;
             m_access = access;
             m_address = address;
             m_wrapperAddress = wrapperAddr;
@@ -84,7 +87,7 @@ namespace tsn {
             return m_id;
         }
 
-        Module* Function::getSourceModule() const {
+        Module* Function::getSource() const {
             return m_sourceModule;
         }
 
@@ -103,8 +106,12 @@ namespace tsn {
         FunctionType* Function::getSignature() const {
             return m_signature;
         }
+
+        DataType* Function::getOwner() const {
+            return m_owner;
+        }
         
-        const SourceLocation& Function::getSource() const {
+        const SourceLocation& Function::getSourceLocation() const {
             return m_src;
         }
 
@@ -148,6 +155,7 @@ namespace tsn {
             if (!out->write(m_fullyQualifiedName)) return false;
             if (!out->write(m_access)) return false;
             if (!out->write(m_signature ? m_signature->getId() : type_id(0))) return false;
+            if (!out->write(m_owner ? m_owner->getId() : type_id(0))) return false;
             if (!out->write(m_flags)) return false;
             if (!m_src.serialize(out, ctx)) return false;
 
@@ -249,8 +257,9 @@ namespace tsn {
             const FunctionPointer& address,
             const FunctionPointer& wrapperAddr,
             u64 baseOffset,
-            Module* source
-        ) : Function(name, extraQualifiers, signature, access, address, wrapperAddr, source)
+            Module* source,
+            DataType* owner
+        ) : Function(name, extraQualifiers, signature, access, address, wrapperAddr, source, owner)
         {
             m_baseOffset = baseOffset;
             m_flags.is_method = 1;
@@ -261,7 +270,7 @@ namespace tsn {
         }
         
         Method* Method::clone(const utils::String& name, u64 baseOffset) const {
-            return new Method(name, m_extraQualifiers, getSignature(), getAccessModifier(), getAddress(), getWrapperAddress(), baseOffset, m_sourceModule);
+            return new Method(name, m_extraQualifiers, getSignature(), getAccessModifier(), getAddress(), getWrapperAddress(), baseOffset, m_sourceModule, m_owner);
         }
 
         bool Method::serialize(utils::Buffer* out, Context* ctx) const {
@@ -285,8 +294,13 @@ namespace tsn {
             m_flags.is_template = 1;
         }
 
-        TemplateFunction::TemplateFunction(const utils::String& name, const utils::String& extraQualifiers, access_modifier access, compiler::TemplateContext* templateData)
-        : Function(name, extraQualifiers, nullptr, access, nullptr, nullptr, templateData->getOrigin()) {
+        TemplateFunction::TemplateFunction(
+            const utils::String& name,
+            const utils::String& extraQualifiers,
+            access_modifier access,
+            compiler::TemplateContext* templateData,
+            DataType* owner
+        ) : Function(name, extraQualifiers, nullptr, access, nullptr, nullptr, templateData->getOrigin(), owner) {
             m_data = templateData;
             m_flags.is_template = 1;
         }
@@ -321,8 +335,14 @@ namespace tsn {
             m_flags.is_template = 1;
         }
 
-        TemplateMethod::TemplateMethod(const utils::String& name, const utils::String& extraQualifiers, access_modifier access, u64 baseOffset, compiler::TemplateContext* templateData)
-        : Method(name, extraQualifiers, nullptr, access, nullptr, nullptr, baseOffset, templateData->getOrigin()) {
+        TemplateMethod::TemplateMethod(
+            const utils::String& name,
+            const utils::String& extraQualifiers,
+            access_modifier access,
+            u64 baseOffset,
+            compiler::TemplateContext* templateData,
+            DataType* owner
+        ) : Method(name, extraQualifiers, nullptr, access, nullptr, nullptr, baseOffset, templateData->getOrigin(), owner) {
             m_data = templateData;
             m_flags.is_template = 1;
         }

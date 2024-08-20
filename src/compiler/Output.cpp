@@ -360,6 +360,7 @@ namespace tsn {
 
                 if (!in->read(pf.access)) return onFailure();
                 if (!in->read(pf.signatureTypeId)) return onFailure();
+                if (!in->read(pf.ownerId)) return onFailure();
                 if (!in->read(pf.flags)) return onFailure();
                 if (!pf.src.deserialize(in, ctx)) return onFailure();
                 
@@ -669,11 +670,11 @@ namespace tsn {
             for (auto& pf : funcs) {
                 ffi::Function* f = nullptr;
                 if (pf.flags.is_method) {
-                    if (pf.flags.is_template) f = new ffi::TemplateMethod(pf.name, "", pf.access, pf.baseOffset, pf.tctx);
-                    else f = new ffi::Method(pf.name, "", nullptr, pf.access, nullptr, nullptr, pf.baseOffset, m_mod);
+                    if (pf.flags.is_template) f = new ffi::TemplateMethod(pf.name, "", pf.access, pf.baseOffset, pf.tctx, pf.ownerId == 0 ? nullptr : getTpById(pf.ownerId));
+                    else f = new ffi::Method(pf.name, "", nullptr, pf.access, nullptr, nullptr, pf.baseOffset, m_mod, pf.ownerId == 0 ? nullptr : getTpById(pf.ownerId));
                 } else {
-                    if (pf.flags.is_template) f = new ffi::TemplateFunction(pf.name, "", pf.access, pf.tctx);
-                    else f = new ffi::Function(pf.name, "", nullptr, pf.access, nullptr, nullptr, m_mod);
+                    if (pf.flags.is_template) f = new ffi::TemplateFunction(pf.name, "", pf.access, pf.tctx, pf.ownerId == 0 ? nullptr : getTpById(pf.ownerId));
+                    else f = new ffi::Function(pf.name, "", nullptr, pf.access, nullptr, nullptr, m_mod, pf.ownerId == 0 ? nullptr : getTpById(pf.ownerId));
                 }
 
                 f->m_fullyQualifiedName = pf.fullyQualifiedName;

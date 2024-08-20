@@ -227,7 +227,7 @@ namespace tsn {
                 u32 addr = stack.alloc(sizeof(u64));
                 prologue.push({ r, addr });
                 m_instructions.push(encode(vmi::st64).operand(r).operand(vmr::sp).operand(u64(addr)));
-                const auto& src = cf->getSource();
+                const auto& src = cf->getSourceLocation();
                 m_map.add(src.getLine(), src.getCol(), src.getLength());
             }
 
@@ -1597,7 +1597,7 @@ namespace tsn {
                 m_instructions[c] = encode(vmi::jmp).operand((u64)epilog_addr);
             }
 
-            const auto& src = cf->getSource();
+            const auto& src = cf->getSourceLocation();
 
             // generate function epilogue
             for (auto& x : prologue) {

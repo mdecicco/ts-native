@@ -25,6 +25,7 @@ namespace tsn {
 
             m_type = new DataType(name, fullyQualifiedName, meta);
             m_type->m_id = (type_id)std::hash<utils::String>()(m_type->getFullyQualifiedName());
+            m_type->m_sourceModule = mod;
             typeRegistry->addHostType(meta.host_hash, m_type);
 
             if (mod) mod->addHostType(m_type->m_info.host_hash, m_type);
@@ -56,6 +57,7 @@ namespace tsn {
                 ));
             }
 
+            dtor->m_owner = m_type;
             m_type->m_destructor = dtor;
         }
 
@@ -66,7 +68,7 @@ namespace tsn {
                     m_type->m_name.c_str()
                 ));
             }
-
+            method->m_owner = m_type;
             m_type->m_methods.push(method);
         }
 
@@ -148,6 +150,7 @@ namespace tsn {
         }
 
         void DataTypeExtender::addMethod(Function* method) {
+            method->m_owner = m_type;
             m_type->m_methods.push(method);
         }
 
@@ -167,7 +170,8 @@ namespace tsn {
                 nullptr,
                 nullptr,
                 0,
-                m_mod
+                m_mod,
+                m_type
             );
 
             m->makeInline(genFn);
@@ -193,7 +197,8 @@ namespace tsn {
                 access,
                 nullptr,
                 nullptr,
-                m_mod
+                m_mod,
+                m_type
             );
 
             fn->makeInline(genFn);
@@ -212,7 +217,8 @@ namespace tsn {
                 access,
                 nullptr,
                 nullptr,
-                m_mod
+                m_mod,
+                m_type
             );
 
             fn->makeInline(genFn);
@@ -282,7 +288,8 @@ namespace tsn {
                     nullptr,
                     nullptr,
                     0,
-                    m_mod
+                    m_mod,
+                    m_type
                 );
 
                 getter->makeInline(getterGenFn);
@@ -303,7 +310,8 @@ namespace tsn {
                     nullptr,
                     nullptr,
                     0,
-                    m_mod
+                    m_mod,
+                    m_type
                 );
 
                 setter->makeInline(getterGenFn);

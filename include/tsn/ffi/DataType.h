@@ -257,6 +257,7 @@ namespace tsn {
                 friend class tsn::Pipeline;
                 friend class compiler::Output;
                 friend class compiler::Compiler;
+                friend class Context;
                 
                 type_id m_id;
                 data_type_instance m_itype;

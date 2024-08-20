@@ -121,7 +121,8 @@ namespace tsn {
                 access,
                 func,
                 _func_wrapper<Ret, Args...>,
-                mod
+                mod,
+                selfType
             );
 
             freg->registerFunction(fn);
@@ -138,7 +139,8 @@ namespace tsn {
                 access,
                 nullptr,
                 nullptr,
-                mod
+                mod,
+                selfType
             );
 
             fn->makeInline(genFn);
@@ -150,14 +152,16 @@ namespace tsn {
         
         template <typename Cls, typename Ret, typename... Args>
         Function* bind_pseudo_method(Module* mod, FunctionRegistry* freg, DataTypeRegistry* treg, const utils::String& name, Ret (*func)(Cls*, Args...), access_modifier access) {
+            FunctionType* sig = treg->getMethodSignatureType<Cls, Ret, Args...>();
             Function* fn = new Function(
                 name,
                 utils::String(mod ? mod->getName() + "::" : ""),
-                treg->getMethodSignatureType<Cls, Ret, Args...>(),
+                sig,
                 access,
                 func,
                 _pseudo_method_wrapper<Cls, Ret, Args...>,
-                mod
+                mod,
+                sig->getThisType()
             );
 
             freg->registerFunction(fn);
@@ -167,14 +171,16 @@ namespace tsn {
         
         template <typename Cls, typename Ret, typename... Args>
         Function* bind_pseudo_method(Module* mod, FunctionRegistry* freg, DataTypeRegistry* treg, const utils::String& name, compiler::InlineCodeGenFunc genFn, access_modifier access) {
+            FunctionType* sig = treg->getMethodSignatureType<Cls, Ret, Args...>();
             Function* fn = new Function(
                 name,
                 utils::String(mod ? mod->getName() + "::" : ""),
-                treg->getMethodSignatureType<Cls, Ret, Args...>(),
+                sig,
                 access,
                 nullptr,
                 nullptr,
-                mod
+                mod,
+                sig->getThisType()
             );
 
             fn->makeInline(genFn);
@@ -186,15 +192,17 @@ namespace tsn {
         
         template <typename Cls, typename Ret, typename... Args>
         Function* bind_method(Module* mod, FunctionRegistry* freg, DataTypeRegistry* treg, const utils::String& name, Ret (Cls::*func)(Args...), access_modifier access) {
+            FunctionType* sig = treg->getMethodSignatureType<Cls, Ret, Args...>();
             Method* m = new Method(
                 name,
                 utils::String(mod ? mod->getName() + "::" : ""),
-                treg->getMethodSignatureType<Cls, Ret, Args...>(),
+                sig,
                 access,
                 func,
                 _method_wrapper<Cls, Ret, Args...>,
                 0,
-                mod
+                mod,
+                sig->getThisType()
             );
             
             freg->registerFunction(m);
@@ -204,15 +212,17 @@ namespace tsn {
         
         template <typename Cls, typename Ret, typename... Args>
         Function* bind_method(Module* mod, FunctionRegistry* freg, DataTypeRegistry* treg, const utils::String& name, Ret (Cls::*func)(Args...) const, access_modifier access) {
+            FunctionType* sig = treg->getMethodSignatureType<Cls, Ret, Args...>();
             Method* m = new Method(
                 name,
                 utils::String(mod ? mod->getName() + "::" : ""),
-                treg->getMethodSignatureType<Cls, Ret, Args...>(),
+                sig,
                 access,
                 func,
                 _const_method_wrapper<Cls, Ret, Args...>,
                 0,
-                mod
+                mod,
+                sig->getThisType()
             );
             
             freg->registerFunction(m);
@@ -243,7 +253,8 @@ namespace tsn {
                 nullptr,
                 nullptr,
                 0,
-                mod
+                mod,
+                selfTp
             );
 
             m->makeInline(genFn);
@@ -263,7 +274,8 @@ namespace tsn {
                 access,
                 nullptr,
                 _constructor_wrapper<Cls, Args...>,
-                mod
+                mod,
+                forType
             );
 
             freg->registerFunction(fn);
@@ -280,7 +292,8 @@ namespace tsn {
                 access,
                 nullptr,
                 _destructor_wrapper<Cls>,
-                mod
+                mod,
+                forType
             );
 
             freg->registerFunction(fn);

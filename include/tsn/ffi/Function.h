@@ -69,17 +69,19 @@ namespace tsn {
                     access_modifier access,
                     const FunctionPointer& address,
                     const FunctionPointer& wrapperAddr,
-                    Module* source
+                    Module* source,
+                    DataType* owner
                 );
                 virtual ~Function();
 
                 function_id getId() const;
-                Module* getSourceModule() const;
+                Module* getSource() const;
                 const utils::String& getName() const;
                 const utils::String& getDisplayName() const;
                 const utils::String& getFullyQualifiedName() const;
                 FunctionType* getSignature() const;
-                const SourceLocation& getSource() const;
+                DataType* getOwner() const;
+                const SourceLocation& getSourceLocation() const;
                 access_modifier getAccessModifier() const;
                 void setAccessModifier(access_modifier access);
                 const function_flags& getFlags() const;
@@ -95,6 +97,8 @@ namespace tsn {
 
             protected:
                 friend class FunctionRegistry;
+                friend class DataTypeBinder;
+                friend class DataTypeExtender;
                 friend class compiler::Compiler;
                 friend class compiler::Output;
                 void setThisType(DataType* tp, DataTypeRegistry* treg);
@@ -109,6 +113,7 @@ namespace tsn {
                 utils::String m_fullyQualifiedName;
                 utils::String m_extraQualifiers;
                 FunctionType* m_signature;
+                DataType* m_owner;
                 access_modifier m_access;
                 FunctionPointer m_address;
                 FunctionPointer m_wrapperAddress;
@@ -125,7 +130,8 @@ namespace tsn {
                     const FunctionPointer& address,
                     const FunctionPointer& wrapperAddr,
                     u64 baseOffset,
-                    Module* source
+                    Module* source,
+                    DataType* owner
                 );
 
                 u64 getThisPtrOffset() const;
@@ -141,7 +147,13 @@ namespace tsn {
         class TemplateFunction : public Function {
             public:
                 TemplateFunction();
-                TemplateFunction(const utils::String& name, const utils::String& extraQualifiers, access_modifier access, compiler::TemplateContext* templateData);
+                TemplateFunction(
+                    const utils::String& name,
+                    const utils::String& extraQualifiers,
+                    access_modifier access,
+                    compiler::TemplateContext* templateData,
+                    DataType* owner
+                );
                 ~TemplateFunction();
 
                 compiler::TemplateContext* getTemplateData();
@@ -156,7 +168,14 @@ namespace tsn {
         class TemplateMethod : public Method {
             public:
                 TemplateMethod();
-                TemplateMethod(const utils::String& name, const utils::String& extraQualifiers, access_modifier access, u64 baseOffset, compiler::TemplateContext* templateData);
+                TemplateMethod(
+                    const utils::String& name,
+                    const utils::String& extraQualifiers,
+                    access_modifier access,
+                    u64 baseOffset,
+                    compiler::TemplateContext* templateData,
+                    DataType* owner
+                );
                 ~TemplateMethod();
 
                 compiler::TemplateContext* getTemplateData();

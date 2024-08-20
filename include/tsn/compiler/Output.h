@@ -74,6 +74,7 @@ namespace tsn {
                 utils::String fullyQualifiedName;
                 access_modifier access;
                 type_id signatureTypeId;
+                type_id ownerId;
                 ffi::function_flags flags;
                 SourceLocation src;
 
