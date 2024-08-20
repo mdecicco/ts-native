@@ -8,14 +8,15 @@
 #include <tsn/compiler/TemplateContext.h>
 #include <tsn/compiler/CodeHolder.h>
 #include <tsn/common/Context.h>
+#include <tsn/common/Module.h>
 #include <tsn/ffi/Function.h>
 #include <tsn/ffi/FunctionRegistry.h>
 #include <tsn/ffi/DataTypeRegistry.h>
-#include <tsn/common/Module.h>
 #include <tsn/io/Workspace.h>
 #include <tsn/utils/SourceMap.h>
 #include <tsn/utils/SourceLocation.h>
 #include <tsn/utils/ModuleSource.h>
+#include <tsn/pipeline/Pipeline.h>
 
 #include <utils/Array.hpp>
 #include <utils/Buffer.hpp>
@@ -23,6 +24,47 @@
 namespace tsn {
     namespace compiler {
         using namespace output;
+
+        struct host_specialization {
+            type_id id;
+            type_id base_type;
+            utils::Array<type_id> args;
+        };
+        ffi::DataType* findType(
+            robin_hood::unordered_map<type_id, ffi::DataType*>& typeMap,
+            const robin_hood::unordered_map<type_id, host_specialization>& hostSpecializations,
+            ffi::DataTypeRegistry* treg,
+            type_id tid
+        ) {
+            auto it = typeMap.find(tid);
+            if (it != typeMap.end()) return it->second;
+
+            ffi::DataType* tp = treg->getType(tid);
+            if (tp) return tp;
+
+            auto h = hostSpecializations.find(tid);
+            if (h == hostSpecializations.end()) return nullptr;
+
+            auto s = h->second;
+
+            // it's time...
+            ffi::DataType* base = findType(typeMap, hostSpecializations, treg, s.base_type);
+            if (!base) return nullptr;
+
+            utils::Array<ffi::DataType*> args;
+            for (u32 i = 0;i < s.args.size();i++) {
+                ffi::DataType* a = findType(typeMap, hostSpecializations, treg, s.args[i]);
+                if (!a) return nullptr;
+
+                args.push(a);
+            }
+
+            ffi::DataType* out = treg->getContext()->getPipeline()->specializeTemplate((ffi::TemplateType*)base, args);
+            if (!out) return nullptr;
+
+            typeMap[tid] = out;
+            return out;
+        }
 
         Output::Output(const script_metadata* meta, ModuleSource* src) {
             m_mod = nullptr;
@@ -36,11 +78,12 @@ namespace tsn {
             m_src = m_mod->getSource();
             m_meta = m_mod->getInfo();
             m_dependencies = in->getDependencies();
+            m_specializedHostTypes = in->getSpecializedHostTypes();
 
             const auto& funcs = in->getFuncs();
             for (u32 i = 0;i < funcs.size();i++) {
                 if (!funcs[i]->getOutput()) continue;
-                if (funcs[i]->getOutput()->isTemplate()) continue;
+                if (funcs[i]->getOutput()->getFlags().is_template) continue;
 
                 CodeHolder* ch = new CodeHolder(funcs[i]->getCode());
                 ch->owner = funcs[i]->getOutput();
@@ -144,6 +187,19 @@ namespace tsn {
 
                 u64 version = m_dependencies[i]->getInfo()->modified_on;
                 if (!out->write(version)) return false;
+            }
+
+            if (!out->write(m_specializedHostTypes.size())) return false;
+            for (u32 i = 0;i < m_specializedHostTypes.size();i++) {
+                ffi::DataType* tp = m_specializedHostTypes[i];
+                if (!out->write(tp->getId())) return false;
+                if (!out->write(tp->getTemplateBase()->getId())) return false;
+                
+                auto targs = tp->getTemplateArguments();
+                if (!out->write(targs.size())) return false;
+                for (u32 a = 0;a < targs.size();a++) {
+                    if (!out->write(targs[a]->getId())) return false;
+                }
             }
 
             if (!out->write(m_mod->getId())) return false;
@@ -252,6 +308,30 @@ namespace tsn {
                 }
             }
 
+            robin_hood::unordered_map<u32, host_specialization> hostSpecializations;
+
+            if (!in->read(count)) return onFailure();
+            hostSpecializations.reserve(count);
+
+            for (u32 i = 0;i < count;i++) {
+                type_id selfId, baseId;
+                if (!in->read(selfId)) return onFailure();
+                if (!in->read(baseId)) return onFailure();
+
+                host_specialization& s = hostSpecializations[selfId] = {
+                    selfId, baseId, {}
+                };
+                
+                u32 argc;
+                if (!in->read(argc)) return onFailure();
+                for (u32 a = 0;a < argc;a++) {
+                    type_id argId;
+                    if (!in->read(argId)) return false;
+
+                    s.args.push(argId);
+                }
+            }
+
             u32 mid;
             if (!in->read(mid)) return onFailure();
             utils::String name = in->readStr();
@@ -280,15 +360,15 @@ namespace tsn {
 
                 if (!in->read(pf.access)) return onFailure();
                 if (!in->read(pf.signatureTypeId)) return onFailure();
-                if (!in->read(pf.isTemplate)) return onFailure();
-                if (!in->read(pf.isMethod)) return onFailure();
+                if (!in->read(pf.ownerId)) return onFailure();
+                if (!in->read(pf.flags)) return onFailure();
                 if (!pf.src.deserialize(in, ctx)) return onFailure();
                 
-                if (pf.isMethod) {
+                if (pf.flags.is_method) {
                     if (!in->read(pf.baseOffset)) return onFailure();
                 }
 
-                if (pf.isTemplate) {
+                if (pf.flags.is_template) {
                     pf.tctx = new TemplateContext();
                     if (!pf.tctx->deserialize(in, ctx)) {
                         delete pf.tctx;
@@ -416,11 +496,8 @@ namespace tsn {
                 return freg->getFunction(fid);
             };
 
-            auto getTpById = [&typeMap, treg](type_id tid) {
-                auto it = typeMap.find(tid);
-                if (it != typeMap.end()) return it->second;
-
-                return treg->getType(tid);
+            auto getTpById = [&typeMap, treg, &hostSpecializations](type_id tid) {
+                return findType(typeMap, hostSpecializations, treg, tid);
             };
 
             if (!generateTypesAndFunctions(proto_funcs, proto_types, freg, treg, ofuncs, otypes, funcMap, typeMap)) return onFailure();
@@ -592,12 +669,12 @@ namespace tsn {
             // Generate functions without signatures
             for (auto& pf : funcs) {
                 ffi::Function* f = nullptr;
-                if (pf.isMethod) {
-                    if (pf.isTemplate) f = new ffi::TemplateMethod(pf.name, "", pf.access, pf.baseOffset, pf.tctx);
-                    else f = new ffi::Method(pf.name, "", nullptr, pf.access, nullptr, nullptr, pf.baseOffset, m_mod);
+                if (pf.flags.is_method) {
+                    if (pf.flags.is_template) f = new ffi::TemplateMethod(pf.name, "", pf.access, pf.baseOffset, pf.tctx, pf.ownerId == 0 ? nullptr : getTpById(pf.ownerId));
+                    else f = new ffi::Method(pf.name, "", nullptr, pf.access, nullptr, nullptr, pf.baseOffset, m_mod, pf.ownerId == 0 ? nullptr : getTpById(pf.ownerId));
                 } else {
-                    if (pf.isTemplate) f = new ffi::TemplateFunction(pf.name, "", pf.access, pf.tctx);
-                    else f = new ffi::Function(pf.name, "", nullptr, pf.access, nullptr, nullptr, m_mod);
+                    if (pf.flags.is_template) f = new ffi::TemplateFunction(pf.name, "", pf.access, pf.tctx, pf.ownerId == 0 ? nullptr : getTpById(pf.ownerId));
+                    else f = new ffi::Function(pf.name, "", nullptr, pf.access, nullptr, nullptr, m_mod, pf.ownerId == 0 ? nullptr : getTpById(pf.ownerId));
                 }
 
                 f->m_fullyQualifiedName = pf.fullyQualifiedName;

@@ -247,7 +247,7 @@ namespace tsn {
                     }
                     case vmi::v2fadds: {
                         f32* v = GRx(_O1, f32*);
-                        f32 s = f32(GRf(_O2));
+                        f32 s = GRf(_O2);
                         v[0] += s;
                         v[1] += s;
                         break;
@@ -268,7 +268,7 @@ namespace tsn {
                     }
                     case vmi::v2dadds: {
                         f64* v = GRx(_O1, f64*);
-                        f64 s = f64(GRf(_O2));
+                        f64 s = GRd(_O2);
                         v[0] += s;
                         v[1] += s;
                         break;
@@ -289,7 +289,7 @@ namespace tsn {
                     }
                     case vmi::v2fsubs: {
                         f32* v = GRx(_O1, f32*);
-                        f32 s = f32(GRf(_O2));
+                        f32 s = GRf(_O2);
                         v[0] -= s;
                         v[1] -= s;
                         break;
@@ -310,7 +310,7 @@ namespace tsn {
                     }
                     case vmi::v2dsubs: {
                         f64* v = GRx(_O1, f64*);
-                        f64 s = f64(GRf(_O2));
+                        f64 s = GRd(_O2);
                         v[0] -= s;
                         v[1] -= s;
                         break;
@@ -331,7 +331,7 @@ namespace tsn {
                     }
                     case vmi::v2fmuls: {
                         f32* v = GRx(_O1, f32*);
-                        f32 s = f32(GRf(_O2));
+                        f32 s = GRf(_O2);
                         v[0] *= s;
                         v[1] *= s;
                         break;
@@ -352,7 +352,7 @@ namespace tsn {
                     }
                     case vmi::v2dmuls: {
                         f64* v = GRx(_O1, f64*);
-                        f64 s = f64(GRf(_O2));
+                        f64 s = GRd(_O2);
                         v[0] *= s;
                         v[1] *= s;
                         break;
@@ -373,7 +373,7 @@ namespace tsn {
                     }
                     case vmi::v2fdivs: {
                         f32* v = GRx(_O1, f32*);
-                        f32 s = f32(GRf(_O2));
+                        f32 s = GRf(_O2);
                         v[0] /= s;
                         v[1] /= s;
                         break;
@@ -394,7 +394,7 @@ namespace tsn {
                     }
                     case vmi::v2ddivs: {
                         f64* v = GRx(_O1, f64*);
-                        f64 s = f64(GRf(_O2));
+                        f64 s = GRd(_O2);
                         v[0] /= s;
                         v[1] /= s;
                         break;
@@ -415,7 +415,7 @@ namespace tsn {
                     }
                     case vmi::v2fmods: {
                         f32* v = GRx(_O1, f32*);
-                        f32 s = f32(GRf(_O2));
+                        f32 s = GRf(_O2);
                         v[0] = fmodf(v[0], s);
                         v[1] = fmodf(v[1], s);
                         break;
@@ -436,7 +436,7 @@ namespace tsn {
                     }
                     case vmi::v2dmods: {
                         f64* v = GRx(_O1, f64*);
-                        f64 s = f64(GRf(_O2));
+                        f64 s = GRd(_O2);
                         v[0] = fmod(v[0], s);
                         v[1] = fmod(v[1], s);
                         break;
@@ -552,7 +552,7 @@ namespace tsn {
                     }
                     case vmi::v3fadds: {
                         f32* v = GRx(_O1, f32*);
-                        f32 s = f32(GRf(_O2));
+                        f32 s = GRf(_O2);
                         v[0] += s;
                         v[1] += s;
                         v[2] += s;
@@ -576,7 +576,7 @@ namespace tsn {
                     }
                     case vmi::v3dadds: {
                         f64* v = GRx(_O1, f64*);
-                        f64 s = f64(GRf(_O2));
+                        f64 s = GRd(_O2);
                         v[0] += s;
                         v[1] += s;
                         v[2] += s;
@@ -600,7 +600,7 @@ namespace tsn {
                     }
                     case vmi::v3fsubs: {
                         f32* v = GRx(_O1, f32*);
-                        f32 s = f32(GRf(_O2));
+                        f32 s = GRf(_O2);
                         v[0] -= s;
                         v[1] -= s;
                         v[2] -= s;
@@ -624,7 +624,7 @@ namespace tsn {
                     }
                     case vmi::v3dsubs: {
                         f64* v = GRx(_O1, f64*);
-                        f64 s = f64(GRf(_O2));
+                        f64 s = GRd(_O2);
                         v[0] -= s;
                         v[1] -= s;
                         v[2] -= s;
@@ -648,7 +648,7 @@ namespace tsn {
                     }
                     case vmi::v3fmuls: {
                         f32* v = GRx(_O1, f32*);
-                        f32 s = f32(GRf(_O2));
+                        f32 s = GRf(_O2);
                         v[0] *= s;
                         v[1] *= s;
                         v[2] *= s;
@@ -672,7 +672,7 @@ namespace tsn {
                     }
                     case vmi::v3dmuls: {
                         f64* v = GRx(_O1, f64*);
-                        f64 s = f64(GRf(_O2));
+                        f64 s = GRd(_O2);
                         v[0] *= s;
                         v[1] *= s;
                         v[2] *= s;
@@ -696,7 +696,7 @@ namespace tsn {
                     }
                     case vmi::v3fdivs: {
                         f32* v = GRx(_O1, f32*);
-                        f32 s = f32(GRf(_O2));
+                        f32 s = GRf(_O2);
                         v[0] /= s;
                         v[1] /= s;
                         v[2] /= s;
@@ -720,7 +720,7 @@ namespace tsn {
                     }
                     case vmi::v3ddivs: {
                         f64* v = GRx(_O1, f64*);
-                        f64 s = f64(GRf(_O2));
+                        f64 s = GRd(_O2);
                         v[0] /= s;
                         v[1] /= s;
                         v[2] /= s;
@@ -744,7 +744,7 @@ namespace tsn {
                     }
                     case vmi::v3fmods: {
                         f32* v = GRx(_O1, f32*);
-                        f32 s = f32(GRf(_O2));
+                        f32 s = GRf(_O2);
                         v[0] = fmodf(v[0], s);
                         v[1] = fmodf(v[1], s);
                         v[2] = fmodf(v[2], s);
@@ -768,7 +768,7 @@ namespace tsn {
                     }
                     case vmi::v3dmods: {
                         f64* v = GRx(_O1, f64*);
-                        f64 s = f64(GRf(_O2));
+                        f64 s = GRd(_O2);
                         v[0] = fmod(v[0], s);
                         v[1] = fmod(v[1], s);
                         v[2] = fmod(v[2], s);
@@ -873,7 +873,7 @@ namespace tsn {
                     }
                     case vmi::v4fadds: {
                         f32* v = GRx(_O1, f32*);
-                        f32 s = f32(GRf(_O2));
+                        f32 s = GRf(_O2);
                         v[0] += s;
                         v[1] += s;
                         v[2] += s;
@@ -900,7 +900,7 @@ namespace tsn {
                     }
                     case vmi::v4dadds: {
                         f64* v = GRx(_O1, f64*);
-                        f64 s = f64(GRf(_O2));
+                        f64 s = GRd(_O2);
                         v[0] += s;
                         v[1] += s;
                         v[2] += s;
@@ -927,7 +927,7 @@ namespace tsn {
                     }
                     case vmi::v4fsubs: {
                         f32* v = GRx(_O1, f32*);
-                        f32 s = f32(GRf(_O2));
+                        f32 s = GRf(_O2);
                         v[0] -= s;
                         v[1] -= s;
                         v[2] -= s;
@@ -954,7 +954,7 @@ namespace tsn {
                     }
                     case vmi::v4dsubs: {
                         f64* v = GRx(_O1, f64*);
-                        f64 s = f64(GRf(_O2));
+                        f64 s = GRd(_O2);
                         v[0] -= s;
                         v[1] -= s;
                         v[2] -= s;
@@ -981,7 +981,7 @@ namespace tsn {
                     }
                     case vmi::v4fmuls: {
                         f32* v = GRx(_O1, f32*);
-                        f32 s = f32(GRf(_O2));
+                        f32 s = GRf(_O2);
                         v[0] *= s;
                         v[1] *= s;
                         v[2] *= s;
@@ -1008,7 +1008,7 @@ namespace tsn {
                     }
                     case vmi::v4dmuls: {
                         f64* v = GRx(_O1, f64*);
-                        f64 s = f64(GRf(_O2));
+                        f64 s = GRd(_O2);
                         v[0] *= s;
                         v[1] *= s;
                         v[2] *= s;
@@ -1035,7 +1035,7 @@ namespace tsn {
                     }
                     case vmi::v4fdivs: {
                         f32* v = GRx(_O1, f32*);
-                        f32 s = f32(GRf(_O2));
+                        f32 s = GRf(_O2);
                         v[0] /= s;
                         v[1] /= s;
                         v[2] /= s;
@@ -1062,7 +1062,7 @@ namespace tsn {
                     }
                     case vmi::v4ddivs: {
                         f64* v = GRx(_O1, f64*);
-                        f64 s = f64(GRf(_O2));
+                        f64 s = GRd(_O2);
                         v[0] /= s;
                         v[1] /= s;
                         v[2] /= s;
@@ -1089,7 +1089,7 @@ namespace tsn {
                     }
                     case vmi::v4fmods: {
                         f32* v = GRx(_O1, f32*);
-                        f32 s = f32(GRf(_O2));
+                        f32 s = GRf(_O2);
                         v[0] = fmodf(v[0], s);
                         v[1] = fmodf(v[1], s);
                         v[2] = fmodf(v[2], s);
@@ -1116,7 +1116,7 @@ namespace tsn {
                     }
                     case vmi::v4dmods: {
                         f64* v = GRx(_O1, f64*);
-                        f64 s = f64(GRf(_O2));
+                        f64 s = GRd(_O2);
                         v[0] = fmod(v[0], s);
                         v[1] = fmod(v[1], s);
                         v[2] = fmod(v[2], s);

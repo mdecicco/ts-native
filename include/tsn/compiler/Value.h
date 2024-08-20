@@ -70,7 +70,7 @@ namespace tsn {
                     bool excludePrivate = false,
                     bool doError = true
                 ) const;
-                Value callMethod(const utils::String& name, ffi::DataType* retTp, const utils::Array<Value>& args);
+                Value callMethod(const utils::String& name, ffi::DataType* retTp, const utils::Array<Value>& args) const;
 
 
                 template <typename T>

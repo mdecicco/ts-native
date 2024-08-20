@@ -6,6 +6,7 @@
 #include <tsn/ffi/DataType.h>
 #include <tsn/ffi/FunctionRegistry.h>
 #include <tsn/ffi/DataTypeRegistry.h>
+#include <tsn/bind/bind_type.h>
 #include <tsn/compiler/TemplateContext.h>
 #include <tsn/compiler/Lexer.h>
 #include <tsn/compiler/Parser.h>
@@ -185,6 +186,52 @@ namespace tsn {
             return tp->isSpecializationOf(type, templateArgs);
         });
         if (existing) return existing;
+
+        // Check if the template is a host template type
+        compiler::TemplateContext* tctx = type->getTemplateData();
+        if (!tctx) {
+            utils::String name = type->getName() + "<";
+            utils::String fqName = type->getFullyQualifiedName() + "<";
+            for (u32 i = 0;i < templateArgs.size();i++) {
+                if (i != 0) {
+                    name += ",";
+                    fqName += ",";
+                }
+
+                name += templateArgs[i]->getName();
+                fqName += templateArgs[i]->getFullyQualifiedName();
+            }
+            name += ">";
+            fqName += ">";
+
+            ffi::DataType* outTp = new ffi::DataType(name, fqName, { 0 });
+            outTp->m_templateBase = type;
+            outTp->m_templateArgs = templateArgs;
+            outTp->m_sourceModule = type->m_sourceModule;
+
+            ffi::DataTypeExtender extend = ffi::DataTypeExtender(
+                type->m_sourceModule,
+                m_ctx->getFunctions(),
+                m_ctx->getTypes(),
+                outTp
+            );
+            
+            if (!type->getSpecializeFunc()(outTp, &extend, this)) {
+                delete outTp;
+                return nullptr;
+            }
+
+            if (outTp->m_sourceModule) outTp->m_sourceModule->addForeignType(outTp);
+
+            // template specializations should always be global.
+            // scripts won't be able to instantiate them without
+            // importing the original module that the template
+            // is defined in
+            m_ctx->getGlobal()->addForeignType(outTp);
+            m_ctx->getTypes()->addForeignType(outTp);
+
+            return outTp;
+        }
         
         if (m_isCompiling) {
             Pipeline child = Pipeline(m_ctx, this, m_root);
@@ -199,7 +246,6 @@ namespace tsn {
         backend::IBackend* be = m_ctx->getBackend();
         if (be) be->beforeCompile(this);
 
-        compiler::TemplateContext* tctx = type->getTemplateData();
         Module* originalModule = tctx->getOrigin();
         const script_metadata* originalMeta = originalModule->getInfo();
         m_source = originalModule->getSource();

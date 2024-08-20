@@ -74,8 +74,8 @@ namespace tsn {
                 utils::String fullyQualifiedName;
                 access_modifier access;
                 type_id signatureTypeId;
-                bool isTemplate;
-                bool isMethod;
+                type_id ownerId;
+                ffi::function_flags flags;
                 SourceLocation src;
 
                 // methods only
@@ -173,6 +173,7 @@ namespace tsn {
                 utils::Array<compiler::CodeHolder*> m_output;
                 utils::Array<Module*> m_dependencies;
                 utils::Array<u64> m_dependencyVersions;
+                utils::Array<ffi::DataType*> m_specializedHostTypes;
         };
     };
 };

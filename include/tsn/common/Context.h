@@ -45,6 +45,13 @@ namespace tsn {
             void init(backend::IBackend* backend);
             void shutdown();
 
+            /**
+             * @brief Generates a TypeScript *.d.ts that contains the bound API definitions, for use with tsconfig.json
+             * @param fileName Filename, relative to workspace root
+             * @returns true on success, otherwise false
+             */
+            bool generateTypeDefs(const utils::String& fileName);
+
             const Config* getConfig() const;
             ffi::DataTypeRegistry* getTypes() const;
             ffi::FunctionRegistry* getFunctions() const;

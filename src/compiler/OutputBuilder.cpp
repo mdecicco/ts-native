@@ -123,6 +123,16 @@ namespace tsn {
 
             m_dependencies.push(mod);
         }
+
+        void OutputBuilder::addHostTemplateSpecialization(ffi::DataType* type) {
+            if (!type) return;
+
+            for (u32 i = 0;i < m_specializedHostTypes.size();i++) {
+                if (type->getId() == m_specializedHostTypes[i]->getId()) return;
+            }
+
+            m_specializedHostTypes.push(type);
+        }
         
         const utils::Array<symbol_lifetime>& OutputBuilder::getSymbolLifetimeData() const {
             return m_symbolLifetimes;
@@ -130,6 +140,10 @@ namespace tsn {
         
         const utils::Array<Module*>& OutputBuilder::getDependencies() const {
             return m_dependencies;
+        }
+        
+        const utils::Array<ffi::DataType*>& OutputBuilder::getSpecializedHostTypes() const {
+            return m_specializedHostTypes;
         }
 
         const utils::Array<FunctionDef*>& OutputBuilder::getFuncs() const {

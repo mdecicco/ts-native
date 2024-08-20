@@ -21,6 +21,7 @@ namespace tsn {
         class Function;
         class Method;
         class DataTypeRegistry;
+        class DataTypeExtender;
 
         struct type_property {
             utils::String name;
@@ -256,6 +257,7 @@ namespace tsn {
                 friend class tsn::Pipeline;
                 friend class compiler::Output;
                 friend class compiler::Compiler;
+                friend class Context;
                 
                 type_id m_id;
                 data_type_instance m_itype;
@@ -308,11 +310,21 @@ namespace tsn {
 
         class TemplateType : public DataType {
             public:
+                typedef bool (*SpecializeFunc)(DataType* specializedType, DataTypeExtender* binder, Pipeline* pipeline);
+
                 TemplateType();
+                TemplateType(Module* mod, const utils::String& name, const utils::String& fullyQualifiedName, u32 templateArgCount, SpecializeFunc specializeFn);
                 TemplateType(const utils::String& name, const utils::String& fullyQualifiedName, compiler::TemplateContext* templateData);
                 virtual ~TemplateType();
 
+                /** Only returns non-null if this is a scripted template type */
                 compiler::TemplateContext* getTemplateData() const;
+
+                /** If this is a host-bound template type then this will be a pointer to a function that specializes this template */
+                SpecializeFunc getSpecializeFunc() const;
+
+                /** If this is a host-bound template type then this will be the number of template arguments it expects, otherwise zero */
+                u32 getTemplateArgumentCount() const;
             
                 virtual bool serialize(utils::Buffer* out, Context* ctx) const;
                 virtual bool deserialize(utils::Buffer* in, Context* ctx);
@@ -320,6 +332,8 @@ namespace tsn {
             protected:
                 friend class compiler::Output;
                 compiler::TemplateContext* m_data;
+                SpecializeFunc m_specializeFn;
+                u32 m_templateArgCount;
         };
 
         class AliasType : public DataType {

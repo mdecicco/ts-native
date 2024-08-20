@@ -14,6 +14,8 @@
 
 namespace tsn {
     constexpr u32 PTSN_MAGIC = 0x4E535450; /* Hex for "PTSN" */
+    constexpr const char* validExts[] = { ".tsn", ".ts" };
+    constexpr u32 extCount = sizeof(validExts) / sizeof(const char*);
 
     void enforceDirSeparator(std::string& path) {
         size_t pos = 0;
@@ -363,29 +365,31 @@ namespace tsn {
     utils::String Workspace::getWorkspacePath(const utils::String& path, const utils::String& fromDir) {
         using fspath = std::filesystem::path;
 
-        utils::String pathWithExt = enforceDirSeparator(path);
-        if (path.toLowerCase().firstIndexOf(".tsn") < 0) pathWithExt += ".tsn";
+        for (u32 i = 0;i < extCount;i++) {
+            utils::String pathWithExt = enforceDirSeparator(path);
+            if (path.toLowerCase().firstIndexOf(validExts[i]) < 0) pathWithExt += validExts[i];
 
-        fspath p;
+            fspath p;
 
-        // Try relative to the current path first
-        if (fromDir.size() > 0) {
-            p = fromDir.c_str() / fspath(pathWithExt.c_str());
+            // Try relative to the current path first
+            if (fromDir.size() > 0) {
+                p = fromDir.c_str() / fspath(pathWithExt.c_str());
+                if (std::filesystem::exists(p)) {
+                    return enforceDirSeparator(std::filesystem::relative(p, m_ctx->getConfig()->workspaceRoot).string());
+                }
+            }
+
+            // Then relative to the workspace root
+            p = fspath(m_ctx->getConfig()->workspaceRoot) / fspath(pathWithExt.c_str());
             if (std::filesystem::exists(p)) {
                 return enforceDirSeparator(std::filesystem::relative(p, m_ctx->getConfig()->workspaceRoot).string());
             }
-        }
 
-        // Then relative to the workspace root
-        p = fspath(m_ctx->getConfig()->workspaceRoot) / fspath(pathWithExt.c_str());
-        if (std::filesystem::exists(p)) {
-            return enforceDirSeparator(std::filesystem::relative(p, m_ctx->getConfig()->workspaceRoot).string());
-        }
-
-        // Then relative to the trusted folder
-        p = fspath(m_ctx->getConfig()->workspaceRoot) / fspath("trusted") / fspath(pathWithExt.c_str());
-        if (std::filesystem::exists(p)) {
-            return enforceDirSeparator(std::filesystem::relative(p, m_ctx->getConfig()->workspaceRoot).string());
+            // Then relative to the trusted folder
+            p = fspath(m_ctx->getConfig()->workspaceRoot) / fspath("trusted") / fspath(pathWithExt.c_str());
+            if (std::filesystem::exists(p)) {
+                return enforceDirSeparator(std::filesystem::relative(p, m_ctx->getConfig()->workspaceRoot).string());
+            }
         }
 
         return utils::String();
@@ -485,7 +489,16 @@ namespace tsn {
             } else if (entry.is_regular_file()) {
                 std::string ext = entry.path().extension().string();
                 std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
-                if (ext != ".tsn") continue;
+
+                bool hasValidExtension = false;
+                for (u32 i = 0;i < extCount;i++) {
+                    if (ext == validExts[i]) {
+                        hasValidExtension = true;
+                        break;
+                    }
+                }
+                
+                if (!hasValidExtension) continue;
 
                 processScript(
                     enforceDirSeparator(std::filesystem::relative(entry.path(), root).string()),

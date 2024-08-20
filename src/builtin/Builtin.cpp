@@ -3,6 +3,7 @@
 #include <tsn/common/Module.h>
 #include <tsn/ffi/DataTypeRegistry.h>
 #include <tsn/bind/bind.hpp>
+#include <tsn/compiler/Logger.h>
 
 using namespace tsn::ffi;
 
@@ -60,60 +61,8 @@ namespace tsn {
         b.finalize();
     }
 
-    void BindPointer(Context* ctx) {
-        Module* m = ctx->getModule("trusted/pointer");
-        if (!m) return;
-
-        m->init();
-
-        TemplateType* ptr = (TemplateType*)m->allTypes().find([](const DataType* t) { return t->getName() == "Pointer"; });
-        if (!ptr) return;
-
-        ctx->getGlobal()->addForeignType(ptr);
-        ctx->getTypes()->addForeignType(ptr);
-        
-        ctx->getPipeline()->specializeTemplate(ptr, { ctx->getTypes()->getInt8() });
-        ctx->getPipeline()->specializeTemplate(ptr, { ctx->getTypes()->getUInt8() });
-        ctx->getPipeline()->specializeTemplate(ptr, { ctx->getTypes()->getInt16() });
-        ctx->getPipeline()->specializeTemplate(ptr, { ctx->getTypes()->getUInt16() });
-        ctx->getPipeline()->specializeTemplate(ptr, { ctx->getTypes()->getInt32() });
-        ctx->getPipeline()->specializeTemplate(ptr, { ctx->getTypes()->getUInt32() });
-        ctx->getPipeline()->specializeTemplate(ptr, { ctx->getTypes()->getInt64() });
-        ctx->getPipeline()->specializeTemplate(ptr, { ctx->getTypes()->getUInt64() });
-        ctx->getPipeline()->specializeTemplate(ptr, { ctx->getTypes()->getFloat32() });
-        ctx->getPipeline()->specializeTemplate(ptr, { ctx->getTypes()->getFloat64() });
-        ctx->getPipeline()->specializeTemplate(ptr, { ctx->getTypes()->getVoidPtr() });
-        ctx->getPipeline()->specializeTemplate(ptr, { ctx->getTypes()->getString() });
-        ctx->getPipeline()->specializeTemplate(ptr, { ctx->getTypes()->getBoolean() });
-    }
-
-    void BindArray(Context* ctx) {
-        Module* m = ctx->getModule("trusted/array");
-        if (!m) return;
-
-        m->init();
-
-        TemplateType* arr = (TemplateType*)m->allTypes().find([](const DataType* t) { return t->getName() == "Array"; });
-        if (!arr) return;
-        
-        ctx->getGlobal()->addForeignType(arr);
-        ctx->getTypes()->addForeignType(arr);
-        
-        ctx->getPipeline()->specializeTemplate(arr, { ctx->getTypes()->getInt8() });
-        ctx->getPipeline()->specializeTemplate(arr, { ctx->getTypes()->getUInt8() });
-        ctx->getPipeline()->specializeTemplate(arr, { ctx->getTypes()->getInt16() });
-        ctx->getPipeline()->specializeTemplate(arr, { ctx->getTypes()->getUInt16() });
-        ctx->getPipeline()->specializeTemplate(arr, { ctx->getTypes()->getInt32() });
-        ctx->getPipeline()->specializeTemplate(arr, { ctx->getTypes()->getUInt32() });
-        ctx->getPipeline()->specializeTemplate(arr, { ctx->getTypes()->getInt64() });
-        ctx->getPipeline()->specializeTemplate(arr, { ctx->getTypes()->getUInt64() });
-        ctx->getPipeline()->specializeTemplate(arr, { ctx->getTypes()->getFloat32() });
-        ctx->getPipeline()->specializeTemplate(arr, { ctx->getTypes()->getFloat64() });
-        ctx->getPipeline()->specializeTemplate(arr, { ctx->getTypes()->getVoidPtr() });
-        ctx->getPipeline()->specializeTemplate(arr, { ctx->getTypes()->getString() });
-        ctx->getPipeline()->specializeTemplate(arr, { ctx->getTypes()->getBoolean() });
-    }
-
+    void BindPointer(Context* ctx);
+    void BindArray(Context* ctx);
     void BindMath(Context* ctx);
 
     void ExtendString(Context* ctx) {
@@ -134,7 +83,7 @@ namespace tsn {
         BindNumberType<f32>(ctx, "f32");
         BindNumberType<f64>(ctx, "f64");
 
-        auto v  = bind<void>(ctx, "void").finalize();
+        bind<void>(ctx, "void").finalize();
 
         auto vp = bind<void*>(ctx, "data");
         type_meta& vpi = vp.info();
@@ -143,10 +92,12 @@ namespace tsn {
         vpi.is_integral = 1;
         vp.access(trusted_access).finalize();
 
-        auto n = bind<null_t>(ctx, "null_t").finalize();
+        bind<null_t>(ctx, "null_t").finalize();
+        bind<bool>(ctx, "boolean").finalize();
+        bind<poison_t>(ctx, "$poison").finalize();
 
-        auto b = bind<bool>(ctx, "boolean").finalize();
-        auto p = bind<poison_t>(ctx, "$poison").finalize();
+        ctx->getTypes()->updateCachedTypes();
+
         auto ectx = bind<ExecutionContext>(ctx, "$exec").dtor(tsn::private_access).finalize();
         
         auto cb = bind<CaptureData>(ctx, "$capture_data");
@@ -163,14 +114,13 @@ namespace tsn {
         BindString(ctx);
         BindMemory(ctx);
         BindMath(ctx);
-
-        bind(ctx, "print", print);
-
-        // Will load the array and pointer modules
         ctx->getTypes()->updateCachedTypes();
 
         BindPointer(ctx);
+        ctx->getTypes()->updateCachedTypes();
+
         BindArray(ctx);
+        ctx->getTypes()->updateCachedTypes();
 
         auto ev = extend<void*>(ctx);
         ev.method("toString", +[](void** self) {
@@ -188,7 +138,9 @@ namespace tsn {
         ExtendNumberType<f32>(ctx);
         ExtendNumberType<f64>(ctx);
 
-
         ExtendString(ctx);
+
+
+        bind(ctx, "print", print);
     }
 };

@@ -598,7 +598,8 @@ namespace tsn {
                 private_access,
                 nullptr,
                 nullptr,
-                m_comp->getOutput()->getModule()
+                m_comp->getOutput()->getModule(),
+                m_thisTp
             );
 
             if (m_scopeRef) {

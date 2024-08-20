@@ -24,6 +24,14 @@ namespace tsn {
 
     namespace ffi {
         class ExecutionContext;
+
+        struct function_flags {
+            unsigned return_pointer_non_nullable : 1;
+            unsigned is_method : 1;
+            unsigned is_template : 1;
+            unsigned is_inline : 1;
+            unsigned is_thiscall : 1;
+        };
     };
 
     struct call_context {

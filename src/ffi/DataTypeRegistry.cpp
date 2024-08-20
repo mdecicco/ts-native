@@ -60,7 +60,22 @@ namespace tsn {
         DataType* DataTypeRegistry::getVec4d() const { return m_vec4d; }
         TemplateType* DataTypeRegistry::getArray() const { return m_array; }
         TemplateType* DataTypeRegistry::getPointer() const { return m_pointer; }
+        FunctionType* DataTypeRegistry::getSignatureType(DataType* thisTp, DataType* retTp, bool returnsPointer, const utils::Array<function_argument>& args) {
+            utils::Array<function_argument> _args = args;
+            if (_args.size() == 0 || _args[0].argType != arg_type::context_ptr) {
+                _args.insert(0, { arg_type::context_ptr, m_voidPtr });
+            }
 
+            FunctionType tmp(thisTp, retTp ? retTp : m_void, _args, returnsPointer);
+            FunctionType* existing = (FunctionType*)getType(tmp.getId());
+            if (existing) return existing;
+
+            FunctionType* outTp = new FunctionType(tmp);
+            addFuncType(outTp);
+            
+            return outTp;
+        }
+        
         void DataTypeRegistry::updateCachedTypes() {
             m_i8 = getType<i8>();
             m_u8 = getType<u8>();
@@ -87,13 +102,9 @@ namespace tsn {
             m_vec4f = getType<utils::vec4f>();
             m_vec4d = getType<utils::vec4d>();
 
-            Module* mp = m_ctx->getModule("trusted/pointer");
-            m_pointer = (TemplateType*)(mp ? mp->allTypes().find([](const DataType* t) { return t->getName() == "Pointer"; }) : nullptr);
-
-            Module* ma = m_ctx->getModule("trusted/array");
-            m_array = (TemplateType*)(ma ? ma->allTypes().find([](const DataType* t) { return t->getName() == "Array"; }) : nullptr);
+            m_pointer = (TemplateType*)m_ctx->getTypes()->allTypes().find([](const DataType* t) { return t->getName() == "Pointer"; });
+            m_array = (TemplateType*)m_ctx->getTypes()->allTypes().find([](const DataType* t) { return t->getName() == "Array"; });
         }
-
         u32 DataTypeRegistry::getNextAnonTypeIndex() {
             return m_anonTypeCount++;
         }

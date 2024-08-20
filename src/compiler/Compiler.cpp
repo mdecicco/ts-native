@@ -297,7 +297,7 @@ namespace tsn {
                 if (!f) continue;
                 m_output->import(f, f->getName());
             }
-
+            
             ParseNode* n = m_program->body;
             while (n) {
                 if (n->tp == nt_import) {
@@ -686,7 +686,9 @@ namespace tsn {
                 return result;
             }
 
+            enterExpr();
             constructObject(storage, { result });
+            exitExpr();
             
             return result;
         }
@@ -792,7 +794,7 @@ namespace tsn {
                         cm_info_could_be,
                         "^ Could be: '%s'",
                         ctors[i]->getDisplayName().c_str()
-                    ).src = ctors[i]->getSource();
+                    ).src = ctors[i]->getSourceLocation();
                 }
             } else {
                 functionError(
@@ -1022,7 +1024,7 @@ namespace tsn {
                 expr->targetNextConstructor = targetNextCtor;
                 expr->targetNextCall = targetNextCall;
             }
-            
+
             return newClosure(closure, sig);
         }
 
@@ -1069,20 +1071,215 @@ namespace tsn {
             return newClosure(closure, sig);
         }
 
-        Value Compiler::generateHostInlineCall(ffi::Function* fn, const utils::Array<Value>& args, const Value* self) {
-            Value result = currentFunction()->getPoison();
+        Value Compiler::generateHostInlineCall(ffi::Function* fn, const utils::Array<Value>& params, const Value* self) {
+            FunctionDef* cf = currentFunction();
+
+            auto& fargs = fn->getSignature()->getArguments();
+
+            u8 argc = 0;
+            for (u8 a = 0;a < fargs.size();a++) {
+                if (!fargs[a].isImplicit()) argc++;
+            }
+
+            if (params.size() != argc) {
+                if (fn->getName().size() > 0) {
+                    functionError(
+                        self ? self->getType() : nullptr,
+                        fn->getSignature()->getReturnType(),
+                        params,
+                        cm_err_function_argument_count_mismatch,
+                        "Function '%s' expects %d argument%s, but %d %s provided",
+                        fn->getName().c_str(),
+                        argc,
+                        argc == 1 ? "" : "s",
+                        params.size(),
+                        params.size() == 1 ? "was" : "were"
+                    );
+                } else {
+                    functionError(
+                        self ? self->getType() : nullptr,
+                        fn->getSignature()->getReturnType(),
+                        params,
+                        cm_err_function_argument_count_mismatch,
+                        "Function expects %d argument%s, but %d %s provided",
+                        argc,
+                        argc == 1 ? "" : "s",
+                        params.size(),
+                        params.size() == 1 ? "was" : "were"
+                    );
+                }
+
+                return cf->getPoison();
+            }
+
+            u8 aidx = 0;
+            for (u8 a = 0;a < fargs.size();a++) {
+                const auto& ainfo = fargs[a];
+                if (ainfo.isImplicit()) continue;
+
+                if (!params[aidx].getType()->isConvertibleTo(ainfo.dataType)) {
+                    if (fn->getName().size() > 0) {
+                        functionError(
+                            self ? self->getType() : nullptr,
+                            fn->getSignature()->getReturnType(),
+                            params,
+                            cm_err_type_not_convertible,
+                            "Function '%s' is not callable with args '%s'",
+                            fn->getName().c_str(),
+                            argListStr(params).c_str()
+                        );
+                    } else {
+                        functionError(
+                            self ? self->getType() : nullptr,
+                            fn->getSignature()->getReturnType(),
+                            params,
+                            cm_err_type_not_convertible,
+                            "Function is not callable with args '%s'",
+                            argListStr(params).c_str()
+                        );
+                    }
+                    info(
+                        cm_info_arg_conversion,
+                        "^ No conversion found from type '%s' to type '%s' for argument %d",
+                        params[aidx].getType()->getName().c_str(),
+                        ainfo.dataType->getName().c_str(),
+                        aidx + 1
+                    );
+
+                    return cf->getPoison();
+                }
+                aidx++;
+            }
             
+            utils::Array<Value> finalParams(fargs.size() + 1);
+            DataType* voidp = m_ctx->getTypes()->getVoidPtr();
+
+            aidx = 0;
+            for (u8 a = 0;a < params.size();a++) {
+                const auto& arg = fargs[a + 1];
+                const Value& p = params[aidx++];
+                if (arg.argType == arg_type::value && !arg.dataType->isEquivalentTo(voidp)) {
+                    if (p.getFlags().is_pointer) finalParams.push((*p).convertedTo(arg.dataType));
+                    else finalParams.push(p.convertedTo(arg.dataType));
+                } else {
+                    if (p.isFunction() && p.isImm()) {
+                        finalParams.push(p);
+                    } else {
+                        finalParams.push(p.convertedTo(arg.dataType));
+                    }
+                }
+            }
+            
+            scope().enter();
+
+            bool returnsPointer = fn->getSignature()->returnsPointer();
+            Value result = cf->val(m_ctx->getTypes()->getVoid());
             Value* ret = nullptr;
             ffi::DataType* retTp = fn->getSignature()->getReturnType();
             if (retTp->getInfo().size != 0) {
-                result.reset(getStorageForExpr(retTp));
+                auto expr = currentExpr();
+                if (!expr || expr->loc == rsl_auto || !expr->targetNextCall) {
+                    // handle result automatically
+                    if (returnsPointer) {
+                        // may have to deal with this later if it's nullable
+                        result.reset(cf->val(retTp));
+                        result.getFlags().is_pointer = 1;
+                    } else {
+                        result.reset(getStorageForExpr(retTp));
+                    }
+                } else if (expr->expectedType && !expr->expectedType->isEquivalentTo(fn->getSignature()->getReturnType())) {
+                    // handle result automatically, then copy it to the expression storage
+                    if (retTp->getInfo().is_primitive || returnsPointer) {
+                        result.reset(cf->val(retTp));
+                        result.getFlags().is_pointer = returnsPointer ? 1 : 0;
+                    } else {
+                        result.reset(cf->stack(retTp));
+                    }
+                } else {
+                    if (returnsPointer) {
+                        // handle result automatically, then deal with it later...
+                        result.reset(cf->val(retTp));
+                        result.getFlags().is_pointer = 1;
+                    } else {
+                        // result is the expression storage
+                        result.reset(getStorageForExpr(retTp));
+                    }
+                }
+
                 ret = &result;
             }
 
-            InlineCodeGenContext gctx = { this, ret, self, args };
+            InlineCodeGenContext gctx = { this, ret, self, finalParams };
             InlineCodeGenFunc fptr;
             fn->getAddress().get(&fptr);
+
+            bool wasTrusted = m_trustEnable;
+            m_trustEnable = true;
             fptr(&gctx);
+            m_trustEnable = wasTrusted;
+
+            if (retTp->getInfo().size != 0) {
+                auto expr = currentExpr();
+                if (!expr || expr->loc == rsl_auto || !expr->targetNextCall) {
+                    // handle result automatically
+                    if (returnsPointer) {
+                        if (!fn->getFlags().return_pointer_non_nullable) {
+                            // Must return Pointer<retTp>
+
+                            Value ptr = cf->stack(getPointerType(retTp));
+
+                            // Construct it manually, setting '_external' property to true
+                            add(ir_store).op(result             ).op(result).op(cf->imm<u64>(sizeof(void*) * 0)); // retTp* _data
+                            add(ir_store).op(cf->getNull()      ).op(result).op(cf->imm<u64>(sizeof(void*) * 1)); // u32* _refs
+                            add(ir_store).op(cf->imm<bool>(true)).op(result).op(cf->imm<u64>(sizeof(void*) * 2)); // bool _external
+                            result.reset(ptr);
+                        } else {
+                            // Pointer is non-nullable, it's as safe as the guarantee from whoever raised that flag
+                            // Just return the pointer!
+                        }
+                    } else {
+                        // Just return whatever getStorageForExpr returned
+                    }
+                } else if (expr->expectedType && !expr->expectedType->isEquivalentTo(retTp)) {
+                    if (returnsPointer && !fn->getFlags().return_pointer_non_nullable) {
+                        // Turn it into a Pointer<retTp> to force explicit conversion mechanisms
+                        // to be made which check for null (or to use them, if they are made)
+                        Value ptr = cf->stack(getPointerType(retTp));
+
+                        // Construct it manually, setting '_external' property to true
+                        add(ir_store).op(result             ).op(result).op(cf->imm<u64>(sizeof(void*) * 0)); // retTp* _data
+                        add(ir_store).op(cf->getNull()      ).op(result).op(cf->imm<u64>(sizeof(void*) * 1)); // u32* _refs
+                        add(ir_store).op(cf->imm<bool>(true)).op(result).op(cf->imm<u64>(sizeof(void*) * 2)); // bool _external
+                        result.reset(copyValueToExprStorage(ptr));
+                    } else {
+                        // copy function should handle loading the result from the pointer
+                        // and converting it to the expected type
+                        result.reset(copyValueToExprStorage(result));
+                    }
+                } else {
+                    if (returnsPointer) {
+                        if (!fn->getFlags().return_pointer_non_nullable) {
+                            // Turn it into a Pointer<retTp> to force explicit conversion mechanisms
+                            // to be made which check for null (or to use them, if they are made)
+                            Value ptr = cf->stack(getPointerType(retTp));
+
+                            // Construct it manually, setting '_external' property to true
+                            add(ir_store).op(result             ).op(result).op(cf->imm<u64>(sizeof(void*) * 0)); // retTp* _data
+                            add(ir_store).op(cf->getNull()      ).op(result).op(cf->imm<u64>(sizeof(void*) * 1)); // u32* _refs
+                            add(ir_store).op(cf->imm<bool>(true)).op(result).op(cf->imm<u64>(sizeof(void*) * 2)); // bool _external
+                            result.reset(copyValueToExprStorage(ptr));
+                        } else {
+                            // copy function should handle loading the result from the pointer
+                            // and converting it to the expected type
+                            result.reset(copyValueToExprStorage(result));
+                        }
+                    } else {
+                        // result is the expression storage already
+                    }
+                }
+            }
+
+            scope().exit(result);
 
             return result;
         }
@@ -1094,21 +1291,27 @@ namespace tsn {
             Value callee = fn;
             Value capturePtr = cf->imm<u64>(0);
 
+            bool retPtrNeedsWrapping = true;
+
             if (callee.isImm()) {
                 FunctionDef* vfd = callee.getImm<FunctionDef*>();
                 if (vfd->getOutput()) {
                     Function* f = vfd->getOutput();
-                    if (f && f->getAccessModifier() == trusted_access && !isTrusted()) {
-                        error(cm_err_not_trusted, "Function '%s' is only accessible to trusted scripts", f->getFullyQualifiedName().c_str());
-                        add(ir_noop).comment(utils::String::Format("-------- end call %s --------", fn.toString(m_ctx).c_str()));
-                        return currentFunction()->getPoison();
-                    }
+                    if (f) {
+                        if (f->getAccessModifier() == trusted_access && !isTrusted()) {
+                            error(cm_err_not_trusted, "Function '%s' is only accessible to trusted scripts", f->getFullyQualifiedName().c_str());
+                            add(ir_noop).comment(utils::String::Format("-------- end call %s --------", fn.toString(m_ctx).c_str()));
+                            return currentFunction()->getPoison();
+                        }
 
-                    if (f->isInline()) {
-                        add(ir_noop).comment(utils::String::Format("-------- inlined %s --------", fn.toString(m_ctx).c_str()));
-                        Value ret = generateHostInlineCall(f, params, self);
-                        add(ir_noop).comment(utils::String::Format("-------- end inlined %s --------", fn.toString(m_ctx).c_str()));
-                        return ret;
+                        if (f->getFlags().is_inline) {
+                            add(ir_noop).comment(utils::String::Format("-------- inlined %s --------", fn.toString(m_ctx).c_str()));
+                            Value ret = generateHostInlineCall(f, params, self);
+                            add(ir_noop).comment(utils::String::Format("-------- end inlined %s --------", fn.toString(m_ctx).c_str()));
+                            return ret;
+                        }
+
+                        retPtrNeedsWrapping = returnsPointer && !f->getFlags().return_pointer_non_nullable;
                     }
                 }
 
@@ -1120,7 +1323,7 @@ namespace tsn {
             }
 
             ffi::DataType* origRetTp = retTp;
-            if (returnsPointer) {
+            if (returnsPointer && retPtrNeedsWrapping) {
                 retTp = getPointerType(retTp);
             }
 
@@ -1205,7 +1408,7 @@ namespace tsn {
             bool resultShouldBeHandledInternally = !exp || exp->loc == rsl_auto || !exp->targetNextCall;
             bool resultHandledInternally = resultShouldBeHandledInternally;
             if (!resultShouldBeHandledInternally && exp && exp->expectedType) {
-                if (retTp->getInfo().size != 0 && !exp->expectedType->isEqualTo(retTp)) {
+                if (retTp->getInfo().size != 0 && !exp->expectedType->isEquivalentTo(retTp)) {
                     // return value needs conversion before going to final location
                     resultHandledInternally = true;
                 }
@@ -1214,34 +1417,79 @@ namespace tsn {
             Value primitiveSelfPtr;
             Value resultStack;
             Value resultPtr;
+            bool resultAlreadyInFinalLocation = false;
             
             if (resultHandledInternally && retTp->getInfo().size != 0) {
-                // unscoped because it will either be freed or added to the scope later
-                resultStack.reset(cf->stack(retTp, true, "Allocate stack space for return value"));
-                resultPtr.reset(cf->val(retTp));
-                resultPtr.getFlags().is_pointer = 1;
-                add(ir_stack_ptr).op(resultPtr).op(cf->imm(resultStack.getStackAllocId())).comment("Get return pointer for function call");
-
                 if (returnsPointer) {
-                    // retTp is a Pointer<T>. Construct it manually, setting '_external' property to true
-                    add(ir_store).op(cf->getNull()      ).op(resultPtr).op(cf->imm<u64>(sizeof(void*) * 0));
-                    add(ir_store).op(cf->getNull()      ).op(resultPtr).op(cf->imm<u64>(sizeof(void*) * 1));
-                    add(ir_store).op(cf->imm<bool>(true)).op(resultPtr).op(cf->imm<u64>(sizeof(void*) * 2));
+                    if (retPtrNeedsWrapping) {
+                        // unscoped because it will either be freed or added to the scope later
+                        resultStack.reset(cf->stack(retTp, true, "Allocate stack space for return value"));
+                        resultPtr.reset(cf->val(retTp));
+                        resultPtr.getFlags().is_pointer = 1;
+                        add(ir_stack_ptr).op(resultPtr).op(cf->imm(resultStack.getStackAllocId())).comment("Get return pointer for function call");
 
-                    // first property of Pointer<T> is _data, meaning resultPtr is _already_ a pointer to that pointer.
-                    // Function will store a pointer in resultType, ie: Pointer<T>._data = ret
+                        // retTp is a Pointer<T>. Construct it manually, setting '_external' property to true
+                        add(ir_store).op(cf->getNull()      ).op(resultPtr).op(cf->imm<u64>(sizeof(void*) * 0));
+                        add(ir_store).op(cf->getNull()      ).op(resultPtr).op(cf->imm<u64>(sizeof(void*) * 1));
+                        add(ir_store).op(cf->imm<bool>(true)).op(resultPtr).op(cf->imm<u64>(sizeof(void*) * 2));
+
+                        // first property of Pointer<T> is _data, meaning resultPtr is _already_ a pointer to that pointer.
+                        // Function will store a pointer in resultPtr, ie: Pointer<T>._data = ret
+                    } else {
+                        // unscoped because it will either be freed or added to the scope later
+                        resultStack.reset(cf->stack(m_ctx->getTypes()->getVoidPtr(), true, "Allocate stack space for return value"));
+                        resultPtr.reset(cf->val(retTp));
+                        resultPtr.getFlags().is_pointer = 1;
+                        add(ir_stack_ptr).op(resultPtr).op(cf->imm(resultStack.getStackAllocId())).comment("Get return pointer for function call");
+                    }
+                } else {
+                    // unscoped because it will either be freed or added to the scope later
+                    resultStack.reset(cf->stack(retTp, true, "Allocate stack space for return value"));
+                    resultPtr.reset(cf->val(retTp));
+                    resultPtr.getFlags().is_pointer = 1;
+                    add(ir_stack_ptr).op(resultPtr).op(cf->imm(resultStack.getStackAllocId())).comment("Get return pointer for function call");
                 }
             } else if (retTp->getInfo().size != 0) {
-                resultPtr.reset(getStorageForExpr(retTp));
-
                 if (returnsPointer) {
-                    // retTp is a Pointer<T>. Construct it manually, setting '_external' property to true
-                    add(ir_store).op(cf->getNull()      ).op(resultPtr).op(cf->imm<u64>(sizeof(void*) * 0));
-                    add(ir_store).op(cf->getNull()      ).op(resultPtr).op(cf->imm<u64>(sizeof(void*) * 1));
-                    add(ir_store).op(cf->imm<bool>(true)).op(resultPtr).op(cf->imm<u64>(sizeof(void*) * 2));
+                    if (retPtrNeedsWrapping) {
+                        resultAlreadyInFinalLocation = true;
+                        resultPtr.reset(getStorageForExpr(retTp));
 
-                    // first property of Pointer<T> is _data, meaning resultPtr is _already_ a pointer to that pointer.
-                    // Function will store a pointer in resultType, ie: Pointer<T>._data = ret
+                        // retTp is a Pointer<T>. Construct it manually, setting '_external' property to true
+                        add(ir_store).op(cf->getNull()      ).op(resultPtr).op(cf->imm<u64>(sizeof(void*) * 0));
+                        add(ir_store).op(cf->getNull()      ).op(resultPtr).op(cf->imm<u64>(sizeof(void*) * 1));
+                        add(ir_store).op(cf->imm<bool>(true)).op(resultPtr).op(cf->imm<u64>(sizeof(void*) * 2));
+
+                        // first property of Pointer<T> is _data, meaning resultPtr is _already_ a pointer to that pointer.
+                        // Function will store a pointer in resultType, ie: Pointer<T>._data = ret
+                    } else {
+                        // unscoped because it will either be freed or added to the scope later
+                        resultStack.reset(cf->stack(m_ctx->getTypes()->getVoidPtr(), true, "Allocate stack space for return value"));
+                        resultPtr.reset(cf->val(retTp));
+                        resultPtr.getFlags().is_pointer = 1;
+                        add(ir_stack_ptr).op(resultPtr).op(cf->imm(resultStack.getStackAllocId())).comment("Get return pointer for function call");
+                    }
+                } else {
+                    if (retTp->getInfo().is_primitive) {
+                        bool storageIsPtr = exp && (
+                            exp->loc == rsl_module_data
+                            || exp->loc == rsl_stack
+                            || (exp->loc == rsl_specified_dest && exp->destination->getFlags().is_pointer)
+                        );
+                        if (storageIsPtr) {
+                            resultPtr.reset(getStorageForExpr(retTp));
+                            resultAlreadyInFinalLocation = true;
+                        } else {
+                            // unscoped because it will either be freed or added to the scope later
+                            resultStack.reset(cf->stack(retTp, true, "Allocate stack space for return value"));
+                            resultPtr.reset(cf->val(retTp));
+                            resultPtr.getFlags().is_pointer = 1;
+                            add(ir_stack_ptr).op(resultPtr).op(cf->imm(resultStack.getStackAllocId())).comment("Get return pointer for function call");
+                        }
+                    } else {
+                        resultAlreadyInFinalLocation = true;
+                        resultPtr.reset(getStorageForExpr(retTp));
+                    }
                 }
             } else {
                 // void return
@@ -1298,13 +1546,13 @@ namespace tsn {
                 }
 
                 const Value& p = params[aidx++];
-                if (arg.argType == arg_type::value && !arg.dataType->isEqualTo(voidp)) {
-                    if (p.getFlags().is_pointer) finalParams.push(*p);
-                    else finalParams.push(p);
+                if (arg.argType == arg_type::value && !arg.dataType->isEquivalentTo(voidp)) {
+                    if (p.getFlags().is_pointer) finalParams.push((*p).convertedTo(arg.dataType));
+                    else finalParams.push(p.convertedTo(arg.dataType));
                 } else {
                     if (p.isFunction() && p.isImm()) {
                         finalParams.push(newClosure(p));
-                    } else if (p.getFlags().is_pointer || !p.getType()->getInfo().is_primitive || p.getType()->isEqualTo(voidp)) {
+                    } else if (p.getFlags().is_pointer || !p.getType()->getInfo().is_primitive || p.getType()->isEquivalentTo(voidp)) {
                         finalParams.push(p);
                     } else {
                         Value s = cf->stack(p.getType(), true, utils::String::Format("Copy value of parameter %d to stack to get pointer", a));
@@ -1339,6 +1587,10 @@ namespace tsn {
                 }
             }
 
+            // This result juggling nonsense is absolutely insane
+            // there has to be a better way to deal with this
+            // this is probably broken in at least one case
+
             Value result;
             if (retTp->getInfo().size == 0) {
                 result.reset(cf->val(m_ctx->getTypes()->getVoid()));
@@ -1347,44 +1599,59 @@ namespace tsn {
                     // Result needs to be moved to expression result storage
                     add(ir_noop).comment("Result needs to be moved to expression result storage");
 
-                    if (returnsPointer) {
-                        // resultPtr = Pointer<origRetTp>
+                    if (!resultAlreadyInFinalLocation) {
+                        if (returnsPointer) {
+                            if (retPtrNeedsWrapping) {
+                                // resultPtr = Pointer<origRetTp>
 
-                        result.reset(copyValueToExprStorage(resultPtr));
+                                result.reset(copyValueToExprStorage(resultPtr));
 
-                        // resultStack should be freed, the value was copy constructed elsewhere
-                        add(ir_stack_free).op(cf->imm(resultStack.getStackAllocId()));
-                    } else if (retTp->getInfo().is_primitive) {
-                        // resultPtr = retTp*
+                                // resultStack should be freed, the value was copy constructed elsewhere
+                                add(ir_stack_free).op(cf->imm(resultStack.getStackAllocId()));
+                            } else {
+                                // resultPtr = retTp**
+                                cf->add(ir_load).op(resultPtr).op(resultPtr);
+                                // resultPtr = retTp*
 
-                        // value must be loaded from resultPtr
-                        Value tmp = Value(resultPtr);
-                        tmp.setType(voidp);
-                        result.reset(cf->val(retTp));
-                        add(ir_load).op(result).op(tmp);
+                                result.reset(copyValueToExprStorage(resultPtr));
 
-                        result.reset(copyValueToExprStorage(result));
+                                // resultStack should be freed, the value was copy constructed elsewhere
+                                add(ir_stack_free).op(cf->imm(resultStack.getStackAllocId()));
+                            }
+                        } else if (retTp->getInfo().is_primitive) {
+                            // resultPtr = retTp*
+                            result.reset(copyValueToExprStorage(result));
 
-                        // resultStack should be freed, the value now exists elsewhere
-                        add(ir_stack_free).op(cf->imm(resultStack.getStackAllocId()));
-                    } else {
-                        // resultPtr = retTp* (non-primitive)
+                            // resultStack should be freed, the value now exists elsewhere
+                            add(ir_stack_free).op(cf->imm(resultStack.getStackAllocId()));
+                        } else {
+                            // resultPtr = retTp* (non-primitive)
 
-                        result.reset(copyValueToExprStorage(resultPtr));
-                        
-                        // resultStack should be freed, the value was copy constructed elsewhere
-                        add(ir_stack_free).op(cf->imm(resultStack.getStackAllocId()));
+                            result.reset(copyValueToExprStorage(resultPtr));
+                            
+                            // resultStack should be freed, the value was copy constructed elsewhere
+                            add(ir_stack_free).op(cf->imm(resultStack.getStackAllocId()));
+                        }
                     }
                 } else if (resultShouldBeHandledInternally) {
                     // Default behavior
 
                     if (returnsPointer) {
-                        // resultPtr = Pointer<origRetTp>
-                        result.reset(resultPtr);
-                        result.setStackRef(resultStack);
+                        if (retPtrNeedsWrapping) {
+                            // resultPtr = Pointer<origRetTp>
+                            result.reset(resultPtr);
+                            result.setStackRef(resultStack);
 
-                        // resultStack will be destroyed at the end of the scope
-                        scope().get().addToStack(resultStack);
+                            // resultStack will be destroyed at the end of the scope
+                            scope().get().addToStack(resultStack);
+                        } else {
+                            // resultPtr = retTp**
+                            result.reset(cf->val(retTp));
+                            cf->add(ir_load).op(result).op(resultPtr);
+
+                            // resultStack should be freed, the value now exists elsewhere
+                            add(ir_stack_free).op(cf->imm(resultStack.getStackAllocId()));
+                        }
                     } else if (retTp->getInfo().is_primitive) {
                         // resultPtr = retTp*
                         result.reset(cf->val(retTp));
@@ -1408,7 +1675,7 @@ namespace tsn {
                 } else {
                     // Result pointer came nicely from getStorageForExpr
 
-                    if (returnsPointer) {
+                    if (returnsPointer && retPtrNeedsWrapping) {
                         // resultPtr = Pointer<origRetTp>
                         result.reset(resultPtr);
                     } else if (retTp->getInfo().is_primitive) {
@@ -1421,7 +1688,6 @@ namespace tsn {
                         add(ir_load).op(result).op(tmp).comment("Load result from return pointer");;
                     } else {
                         // resultPtr = retTp* (non-primitive)
-
                         result.reset(resultPtr);
                     }
                 }
@@ -1511,6 +1777,7 @@ namespace tsn {
             
             scope().getBase().add(name, outTp);
             m_output->addDependency(outTp->getSource());
+            m_output->addHostTemplateSpecialization(outTp);
             return outTp;
         }
         DataType* Compiler::getPointerType(DataType* destTp) {
@@ -1541,6 +1808,7 @@ namespace tsn {
             
             scope().getBase().add(name, outTp);
             m_output->addDependency(outTp->getSource());
+            m_output->addHostTemplateSpecialization(outTp);
             return outTp;
         }
         DataType* Compiler::resolveTemplateTypeSubstitution(ParseNode* templateArgs, DataType* _type) {
@@ -1556,41 +1824,134 @@ namespace tsn {
             }
 
             TemplateType* type = (TemplateType*)_type;
-
             TemplateContext* tctx = type->getTemplateData();
-            ParseNode* tpAst = tctx->getAST();
-            enterNode(tpAst);
 
-            // Construct type name
             String name = _type->getName();
             String fullName = _type->getFullyQualifiedName();
             utils::Array<DataType*> targs;
-            name += '<';
-            fullName += '<';
 
-            ParseNode* n = tpAst->template_parameters;
-            u32 pc = 0;
-            while (n) {
-                enterNode(n);
-                DataType* pt = resolveTypeSpecifier(templateArgs);
-                targs.push(pt);
-                name += pt->getName();
-                fullName += pt->getFullyQualifiedName();
-                if (n != tpAst->template_parameters) {
-                    name += ", ";
-                    fullName += ", ";
+            if (!tctx) {
+                // Construct type name
+                name += '<';
+                fullName += '<';
+
+                u32 pc = 0;
+                while (templateArgs) {
+                    DataType* pt = resolveTypeSpecifier(templateArgs);
+                    if (targs.size() > 0) {
+                        name += ", ";
+                        fullName += ", ";
+                    }
+
+                    name += pt->getName();
+                    fullName += pt->getFullyQualifiedName();
+                    targs.push(pt);
+
+                    templateArgs = templateArgs->next;
                 }
 
-                pc++;
-                n = n->next;
-                templateArgs = templateArgs->next;
+                name += '>';
+                fullName += '>';
 
-                if (n && !templateArgs) {
+                if (targs.size() != type->getTemplateArgumentCount()) {
                     u32 ec = pc;
-                    ParseNode* en = n;
-                    while (en) {
-                        ec++;
-                        en = en->next;
+                    ParseNode* pn = templateArgs;
+                    while (pn) {
+                        pc++;
+                        pn = pn->next;
+                    }
+
+                    typeError(
+                        type,
+                        targs.size() < type->getTemplateArgumentCount() ? cm_err_too_few_template_args : cm_err_too_many_template_args,
+                        "Type '%s' expects %d template argument%s, but %d %s provided",
+                        type->getName().c_str(),
+                        type->getTemplateArgumentCount(),
+                        type->getTemplateArgumentCount() == 1 ? "" : "s",
+                        targs.size(),
+                        targs.size() == 1 ? "was" : "were"
+                    );
+
+                    return currentFunction()->getPoison().getType();
+                }
+
+                symbol* existing = scope().get(name);
+                if (existing) {
+                    DataType* etp = getTypeFromSymbol(existing);
+
+                    if (!etp) {
+                        typeError(
+                            type,
+                            cm_err_symbol_already_exists,
+                            "Symbol '%s' already exists and it is not a data type",
+                            name.c_str()
+                        );
+                        return currentFunction()->getPoison().getType();
+                    }
+
+                    return etp;
+                }
+            } else {
+                ParseNode* tpAst = tctx->getAST();
+                enterNode(tpAst);
+
+                // Construct type name
+                name += '<';
+                fullName += '<';
+
+                ParseNode* n = tpAst->template_parameters;
+                u32 pc = 0;
+                while (n) {
+                    enterNode(n);
+                    DataType* pt = resolveTypeSpecifier(templateArgs);
+                    targs.push(pt);
+                    name += pt->getName();
+                    fullName += pt->getFullyQualifiedName();
+                    if (n != tpAst->template_parameters) {
+                        name += ", ";
+                        fullName += ", ";
+                    }
+
+                    pc++;
+                    n = n->next;
+                    templateArgs = templateArgs->next;
+
+                    if (n && !templateArgs) {
+                        u32 ec = pc;
+                        ParseNode* en = n;
+                        while (en) {
+                            ec++;
+                            en = en->next;
+                        }
+
+                        typeError(
+                            type,
+                            cm_err_too_few_template_args,
+                            "Type '%s' expects %d template argument%s, but %d %s provided",
+                            type->getName().c_str(),
+                            ec,
+                            ec == 1 ? "" : "s",
+                            pc,
+                            pc == 1 ? "was" : "were"
+                        );
+
+                        exitNode();
+                        exitNode();
+                        return currentFunction()->getPoison().getType();
+                    }
+                    
+                    exitNode();
+                }
+
+                name += '>';
+                fullName += '>';
+
+                if (!n && templateArgs) {
+                    u32 ec = pc;
+                    ParseNode* pn = templateArgs;
+                    while (pn) {
+                        pc++;
+                        pn = pn->next;
                     }
 
                     typeError(
@@ -1605,72 +1966,45 @@ namespace tsn {
                     );
 
                     exitNode();
-                    exitNode();
-                    return currentFunction()->getPoison().getType();
-                }
-                exitNode();
-            }
-
-            name += '>';
-            fullName += '>';
-
-            if (!n && templateArgs) {
-                u32 ec = pc;
-                ParseNode* pn = templateArgs;
-                while (pn) {
-                    pc++;
-                    pn = pn->next;
-                }
-
-                typeError(
-                    type,
-                    cm_err_too_few_template_args,
-                    "Type '%s' expects %d template argument%s, but %d %s provided",
-                    type->getName().c_str(),
-                    ec,
-                    ec == 1 ? "" : "s",
-                    pc,
-                    pc == 1 ? "was" : "were"
-                );
-
-                exitNode();
-                return currentFunction()->getPoison().getType();
-            }
-
-            symbol* existing = scope().get(name);
-            if (existing) {
-                DataType* etp = getTypeFromSymbol(existing);
-
-                if (!etp) {
-                    typeError(
-                        type,
-                        cm_err_symbol_already_exists,
-                        "Symbol '%s' already exists and it is not a data type",
-                        name.c_str()
-                    );
-                    exitNode();
                     return currentFunction()->getPoison().getType();
                 }
 
+                symbol* existing = scope().get(name);
+                if (existing) {
+                    DataType* etp = getTypeFromSymbol(existing);
+
+                    if (!etp) {
+                        typeError(
+                            type,
+                            cm_err_symbol_already_exists,
+                            "Symbol '%s' already exists and it is not a data type",
+                            name.c_str()
+                        );
+                        exitNode();
+                        return currentFunction()->getPoison().getType();
+                    }
+
+                    exitNode();
+                    return etp;
+                }
+            
                 exitNode();
-                return etp;
             }
 
             DataType* tp = m_ctx->getPipeline()->specializeTemplate(type, targs);
             if (!tp) {
-                exitNode();
                 return currentFunction()->getPoison().getType();
             }
 
             m_output->addDependency(tp->getSource());
 
-            if (tpAst->tp == nt_type) {
+            if (!tctx) m_output->addHostTemplateSpecialization(tp);
+            else if (tctx->getAST()->tp == nt_type) {
                 tp = new AliasType(name, fullName, tp);
                 tp->setAccessModifier(private_access);
                 m_output->add(tp);
             }
 
-            exitNode();
             return tp;
         }
         DataType* Compiler::resolveObjectTypeSpecifier(ParseNode* n) {
@@ -1844,7 +2178,7 @@ namespace tsn {
             }
 
             for (u32 i = 0;i < funcs.size();i++) {
-                Module* m = funcs[i].fn->getSourceModule();
+                Module* m = funcs[i].fn->getSource();
                 if (m) m_output->addDependency(m);
                 scope().add(
                     funcs[i].alias,
@@ -1925,7 +2259,8 @@ namespace tsn {
                 nullptr,
                 nullptr,
                 thisOffset,
-                m_output->getModule()
+                m_output->getModule(),
+                forTp
             );
 
             m_output->newFunc(m, nullptr, true);
@@ -2055,7 +2390,8 @@ namespace tsn {
                         generateFullQualifierPrefix(),
                         n->flags.is_private ? private_access : public_access,
                         thisOffset,
-                        tctx
+                        tctx,
+                        nullptr // will be set later
                     );
                     m_output->newFunc(m, n);
                     exitNode();
@@ -2142,7 +2478,8 @@ namespace tsn {
                 nullptr,
                 nullptr,
                 thisOffset,
-                m_output->getModule()
+                m_output->getModule(),
+                nullptr // will be set later
             );
 
             m_output->newFunc(m, n, n->data_type != nullptr);
@@ -2392,6 +2729,7 @@ namespace tsn {
                 if (dp.getter) {
                     methodNodes.push(dp.getter);
                     getter = compileMethodDecl(dp.getter, thisOffset, nullptr, false, tp->getDestructor() != nullptr);
+                    getter->m_owner = tp;
                     tp->addMethod(getter);
                     f.can_read = 1;
                 }
@@ -2399,6 +2737,7 @@ namespace tsn {
                 if (dp.setter) {
                     methodNodes.push(dp.setter);
                     setter = compileMethodDecl(dp.setter, thisOffset, nullptr, false, tp->getDestructor() != nullptr);
+                    setter->m_owner = tp;
                     tp->addMethod(setter);
                     f.can_write = 1;
                 }
@@ -2454,14 +2793,14 @@ namespace tsn {
             for (u32 i = 0;i < methodNodes.size();i++) {
                 meth = methodNodes[i];
                 Method* m = (Method*)methods[i];
-                if (!m->isTemplate()) {
+                if (!m->getFlags().is_template) {
                     compileMethodDef(methodNodes[i], tp, m);
                 }
             }
 
             if (dtor) {
                 Method* m = (Method*)tp->getDestructor();
-                if (!m->isTemplate()) {
+                if (!m->getFlags().is_template) {
                     compileMethodDef(dtor, tp, m);
                 }
             }
@@ -2485,7 +2824,8 @@ namespace tsn {
                         name,
                         generateFullQualifierPrefix(),
                         n->flags.is_private ? private_access : public_access,
-                        tctx
+                        tctx,
+                        nullptr
                     );
                     
                     f->m_src = n->tok.src;
@@ -3062,6 +3402,7 @@ namespace tsn {
             FunctionDef* cf = currentFunction();
             ParseNode* elem;
             if (n->body->tp == nt_expression_sequence) elem = n->body->body;
+            else if (n->body->tp == nt_empty) elem = nullptr;
             else elem = n->body;
 
             ParseNode* countEle = elem;
@@ -3088,8 +3429,8 @@ namespace tsn {
                 if (exp) exp->targetNextConstructor = false;
 
                 enterExpr();
-                ptr.reset(out.getProp("_data", false, false, true, false).convertedTo(tp));
-                out.getProp("_length", false, false, true, false) = cf->imm(count);
+                ptr.reset(out.getProp("_data").convertedTo(tp));
+                out.getProp("_length") = cf->imm(count);
                 exitExpr();
             }
 
@@ -3804,7 +4145,7 @@ namespace tsn {
                     if (p->tp == nt_expression_sequence) p = p->body;
                     enterExpr();
                     while (p && p->tp != nt_empty) {
-                        args.push(compileExpression(p));
+                        args.push(compileExpressionInner(p));
                         p = p->next;
                     }
                     exitExpr();
@@ -3824,7 +4165,7 @@ namespace tsn {
 
                     enterExpr();
                     while (p) {
-                        args.push(compileExpression(p));
+                        args.push(compileExpressionInner(p));
                         p = p->next;
                     }
 
@@ -3845,7 +4186,15 @@ namespace tsn {
                     enterExpr();
 
                     while (p) {
-                        h.args.push(compileExpression(p));
+                        Value arg = compileExpressionInner(p);
+                        if (arg.getType()->isEqualTo(m_ctx->getTypes()->getPoison())) {
+                            // error already logged
+                            exitExpr();
+
+                            // arg equals poison
+                            return arg;
+                        }
+                        h.args.push(arg);
                         p = p->next;
                     }
 
@@ -3908,7 +4257,7 @@ namespace tsn {
             enterNode(n);
 
             scope().enter();
-            Value cond = compileExpression(n->cond);
+            Value cond = compileExpressionInner(n->cond);
             if (cond.isImm()) {
                 // don't branch on values known at compile time
                 if (cond.getImm<u64>()) compileAny(n->body);

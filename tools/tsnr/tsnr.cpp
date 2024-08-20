@@ -104,6 +104,7 @@ i32 main (i32 argc, const char** argv) {
             case bt_vm: be = new vm::Backend(&ctx, 16384);
         }
         ctx.init(be);
+        ctx.generateTypeDefs("api.d.ts");
 
         f32 compilationTime, executionTime;
 
@@ -119,7 +120,7 @@ i32 main (i32 argc, const char** argv) {
         executionTime = tmr;
         tmr.reset();
 
-        status = handleResult(&ctx, mod, conf);
+        handleResult(&ctx, mod, conf);
 
         if (conf.logDuration) {
             printf("Compilation time: %s\n", formatDuration(compilationTime).c_str());
@@ -186,7 +187,7 @@ bool getBoolArg(i32 argc, const char** argv, const char* code) {
 }
 
 i32 parse_args(i32 argc, const char** argv, tsnc_config* conf, Config* ctxConf) {
-    conf->script_path = "./main.tsn";
+    conf->script_path = "./main.ts";
     conf->config_path = "./tsnc.json";
     conf->disableOptimizations = ctxConf->disableOptimizations;
     conf->logDuration = false;
@@ -328,9 +329,11 @@ i32 processConfig(const json& configIn, Config& configOut, const tsnc_config& ts
 }
 
 i32 handleResult(Context* ctx, Module* mod, const tsnc_config& conf) {
-    bool hadErrors = ctx->getPipeline()->getLogger()->hasErrors();
+    compiler::Logger* log = ctx->getPipeline()->getLogger();
+    if (!log) return mod ? COMPILATION_SUCCESS : COMPILATION_ERROR;
 
-    const auto& logs = ctx->getPipeline()->getLogger()->getMessages();
+    bool hadErrors = log->hasErrors();
+    const auto& logs = log->getMessages();
     constexpr const char* logTps[] = { "debug", "info", "warning", "error" };
 
     for (u32 i = 0;i < logs.size();i++) {

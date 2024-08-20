@@ -10,9 +10,9 @@ namespace tsn {
             if (!target) throw "Call to invalid closure";
 
             void* self = m_ref->getSelf();
-            if (target->isThisCall() && !self) {
+            if (target->getFlags().is_thiscall && !self) {
                 throw "Call to object method closure without specifying object pointer";
-            } else if (self && !target->isThisCall()) {
+            } else if (self && !target->getFlags().is_thiscall) {
                 throw "Object pointer specified to call to non-object method closure";
             }
 

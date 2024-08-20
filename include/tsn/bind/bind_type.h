@@ -14,7 +14,9 @@ namespace tsn {
     namespace ffi {
         struct type_property;
         struct type_base;
+        struct function_argument;
         class Function;
+        class Method;
         class DataType;
         class FunctionRegistry;
         class DataTypeRegistry;
@@ -43,16 +45,31 @@ namespace tsn {
 
         class DataTypeExtender {
             public:
+                DataTypeExtender(Module* mod, FunctionRegistry* freg, DataTypeRegistry* treg, DataType* type);
                 DataTypeExtender(Module* mod, FunctionRegistry* freg, DataTypeRegistry* treg, type_meta&& meta);
                 ~DataTypeExtender();
+
+                void addMethod(Function* method);
+                void setDestructor(Function* dtor);
+                void setDestructor(compiler::InlineCodeGenFunc genFn, access_modifier access = public_access);
+                void addProperty(type_property&& prop);
+                type_property& addProperty(const utils::String& name, DataType* type, u64 offset, value_flag_mask flags = vf_rw, access_modifier access = public_access);
+                type_property& addProperty(const utils::String& name, DataType* type, Function* getter, Function* setter, access_modifier access = public_access);
+                type_property& addProperty(const utils::String& name, DataType* type, compiler::InlineCodeGenFunc getterGenFn, compiler::InlineCodeGenFunc setterGenFn, access_modifier access = public_access);
+                bool propNameExists(const utils::String& name) const;
+
+
+                Method* addMethod(const utils::String& name, DataType* retTp, bool returnsPointer, const utils::Array<function_argument>& args, compiler::InlineCodeGenFunc genFn, access_modifier access = public_access);
+                Function* addStaticMethod(const utils::String& name, DataType* retTp, bool returnsPointer, const utils::Array<function_argument>& args, compiler::InlineCodeGenFunc genFn, access_modifier access = public_access);
+                
+                template <typename Ret, typename... Args>
+                Function* addMethod(const utils::String& name, compiler::InlineCodeGenFunc genFn, access_modifier access = public_access);
+                template <typename Ret, typename... Args>
+                Function* addStaticMethod(const utils::String& name, compiler::InlineCodeGenFunc genFn, access_modifier access = public_access);
 
                 type_meta& info();
 
             protected:
-                void addMethod(Function* method);
-                void addProperty(type_property&& prop);
-                bool propNameExists(const utils::String& name) const;
-                
                 FunctionRegistry* funcRegistry;
                 DataTypeRegistry* typeRegistry;
                 DataType* m_type;

@@ -2,6 +2,7 @@
 #include <tsn/bind/bind.h>
 #include <tsn/common/Context.h>
 #include <tsn/ffi/DataType.h>
+#include <tsn/ffi/Function.h>
 #include <tsn/ffi/DataTypeRegistry.h>
 #include <tsn/ffi/FunctionRegistry.h>
 #include <tsn/common/Module.h>
@@ -24,6 +25,7 @@ namespace tsn {
 
             m_type = new DataType(name, fullyQualifiedName, meta);
             m_type->m_id = (type_id)std::hash<utils::String>()(m_type->getFullyQualifiedName());
+            m_type->m_sourceModule = mod;
             typeRegistry->addHostType(meta.host_hash, m_type);
 
             if (mod) mod->addHostType(m_type->m_info.host_hash, m_type);
@@ -55,6 +57,7 @@ namespace tsn {
                 ));
             }
 
+            dtor->m_owner = m_type;
             m_type->m_destructor = dtor;
         }
 
@@ -65,7 +68,7 @@ namespace tsn {
                     m_type->m_name.c_str()
                 ));
             }
-
+            method->m_owner = m_type;
             m_type->m_methods.push(method);
         }
 
@@ -116,6 +119,17 @@ namespace tsn {
 
 
         
+        DataTypeExtender::DataTypeExtender(Module* mod, FunctionRegistry* freg, DataTypeRegistry* treg, DataType* type) {
+            funcRegistry = freg;
+            typeRegistry = treg;
+
+            m_type = type;
+            m_mod = mod;
+            if (!m_type) {
+                throw BindException("Attempted to extend type which has not been bound");
+            }
+        }
+
         DataTypeExtender::DataTypeExtender(Module* mod, FunctionRegistry* freg, DataTypeRegistry* treg, type_meta&& meta) {
             funcRegistry = freg;
             typeRegistry = treg;
@@ -136,13 +150,188 @@ namespace tsn {
         }
 
         void DataTypeExtender::addMethod(Function* method) {
+            method->m_owner = m_type;
             m_type->m_methods.push(method);
         }
 
+        Method* DataTypeExtender::addMethod(
+            const utils::String& name,
+            DataType* retTp,
+            bool returnsPointer,
+            const utils::Array<function_argument>& args,
+            compiler::InlineCodeGenFunc genFn,
+            access_modifier access
+        ) {
+            Method* m = new Method(
+                name,
+                utils::String(m_mod ? m_mod->getName() + "::" : ""),
+                typeRegistry->getSignatureType(m_type, retTp, returnsPointer, args),
+                access,
+                nullptr,
+                nullptr,
+                0,
+                m_mod,
+                m_type
+            );
+
+            m->makeInline(genFn);
+            addMethod(m);
+            
+            funcRegistry->registerFunction(m);
+
+            return m;
+        }
+
+        Function* DataTypeExtender::addStaticMethod(
+            const utils::String& name,
+            DataType* retTp,
+            bool returnsPointer,
+            const utils::Array<function_argument>& args,
+            compiler::InlineCodeGenFunc genFn,
+            access_modifier access
+        ) {
+            Function* fn = new Function(
+                name,
+                utils::String(m_mod ? m_mod->getName() + "::" : "") + m_type->getName() + "::",
+                typeRegistry->getSignatureType(nullptr, retTp, returnsPointer, args),
+                access,
+                nullptr,
+                nullptr,
+                m_mod,
+                m_type
+            );
+
+            fn->makeInline(genFn);
+            
+            funcRegistry->registerFunction(fn);
+            addMethod(fn);
+
+            return fn;
+        }
+
+        void DataTypeExtender::setDestructor(compiler::InlineCodeGenFunc genFn, access_modifier access) {
+            Function* fn = new Function(
+                "destructor",
+                utils::String(m_mod ? m_mod->getName() + "::" : "") + m_type->getName() + "::",
+                typeRegistry->getSignatureType(m_type, nullptr),
+                access,
+                nullptr,
+                nullptr,
+                m_mod,
+                m_type
+            );
+
+            fn->makeInline(genFn);
+            
+            funcRegistry->registerFunction(fn);
+        }
+
+        void DataTypeExtender::setDestructor(Function* dtor) {
+            if (m_type->m_destructor) throw BindException("Attempted to set destructor for type which already has one");
+            m_type->m_destructor = dtor;
+        }
+
         void DataTypeExtender::addProperty(type_property&& prop) {
+            if (propNameExists(prop.name)) {
+                throw BindException(utils::String::Format("Property '%s' already exists on type '%s'", prop.name.c_str(), m_type->getName().c_str()));
+            }
+
             m_type->m_properties.push(prop);
         }
+
+        type_property& DataTypeExtender::addProperty(const utils::String& name, DataType* type, u64 offset, value_flag_mask flags, access_modifier access) {
+            addProperty({
+                name,
+                access,
+                offset,
+                type,
+                convertPropertyMask(flags),
+                nullptr,
+                nullptr
+            });
+
+            return m_type->m_properties.last();
+        }
+
+        type_property& DataTypeExtender::addProperty(const utils::String& name, DataType* type, Function* getter, Function* setter, access_modifier access) {
+            value_flag_mask flags = 0;
+            if (getter) flags |= vf_read;
+            if (setter) flags |= vf_write;
+
+            addProperty({
+                name,
+                access,
+                0,
+                type,
+                convertPropertyMask(flags),
+                getter,
+                setter
+            });
+
+            return m_type->m_properties.last();
+        }
         
+        type_property& DataTypeExtender::addProperty(const utils::String& name, DataType* type, compiler::InlineCodeGenFunc getterGenFn, compiler::InlineCodeGenFunc setterGenFn, access_modifier access) {
+            value_flag_mask flags = 0;
+            if (getterGenFn) flags |= vf_read;
+            if (setterGenFn) flags |= vf_write;
+
+            Method* getter = nullptr;
+            Method* setter = nullptr;
+
+            if (getterGenFn) {
+                getter = new Method(
+                    "$get_" + name,
+                    utils::String(m_mod ? m_mod->getName() + "::" : ""),
+                    typeRegistry->getSignatureType(m_type, type),
+                    private_access,
+                    nullptr,
+                    nullptr,
+                    0,
+                    m_mod,
+                    m_type
+                );
+
+                getter->makeInline(getterGenFn);
+                
+                funcRegistry->registerFunction(getter);
+            }
+
+            if (setterGenFn) {
+                utils::Array<function_argument> args = {
+                    { type->getInfo().is_primitive ? arg_type::value : arg_type::pointer, type }
+                };
+
+                setter = new Method(
+                    "$set_" + name,
+                    utils::String(m_mod ? m_mod->getName() + "::" : ""),
+                    typeRegistry->getSignatureType(m_type, type, false, args),
+                    private_access,
+                    nullptr,
+                    nullptr,
+                    0,
+                    m_mod,
+                    m_type
+                );
+
+                setter->makeInline(getterGenFn);
+                
+                funcRegistry->registerFunction(setter);
+            }
+
+            addProperty({
+                name,
+                access,
+                0,
+                type,
+                convertPropertyMask(flags),
+                getter,
+                setter
+            });
+
+            return m_type->m_properties.last();
+        }
+
         bool DataTypeExtender::propNameExists(const utils::String& name) const {
             return m_type->m_properties.some([name](const type_property& p) {
                 return p.name == name;

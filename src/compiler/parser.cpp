@@ -1747,7 +1747,7 @@ namespace tsn {
 
                     if (fragEnd > fragBegin) {
                         frags.push({
-                            utils::String::View(t.text.c_str() + fragBegin, (fragEnd - fragBegin) - 1),
+                            utils::String::View(t.text.c_str() + fragBegin, fragEnd - fragBegin),
                             false,
                             fragBeginLoc
                         });
@@ -1777,6 +1777,8 @@ namespace tsn {
                             }
                         }
                     }
+
+                    if (fragEnd == t.text.size()) break;
                 }
 
                 fragEnd++;
@@ -1784,7 +1786,7 @@ namespace tsn {
 
             if (fragEnd > fragBegin) {
                 frags.push({
-                    utils::String::View(t.text.c_str() + fragBegin, (fragEnd - fragBegin) - 1),
+                    utils::String::View(t.text.c_str() + fragBegin, fragEnd - fragBegin),
                     false,
                     fragBeginLoc
                 });
@@ -3960,22 +3962,14 @@ namespace tsn {
             return f;
         }
         ParseNode* importModule(Parser* ps) {
-            if (!ps->typeIs(tt_open_brace)) return nullptr;
-            ps->begin();
+            if (!ps->isSymbol("*")) return nullptr;
             ps->consume();
-
-            if (!ps->isSymbol("*")) {
-                ps->revert();
-                return nullptr;
-            }
-            ps->consume();
-            ps->commit();
 
             if (!ps->isKeyword("as")) {
-                ps->error(pm_expected_import_alias, "Expected 'as' after 'import { *'");
+                ps->error(pm_expected_import_alias, "Expected 'as' after 'import *'");
                 
-                const token& r = skipToNextType(ps, { tt_close_brace });
-                if (r.tp == tt_close_brace) ps->consume();
+                const token& r = skipToNextType(ps, { tt_semicolon });
+                if (r.tp == tt_semicolon) ps->consume();
                 return errorNode(ps);
             }
             ps->consume();
@@ -3984,19 +3978,10 @@ namespace tsn {
             if (!n) {
                 ps->error(pm_expected_identifier, "Expected identifier for module alias");
 
-                const token& r = skipToNextType(ps, { tt_close_brace });
-                if (r.tp == tt_close_brace) ps->consume();
+                const token& r = skipToNextType(ps, { tt_semicolon });
+                if (r.tp == tt_semicolon) ps->consume();
                 return errorNode(ps);
             }
-
-            if (!ps->typeIs(tt_close_brace)) {
-                ps->error(pm_expected_closing_parenth, "Expected '}' to close import list");
-                const token& r = skipToNextType(ps, { tt_close_brace });
-                if (r.tp == tt_close_brace) ps->consume();
-                ps->freeNode(n);
-                return errorNode(ps);
-            }
-            ps->consume();
 
             n->tp = nt_import_module;
             return n;

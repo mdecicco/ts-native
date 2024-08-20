@@ -123,7 +123,7 @@ namespace tsn {
             ));
         }
 
-        if (f->isThisCall()) return ffi::call_method(m_ctx, f, m_data, std::forward<Args>(args)...);
+        if (f->getFlags().is_thiscall) return ffi::call_method(m_ctx, f, m_data, std::forward<Args>(args)...);
         else return ffi::call(m_ctx, f, std::forward<Args>(args)...);
     }
 

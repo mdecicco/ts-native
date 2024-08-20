@@ -199,11 +199,18 @@ namespace tsn {
             ) return false;
 
             const DataType* effectiveSelf = getEffectiveType();
+            
             // check method signatures
             for (u32 i = 0;i < effectiveSelf->m_methods.size();i++) {
                 Function* m1 = effectiveSelf->m_methods[i];
                 Function* m2 = to->m_methods[i];
-                if (m1->isMethod() != m2->isMethod()) return false;
+                const function_flags& f1 = m1->getFlags();
+                const function_flags& f2 = m2->getFlags();
+                if (f1.is_inline != f2.is_inline) return false;
+                if (f1.is_template != f2.is_template) return false;
+                if (f1.is_method != f2.is_method) return false;
+                if (f1.is_thiscall != f2.is_thiscall) return false;
+                if (f1.return_pointer_non_nullable != f2.return_pointer_non_nullable) return false;
                 if (m1->getAccessModifier() != m2->getAccessModifier()) return false;
                 if (!m1->getSignature()->isEqualTo(m2->getSignature())) return false;
             }
@@ -368,12 +375,13 @@ namespace tsn {
         FunctionType::FunctionType(DataType* thisType, DataType* returnType, const utils::Array<function_argument>& args, bool returnsPointer) {
             m_itype = dti_function;
             if (!thisType) {
-                m_name = returnType->m_name + " ::(";
-                m_fullyQualifiedName = returnType->m_fullyQualifiedName + " ::(";
+                m_name = returnType->m_name + (returnsPointer ? "* ::(" : " ::(");
+                m_fullyQualifiedName = returnType->m_fullyQualifiedName + (returnsPointer ? "* ::(" : " ::(");
             } else {
-                m_name = returnType->m_name + " " + thisType->getName() + "::(";
-                m_fullyQualifiedName = returnType->m_fullyQualifiedName + " " + thisType->getName() + "::(";
+                m_name = returnType->m_name + (returnsPointer ? "* " : " ") + thisType->getName() + "::(";
+                m_fullyQualifiedName = returnType->m_fullyQualifiedName + (returnsPointer ? "* " : " ") + thisType->getName() + "::(";
             }
+
             args.each([this](const function_argument& arg, u32 idx) {
                 if (idx > 0) {
                     m_name += ",";
@@ -429,7 +437,7 @@ namespace tsn {
         }
 
         utils::String FunctionType::generateFullyQualifiedFunctionName(const utils::String& funcName, const utils::String& extraQualifiers) {
-            utils::String name = m_returnType->m_fullyQualifiedName + " " + extraQualifiers;
+            utils::String name = m_returnType->m_fullyQualifiedName + (m_returnsPointer ? "* " : " ") + extraQualifiers;
             
             ffi::DataType* selfTp = getThisType();
             if (selfTp) name += selfTp->getName() + "::";
@@ -454,7 +462,7 @@ namespace tsn {
         }
 
         utils::String FunctionType::generateFunctionDisplayName(const utils::String& funcName, const utils::String& extraQualifiers) {
-            utils::String name = m_returnType->m_name + " " + extraQualifiers;
+            utils::String name = m_returnType->m_name + (m_returnsPointer ? "* " : " ") + extraQualifiers;
             
             ffi::DataType* selfTp = getThisType();
             if (selfTp) name += selfTp->getName() + "::";
@@ -546,7 +554,7 @@ namespace tsn {
                 0, // is_integral
                 0, // is_unsigned
                    // is_function
-                (n->tp == compiler::nt_function) ? (unsigned)1 : (unsigned)0,
+                (n && n->tp == compiler::nt_function) ? (unsigned)1 : (unsigned)0,
                 1, // is_template
                 0, // is_alias
                 0, // is_host
@@ -562,12 +570,29 @@ namespace tsn {
         }
 
         TemplateType::TemplateType(
+            Module* mod,
+            const utils::String& name,
+            const utils::String& fullyQualifiedName,
+            u32 templateArgCount,
+            SpecializeFunc specializeFn
+        ) : DataType(name, fullyQualifiedName, templateTypeMeta(nullptr)) {
+            m_data = nullptr;
+            m_itype = dti_template;
+            m_sourceModule = mod;
+            m_templateArgCount = templateArgCount;
+            m_specializeFn = specializeFn;
+            m_info.is_host = 1;
+        }
+
+        TemplateType::TemplateType(
             const utils::String& name,
             const utils::String& fullyQualifiedName,
             compiler::TemplateContext* templateData
         ) : DataType(name, fullyQualifiedName, templateTypeMeta(templateData->getAST())) {
             m_data = templateData;
             m_itype = dti_template;
+            m_templateArgCount = 0;
+            m_specializeFn = nullptr;
         }
 
         TemplateType::~TemplateType() {
@@ -576,6 +601,14 @@ namespace tsn {
 
         compiler::TemplateContext* TemplateType::getTemplateData() const {
             return m_data;
+        }
+
+        TemplateType::SpecializeFunc TemplateType::getSpecializeFunc() const {
+            return m_specializeFn;
+        }
+
+        u32 TemplateType::getTemplateArgumentCount() const {
+            return m_templateArgCount;
         }
             
         bool TemplateType::serialize(utils::Buffer* out, Context* ctx) const {

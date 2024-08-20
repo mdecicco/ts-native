@@ -254,7 +254,8 @@ namespace tsn {
                 return m_func->getPoison();
             }
 
-            if (tp->isEqualTo(m_type)) {
+            if (tp->isEquivalentTo(m_type)) {
+                if (m_flags.is_pointer && m_type->getInfo().is_primitive) return **this;
                 return *this;
             }
 
@@ -280,7 +281,13 @@ namespace tsn {
                     const auto& bi = tp->getInfo();
 
                     if (ai.is_floating_point) {
-                        if (bi.is_floating_point) return *this;
+                        if (bi.is_floating_point) {
+                            if (bi.size == ai.size) return *this;
+                            Value ret = m_func->val(tp);
+                            m_func->add(ir_cvt).op(ret).op(*this).op(m_func->imm(tp->getId()));
+                            return ret;
+                        }
+                        
                         if (bi.is_unsigned) {
                             Value ret;
 
@@ -412,7 +419,7 @@ namespace tsn {
                     );
 
                     if (methods.size() == 1) {
-                        if (!m_flags.is_type && !methods[0]->isThisCall()) {
+                        if (!m_flags.is_type && !methods[0]->getFlags().is_thiscall) {
                             m_func->getCompiler()->valueError(
                                 *this,
                                 cm_err_method_is_static,
@@ -438,7 +445,7 @@ namespace tsn {
                                 cm_info_could_be,
                                 "^ Could be '%s'",
                                 methods[i]->getDisplayName().c_str()
-                            ).src = methods[i]->getSource();
+                            ).src = methods[i]->getSourceLocation();
                         }
 
                         return m_func->getPoison();
@@ -473,7 +480,7 @@ namespace tsn {
                                 cm_info_could_be,
                                 "^ Could be '%s'",
                                 methods[i]->getDisplayName().c_str()
-                            ).src = methods[i]->getSource();
+                            ).src = methods[i]->getSourceLocation();
                         }
 
                         return m_func->getPoison();
@@ -536,7 +543,7 @@ namespace tsn {
                                     cm_info_could_be,
                                     "^ Could be '%s'",
                                     funcs[i]->getDisplayName().c_str()
-                                ).src = funcs[i]->getSource();
+                                ).src = funcs[i]->getSourceLocation();
                             }
                         }
 
@@ -552,7 +559,7 @@ namespace tsn {
                     );
 
                     if (methods.size() == 1) {
-                        if (m_flags.is_type && methods[0]->isThisCall()) {
+                        if (m_flags.is_type && methods[0]->getFlags().is_thiscall) {
                             m_func->getCompiler()->valueError(
                                 *this,
                                 cm_err_method_not_static,
@@ -561,7 +568,7 @@ namespace tsn {
                                 m_type->getName().c_str()
                             );
                             return m_func->getPoison();
-                        } else if (!m_flags.is_type && !methods[0]->isThisCall()) {
+                        } else if (!m_flags.is_type && !methods[0]->getFlags().is_thiscall) {
                             m_func->getCompiler()->valueError(
                                 *this,
                                 cm_err_method_is_static,
@@ -590,7 +597,7 @@ namespace tsn {
                                     cm_info_could_be,
                                     "^ Could be '%s'",
                                     methods[i]->getDisplayName().c_str()
-                                ).src = methods[i]->getSource();
+                                ).src = methods[i]->getSourceLocation();
                             }
                         }
 
@@ -828,7 +835,7 @@ namespace tsn {
             return ptr;
         }
 
-        Value Value::callMethod(const utils::String& name, ffi::DataType* retTp, const utils::Array<Value>& args) {
+        Value Value::callMethod(const utils::String& name, ffi::DataType* retTp, const utils::Array<Value>& args) const {
             Array<DataType*> argTps = args.map([](const Value& v) { return v.getType(); });
             Array<Function*> matches = m_type->findMethods(name, retTp, const_cast<const ffi::DataType**>(argTps.data()), args.size(), fm_skip_implicit_args);
             if (matches.size() == 1) {
@@ -872,7 +879,7 @@ namespace tsn {
                         cm_info_could_be,
                         "^ Could be: '%s'",
                         matches[i]->getDisplayName().c_str()
-                    ).src = matches[i]->getSource();
+                    ).src = matches[i]->getSourceLocation();
                 }
             } else {
                 m_func->getCompiler()->functionError(
@@ -1131,7 +1138,7 @@ namespace tsn {
                             cm_info_could_be,
                             "^ Could be: '%s'",
                             matches[i]->getDisplayName().c_str()
-                        ).src = matches[i]->getSource();
+                        ).src = matches[i]->getSourceLocation();
                     }
                 } else {
                     fn->getCompiler()->functionError(
@@ -1226,7 +1233,7 @@ namespace tsn {
                             cm_info_could_be,
                             "^ Could be: '%s'",
                             matches[i]->getDisplayName().c_str()
-                        ).src = matches[i]->getSource();
+                        ).src = matches[i]->getSourceLocation();
                     }
                 } else {
                     fn->getCompiler()->functionError(
@@ -1420,7 +1427,7 @@ namespace tsn {
                         cm_info_could_be,
                         "^ Could be: '%s'",
                         matches[i]->getDisplayName().c_str()
-                    ).src = matches[i]->getSource();
+                    ).src = matches[i]->getSourceLocation();
                 }
             } else {
                 m_func->getCompiler()->functionError(
@@ -1510,7 +1517,7 @@ namespace tsn {
                         cm_info_could_be,
                         "^ Could be: '%s'",
                         matches[i]->getDisplayName().c_str()
-                    ).src = matches[i]->getSource();
+                    ).src = matches[i]->getSourceLocation();
                 }
             } else {
                 m_func->getCompiler()->functionError(
