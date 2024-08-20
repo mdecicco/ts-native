@@ -4186,7 +4186,15 @@ namespace tsn {
                     enterExpr();
 
                     while (p) {
-                        h.args.push(compileExpressionInner(p));
+                        Value arg = compileExpressionInner(p);
+                        if (arg.getType()->isEqualTo(m_ctx->getTypes()->getPoison())) {
+                            // error already logged
+                            exitExpr();
+
+                            // arg equals poison
+                            return arg;
+                        }
+                        h.args.push(arg);
                         p = p->next;
                     }
 

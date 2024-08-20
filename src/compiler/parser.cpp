@@ -1747,7 +1747,7 @@ namespace tsn {
 
                     if (fragEnd > fragBegin) {
                         frags.push({
-                            utils::String::View(t.text.c_str() + fragBegin, (fragEnd - fragBegin) - 1),
+                            utils::String::View(t.text.c_str() + fragBegin, fragEnd - fragBegin),
                             false,
                             fragBeginLoc
                         });
@@ -1777,6 +1777,8 @@ namespace tsn {
                             }
                         }
                     }
+
+                    if (fragEnd == t.text.size()) break;
                 }
 
                 fragEnd++;
@@ -1784,7 +1786,7 @@ namespace tsn {
 
             if (fragEnd > fragBegin) {
                 frags.push({
-                    utils::String::View(t.text.c_str() + fragBegin, (fragEnd - fragBegin) - 1),
+                    utils::String::View(t.text.c_str() + fragBegin, fragEnd - fragBegin),
                     false,
                     fragBeginLoc
                 });
