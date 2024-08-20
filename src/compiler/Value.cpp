@@ -281,7 +281,13 @@ namespace tsn {
                     const auto& bi = tp->getInfo();
 
                     if (ai.is_floating_point) {
-                        if (bi.is_floating_point) return *this;
+                        if (bi.is_floating_point) {
+                            if (bi.size == ai.size) return *this;
+                            Value ret = m_func->val(tp);
+                            m_func->add(ir_cvt).op(ret).op(*this).op(m_func->imm(tp->getId()));
+                            return ret;
+                        }
+                        
                         if (bi.is_unsigned) {
                             Value ret;
 
@@ -439,7 +445,7 @@ namespace tsn {
                                 cm_info_could_be,
                                 "^ Could be '%s'",
                                 methods[i]->getDisplayName().c_str()
-                            ).src = methods[i]->getSource();
+                            ).src = methods[i]->getSourceLocation();
                         }
 
                         return m_func->getPoison();
@@ -474,7 +480,7 @@ namespace tsn {
                                 cm_info_could_be,
                                 "^ Could be '%s'",
                                 methods[i]->getDisplayName().c_str()
-                            ).src = methods[i]->getSource();
+                            ).src = methods[i]->getSourceLocation();
                         }
 
                         return m_func->getPoison();
@@ -537,7 +543,7 @@ namespace tsn {
                                     cm_info_could_be,
                                     "^ Could be '%s'",
                                     funcs[i]->getDisplayName().c_str()
-                                ).src = funcs[i]->getSource();
+                                ).src = funcs[i]->getSourceLocation();
                             }
                         }
 
@@ -591,7 +597,7 @@ namespace tsn {
                                     cm_info_could_be,
                                     "^ Could be '%s'",
                                     methods[i]->getDisplayName().c_str()
-                                ).src = methods[i]->getSource();
+                                ).src = methods[i]->getSourceLocation();
                             }
                         }
 
@@ -873,7 +879,7 @@ namespace tsn {
                         cm_info_could_be,
                         "^ Could be: '%s'",
                         matches[i]->getDisplayName().c_str()
-                    ).src = matches[i]->getSource();
+                    ).src = matches[i]->getSourceLocation();
                 }
             } else {
                 m_func->getCompiler()->functionError(
@@ -1132,7 +1138,7 @@ namespace tsn {
                             cm_info_could_be,
                             "^ Could be: '%s'",
                             matches[i]->getDisplayName().c_str()
-                        ).src = matches[i]->getSource();
+                        ).src = matches[i]->getSourceLocation();
                     }
                 } else {
                     fn->getCompiler()->functionError(
@@ -1227,7 +1233,7 @@ namespace tsn {
                             cm_info_could_be,
                             "^ Could be: '%s'",
                             matches[i]->getDisplayName().c_str()
-                        ).src = matches[i]->getSource();
+                        ).src = matches[i]->getSourceLocation();
                     }
                 } else {
                     fn->getCompiler()->functionError(
@@ -1421,7 +1427,7 @@ namespace tsn {
                         cm_info_could_be,
                         "^ Could be: '%s'",
                         matches[i]->getDisplayName().c_str()
-                    ).src = matches[i]->getSource();
+                    ).src = matches[i]->getSourceLocation();
                 }
             } else {
                 m_func->getCompiler()->functionError(
@@ -1511,7 +1517,7 @@ namespace tsn {
                         cm_info_could_be,
                         "^ Could be: '%s'",
                         matches[i]->getDisplayName().c_str()
-                    ).src = matches[i]->getSource();
+                    ).src = matches[i]->getSourceLocation();
                 }
             } else {
                 m_func->getCompiler()->functionError(

@@ -1319,7 +1319,6 @@ namespace tsn {
             cf->add(ir_vset).op(selfAxis).op(rhsAxis);
             cf->add(ir_store).op(rhsAngle).op(*self).op(cf->imm<u32>(offsetof(Q, angle)));
         }, public_access);
-
         t.template method<Q, const Q&>("operator*", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
@@ -1347,7 +1346,6 @@ namespace tsn {
             cf->add(ir_store).op(zr).op(*result).op(cf->imm<u32>(offsetof(Q, axis) + offsetof(V, z)));
             cf->add(ir_store).op(wr).op(*result).op(cf->imm<u32>(offsetof(Q, angle)));
         }, public_access);
-
         t.template method<void, const Q&>("operator*=", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
@@ -1374,7 +1372,6 @@ namespace tsn {
             cf->add(ir_store).op(zr).op(*self).op(cf->imm<u32>(offsetof(Q, axis) + offsetof(V, z)));
             cf->add(ir_store).op(wr).op(*self).op(cf->imm<u32>(offsetof(Q, angle)));
         }, public_access);
-
         t.template method<T, const Q&>("dot", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
@@ -1385,7 +1382,6 @@ namespace tsn {
             cf->add(ir_vdot).op(*result).op(*self).op(args[0]);
             *result += self->getProp("angle") * args[0].getProp("angle");
         }, public_access);
-
         t.template method<V, const V&>("operator*", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
@@ -1437,7 +1433,6 @@ namespace tsn {
             cf->add(ir_vmul).op(axis).op(sa);
             cf->add(ir_store).op(ca).op(*result).op(cf->imm<u32>(offsetof(Q, angle)));
         }, public_access);
-
         t.template staticMethod<Q, T, T, T, T>("fromAxisAngle", +[](InlineCodeGenContext* ctx) {
             auto c = ctx->compiler;
             auto cf = c->currentFunction();
@@ -1658,6 +1653,12 @@ namespace tsn {
         t.method("toString", +[](M* self) {
             return String::Format("[%f, %f], [%f, %f]", self->x.x, self->x.y, self->y.x, self->y.y);
         }, public_access);
+
+        static M identity = M(
+            T(1.0), T(0.0),
+            T(0.0), T(1.0)
+        );
+        t.staticProp("identity", &identity, public_access);
 
         t.finalize();
     }
@@ -2100,6 +2101,13 @@ namespace tsn {
                 self->z.x, self->z.y, self->z.z
             );
         }, public_access);
+
+        static M identity = M(
+            T(1.0), T(0.0), T(0.0),
+            T(0.0), T(1.0), T(0.0),
+            T(0.0), T(0.0), T(1.0)
+        );
+        t.staticProp("identity", &identity, public_access);
 
         t.finalize();
 
@@ -2882,6 +2890,14 @@ namespace tsn {
             );
         }, public_access);
 
+        static M identity = M(
+            T(1.0), T(0.0), T(0.0), T(0.0),
+            T(0.0), T(1.0), T(0.0), T(0.0),
+            T(0.0), T(0.0), T(1.0), T(0.0),
+            T(0.0), T(0.0), T(0.0), T(1.0)
+        );
+        t.staticProp("identity", &identity, public_access);
+
         t.finalize();
     }
 
@@ -2897,7 +2913,7 @@ namespace tsn {
             auto result = ctx->resultStorage;
             auto args = ctx->arguments;
 
-            cf->add(ir_fmul).op(*result).op(args[0]).op(cf->imm<f32>(0.0174533f));
+            cf->add(ir_fmul).op(*result).op(args[0]).op(cf->imm<f32>(0.01745329251f));
         });
 
         bind<f64, f64>(m, "radians", +[](InlineCodeGenContext* ctx) {
@@ -2906,7 +2922,7 @@ namespace tsn {
             auto result = ctx->resultStorage;
             auto args = ctx->arguments;
 
-            cf->add(ir_fmul).op(*result).op(args[0]).op(cf->imm<f64>(0.0174533));
+            cf->add(ir_dmul).op(*result).op(args[0]).op(cf->imm<f64>(0.01745329251));
         });
 
         bind<f32, f32>(m, "degrees", +[](InlineCodeGenContext* ctx) {
@@ -2915,7 +2931,7 @@ namespace tsn {
             auto result = ctx->resultStorage;
             auto args = ctx->arguments;
 
-            cf->add(ir_fmul).op(*result).op(args[0]).op(cf->imm<f32>(57.2958f));
+            cf->add(ir_fmul).op(*result).op(args[0]).op(cf->imm<f32>(57.2957795131f));
         });
 
         bind<f64, f64>(m, "degrees", +[](InlineCodeGenContext* ctx) {
@@ -2924,7 +2940,7 @@ namespace tsn {
             auto result = ctx->resultStorage;
             auto args = ctx->arguments;
 
-            cf->add(ir_fmul).op(*result).op(args[0]).op(cf->imm<f64>(57.2958));
+            cf->add(ir_dmul).op(*result).op(args[0]).op(cf->imm<f64>(57.2957795131));
         });
 
         bind<f32, f32>(m, "sin", sinf);
