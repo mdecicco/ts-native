@@ -15,7 +15,6 @@ file(GLOB_RECURSE tsnc_src
 
 SOURCE_GROUP("src" FILES ${tsnc_src})
 
-
 include_directories(${tsnc_include_dirs})
 add_executable(tsnc ${tsnc_src})
 

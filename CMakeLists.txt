@@ -55,6 +55,9 @@ set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 include_directories(${tsn_include_dirs})
 
 add_library(tsn ${all_sources})
+
+add_compile_definitions(FFI_STATIC_BUILD)
+
 target_link_libraries(tsn
     utils
     ffi_static
