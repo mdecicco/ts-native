@@ -538,7 +538,14 @@ namespace tsn {
                     std::string reg_val = "";
 
                     if (is_fpr(r)) {
-                        reg_val = utils::String::Format("<%f>", *(f32*)&vm->state.registers[(u64)r]);
+                        // sloppy check to see if it's probably a f64 or probably a f32
+                        u64 val = vm->state.registers[(u64)r];
+
+                        if (val > u64(0xFFFFFFFF)) {
+                            reg_val = utils::String::Format("<%lf>", *(f64*)&val);
+                        } else {
+                            reg_val = utils::String::Format("<%f>", *(f32*)&val);
+                        }
                     } else {
                         i64 val = *(i64*)&vm->state.registers[(u64)r];
                         if (abs(val) > 1000000) reg_val = utils::String::Format("<0x%llX>", (u64)val);
