@@ -1,7 +1,8 @@
 # ⚠️ Note to anyone who finds this ⚠️
 In the interest of cleanliness, testability, maintainability this codebase is being rewritten as multiple smaller and more manageable ones which
-can be found here:
-https://github.com/orgs/tsn-lang/repositories
+can be found here: https://github.com/orgs/tsn-lang/repositories. This effort has the added bonus of affording me the space to give more
+consideration to areas which I found to be pain points or thought could be improved. I'm putting more focus on testing but I'm only one man with
+ADHD, and unit tests don't capture my interest... I think it'll be good enough but don't expect 100% coverage.
 
 # TS Native
 This is my attempt at creating a scripting language that I actually _want_ to use when working on video games and other hobby software projects.
@@ -21,22 +22,16 @@ If you do, keep in mind that the syntax has changed somewhat significantly. Now 
 of a few things that I feel TypeScript needs, and a few things that are necessities for working with raw memory in trusted scripts.
 
 ### Roadmap
-- ☑️ Reimplement the VM backend
-- ☑️ Fix any bugs that arise in the implementation/testing phase of the VM
-- ☑️ Clean up directory structure
-- ☑️ Integrate memory management utilities better (currently require manual initialization)
-- ❌ Implement project management tools for working in this repo (possibly using TSN)
-- 🕑 Design some kind of structure for unit tests... I don't want tests and test data intermingled too much
-- 🕑 Update existing unit tests, including for the 'utils' dependency
-- Write/update documentation for all functions, classes, structures, enums, etc (Also including the 'utils' dependency)
-  - (Implementing unit tests as I go)
-- Write external documentation for TSN syntax and builtin language features
-- Write external documentation for runtime behaviors and configuration
-- Come up with a flexible development cycle and commit to it
-- And finally... carefully consider the next most essential feature to implement
-  - Implement that feature
-  - Rinse and repeat
-
-Once I have what I feel is a decent MVP, it will be time to shift my focus onto writing a proper VS Code plugin with *all* the fixings (including a
-debugger). Only then will I be one of the _cool kids_. Don't even _look_ at the VSC plugins I have now, they are experimental toys I wrote to figure
-out how feasible it is for me to write actual ones.
+- 🕑 Break up this repository into multiple smaller ones so that it's more manageable and testable
+  - ☑️ Utilities
+  - ☑️ API binding tools
+  - ☑️ IR code generation (now includes code validation)
+  - ☑️ Tokenizer (now more flexible, possibly slower but some optimization paths are clear)
+  - 🕑 Parser
+  - Compiler
+  - Backends
+    - VM
+    - JIT
+  - Runtime
+- Documentation
+- VS Code extension
