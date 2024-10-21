@@ -1,3 +1,8 @@
+# ⚠️ Note to anyone who finds this ⚠️
+In the interest of cleanliness, testability, maintainability this codebase is being rewritten as multiple smaller and more manageable ones which
+can be found here:
+https://github.com/orgs/tsn-lang/repositories
+
 # TS Native
 This is my attempt at creating a scripting language that I actually _want_ to use when working on video games and other hobby software projects.
 No existing scripting languages that I could find really do it for me. Since reinventing wheels is one of my favorite pastimes I decided that
