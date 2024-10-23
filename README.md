@@ -27,8 +27,8 @@ of a few things that I feel TypeScript needs, and a few things that are necessit
   - ☑️ API binding tools
   - ☑️ IR code generation (now includes code validation)
   - ☑️ Tokenizer (now more flexible, possibly slower but some optimization paths are clear)
-  - 🕑 Parser
-  - Compiler
+  - ☑️ Parser
+  - 🕑 Compiler
   - Backends
     - VM
     - JIT
